@@ -6,7 +6,7 @@ const PHONE = '480-599-0118';
 // 1. Deploy the Google Apps Script (see SETUP.md) and paste the URL here
 const APPS_SCRIPT_URL = 'https://script.google.com/u/0/home/projects/1PSaSoQyvK4ftj1D-LpeF5E7Rk_kBXb87Oo8cJqu6BCUWZJ_cVMfZJ69S/edit';
 // 2. Sign up at emailjs.com, create a service + template, paste IDs here
-const EMAILJS_SERVICE_ID = 'service_iqxe9z8';
+const EMAILJS_SERVICE_ID = 'service_oiv0apk';
 const EMAILJS_TEMPLATE_ID = 'template_gy3tfmn';
 const EMAILJS_PUBLIC_KEY = 'HRHZO34OJFxrK5DE0';
 // ───────────────────────────────────────────────────────────────────────────
@@ -70,7 +70,7 @@ async function sendEmail(booking: Booking) {
   const params = {
     to_name: `${booking.fname} ${booking.lname}`,
     to_email: booking.email,
-    owner_email: 'gidgarageaz@gmail.com',
+    owner_email: 'gidgarageaz@hotmail.com',
     service_name: svc?.name,
     appointment_date: dateStr,
     appointment_time: booking.time,
@@ -131,9 +131,9 @@ const INIT_STATE: State = {
 };
 const INIT_FORM: FormData = { fname: '', lname: '', phone: '', email: '', vehicle: '', notes: '' };
 
-export default function BookingWidget() {
-  const [open, setOpen] = useState(false);
-  const [s, setS] = useState<State>(INIT_STATE);
+export default function BookingWidget({ autoOpen, preselectedService, onClose }: { autoOpen?: boolean; preselectedService?: string; onClose?: () => void } = {}) {
+  const [open, setOpen] = useState(!!autoOpen);
+  const [s, setS] = useState<State>({ ...INIT_STATE, service: preselectedService || INIT_STATE.service });
   const [form, setForm] = useState<FormData>(INIT_FORM);
   const [submitted, setSubmitted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -219,9 +219,11 @@ export default function BookingWidget() {
 
   return (
     <>
-      <button onClick={() => setOpen(true)} className="btn-primary text-xs px-8 py-4">
-        Book Now
-      </button>
+      {!autoOpen && (
+        <button onClick={() => setOpen(true)} className="btn-primary text-xs px-8 py-4">
+          Book Now
+        </button>
+      )}
 
       {open && (
         <div

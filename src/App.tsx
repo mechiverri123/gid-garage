@@ -3,17 +3,17 @@ import { Phone, Mail, Menu, X } from 'lucide-react';
 import BookingWidget, { AdminSchedule } from './BookingWidget';
 
 const PHONE = '480-599-0118';
-const EMAIL = 'gidgarageaz@gmail.com';
+const EMAIL = 'gidgarageaz@hotmail.com';
 
 const services = [
-  { title: 'Oil Change', desc: "We only do full synthetic — because your engine deserves better than the bare minimum. Starting at $79.99* · Price may vary by vehicle." },
-  { title: 'Brakes', desc: 'Pad replacement, rotor resurfacing, and complete brake system diagnostics. Pricing varies per vehicle — get a free estimate when you book!' },
-  { title: 'Diagnostics', desc: 'Computer diagnostics to identify and resolve check engine light issues.' },
-  { title: 'Suspension', desc: 'Shocks, struts, control arms, tie rods, and CV axles. Pricing varies per vehicle — get a free estimate when you book!' },
-  { title: 'Full Service', desc: 'Comprehensive multi-point inspection and maintenance.' },
+  { id: 'oil',        title: 'Oil Change',   desc: "We only do full synthetic — because your engine deserves better than the bare minimum. Starting at $79.99* · Price may vary by vehicle." },
+  { id: 'brakes',     title: 'Brakes',       desc: 'Pad replacement, rotor resurfacing, and complete brake system diagnostics. Pricing varies per vehicle — get a free estimate when you book!' },
+  { id: 'diag',       title: 'Diagnostics',  desc: 'Computer diagnostics to identify and resolve check engine light issues.' },
+  { id: 'suspension', title: 'Suspension',   desc: 'Shocks, struts, control arms, tie rods, and CV axles. Pricing varies per vehicle — get a free estimate when you book!' },
+  { id: 'full',       title: 'Full Service', desc: 'Comprehensive multi-point inspection and maintenance.' },
 ];
 
-function Nav() {
+function Nav({ onBookService }: { onBookService: (id: string) => void }) {
   const [scrolled, setScrolled] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
 
@@ -30,25 +30,25 @@ function Nav() {
   ];
 
   return (
-    <header className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${scrolled ? 'bg-white shadow-lg' : 'bg-transparent'}`}>
+    <header className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${scrolled ? 'bg-[#0f0f0f] shadow-lg shadow-black/50' : 'bg-transparent'}`}>
       <div className="max-w-7xl mx-auto px-5 md:px-8 flex items-center justify-between h-16 md:h-20">
         <a href="#hero" className="flex-shrink-0">
           <img src="/website_logo.png" alt="GID Garage" className="h-12 md:h-14 w-auto" />
         </a>
         <nav className="hidden md:flex items-center gap-8">
           {links.map((l) => (
-            <a key={l.label} href={l.href} className={`text-sm font-semibold uppercase tracking-wide transition-colors duration-200 ${scrolled ? 'text-dark hover:text-red-600' : 'text-white hover:text-red-300'}`}>{l.label}</a>
+            <a key={l.label} href={l.href} className="text-sm font-semibold uppercase tracking-wide transition-colors duration-200 text-white hover:text-red-400">{l.label}</a>
           ))}
           <BookingWidget />
         </nav>
-        <button className={`md:hidden p-1 transition-colors ${scrolled ? 'text-dark' : 'text-white'}`} onClick={() => setMenuOpen(v => !v)} aria-label="Toggle menu">
+        <button className="md:hidden p-1 text-white transition-colors" onClick={() => setMenuOpen(v => !v)} aria-label="Toggle menu">
           {menuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
         </button>
       </div>
       {menuOpen && (
-        <div className="md:hidden bg-white border-b border-gray-200 px-5 py-5 flex flex-col gap-4">
+        <div className="md:hidden bg-[#0f0f0f] border-b border-gray-800 px-5 py-5 flex flex-col gap-4">
           {links.map((l) => (
-            <a key={l.label} href={l.href} className="text-dark text-base font-semibold uppercase tracking-wide transition-colors hover:text-red-600" onClick={() => setMenuOpen(false)}>{l.label}</a>
+            <a key={l.label} href={l.href} className="text-white text-base font-semibold uppercase tracking-wide transition-colors hover:text-red-400" onClick={() => setMenuOpen(false)}>{l.label}</a>
           ))}
           <div className="mt-2"><BookingWidget /></div>
         </div>
@@ -57,7 +57,7 @@ function Nav() {
   );
 }
 
-function Hero() {
+function Hero({ onBookService }: { onBookService: (id: string) => void }) {
   return (
     <section id="hero" className="relative min-h-screen flex items-center justify-center bg-dark overflow-hidden pt-20">
       <div className="absolute inset-0">
@@ -81,7 +81,7 @@ function Hero() {
   );
 }
 
-function Services() {
+function Services({ onBookService }: { onBookService: (id: string) => void }) {
   return (
     <section id="services" className="py-20 md:py-28 bg-dark">
       <div className="max-w-7xl mx-auto px-5 md:px-8">
@@ -91,9 +91,15 @@ function Services() {
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
           {services.map((s) => (
-            <div key={s.title} className="p-6 bg-white/5 border border-white/10 border-l-4 border-l-red-600 hover:bg-white/10 hover:border-red-600/40 transition-all duration-300">
+            <div key={s.title} className="p-6 bg-white/5 border border-white/10 border-l-4 border-l-red-600 hover:bg-white/10 hover:border-red-600/40 transition-all duration-300 flex flex-col">
               <h3 className="text-white font-bold text-lg mb-2 tracking-tight">{s.title}</h3>
-              <p className="text-white/60 text-sm leading-relaxed">{s.desc}</p>
+              <p className="text-white/60 text-sm leading-relaxed flex-1">{s.desc}</p>
+              <button
+                onClick={() => onBookService(s.id)}
+                className="mt-5 w-full bg-red-600 hover:bg-red-500 text-white text-xs font-bold uppercase tracking-widest py-2.5 px-4 transition-colors duration-200"
+              >
+                Book {s.title}
+              </button>
             </div>
           ))}
         </div>
@@ -110,11 +116,11 @@ function WhyUs() {
   return (
     <section id="why" className="py-20 md:py-28 bg-dark">
       <div className="max-w-7xl mx-auto px-5 md:px-8">
-        <div className="text-center mb-12">
+        <div className="text-center mb-8">
           <p className="text-red-400 text-xs font-bold uppercase tracking-[0.25em] mb-2">The GID Difference</p>
           <h2 className="text-4xl md:text-5xl font-extrabold text-white tracking-tight">Why Choose GID Garage?</h2>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-8">
           {[
             { title: 'Honest Pricing', desc: "Clear estimates, no hidden fees, no pressure to upsell. You always know what you're paying for." },
             { title: 'Expert Technicians', desc: 'Our mechanics have years of hands-on experience with all makes and models.' },
@@ -126,6 +132,112 @@ function WhyUs() {
               <p className="text-white/70 leading-relaxed text-sm">{t.desc}</p>
             </div>
           ))}
+        </div>
+        <div className="flex justify-center">
+          <a href={`tel:${PHONE}`} className="btn-primary inline-flex gap-2 items-center text-xs"><Phone className="w-4 h-4" />{PHONE}</a>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// Real coordinates for AZ cities
+const SERVICE_AREAS = [
+  { name: 'Gilbert', lat: 33.3528, lng: -111.7890, isHome: true },
+  { name: 'Mesa', lat: 33.4152, lng: -111.8315, isHome: false },
+  { name: 'Tempe', lat: 33.4255, lng: -111.9400, isHome: false },
+  { name: 'Phoenix', lat: 33.4484, lng: -112.0740, isHome: false },
+  { name: 'Queen Creek', lat: 33.2487, lng: -111.6340, isHome: false },
+  { name: 'Santan Valley', lat: 33.2115, lng: -111.5270, isHome: false },
+];
+
+// Map bounds roughly covering all cities
+// Lat range: 33.2 to 33.5, Lng range: -112.2 to -111.4
+const MAP_LAT_MIN = 33.18;
+const MAP_LAT_MAX = 33.52;
+const MAP_LNG_MIN = -112.22;
+const MAP_LNG_MAX = -111.40;
+
+function ServiceMap() {
+  const W = 700;
+  const H = 420;
+  const PAD = 40;
+
+  function project(lat: number, lng: number) {
+    const x = PAD + ((lng - MAP_LNG_MIN) / (MAP_LNG_MAX - MAP_LNG_MIN)) * (W - PAD * 2);
+    const y = PAD + ((MAP_LAT_MAX - lat) / (MAP_LAT_MAX - MAP_LAT_MIN)) * (H - PAD * 2);
+    return { x, y };
+  }
+
+  return (
+    <section className="py-20 md:py-24 bg-dark border-t border-white/5">
+      <div className="max-w-5xl mx-auto px-5 md:px-8">
+        <div className="text-center mb-10">
+          <p className="text-red-500 text-xs font-bold uppercase tracking-[0.25em] mb-2">Where We Work</p>
+          <h2 className="text-3xl md:text-4xl font-extrabold text-white tracking-tight">Serving the East Valley & Beyond</h2>
+          <p className="text-white/50 text-sm mt-3">Based in Gilbert, AZ — we come to you across the greater Phoenix area.</p>
+        </div>
+        <div className="relative w-full overflow-hidden border border-white/10 bg-[#1a1a1a]" style={{ aspectRatio: `${W}/${H}` }}>
+          <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-full" xmlns="http://www.w3.org/2000/svg">
+            {/* Background */}
+            <rect width={W} height={H} fill="#111111" />
+            {/* Grid lines */}
+            {[0,1,2,3,4].map(i => (
+              <line key={`h${i}`} x1={PAD} y1={PAD + i * (H - PAD*2)/4} x2={W-PAD} y2={PAD + i * (H - PAD*2)/4} stroke="#ffffff08" strokeWidth="1" />
+            ))}
+            {[0,1,2,3,4,5].map(i => (
+              <line key={`v${i}`} x1={PAD + i * (W - PAD*2)/5} y1={PAD} x2={PAD + i * (W - PAD*2)/5} y2={H-PAD} stroke="#ffffff08" strokeWidth="1" />
+            ))}
+
+            {/* Connection lines from Gilbert to other cities */}
+            {SERVICE_AREAS.filter(a => !a.isHome).map(area => {
+              const home = project(SERVICE_AREAS[0].lat, SERVICE_AREAS[0].lng);
+              const pt = project(area.lat, area.lng);
+              return (
+                <line key={area.name + '-line'}
+                  x1={home.x} y1={home.y} x2={pt.x} y2={pt.y}
+                  stroke="#dc262640" strokeWidth="1.5" strokeDasharray="4 4"
+                />
+              );
+            })}
+
+            {/* Service area dots */}
+            {SERVICE_AREAS.map(area => {
+              const { x, y } = project(area.lat, area.lng);
+              if (area.isHome) {
+                return (
+                  <g key={area.name}>
+                    {/* Pulse rings */}
+                    <circle cx={x} cy={y} r="28" fill="none" stroke="#dc2626" strokeWidth="1" opacity="0.15">
+                      <animate attributeName="r" values="18;34;18" dur="2.5s" repeatCount="indefinite" />
+                      <animate attributeName="opacity" values="0.3;0;0.3" dur="2.5s" repeatCount="indefinite" />
+                    </circle>
+                    <circle cx={x} cy={y} r="18" fill="none" stroke="#dc2626" strokeWidth="1.5" opacity="0.3">
+                      <animate attributeName="r" values="10;22;10" dur="2.5s" begin="0.5s" repeatCount="indefinite" />
+                      <animate attributeName="opacity" values="0.5;0;0.5" dur="2.5s" begin="0.5s" repeatCount="indefinite" />
+                    </circle>
+                    <circle cx={x} cy={y} r="8" fill="#dc2626" />
+                    <circle cx={x} cy={y} r="4" fill="#ff6b6b" />
+                    <text x={x} y={y - 16} textAnchor="middle" fill="#ffffff" fontSize="12" fontWeight="bold" fontFamily="sans-serif">{area.name}</text>
+                    <text x={x} y={y - 4} textAnchor="middle" fill="#dc2626" fontSize="9" fontFamily="sans-serif" dy="20">HQ</text>
+                  </g>
+                );
+              }
+              return (
+                <g key={area.name}>
+                  <circle cx={x} cy={y} r="6" fill="#374151" stroke="#dc262660" strokeWidth="1.5" />
+                  <circle cx={x} cy={y} r="3" fill="#9ca3af" />
+                  <text x={x} y={y - 12} textAnchor="middle" fill="#9ca3af" fontSize="11" fontFamily="sans-serif">{area.name}</text>
+                </g>
+              );
+            })}
+
+            {/* Legend */}
+            <circle cx={PAD + 8} cy={H - 18} r="5" fill="#dc2626" />
+            <text x={PAD + 18} y={H - 14} fill="#dc2626" fontSize="10" fontFamily="sans-serif">Gilbert HQ</text>
+            <circle cx={PAD + 90} cy={H - 18} r="4" fill="#374151" stroke="#dc262660" strokeWidth="1.5" />
+            <text x={PAD + 100} y={H - 14} fill="#9ca3af" fontSize="10" fontFamily="sans-serif">Service Area</text>
+          </svg>
         </div>
       </div>
     </section>
@@ -223,21 +335,37 @@ function Footer() {
 }
 
 export default function App() {
-  // Simple client-side routing for admin
+  const [bookingServiceId, setBookingServiceId] = useState<string | null>(null);
   const isAdmin = window.location.pathname === '/admin' || window.location.hash === '#admin';
+
+  function handleBookService(id: string) {
+    setBookingServiceId(id);
+    // Scroll to booking section
+    setTimeout(() => {
+      document.getElementById('booking')?.scrollIntoView({ behavior: 'smooth' });
+    }, 50);
+  }
 
   if (isAdmin) return <AdminSchedule />;
 
   return (
     <div className="bg-dark text-dark min-h-screen font-sans">
-      <Nav />
-      <Hero />
-      <Services />
+      <Nav onBookService={handleBookService} />
+      <Hero onBookService={handleBookService} />
+      <Services onBookService={handleBookService} />
       <WhyUs />
+      <ServiceMap />
       <PhotoStrip />
       <BookingSection />
       <ContactBar />
       <Footer />
+      {bookingServiceId && (
+        <BookingWidget
+          autoOpen
+          preselectedService={bookingServiceId}
+          onClose={() => setBookingServiceId(null)}
+        />
+      )}
     </div>
   );
 }
