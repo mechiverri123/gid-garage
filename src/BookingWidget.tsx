@@ -135,8 +135,8 @@ function vehicleString(f: FormData): string {
   return parts.join(' ');
 }
 
-// ── VEHICLE API (NHTSA + CarQuery) ───────────────────────────────────────────
-// Simple in-memory cache so we don't hammer the APIs
+// ── VEHICLE API ─────────────────────────────────────────────────────────────────
+// Cache to avoid re-fetching models for the same make/year
 const _cache: Record<string, any> = {};
 
 async function cachedFetch<T>(key: string, fetcher: () => Promise<T>): Promise<T> {
@@ -146,8 +146,7 @@ async function cachedFetch<T>(key: string, fetcher: () => Promise<T>): Promise<T
   return result;
 }
 
-// US-market makes ordered roughly by sales volume/prevalence.
-// Year ranges reflect when the brand actually sold cars in the US.
+// US market makes with year ranges (when they were sold in the US)
 const US_MAKES: { name: string; from: number; to: number }[] = [
   { name: 'Acura',         from: 1986, to: 9999 },
   { name: 'Audi',          from: 1981, to: 9999 },
@@ -189,7 +188,6 @@ const US_MAKES: { name: string; from: number; to: number }[] = [
   { name: 'Volvo',         from: 1981, to: 9999 },
 ];
 
-// Returns makes available for a given model year, alphabetically sorted
 function fetchMakes(year: string): Promise<string[]> {
   const y = parseInt(year, 10);
   const filtered = US_MAKES
@@ -199,7 +197,6 @@ function fetchMakes(year: string): Promise<string[]> {
   return Promise.resolve(filtered);
 }
 
-// NHTSA: get models for a year + make
 async function fetchModels(year: string, make: string): Promise<string[]> {
   return cachedFetch(`models-${year}-${make}`, async () => {
     const res = await fetch(

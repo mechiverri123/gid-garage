@@ -13,7 +13,7 @@ const services = [
   { id: 'full',       title: 'Full Service', desc: 'Comprehensive multi-point inspection and maintenance.' },
 ];
 
-function Nav({ onBookService, openBooking }: { onBookService: (id: string) => void; openBooking: () => void }) {
+function Nav({ openBooking }: { openBooking: () => void }) {
   const [scrolled, setScrolled] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
 
@@ -57,7 +57,7 @@ function Nav({ onBookService, openBooking }: { onBookService: (id: string) => vo
   );
 }
 
-function Hero({ onBookService, openBooking }: { onBookService: (id: string) => void; openBooking: () => void }) {
+function Hero({ openBooking }: { openBooking: () => void }) {
   return (
     <section id="hero" className="relative min-h-screen flex items-center justify-center bg-dark overflow-hidden pt-20">
       <div className="absolute inset-0">
@@ -66,7 +66,6 @@ function Hero({ onBookService, openBooking }: { onBookService: (id: string) => v
         <div className="absolute bottom-0 left-0 right-0 h-48" style={{ background: 'linear-gradient(to bottom, transparent, #0f0f0f)' }} />
       </div>
       <div className="relative z-10 max-w-5xl mx-auto px-5 md:px-8 text-center">
-        {/* Banner spanning full width with toolbox bg visible */}
         <div className="mb-4 w-full">
           <img
             src="/banner.PNG"
@@ -122,7 +121,6 @@ function WhyUs() {
   return (
     <section id="why" className="pt-4 pb-20 md:pb-28 bg-dark">
       <div className="max-w-7xl mx-auto px-5 md:px-8">
-        {/* Reduced gap: removed mb-8, use mb-4 and tighten phone link above heading */}
         <div className="text-center mb-4">
           <p className="text-red-400 text-xs font-bold uppercase tracking-[0.25em] mb-2">The GID Difference</p>
           <h2 className="text-4xl md:text-5xl font-extrabold text-white tracking-tight">Why Choose GID Garage?</h2>
@@ -145,8 +143,6 @@ function WhyUs() {
   );
 }
 
-// Chandler coords: 33.3062, -111.8413
-// Updated map bounds to include Chandler bottom-left
 const SERVICE_AREAS = [
   { name: 'Gilbert',      lat: 33.3528, lng: -111.7890, isHome: true },
   { name: 'Mesa',         lat: 33.4152, lng: -111.8315, isHome: false },
