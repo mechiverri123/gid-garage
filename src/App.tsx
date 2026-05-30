@@ -72,7 +72,7 @@ function Hero({ onBookService, openBooking }: { onBookService: (id: string) => v
             src="/banner.PNG"
             alt="GID Garage"
             className="w-full object-contain drop-shadow-2xl"
-            style={{ maxHeight: '220px' }}
+            style={{ maxHeight: '380px' }}
           />
         </div>
         <p className="text-red-400 text-xs font-bold uppercase tracking-[0.25em] mb-6">Get It Done Garage</p>
