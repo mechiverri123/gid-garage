@@ -180,48 +180,7 @@ async function fetchModels(year: string, make: string): Promise<string[]> {
   });
 }
 
-// CarQuery: get trims via JSONP script tag
-// The callback name must NOT be URL-encoded — use a plain alphanumeric identifier
-function carQueryJSONP(year: string, make: string, model: string): Promise<any> {
-  return new Promise((resolve, reject) => {
-    const cbName = `cqcb${Date.now()}`;
-    // CarQuery uses lowercase slugs for make (e.g. "toyota", "gmc")
-    // CarQuery make slugs: lowercase, spaces→empty, keep hyphens for hyphenated brands
-    // e.g. "Mercedes-Benz" → "mercedes-benz", "Land Rover" → "landrover", "GMC" → "gmc"
-    const makeLower = make.toLowerCase().replace(/\s+/g, '').replace(/[^a-z0-9\-]/g, '');
-    const url = `https://www.carqueryapi.com/api/0.3/?cmd=getTrims&year=${year}&make=${makeLower}&model=${encodeURIComponent(model)}&full_results=0&sold_in_us=1&callback=${cbName}`;
 
-    let settled = false;
-    const cleanup = () => {
-      settled = true;
-      delete (window as any)[cbName];
-      if (script.parentNode) script.parentNode.removeChild(script);
-    };
-
-    (window as any)[cbName] = (data: any) => { cleanup(); resolve(data); };
-
-    const script = document.createElement('script');
-    script.src = url;
-    script.onerror = () => { if (!settled) { cleanup(); reject(new Error('CarQuery load error')); } };
-    setTimeout(() => { if (!settled) { cleanup(); reject(new Error('CarQuery timeout')); } }, 10000);
-    document.head.appendChild(script);
-  });
-}
-
-async function fetchTrims(year: string, make: string, model: string): Promise<string[]> {
-  return cachedFetch(`trims-${year}-${make}-${model}`, async () => {
-    try {
-      const data = await carQueryJSONP(year, make, model);
-      const trims: string[] = (data.Trims || [])
-        .map((t: any) => (t.model_trim || '').trim())
-        .filter((t: string) => t.length > 0);
-      return [...new Set(trims)].sort() as string[];
-    } catch (e) {
-      console.warn('CarQuery trim fetch failed:', e);
-      return [];
-    }
-  });
-}
 
 // ── VEHICLE SELECTOR COMPONENT ───────────────────────────────────────────────
 function VehicleSelector({ form, setForm }: {
@@ -233,10 +192,8 @@ function VehicleSelector({ form, setForm }: {
 
   const [makes, setMakes] = useState<string[]>([]);
   const [models, setModels] = useState<string[]>([]);
-  const [trims, setTrims] = useState<string[]>([]);
   const [loadingMakes, setLoadingMakes] = useState(false);
   const [loadingModels, setLoadingModels] = useState(false);
-  const [loadingTrims, setLoadingTrims] = useState(false);
 
   // Load makes when year changes
   useEffect(() => {
@@ -256,16 +213,8 @@ function VehicleSelector({ form, setForm }: {
       .finally(() => setLoadingModels(false));
   }, [form.vehicleYear, form.vehicleMake]);
 
-  // Load trims when model changes
-  useEffect(() => {
-    if (!form.vehicleYear || !form.vehicleMake || !form.vehicleModel) { setTrims([]); return; }
-    setLoadingTrims(true);
-    fetchTrims(form.vehicleYear, form.vehicleMake, form.vehicleModel)
-      .then(setTrims)
-      .finally(() => setLoadingTrims(false));
-  }, [form.vehicleYear, form.vehicleMake, form.vehicleModel]);
-
   const selectClass = 'w-full bg-gray-900 border border-gray-800 text-white text-sm px-3 py-2.5 outline-none focus:border-red-600 transition-colors disabled:text-gray-600 disabled:cursor-not-allowed appearance-none';
+  const inputClass = 'w-full bg-gray-900 border border-gray-800 text-white text-sm px-3 py-2.5 outline-none focus:border-red-600 transition-colors disabled:text-gray-600 disabled:cursor-not-allowed placeholder-gray-600';
 
   return (
     <div className="col-span-2">
@@ -309,19 +258,16 @@ function VehicleSelector({ form, setForm }: {
           </select>
         </div>
 
-        {/* Trim */}
+        {/* Trim — plain text input, no broken API needed */}
         <div>
-          <select
-            className={selectClass}
+          <input
+            type="text"
+            className={inputClass}
+            placeholder="Trim (optional)"
             value={form.vehicleTrim}
-            disabled={!form.vehicleModel || loadingTrims}
+            disabled={!form.vehicleModel}
             onChange={e => setForm(p => ({ ...p, vehicleTrim: e.target.value }))}
-          >
-            <option value="">
-              {loadingTrims ? 'Loading…' : trims.length === 0 && form.vehicleModel ? 'Trim (optional)' : 'Trim'}
-            </option>
-            {trims.map(t => <option key={t} value={t}>{t}</option>)}
-          </select>
+          />
         </div>
       </div>
     </div>
