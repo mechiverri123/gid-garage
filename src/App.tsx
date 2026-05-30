@@ -157,7 +157,7 @@ const SERVICE_AREAS = [
   { name: 'Phoenix',      lat: 33.4484, lng: -112.0740, isHome: false },
   { name: 'Queen Creek',  lat: 33.2487, lng: -111.6340, isHome: false },
   { name: 'Santan Valley',lat: 33.2115, lng: -111.5270, isHome: false },
-  { name: 'Chandler',     lat: 33.3062, lng: -111.8413, isHome: false },
+  { name: 'Chandler',     lat: 33.27,   lng: -111.9400, isHome: false },
 ];
 
 const MAP_LAT_MIN = 33.16;
