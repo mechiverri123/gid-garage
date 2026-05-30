@@ -183,9 +183,11 @@ async function fetchModels(year: string, make: string): Promise<string[]> {
 
 
 // ── VEHICLE SELECTOR COMPONENT ───────────────────────────────────────────────
-function VehicleSelector({ form, setForm }: {
+function VehicleSelector({ form, setForm, errors, clearError }: {
   form: FormData;
   setForm: Dispatch<SetStateAction<FormData>>;
+  errors: Record<string, string>;
+  clearError: (key: string) => void;
 }) {
   const currentYear = new Date().getFullYear();
   const years = Array.from({ length: currentYear - 1980 + 1 }, (_, i) => currentYear - i);
@@ -213,19 +215,22 @@ function VehicleSelector({ form, setForm }: {
       .finally(() => setLoadingModels(false));
   }, [form.vehicleYear, form.vehicleMake]);
 
-  const selectClass = 'w-full bg-gray-900 border border-gray-800 text-white text-sm px-3 py-2.5 outline-none focus:border-red-600 transition-colors disabled:text-gray-600 disabled:cursor-not-allowed appearance-none';
-  const inputClass = 'w-full bg-gray-900 border border-gray-800 text-white text-sm px-3 py-2.5 outline-none focus:border-red-600 transition-colors disabled:text-gray-600 disabled:cursor-not-allowed placeholder-gray-600';
+  const baseSelect = 'w-full bg-gray-900 text-white text-sm px-3 py-2.5 outline-none transition-colors disabled:text-gray-600 disabled:cursor-not-allowed appearance-none border';
+  const sc = (field: string) => baseSelect + (errors[field] ? ' border-red-500 focus:border-red-400' : ' border-gray-800 focus:border-red-600');
+  const baseInput = 'w-full bg-gray-900 text-white text-sm px-3 py-2.5 outline-none transition-colors disabled:text-gray-600 disabled:cursor-not-allowed placeholder-gray-600 border';
+  const ic = (field: string) => baseInput + (errors[field] ? ' border-red-500 focus:border-red-400' : ' border-gray-800 focus:border-red-600');
 
   return (
     <div className="col-span-2">
-      <label className="block text-gray-500 text-xs font-bold uppercase tracking-wider mb-1.5">Vehicle</label>
+      <label className={`block text-xs font-bold uppercase tracking-wider mb-1.5 ${(errors.vehicleYear||errors.vehicleMake||errors.vehicleModel||errors.vehicleTrim) ? 'text-red-500' : 'text-gray-500'}`}>Vehicle</label>
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
         {/* Year */}
         <div>
+          {errors.vehicleYear && <p className="text-red-500 text-xs mb-1">{errors.vehicleYear}</p>}
           <select
-            className={selectClass}
+            className={sc('vehicleYear')}
             value={form.vehicleYear}
-            onChange={e => setForm(p => ({ ...p, vehicleYear: e.target.value, vehicleMake: '', vehicleModel: '', vehicleTrim: '' }))}
+            onChange={e => { setForm(p => ({ ...p, vehicleYear: e.target.value, vehicleMake: '', vehicleModel: '', vehicleTrim: '' })); clearError('vehicleYear'); clearError('vehicleMake'); clearError('vehicleModel'); clearError('vehicleTrim'); }}
           >
             <option value="">Year</option>
             {years.map(y => <option key={y} value={String(y)}>{y}</option>)}
@@ -234,11 +239,12 @@ function VehicleSelector({ form, setForm }: {
 
         {/* Make */}
         <div>
+          {errors.vehicleMake && <p className="text-red-500 text-xs mb-1">{errors.vehicleMake}</p>}
           <select
-            className={selectClass}
+            className={sc('vehicleMake')}
             value={form.vehicleMake}
             disabled={!form.vehicleYear || loadingMakes}
-            onChange={e => setForm(p => ({ ...p, vehicleMake: e.target.value, vehicleModel: '', vehicleTrim: '' }))}
+            onChange={e => { setForm(p => ({ ...p, vehicleMake: e.target.value, vehicleModel: '', vehicleTrim: '' })); clearError('vehicleMake'); clearError('vehicleModel'); clearError('vehicleTrim'); }}
           >
             <option value="">{loadingMakes ? 'Loading…' : 'Make'}</option>
             {makes.map(m => <option key={m} value={m}>{m}</option>)}
@@ -247,11 +253,12 @@ function VehicleSelector({ form, setForm }: {
 
         {/* Model */}
         <div>
+          {errors.vehicleModel && <p className="text-red-500 text-xs mb-1">{errors.vehicleModel}</p>}
           <select
-            className={selectClass}
+            className={sc('vehicleModel')}
             value={form.vehicleModel}
             disabled={!form.vehicleMake || loadingModels}
-            onChange={e => setForm(p => ({ ...p, vehicleModel: e.target.value, vehicleTrim: '' }))}
+            onChange={e => { setForm(p => ({ ...p, vehicleModel: e.target.value, vehicleTrim: '' })); clearError('vehicleModel'); clearError('vehicleTrim'); }}
           >
             <option value="">{loadingModels ? 'Loading…' : 'Model'}</option>
             {models.map(m => <option key={m} value={m}>{m}</option>)}
@@ -262,12 +269,13 @@ function VehicleSelector({ form, setForm }: {
         <div>
           <input
             type="text"
-            className={inputClass}
+            className={ic('vehicleTrim')}
             placeholder="Trim"
             value={form.vehicleTrim}
             disabled={!form.vehicleModel}
-            onChange={e => setForm(p => ({ ...p, vehicleTrim: e.target.value }))}
+            onChange={e => { setForm(p => ({ ...p, vehicleTrim: e.target.value })); clearError('vehicleTrim'); }}
           />
+          {errors.vehicleTrim && <p className="text-red-500 text-xs mt-1 col-span-4">{errors.vehicleTrim}</p>}
         </div>
       </div>
     </div>
@@ -409,11 +417,21 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
   function prevMonth() { setS(p => p.calMonth === 0 ? { ...p, calMonth: 11, calYear: p.calYear - 1 } : { ...p, calMonth: p.calMonth - 1 }); }
   function nextMonth() { setS(p => p.calMonth === 11 ? { ...p, calMonth: 0, calYear: p.calYear + 1 } : { ...p, calMonth: p.calMonth + 1 }); }
 
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+
   async function handleSubmit() {
-    if (!form.fname || !form.phone || !form.vehicleYear || !form.vehicleMake || !form.vehicleModel || !form.vehicleTrim) {
-      alert('Please fill in your name, phone, and vehicle info.');
+    const errors: Record<string, string> = {};
+    if (!form.fname) errors.fname = 'First name is required';
+    if (!form.phone) errors.phone = 'Phone number is required';
+    if (!form.vehicleYear) errors.vehicleYear = 'Select a year';
+    if (!form.vehicleMake) errors.vehicleMake = 'Select a make';
+    if (!form.vehicleModel) errors.vehicleModel = 'Select a model';
+    if (!form.vehicleTrim) errors.vehicleTrim = 'Enter your trim level (e.g. Sport, LT, XLE)';
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors(errors);
       return;
     }
+    setFieldErrors({});
     if (!s.service || !s.date || !s.time || !svc) return;
     setSubmitting(true);
     const booking: Booking = {
@@ -595,14 +613,15 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
                       { id: 'email', label: 'Email', placeholder: 'you@email.com', type: 'email', full: false },
                     ].map(f => (
                       <div key={f.id} className={f.full ? 'col-span-2' : ''}>
-                        <label className="block text-gray-500 text-xs font-bold uppercase tracking-wider mb-1.5">{f.label}</label>
+                        <label className={`block text-xs font-bold uppercase tracking-wider mb-1.5 ${fieldErrors[f.id] ? 'text-red-500' : 'text-gray-500'}`}>{f.label}</label>
                         <input type={f.type} placeholder={f.placeholder}
                           value={form[f.id as keyof FormData] as string}
-                          onChange={e => setForm(p => ({ ...p, [f.id]: e.target.value }))}
-                          className="w-full bg-gray-900 border border-gray-800 text-white text-sm px-3 py-2.5 outline-none focus:border-red-600 transition-colors" />
+                          onChange={e => { setForm(p => ({ ...p, [f.id]: e.target.value })); setFieldErrors(p => ({ ...p, [f.id]: '' })); }}
+                          className={`w-full bg-gray-900 text-white text-sm px-3 py-2.5 outline-none transition-colors border ${fieldErrors[f.id] ? 'border-red-500 focus:border-red-400' : 'border-gray-800 focus:border-red-600'}`} />
+                        {fieldErrors[f.id] && <p className="text-red-500 text-xs mt-1">{fieldErrors[f.id]}</p>}
                       </div>
                     ))}
-                    <VehicleSelector form={form} setForm={setForm} />
+                    <VehicleSelector form={form} setForm={setForm} errors={fieldErrors} clearError={(k) => setFieldErrors(p => ({ ...p, [k]: '' }))} />
                     <div className="col-span-2">
                       <label className="block text-gray-500 text-xs font-bold uppercase tracking-wider mb-1.5">Notes (optional)</label>
                       <textarea placeholder="Any additional details..." value={form.notes}
