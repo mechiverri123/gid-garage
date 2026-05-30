@@ -120,13 +120,10 @@ function Services({ onBookService }: { onBookService: (id: string) => void }) {
 
 function WhyUs() {
   return (
-    <section id="why" className="py-20 md:py-28 bg-dark">
+    <section id="why" className="pt-4 pb-20 md:pb-28 bg-dark">
       <div className="max-w-7xl mx-auto px-5 md:px-8">
         {/* Reduced gap: removed mb-8, use mb-4 and tighten phone link above heading */}
         <div className="text-center mb-4">
-          <a href={`tel:${PHONE}`} className="inline-flex items-center gap-2 text-white/60 hover:text-white text-sm font-medium transition-colors mb-3">
-            <Phone className="w-4 h-4 text-red-600" />{PHONE}
-          </a>
           <p className="text-red-400 text-xs font-bold uppercase tracking-[0.25em] mb-2">The GID Difference</p>
           <h2 className="text-4xl md:text-5xl font-extrabold text-white tracking-tight">Why Choose GID Garage?</h2>
         </div>
