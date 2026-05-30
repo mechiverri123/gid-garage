@@ -13,7 +13,7 @@ const services = [
   { id: 'full',       title: 'Full Service', desc: 'Comprehensive multi-point inspection and maintenance.' },
 ];
 
-function Nav({ onBookService }: { onBookService: (id: string) => void }) {
+function Nav({ onBookService, openBooking }: { onBookService: (id: string) => void; openBooking: () => void }) {
   const [scrolled, setScrolled] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
 
@@ -39,7 +39,7 @@ function Nav({ onBookService }: { onBookService: (id: string) => void }) {
           {links.map((l) => (
             <a key={l.label} href={l.href} className="text-sm font-semibold uppercase tracking-wide transition-colors duration-200 text-white hover:text-red-400">{l.label}</a>
           ))}
-          <BookingWidget />
+          <button onClick={openBooking} className="btn-primary text-xs px-8 py-4">Book Now</button>
         </nav>
         <button className="md:hidden p-1 text-white transition-colors" onClick={() => setMenuOpen(v => !v)} aria-label="Toggle menu">
           {menuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
@@ -50,14 +50,14 @@ function Nav({ onBookService }: { onBookService: (id: string) => void }) {
           {links.map((l) => (
             <a key={l.label} href={l.href} className="text-white text-base font-semibold uppercase tracking-wide transition-colors hover:text-red-400" onClick={() => setMenuOpen(false)}>{l.label}</a>
           ))}
-          <div className="mt-2"><BookingWidget /></div>
+          <div className="mt-2"><button onClick={() => { openBooking(); setMenuOpen(false); }} className="btn-primary text-xs px-8 py-4">Book Now</button></div>
         </div>
       )}
     </header>
   );
 }
 
-function Hero({ onBookService }: { onBookService: (id: string) => void }) {
+function Hero({ onBookService, openBooking }: { onBookService: (id: string) => void; openBooking: () => void }) {
   return (
     <section id="hero" className="relative min-h-screen flex items-center justify-center bg-dark overflow-hidden pt-20">
       <div className="absolute inset-0">
@@ -73,7 +73,7 @@ function Hero({ onBookService }: { onBookService: (id: string) => void }) {
         <h1 className="text-5xl sm:text-6xl md:text-7xl font-extrabold text-white leading-tight tracking-tight mb-6">Professional Car Care</h1>
         <p className="text-white/80 text-lg md:text-xl max-w-2xl mx-auto mb-10 leading-relaxed font-light">Honest pricing, expert technicians, fast turnaround. Your car deserves the best — and we deliver.</p>
         <div className="flex flex-col sm:flex-row gap-4 justify-center">
-          <BookingWidget />
+          <button onClick={openBooking} className="btn-primary text-sm px-8 py-4">Book Now</button>
           <a href={`tel:${PHONE}`} className="btn-outline text-sm px-8 py-4"><Phone className="w-4 h-4" />Call Now</a>
         </div>
       </div>
@@ -263,7 +263,7 @@ function PhotoStrip() {
   );
 }
 
-function BookingSection() {
+function BookingSection({ openBooking }: { openBooking: () => void }) {
   return (
     <section id="booking" className="py-20 md:py-28 bg-dark border-t border-white/5">
       <div className="max-w-2xl mx-auto px-5 md:px-8 text-center">
@@ -274,13 +274,13 @@ function BookingSection() {
           <a href={`tel:${PHONE}`} className="text-red-500 hover:text-red-400 font-semibold transition-colors underline underline-offset-2">call {PHONE}</a>{' '}
           to chat with us first.
         </p>
-        <BookingWidget />
+        <button onClick={openBooking} className="btn-primary text-xs px-8 py-4">Book Now</button>
       </div>
     </section>
   );
 }
 
-function ContactBar() {
+function ContactBar({ openBooking }: { openBooking: () => void }) {
   return (
     <section className="bg-red-600 py-12">
       <div className="max-w-7xl mx-auto px-5 md:px-8 flex flex-col md:flex-row items-center justify-between gap-6 text-center md:text-left">
@@ -289,7 +289,7 @@ function ContactBar() {
           <h3 className="text-white text-2xl md:text-3xl font-extrabold tracking-tight">Let's Get Your Car Fixed.</h3>
         </div>
         <div className="flex flex-col sm:flex-row gap-4">
-          <BookingWidget />
+          <button onClick={openBooking} className="btn-primary text-xs px-8 py-4">Book Now</button>
           <a href={`tel:${PHONE}`} className="inline-flex items-center justify-center gap-2 border-2 border-white text-white font-bold px-7 py-3 text-sm uppercase tracking-wide hover:bg-white/10 transition-colors duration-200"><Phone className="w-4 h-4" />{PHONE}</a>
         </div>
       </div>
@@ -336,34 +336,37 @@ function Footer() {
 
 export default function App() {
   const [bookingServiceId, setBookingServiceId] = useState<string | null>(null);
+  const [modalOpen, setModalOpen] = useState(false);
   const isAdmin = window.location.pathname === '/admin' || window.location.hash === '#admin';
 
   function handleBookService(id: string) {
     setBookingServiceId(id);
-    // Scroll to booking section
-    setTimeout(() => {
-      document.getElementById('booking')?.scrollIntoView({ behavior: 'smooth' });
-    }, 50);
+    setModalOpen(true);
+  }
+
+  function openBooking() {
+    setBookingServiceId(null);
+    setModalOpen(true);
   }
 
   if (isAdmin) return <AdminSchedule />;
 
   return (
     <div className="bg-dark text-dark min-h-screen font-sans">
-      <Nav onBookService={handleBookService} />
-      <Hero onBookService={handleBookService} />
+      <Nav onBookService={handleBookService} openBooking={openBooking} />
+      <Hero onBookService={handleBookService} openBooking={openBooking} />
       <Services onBookService={handleBookService} />
       <WhyUs />
       <ServiceMap />
       <PhotoStrip />
-      <BookingSection />
-      <ContactBar />
+      <BookingSection openBooking={openBooking} />
+      <ContactBar openBooking={openBooking} />
       <Footer />
-      {bookingServiceId && (
+      {modalOpen && (
         <BookingWidget
           autoOpen
-          preselectedService={bookingServiceId}
-          onClose={() => setBookingServiceId(null)}
+          preselectedService={bookingServiceId ?? undefined}
+          onClose={() => { setModalOpen(false); setBookingServiceId(null); }}
         />
       )}
     </div>

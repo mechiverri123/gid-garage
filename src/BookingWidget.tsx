@@ -133,7 +133,12 @@ const INIT_FORM: FormData = { fname: '', lname: '', phone: '', email: '', vehicl
 
 export default function BookingWidget({ autoOpen, preselectedService, onClose }: { autoOpen?: boolean; preselectedService?: string; onClose?: () => void } = {}) {
   const [open, setOpen] = useState(!!autoOpen);
-  const [s, setS] = useState<State>({ ...INIT_STATE, service: preselectedService || INIT_STATE.service });
+  const [s, setS] = useState<State>({
+    ...INIT_STATE,
+    service: preselectedService || INIT_STATE.service,
+    // If a service is preselected, jump straight to step 2 (calendar)
+    step: preselectedService ? 2 : INIT_STATE.step,
+  });
   const [form, setForm] = useState<FormData>(INIT_FORM);
   const [submitted, setSubmitted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -211,7 +216,7 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
   }
 
   function reset() { setS(INIT_STATE); setForm(INIT_FORM); setSubmitted(false); }
-  function closeModal() { setOpen(false); }
+  function closeModal() { setOpen(false); onClose?.(); }
 
   const firstDay = new Date(s.calYear, s.calMonth, 1).getDay();
   const daysInMonth = new Date(s.calYear, s.calMonth + 1, 0).getDate();
