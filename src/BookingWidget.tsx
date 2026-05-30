@@ -146,24 +146,57 @@ async function cachedFetch<T>(key: string, fetcher: () => Promise<T>): Promise<T
   return result;
 }
 
-// NHTSA: get all passenger car/truck makes for a given year
-async function fetchMakes(year: string): Promise<string[]> {
-  return cachedFetch(`makes-${year}`, async () => {
-    const res = await fetch(
-      `https://vpic.nhtsa.dot.gov/api/vehicles/GetMakesForVehicleType/car?format=json`
-    );
-    // NHTSA doesn't filter makes by year in the car endpoint, so we use
-    // GetModelsForMakeYear to get only makes that had models that year.
-    // Instead, use the all-makes-for-type and then rely on the model fetch to validate.
-    // Better: use GetMakesForVehicleType=Passenger Car
-    const data = await res.json();
-    const makes: string[] = (data.Results || [])
-      .map((m: any) => m.MakeName as string)
-      .filter((name: string) => /^[A-Za-z]/.test(name)) // skip numeric/junk
-      .sort();
-    // deduplicate
-    return [...new Set(makes)];
-  });
+// US-market makes ordered roughly by sales volume/prevalence.
+// Year ranges reflect when the brand actually sold cars in the US.
+const US_MAKES: { name: string; from: number; to: number }[] = [
+  { name: 'Acura',         from: 1986, to: 9999 },
+  { name: 'Audi',          from: 1981, to: 9999 },
+  { name: 'BMW',           from: 1981, to: 9999 },
+  { name: 'Buick',         from: 1981, to: 9999 },
+  { name: 'Cadillac',      from: 1981, to: 9999 },
+  { name: 'Chevrolet',     from: 1981, to: 9999 },
+  { name: 'Chrysler',      from: 1981, to: 9999 },
+  { name: 'Dodge',         from: 1981, to: 9999 },
+  { name: 'Ford',          from: 1981, to: 9999 },
+  { name: 'Genesis',       from: 2016, to: 9999 },
+  { name: 'GMC',           from: 1981, to: 9999 },
+  { name: 'Honda',         from: 1981, to: 9999 },
+  { name: 'Hyundai',       from: 1986, to: 9999 },
+  { name: 'Infiniti',      from: 1989, to: 9999 },
+  { name: 'Jaguar',        from: 1981, to: 9999 },
+  { name: 'Jeep',          from: 1981, to: 9999 },
+  { name: 'Kia',           from: 1994, to: 9999 },
+  { name: 'Lexus',         from: 1989, to: 9999 },
+  { name: 'Lincoln',       from: 1981, to: 9999 },
+  { name: 'Lucid',         from: 2021, to: 9999 },
+  { name: 'Mazda',         from: 1981, to: 9999 },
+  { name: 'Mercedes-Benz', from: 1981, to: 9999 },
+  { name: 'Mini',          from: 2002, to: 9999 },
+  { name: 'Mitsubishi',    from: 1981, to: 9999 },
+  { name: 'Mercury',       from: 1981, to: 2011 },
+  { name: 'Nissan',        from: 1981, to: 9999 },
+  { name: 'Oldsmobile',    from: 1981, to: 2004 },
+  { name: 'Polestar',      from: 2020, to: 9999 },
+  { name: 'Porsche',       from: 1981, to: 9999 },
+  { name: 'Pontiac',       from: 1981, to: 2010 },
+  { name: 'RAM',           from: 2010, to: 9999 },
+  { name: 'Rivian',        from: 2021, to: 9999 },
+  { name: 'Saturn',        from: 1990, to: 2010 },
+  { name: 'Subaru',        from: 1981, to: 9999 },
+  { name: 'Tesla',         from: 2008, to: 9999 },
+  { name: 'Toyota',        from: 1981, to: 9999 },
+  { name: 'Volkswagen',    from: 1981, to: 9999 },
+  { name: 'Volvo',         from: 1981, to: 9999 },
+];
+
+// Returns makes available for a given model year, alphabetically sorted
+function fetchMakes(year: string): Promise<string[]> {
+  const y = parseInt(year, 10);
+  const filtered = US_MAKES
+    .filter(m => y >= m.from && y <= m.to)
+    .map(m => m.name)
+    .sort();
+  return Promise.resolve(filtered);
 }
 
 // NHTSA: get models for a year + make
