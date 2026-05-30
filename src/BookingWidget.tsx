@@ -180,30 +180,30 @@ async function fetchModels(year: string, make: string): Promise<string[]> {
   });
 }
 
-// CarQuery: get trims for a specific year + make + model
-// CarQuery uses JSONP — we load it via a script tag trick
-function carQueryJSONP(params: Record<string, string>): Promise<any> {
+// CarQuery: get trims via JSONP script tag
+// The callback name must NOT be URL-encoded — use a plain alphanumeric identifier
+function carQueryJSONP(year: string, make: string, model: string): Promise<any> {
   return new Promise((resolve, reject) => {
-    const cbName = `cq_${Date.now()}_${Math.random().toString(36).slice(2)}`;
-    const qs = Object.entries({ ...params, callback: cbName })
-      .map(([k, v]) => `${k}=${encodeURIComponent(v)}`)
-      .join('&');
-    const script = document.createElement('script');
-    script.src = `https://www.carqueryapi.com/api/0.3/?${qs}`;
-    script.onerror = () => { reject(new Error('CarQuery script error')); script.remove(); };
-    (window as any)[cbName] = (data: any) => {
-      resolve(data);
+    const cbName = `cqcb${Date.now()}`;
+    // CarQuery uses lowercase slugs for make (e.g. "toyota", "gmc")
+    // CarQuery make slugs: lowercase, spaces→empty, keep hyphens for hyphenated brands
+    // e.g. "Mercedes-Benz" → "mercedes-benz", "Land Rover" → "landrover", "GMC" → "gmc"
+    const makeLower = make.toLowerCase().replace(/\s+/g, '').replace(/[^a-z0-9\-]/g, '');
+    const url = `https://www.carqueryapi.com/api/0.3/?cmd=getTrims&year=${year}&make=${makeLower}&model=${encodeURIComponent(model)}&full_results=0&sold_in_us=1&callback=${cbName}`;
+
+    let settled = false;
+    const cleanup = () => {
+      settled = true;
       delete (window as any)[cbName];
-      script.remove();
+      if (script.parentNode) script.parentNode.removeChild(script);
     };
-    // timeout after 8s
-    setTimeout(() => {
-      if ((window as any)[cbName]) {
-        delete (window as any)[cbName];
-        script.remove();
-        reject(new Error('CarQuery timeout'));
-      }
-    }, 8000);
+
+    (window as any)[cbName] = (data: any) => { cleanup(); resolve(data); };
+
+    const script = document.createElement('script');
+    script.src = url;
+    script.onerror = () => { if (!settled) { cleanup(); reject(new Error('CarQuery load error')); } };
+    setTimeout(() => { if (!settled) { cleanup(); reject(new Error('CarQuery timeout')); } }, 10000);
     document.head.appendChild(script);
   });
 }
@@ -211,20 +211,14 @@ function carQueryJSONP(params: Record<string, string>): Promise<any> {
 async function fetchTrims(year: string, make: string, model: string): Promise<string[]> {
   return cachedFetch(`trims-${year}-${make}-${model}`, async () => {
     try {
-      const data = await carQueryJSONP({
-        cmd: 'getTrims',
-        year: year,
-        make: make.toLowerCase(),
-        model: model,
-        full_results: '0',
-      });
+      const data = await carQueryJSONP(year, make, model);
       const trims: string[] = (data.Trims || [])
         .map((t: any) => (t.model_trim || '').trim())
         .filter((t: string) => t.length > 0);
-      // deduplicate and sort
-      return [...new Set(trims)].sort();
-    } catch {
-      return []; // trims are optional — don't block the form
+      return [...new Set(trims)].sort() as string[];
+    } catch (e) {
+      console.warn('CarQuery trim fetch failed:', e);
+      return [];
     }
   });
 }
