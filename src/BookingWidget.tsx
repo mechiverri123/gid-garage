@@ -295,9 +295,9 @@ export default function BookingWidget() {
                       onChange={e => setS(p => ({ ...p, brakeService: e.target.value }))}
                       className="w-full bg-gray-900 border border-gray-800 text-white text-sm px-3 py-2.5 outline-none focus:border-red-600 transition-colors">
                       <option value="">Select a service...</option>
-                      <option value="pads">Brake Pads Only — Starting at $99</option>
-                      <option value="pads_rotors">Brake Pads + Rotors — Starting at $179</option>
-                      <option value="full">Full Service: Pads + Rotors + Fluid Flush &amp; Inspection — Starting at $229</option>
+                      <option value="pads">Brake Pads Only — Starting at $139.99</option>
+                      <option value="pads_rotors">Brake Pads + Rotors — Starting at $549.99</option>
+                      <option value="full">Full Service: Pads + Rotors + Fluid Flush &amp; Inspection — Starting at $649.99</option>
                     </select>
                     <p className="text-gray-600 text-xs mt-1">Pricing varies per vehicle — get a free estimate when you book!</p>
                   </div>
