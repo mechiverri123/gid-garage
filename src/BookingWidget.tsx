@@ -3,14 +3,96 @@ import { useState, useEffect } from 'react';
 const PHONE = '480-599-0118';
 
 // ── CONFIG ─────────────────────────────────────────────────────────────────
-// 1. Deploy the Google Apps Script (see SETUP.md) and paste the URL here
-const APPS_SCRIPT_URL = 'https://script.google.com/u/0/home/projects/1PSaSoQyvK4ftj1D-LpeF5E7Rk_kBXb87Oo8cJqu6BCUWZJ_cVMfZJ69S/edit';
-// 2. Sign up at emailjs.com, create a service + template, paste IDs here
+const SUPABASE_URL = 'https://axnjaqtsqocfmxhmenbh.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF4bmphcXRzcW9jZm14aG1lbmJoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAwMTMwMDUsImV4cCI6MjA5NTU4OTAwNX0.8FSqJfYRzeVV9zqXUmnDTCYzjb4obRYNnf5WtM2oLNk';
 const EMAILJS_SERVICE_ID = 'service_oiv0apk';
 const EMAILJS_TEMPLATE_ID = 'template_gy3tfmn';
 const EMAILJS_PUBLIC_KEY = 'HRHZO34OJFxrK5DE0';
+const ADMIN_PASSWORD = '0000';
 // ───────────────────────────────────────────────────────────────────────────
 
+// ── SUPABASE HELPERS ────────────────────────────────────────────────────────
+async function sbFetch(path: string, options: RequestInit = {}) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1${path}`, {
+    ...options,
+    headers: {
+      'apikey': SUPABASE_ANON_KEY,
+      'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+      'Content-Type': 'application/json',
+      'Prefer': 'return=representation',
+      ...(options.headers || {}),
+    },
+  });
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(err);
+  }
+  const text = await res.text();
+  return text ? JSON.parse(text) : null;
+}
+
+async function getSupabaseBookings(): Promise<Booking[]> {
+  try {
+    const data = await sbFetch('/bookings?select=*&order=date.asc,time.asc');
+    return (data || []).map((b: any) => ({
+      id: b.id,
+      service: b.service,
+      serviceIcon: b.service_icon,
+      date: b.date,
+      time: b.time,
+      fname: b.fname,
+      lname: b.lname,
+      phone: b.phone,
+      email: b.email,
+      vehicle: b.vehicle,
+      notes: b.notes || '',
+      status: b.status,
+      createdAt: b.created_at,
+    }));
+  } catch (e) {
+    console.warn('Supabase fetch failed, falling back to localStorage', e);
+    return getLocalBookings();
+  }
+}
+
+async function insertSupabaseBooking(b: Booking): Promise<void> {
+  await sbFetch('/bookings', {
+    method: 'POST',
+    body: JSON.stringify({
+      id: b.id,
+      service: b.service,
+      service_icon: b.serviceIcon,
+      date: b.date,
+      time: b.time,
+      fname: b.fname,
+      lname: b.lname,
+      phone: b.phone,
+      email: b.email,
+      vehicle: b.vehicle,
+      notes: b.notes,
+      status: b.status,
+      created_at: b.createdAt,
+    }),
+  });
+}
+
+async function updateSupabaseBooking(id: string, status: Booking['status']): Promise<void> {
+  await sbFetch(`/bookings?id=eq.${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ status }),
+  });
+}
+
+async function getBookedTimesForDate(date: string): Promise<string[]> {
+  try {
+    const data = await sbFetch(`/bookings?select=time&date=eq.${date}&status=neq.cancelled`);
+    return (data || []).map((b: any) => b.time);
+  } catch {
+    return getLocalBookings().filter(b => b.date === date && b.status !== 'cancelled').map(b => b.time);
+  }
+}
+
+// ── LOCAL STORAGE FALLBACK ──────────────────────────────────────────────────
 const SERVICES = [
   { id: 'oil',        icon: '🛢️', name: 'Oil Change',  desc: 'Full synthetic only — your engine deserves it', duration: '30 min', startingAt: '$79.99*' },
   { id: 'brakes',     icon: '🔧', name: 'Brakes',       desc: 'Pads, rotors, full brake service',              duration: '2 hrs',   startingAt: null },
@@ -47,7 +129,6 @@ interface FormData {
   email: string; vehicle: string; notes: string;
 }
 
-// Load EmailJS lazily
 function loadEmailJS(): Promise<void> {
   return new Promise((resolve) => {
     if ((window as any).emailjs) { resolve(); return; }
@@ -67,7 +148,7 @@ async function sendEmail(booking: Booking) {
   const dateStr = new Date(booking.date + 'T12:00:00').toLocaleDateString('en-US', {
     weekday: 'long', month: 'long', day: 'numeric', year: 'numeric'
   });
-  const params = {
+  await (window as any).emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, {
     to_name: `${booking.fname} ${booking.lname}`,
     to_email: booking.email,
     owner_email: 'gidgarageaz@hotmail.com',
@@ -78,34 +159,9 @@ async function sendEmail(booking: Booking) {
     phone: booking.phone,
     notes: booking.notes || 'None',
     booking_id: booking.id,
-  };
-  await (window as any).emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, params);
-}
-
-async function saveToSheet(booking: Booking) {
-  if (APPS_SCRIPT_URL === 'https://script.google.com/u/0/home/projects/1PSaSoQyvK4ftj1D-LpeF5E7Rk_kBXb87Oo8cJqu6BCUWZJ_cVMfZJ69S/edit') return; // not configured yet
-  const svc = SERVICES.find(s => s.id === booking.service);
-  await fetch(APPS_SCRIPT_URL, {
-    method: 'POST',
-    mode: 'no-cors',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      id: booking.id,
-      date: booking.date,
-      time: booking.time,
-      service: svc?.name,
-      name: `${booking.fname} ${booking.lname}`,
-      phone: booking.phone,
-      email: booking.email,
-      vehicle: booking.vehicle,
-      notes: booking.notes,
-      status: booking.status,
-      createdAt: booking.createdAt,
-    }),
   });
 }
 
-// Local storage helpers
 function getLocalBookings(): Booking[] {
   try { return JSON.parse(localStorage.getItem('gg_bookings') || '[]'); } catch { return []; }
 }
@@ -136,23 +192,19 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
   const [s, setS] = useState<State>({
     ...INIT_STATE,
     service: preselectedService || INIT_STATE.service,
-    // If a service is preselected, jump straight to step 2 (calendar)
     step: preselectedService ? 2 : INIT_STATE.step,
   });
   const [form, setForm] = useState<FormData>(INIT_FORM);
   const [submitted, setSubmitted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [bookedTimes, setBookedTimes] = useState<string[]>([]);
+  const [unavailableDates, setUnavailableDates] = useState<Set<string>>(new Set());
 
   const svc = SERVICES.find(x => x.id === s.service);
 
-  // Load booked times for selected date from local storage
   useEffect(() => {
     if (!s.date) return;
-    const existing = getLocalBookings()
-      .filter(b => b.date === s.date && b.status !== 'cancelled')
-      .map(b => b.time);
-    setBookedTimes(existing);
+    getBookedTimesForDate(s.date).then(setBookedTimes);
   }, [s.date]);
 
   function parseSlotHour(t: string) {
@@ -163,7 +215,7 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
     return h;
   }
 
-  function isAvailable(y: number, m: number, d: number) {
+  async function isAvailable(y: number, m: number, d: number): Promise<boolean> {
     const dow = new Date(y, m, d).getDay();
     if (dow === 0) return false;
     const today = new Date(); today.setHours(0, 0, 0, 0);
@@ -171,7 +223,7 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
     const now = new Date();
     const isToday = y === now.getFullYear() && m === now.getMonth() && d === now.getDate();
     const k = dateKey(y, m, d);
-    const takenTimes = getLocalBookings().filter(b => b.date === k && b.status !== 'cancelled').map(b => b.time);
+    const takenTimes = await getBookedTimesForDate(k);
     const availableSlots = TIME_SLOTS.filter(t => {
       if (takenTimes.includes(t)) return false;
       if (isToday && parseSlotHour(t) <= now.getHours()) return false;
@@ -180,10 +232,34 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
     return availableSlots.length > 0;
   }
 
-  function selectService(id: string) { setS(p => ({ ...p, service: id, step: Math.max(p.step, 2) })); }
-  function selectDate(k: string) {
-    setS(p => ({ ...p, date: k, time: null, step: Math.max(p.step, 3) }));
+  // Sync-friendly availability check using cached bookedTimes for calendar render
+  function isAvailableSync(y: number, m: number, d: number): boolean {
+    const dow = new Date(y, m, d).getDay();
+    if (dow === 0) return false;
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    if (new Date(y, m, d) < today) return false;
+    const k = dateKey(y, m, d);
+    if (unavailableDates.has(k)) return false;
+    return true;
   }
+
+  // Prefetch unavailable dates for current month
+  useEffect(() => {
+    const year = s.calYear;
+    const month = s.calMonth;
+    const days = new Date(year, month + 1, 0).getDate();
+    const checks = Array.from({ length: days }, (_, i) => i + 1).map(async d => {
+      const avail = await isAvailable(year, month, d);
+      if (!avail) return dateKey(year, month, d);
+      return null;
+    });
+    Promise.all(checks).then(results => {
+      setUnavailableDates(new Set(results.filter(Boolean) as string[]));
+    });
+  }, [s.calYear, s.calMonth]);
+
+  function selectService(id: string) { setS(p => ({ ...p, service: id, step: Math.max(p.step, 2) })); }
+  function selectDate(k: string) { setS(p => ({ ...p, date: k, time: null, step: Math.max(p.step, 3) })); }
   function selectTime(t: string) { setS(p => ({ ...p, time: t, step: Math.max(p.step, 4) })); }
   function prevMonth() { setS(p => p.calMonth === 0 ? { ...p, calMonth: 11, calYear: p.calYear - 1 } : { ...p, calMonth: p.calMonth - 1 }); }
   function nextMonth() { setS(p => p.calMonth === 11 ? { ...p, calMonth: 0, calYear: p.calYear + 1 } : { ...p, calMonth: p.calMonth + 1 }); }
@@ -208,8 +284,9 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
       status: 'confirmed',
       createdAt: new Date().toISOString(),
     };
+    // Save to both Supabase (primary) and localStorage (fallback)
     saveLocalBooking(booking);
-    try { await saveToSheet(booking); } catch (e) { console.warn('Sheet save failed', e); }
+    try { await insertSupabaseBooking(booking); } catch (e) { console.warn('Supabase insert failed', e); }
     try { await sendEmail(booking); } catch (e) { console.warn('Email send failed', e); }
     setSubmitting(false);
     setSubmitted(true);
@@ -259,7 +336,6 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
                   {[1,2,3,4].map(n => <div key={n} className={`h-0.5 flex-1 transition-colors duration-300 ${n <= s.step ? 'bg-red-600' : 'bg-gray-800'}`} />)}
                 </div>
 
-                {/* Step 1 */}
                 <StepHeader n={1} current={s.step} label="Select a Service" />
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 mb-2">
                   {SERVICES.map(sv => (
@@ -274,13 +350,10 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
                   ))}
                 </div>
 
-                {/* Suspension part dropdown */}
                 {s.service === 'suspension' && (
                   <div className="mt-3">
                     <label className="block text-gray-500 text-xs font-bold uppercase tracking-wider mb-1.5">What are you looking to replace?</label>
-                    <select
-                      value={s.suspensionPart ?? ''}
-                      onChange={e => setS(p => ({ ...p, suspensionPart: e.target.value }))}
+                    <select value={s.suspensionPart ?? ''} onChange={e => setS(p => ({ ...p, suspensionPart: e.target.value }))}
                       className="w-full bg-gray-900 border border-gray-800 text-white text-sm px-3 py-2.5 outline-none focus:border-red-600 transition-colors">
                       <option value="">Select a part...</option>
                       <option value="shocks">Shocks</option>
@@ -293,13 +366,10 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
                   </div>
                 )}
 
-                {/* Brakes service dropdown */}
                 {s.service === 'brakes' && (
                   <div className="mt-3">
                     <label className="block text-gray-500 text-xs font-bold uppercase tracking-wider mb-1.5">What brake service do you need?</label>
-                    <select
-                      value={s.brakeService ?? ''}
-                      onChange={e => setS(p => ({ ...p, brakeService: e.target.value }))}
+                    <select value={s.brakeService ?? ''} onChange={e => setS(p => ({ ...p, brakeService: e.target.value }))}
                       className="w-full bg-gray-900 border border-gray-800 text-white text-sm px-3 py-2.5 outline-none focus:border-red-600 transition-colors">
                       <option value="">Select a service...</option>
                       <option value="pads">Brake Pads Only — Starting at $139.99</option>
@@ -310,10 +380,10 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
                   </div>
                 )}
 
-                {/* Oil change note */}
                 {s.service === 'oil' && (
                   <p className="text-gray-600 text-xs mt-2">*Mobile service fee included. Price may vary by vehicle. Full synthetic only.</p>
                 )}
+
                 {s.step >= 2 && (<>
                   <div className="border-t border-gray-800 my-6" />
                   <StepHeader n={2} current={s.step} label="Choose a Date" />
@@ -327,7 +397,7 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
                     {Array.from({ length: firstDay }).map((_, i) => <div key={`e${i}`} />)}
                     {Array.from({ length: daysInMonth }, (_, i) => i + 1).map(d => {
                       const k = dateKey(s.calYear, s.calMonth, d);
-                      const avail = isAvailable(s.calYear, s.calMonth, d);
+                      const avail = isAvailableSync(s.calYear, s.calMonth, d);
                       const sel = s.date === k;
                       return (
                         <button key={d} disabled={!avail} onClick={() => selectDate(k)}
@@ -339,7 +409,6 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
                   </div>
                 </>)}
 
-                {/* Step 3 */}
                 {s.step >= 3 && s.date && (<>
                   <div className="border-t border-gray-800 my-6" />
                   <StepHeader n={3} current={s.step} label="Pick a Time" />
@@ -361,7 +430,6 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
                   </div>
                 </>)}
 
-                {/* Step 4 */}
                 {s.step >= 4 && s.time && (<>
                   <div className="border-t border-gray-800 my-6" />
                   <StepHeader n={4} current={s.step} label="Your Details" />
@@ -422,18 +490,102 @@ function StepHeader({ n, current, label }: { n: number; current: number; label: 
   );
 }
 
+// ── ADMIN PASSWORD GATE ─────────────────────────────────────────────────────
+function AdminPasswordGate({ onUnlock }: { onUnlock: () => void }) {
+  const [input, setInput] = useState('');
+  const [error, setError] = useState(false);
+
+  function handleKey(digit: string) {
+    if (input.length >= 4) return;
+    const next = input + digit;
+    setInput(next);
+    setError(false);
+    if (next.length === 4) {
+      if (next === ADMIN_PASSWORD) {
+        sessionStorage.setItem('gg_admin_auth', '1');
+        onUnlock();
+      } else {
+        setTimeout(() => { setInput(''); setError(true); }, 300);
+      }
+    }
+  }
+
+  function handleBackspace() { setInput(p => p.slice(0, -1)); setError(false); }
+
+  const digits = ['1','2','3','4','5','6','7','8','9','0'];
+
+  return (
+    <div className="min-h-screen bg-dark flex items-center justify-center px-4">
+      <div className="w-full max-w-xs text-center">
+        <p className="text-red-600 text-xs font-bold uppercase tracking-[0.25em] mb-2">Admin Access</p>
+        <h1 className="text-3xl font-black text-white mb-8">Enter PIN</h1>
+
+        {/* PIN dots */}
+        <div className="flex justify-center gap-4 mb-8">
+          {[0,1,2,3].map(i => (
+            <div key={i} className={`w-4 h-4 rounded-full border-2 transition-all duration-150 ${
+              i < input.length
+                ? error ? 'bg-red-600 border-red-600' : 'bg-red-600 border-red-600'
+                : 'bg-transparent border-gray-600'
+            }`} />
+          ))}
+        </div>
+
+        {error && <p className="text-red-500 text-xs font-bold uppercase tracking-wider mb-4">Incorrect PIN</p>}
+
+        {/* Numeric keypad */}
+        <div className="grid grid-cols-3 gap-3">
+          {digits.slice(0, 9).map(d => (
+            <button key={d} onClick={() => handleKey(d)}
+              className="h-14 bg-gray-900 border border-gray-700 text-white text-xl font-bold hover:border-red-600 hover:bg-gray-800 active:bg-gray-700 transition-colors">
+              {d}
+            </button>
+          ))}
+          <div /> {/* empty cell */}
+          <button onClick={() => handleKey('0')}
+            className="h-14 bg-gray-900 border border-gray-700 text-white text-xl font-bold hover:border-red-600 hover:bg-gray-800 active:bg-gray-700 transition-colors">
+            0
+          </button>
+          <button onClick={handleBackspace}
+            className="h-14 bg-gray-900 border border-gray-700 text-gray-400 text-xl font-bold hover:border-red-600 hover:text-white active:bg-gray-700 transition-colors">
+            ⌫
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── ADMIN SCHEDULE VIEW ─────────────────────────────────────────────────────
 export function AdminSchedule() {
+  const [unlocked, setUnlocked] = useState(() => sessionStorage.getItem('gg_admin_auth') === '1');
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [filter, setFilter] = useState<'all' | 'confirmed' | 'completed' | 'cancelled'>('all');
   const [view, setView] = useState<'list' | 'calendar'>('list');
   const [calDate, setCalDate] = useState(new Date());
+  const [loading, setLoading] = useState(true);
 
-  useEffect(() => { setBookings(getLocalBookings()); }, []);
+  useEffect(() => {
+    if (!unlocked) return;
+    setLoading(true);
+    getSupabaseBookings().then(data => { setBookings(data); setLoading(false); });
+  }, [unlocked]);
 
-  function updateStatus(id: string, status: Booking['status']) {
+  // Poll every 30s for new bookings
+  useEffect(() => {
+    if (!unlocked) return;
+    const interval = setInterval(() => {
+      getSupabaseBookings().then(setBookings);
+    }, 30000);
+    return () => clearInterval(interval);
+  }, [unlocked]);
+
+  if (!unlocked) return <AdminPasswordGate onUnlock={() => setUnlocked(true)} />;
+
+  async function updateStatus(id: string, status: Booking['status']) {
     updateLocalBooking(id, status);
-    setBookings(getLocalBookings());
+    try { await updateSupabaseBooking(id, status); } catch (e) { console.warn('Supabase update failed', e); }
+    setBookings(prev => prev.map(b => b.id === id ? { ...b, status } : b));
   }
 
   const filtered = bookings
@@ -445,7 +597,6 @@ export function AdminSchedule() {
   const completed = bookings.filter(b => b.status === 'completed').length;
   const total = bookings.length;
 
-  // Calendar view helpers
   const calYear = calDate.getFullYear();
   const calMonth = calDate.getMonth();
   const firstDay = new Date(calYear, calMonth, 1).getDay();
@@ -459,16 +610,24 @@ export function AdminSchedule() {
   return (
     <div className="min-h-screen bg-dark py-12 px-4 md:px-8">
       <div className="max-w-6xl mx-auto">
-        {/* Header */}
         <div className="flex items-center justify-between mb-8">
           <div>
             <p className="text-red-600 text-xs font-bold uppercase tracking-[0.25em] mb-1">Admin</p>
             <h1 className="text-4xl font-black text-white tracking-tight">Schedule</h1>
           </div>
-          <a href="/" className="border border-gray-700 text-gray-400 hover:border-red-600 hover:text-white text-xs font-bold uppercase tracking-widest px-4 py-2 transition-colors">← Back to Site</a>
+          <div className="flex gap-3 items-center">
+            <button onClick={() => getSupabaseBookings().then(setBookings)}
+              className="border border-gray-700 text-gray-400 hover:border-red-600 hover:text-white text-xs font-bold uppercase tracking-widest px-4 py-2 transition-colors">
+              ↻ Refresh
+            </button>
+            <button onClick={() => { sessionStorage.removeItem('gg_admin_auth'); setUnlocked(false); }}
+              className="border border-gray-700 text-gray-400 hover:border-red-600 hover:text-white text-xs font-bold uppercase tracking-widest px-4 py-2 transition-colors">
+              Lock
+            </button>
+            <a href="/" className="border border-gray-700 text-gray-400 hover:border-red-600 hover:text-white text-xs font-bold uppercase tracking-widest px-4 py-2 transition-colors">← Site</a>
+          </div>
         </div>
 
-        {/* Stats */}
         <div className="grid grid-cols-3 gap-4 mb-8">
           {[['Upcoming', upcoming, 'text-red-500'], ['Completed', completed, 'text-green-500'], ['Total', total, 'text-white']].map(([label, val, cls]) => (
             <div key={label as string} className="bg-gray-900 border border-gray-800 p-5">
@@ -478,7 +637,6 @@ export function AdminSchedule() {
           ))}
         </div>
 
-        {/* Controls */}
         <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
           <div className="flex gap-2">
             {(['all','confirmed','completed','cancelled'] as const).map(f => (
@@ -498,8 +656,9 @@ export function AdminSchedule() {
           </div>
         </div>
 
-        {/* Calendar View */}
-        {view === 'calendar' && (
+        {loading && <div className="text-center py-16 text-gray-600 font-bold uppercase tracking-wider text-sm">Loading bookings...</div>}
+
+        {!loading && view === 'calendar' && (
           <div className="bg-gray-900 border border-gray-800 p-6 mb-6">
             <div className="flex items-center justify-between mb-4">
               <button onClick={() => setCalDate(new Date(calYear, calMonth - 1, 1))} className="w-8 h-8 border border-gray-700 text-gray-400 hover:border-red-600 hover:text-white flex items-center justify-center transition-colors">‹</button>
@@ -527,8 +686,7 @@ export function AdminSchedule() {
           </div>
         )}
 
-        {/* List View */}
-        {view === 'list' && (
+        {!loading && view === 'list' && (
           <div className="space-y-3">
             {filtered.length === 0 && (
               <div className="text-center py-16 text-gray-600 font-bold uppercase tracking-wider text-sm">No appointments found</div>

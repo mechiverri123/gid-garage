@@ -66,10 +66,16 @@ function Hero({ onBookService, openBooking }: { onBookService: (id: string) => v
         <div className="absolute bottom-0 left-0 right-0 h-48" style={{ background: 'linear-gradient(to bottom, transparent, #0f0f0f)' }} />
       </div>
       <div className="relative z-10 max-w-5xl mx-auto px-5 md:px-8 text-center">
-        <div className="mb-8 flex justify-center">
-          <img src="/website_logo.png" alt="GID Garage" className="h-56 md:h-72 w-auto drop-shadow-2xl" />
+        {/* Banner spanning full width with toolbox bg visible */}
+        <div className="mb-4 w-full">
+          <img
+            src="/banner.PNG"
+            alt="GID Garage"
+            className="w-full object-contain drop-shadow-2xl"
+            style={{ maxHeight: '220px' }}
+          />
         </div>
-        <p className="text-red-400 text-xs font-bold uppercase tracking-[0.25em] mb-8">Arizona Automotive Repair</p>
+        <p className="text-red-400 text-xs font-bold uppercase tracking-[0.25em] mb-6">Get It Done Garage</p>
         <h1 className="text-5xl sm:text-6xl md:text-7xl font-extrabold text-white leading-tight tracking-tight mb-6">Professional Car Care</h1>
         <p className="text-white/80 text-lg md:text-xl max-w-2xl mx-auto mb-10 leading-relaxed font-light">Honest pricing, expert technicians, fast turnaround. Your car deserves the best — and we deliver.</p>
         <div className="flex flex-col sm:flex-row gap-4 justify-center">
@@ -116,7 +122,11 @@ function WhyUs() {
   return (
     <section id="why" className="py-20 md:py-28 bg-dark">
       <div className="max-w-7xl mx-auto px-5 md:px-8">
-        <div className="text-center mb-8">
+        {/* Reduced gap: removed mb-8, use mb-4 and tighten phone link above heading */}
+        <div className="text-center mb-4">
+          <a href={`tel:${PHONE}`} className="inline-flex items-center gap-2 text-white/60 hover:text-white text-sm font-medium transition-colors mb-3">
+            <Phone className="w-4 h-4 text-red-600" />{PHONE}
+          </a>
           <p className="text-red-400 text-xs font-bold uppercase tracking-[0.25em] mb-2">The GID Difference</p>
           <h2 className="text-4xl md:text-5xl font-extrabold text-white tracking-tight">Why Choose GID Garage?</h2>
         </div>
@@ -133,27 +143,24 @@ function WhyUs() {
             </div>
           ))}
         </div>
-        <div className="flex justify-center">
-          <a href={`tel:${PHONE}`} className="btn-primary inline-flex gap-2 items-center text-xs"><Phone className="w-4 h-4" />{PHONE}</a>
-        </div>
       </div>
     </section>
   );
 }
 
-// Real coordinates for AZ cities
+// Chandler coords: 33.3062, -111.8413
+// Updated map bounds to include Chandler bottom-left
 const SERVICE_AREAS = [
-  { name: 'Gilbert', lat: 33.3528, lng: -111.7890, isHome: true },
-  { name: 'Mesa', lat: 33.4152, lng: -111.8315, isHome: false },
-  { name: 'Tempe', lat: 33.4255, lng: -111.9400, isHome: false },
-  { name: 'Phoenix', lat: 33.4484, lng: -112.0740, isHome: false },
-  { name: 'Queen Creek', lat: 33.2487, lng: -111.6340, isHome: false },
-  { name: 'Santan Valley', lat: 33.2115, lng: -111.5270, isHome: false },
+  { name: 'Gilbert',      lat: 33.3528, lng: -111.7890, isHome: true },
+  { name: 'Mesa',         lat: 33.4152, lng: -111.8315, isHome: false },
+  { name: 'Tempe',        lat: 33.4255, lng: -111.9400, isHome: false },
+  { name: 'Phoenix',      lat: 33.4484, lng: -112.0740, isHome: false },
+  { name: 'Queen Creek',  lat: 33.2487, lng: -111.6340, isHome: false },
+  { name: 'Santan Valley',lat: 33.2115, lng: -111.5270, isHome: false },
+  { name: 'Chandler',     lat: 33.3062, lng: -111.8413, isHome: false },
 ];
 
-// Map bounds roughly covering all cities
-// Lat range: 33.2 to 33.5, Lng range: -112.2 to -111.4
-const MAP_LAT_MIN = 33.18;
+const MAP_LAT_MIN = 33.16;
 const MAP_LAT_MAX = 33.52;
 const MAP_LNG_MIN = -112.22;
 const MAP_LNG_MAX = -111.40;
@@ -179,9 +186,7 @@ function ServiceMap() {
         </div>
         <div className="relative w-full overflow-hidden border border-white/10 bg-[#1a1a1a]" style={{ aspectRatio: `${W}/${H}` }}>
           <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-full" xmlns="http://www.w3.org/2000/svg">
-            {/* Background */}
             <rect width={W} height={H} fill="#111111" />
-            {/* Grid lines */}
             {[0,1,2,3,4].map(i => (
               <line key={`h${i}`} x1={PAD} y1={PAD + i * (H - PAD*2)/4} x2={W-PAD} y2={PAD + i * (H - PAD*2)/4} stroke="#ffffff08" strokeWidth="1" />
             ))}
@@ -189,7 +194,6 @@ function ServiceMap() {
               <line key={`v${i}`} x1={PAD + i * (W - PAD*2)/5} y1={PAD} x2={PAD + i * (W - PAD*2)/5} y2={H-PAD} stroke="#ffffff08" strokeWidth="1" />
             ))}
 
-            {/* Connection lines from Gilbert to other cities */}
             {SERVICE_AREAS.filter(a => !a.isHome).map(area => {
               const home = project(SERVICE_AREAS[0].lat, SERVICE_AREAS[0].lng);
               const pt = project(area.lat, area.lng);
@@ -201,13 +205,11 @@ function ServiceMap() {
               );
             })}
 
-            {/* Service area dots */}
             {SERVICE_AREAS.map(area => {
               const { x, y } = project(area.lat, area.lng);
               if (area.isHome) {
                 return (
                   <g key={area.name}>
-                    {/* Pulse rings */}
                     <circle cx={x} cy={y} r="28" fill="none" stroke="#dc2626" strokeWidth="1" opacity="0.15">
                       <animate attributeName="r" values="18;34;18" dur="2.5s" repeatCount="indefinite" />
                       <animate attributeName="opacity" values="0.3;0;0.3" dur="2.5s" repeatCount="indefinite" />
@@ -219,7 +221,7 @@ function ServiceMap() {
                     <circle cx={x} cy={y} r="8" fill="#dc2626" />
                     <circle cx={x} cy={y} r="4" fill="#ff6b6b" />
                     <text x={x} y={y - 16} textAnchor="middle" fill="#ffffff" fontSize="12" fontWeight="bold" fontFamily="sans-serif">{area.name}</text>
-                    <text x={x} y={y - 4} textAnchor="middle" fill="#dc2626" fontSize="9" fontFamily="sans-serif" dy="20">HQ</text>
+                    <text x={x} y={y - 4} textAnchor="middle" fill="#dc2626" fontSize="9" fontFamily="sans-serif" dy="20">GID Garage</text>
                   </g>
                 );
               }
@@ -234,9 +236,9 @@ function ServiceMap() {
 
             {/* Legend */}
             <circle cx={PAD + 8} cy={H - 18} r="5" fill="#dc2626" />
-            <text x={PAD + 18} y={H - 14} fill="#dc2626" fontSize="10" fontFamily="sans-serif">Gilbert HQ</text>
-            <circle cx={PAD + 90} cy={H - 18} r="4" fill="#374151" stroke="#dc262660" strokeWidth="1.5" />
-            <text x={PAD + 100} y={H - 14} fill="#9ca3af" fontSize="10" fontFamily="sans-serif">Service Area</text>
+            <text x={PAD + 18} y={H - 14} fill="#dc2626" fontSize="10" fontFamily="sans-serif">GID Garage</text>
+            <circle cx={PAD + 100} cy={H - 18} r="4" fill="#374151" stroke="#dc262660" strokeWidth="1.5" />
+            <text x={PAD + 110} y={H - 14} fill="#9ca3af" fontSize="10" fontFamily="sans-serif">Service Area</text>
           </svg>
         </div>
       </div>
@@ -305,7 +307,7 @@ function Footer() {
           <div>
             <img src="/website_logo.png" alt="GID Garage" className="h-16 w-auto mb-4" />
             <p className="text-white/70 text-sm max-w-xs leading-relaxed">Professional automotive repair and service in Arizona. Honest work. Fair prices.</p>
-            <p className="text-white/50 text-xs mt-2 leading-relaxed">Based in Gilbert, AZ · Serving Tempe, Phoenix, Mesa, Queen Creek &amp; Santan Valley</p>
+            <p className="text-white/50 text-xs mt-2 leading-relaxed">Based in Gilbert, AZ · Serving Tempe, Phoenix, Mesa, Queen Creek, Chandler &amp; Santan Valley</p>
           </div>
           <div className="flex flex-col gap-3">
             <a href={`tel:${PHONE}`} className="flex items-center gap-3 text-white/70 hover:text-white transition-colors group">
