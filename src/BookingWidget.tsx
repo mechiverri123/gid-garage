@@ -263,7 +263,7 @@ function VehicleSelector({ form, setForm }: {
           <input
             type="text"
             className={inputClass}
-            placeholder="Trim (optional)"
+            placeholder="Trim"
             value={form.vehicleTrim}
             disabled={!form.vehicleModel}
             onChange={e => setForm(p => ({ ...p, vehicleTrim: e.target.value }))}
@@ -410,7 +410,7 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
   function nextMonth() { setS(p => p.calMonth === 11 ? { ...p, calMonth: 0, calYear: p.calYear + 1 } : { ...p, calMonth: p.calMonth + 1 }); }
 
   async function handleSubmit() {
-    if (!form.fname || !form.phone || !form.vehicleYear || !form.vehicleMake || !form.vehicleModel) {
+    if (!form.fname || !form.phone || !form.vehicleYear || !form.vehicleMake || !form.vehicleModel || !form.vehicleTrim) {
       alert('Please fill in your name, phone, and vehicle info.');
       return;
     }
