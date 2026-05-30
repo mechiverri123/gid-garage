@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, type Dispatch, type SetStateAction } from 'react';
 
 const PHONE = '480-599-0118';
 
@@ -126,7 +126,477 @@ interface Booking {
 
 interface FormData {
   fname: string; lname: string; phone: string;
-  email: string; vehicle: string; notes: string;
+  email: string; vehicleYear: string; vehicleMake: string; vehicleModel: string; vehicleTrim: string; notes: string;
+}
+
+// ── VEHICLE DATABASE ─────────────────────────────────────────────────────────
+// year → make → model → trims[]
+type VehicleDB = Record<number, Record<string, Record<string, string[]>>>;
+
+function buildVehicleDB(): VehicleDB {
+  const years = Array.from({ length: 36 }, (_, i) => 1990 + i); // 1990–2025
+  const data: VehicleDB = {};
+
+  const makes: Record<string, Record<string, string[]>> = {
+    'Acura': {
+      'ILX': ['Base', 'Premium', 'Technology', 'A-Spec'],
+      'MDX': ['Base', 'Technology', 'Advance', 'Type S'],
+      'RDX': ['Base', 'Technology', 'Advance', 'A-Spec'],
+      'TLX': ['Base', 'Technology', 'Advance', 'Type S'],
+      'NSX': ['Base', 'Type S'],
+    },
+    'BMW': {
+      '3 Series': ['330i', '330e', 'M340i', 'M3'],
+      '5 Series': ['530i', '540i', '550e', 'M5'],
+      '7 Series': ['740i', '760i', 'M760i'],
+      'X3': ['sDrive30i', 'xDrive30i', 'xDrive30e', 'M40i'],
+      'X5': ['sDrive40i', 'xDrive40i', 'xDrive50e', 'M50i'],
+      'X7': ['xDrive40i', 'xDrive50i', 'M60i'],
+    },
+    'Buick': {
+      'Enclave': ['Preferred', 'Essence', 'Avenir'],
+      'Encore': ['Preferred', 'Sport Touring', 'Essence'],
+      'Encore GX': ['Preferred', 'Sport Touring', 'Essence'],
+      'Envision': ['Preferred', 'Essence', 'Avenir'],
+    },
+    'Cadillac': {
+      'CT4': ['Luxury', 'Premium Luxury', 'V-Series', 'Blackwing'],
+      'CT5': ['Luxury', 'Premium Luxury', 'Sport', 'Blackwing'],
+      'Escalade': ['Luxury', 'Premium Luxury', 'Platinum', 'Sport Platinum'],
+      'XT4': ['Luxury', 'Premium Luxury', 'Sport'],
+      'XT5': ['Luxury', 'Premium Luxury', 'Sport'],
+      'XT6': ['Luxury', 'Premium Luxury', 'Sport'],
+    },
+    'Chevrolet': {
+      'Blazer': ['LT', 'RS', 'Premier'],
+      'Colorado': ['WT', 'LT', 'Z71', 'ZR2'],
+      'Corvette': ['1LT', '2LT', '3LT', 'Z06', 'Grand Sport'],
+      'Equinox': ['LS', 'LT', 'RS', 'Premier'],
+      'Malibu': ['LS', 'RS', 'LT', 'Premier'],
+      'Silverado 1500': ['WT', 'Custom', 'LT', 'RST', 'LTZ', 'High Country', 'ZR2'],
+      'Silverado 2500HD': ['WT', 'Custom', 'LT', 'LTZ', 'High Country'],
+      'Suburban': ['LS', 'LT', 'RST', 'LTZ', 'Premier', 'Z71'],
+      'Tahoe': ['LS', 'LT', 'RST', 'LTZ', 'Premier', 'Z71'],
+      'Trailblazer': ['LS', 'LT', 'ACTIV', 'RS'],
+      'Traverse': ['LS', 'LT', 'RS', 'Premier', 'High Country'],
+    },
+    'Chrysler': {
+      '300': ['Touring', 'Touring L', '300S', '300C'],
+      'Pacifica': ['Touring', 'Touring L', 'Touring Plus', 'Limited', 'Pinnacle'],
+      'Voyager': ['LX', 'LXI'],
+    },
+    'Dodge': {
+      'Challenger': ['SXT', 'GT', 'R/T', 'Scat Pack', 'SRT Hellcat', 'Demon'],
+      'Charger': ['SXT', 'GT', 'R/T', 'Scat Pack', 'SRT Hellcat'],
+      'Durango': ['SXT', 'GT', 'Citadel', 'R/T', 'SRT 392'],
+      'Journey': ['SE', 'SXT', 'Crossroad', 'GT'],
+    },
+    'Ford': {
+      'Bronco': ['Base', 'Big Bend', 'Black Diamond', 'Outer Banks', 'Badlands', 'Wildtrak', 'Raptor'],
+      'Edge': ['SE', 'SEL', 'ST', 'Titanium'],
+      'Escape': ['S', 'SE', 'SEL', 'Titanium', 'ST-Line'],
+      'Explorer': ['Base', 'XLT', 'ST', 'Limited', 'Platinum', 'King Ranch', 'Timberline'],
+      'F-150': ['XL', 'XLT', 'Lariat', 'King Ranch', 'Platinum', 'Limited', 'Raptor'],
+      'F-250 Super Duty': ['XL', 'XLT', 'Lariat', 'King Ranch', 'Platinum', 'Limited', 'Tremor'],
+      'Maverick': ['XL', 'XLT', 'Lariat'],
+      'Mustang': ['EcoBoost', 'EcoBoost Premium', 'GT', 'GT Premium', 'Mach 1', 'Shelby GT500'],
+      'Ranger': ['XL', 'XLT', 'Lariat', 'Tremor'],
+    },
+    'GMC': {
+      'Acadia': ['SLE', 'SLT', 'AT4', 'Denali'],
+      'Canyon': ['Elevation', 'AT4', 'Denali'],
+      'Sierra 1500': ['Regular', 'SLE', 'SLT', 'AT4', 'Denali', 'Denali Ultimate'],
+      'Sierra 2500HD': ['Regular', 'SLE', 'SLT', 'AT4', 'Denali'],
+      'Terrain': ['SLE', 'SLT', 'AT4', 'Denali'],
+      'Yukon': ['SLE', 'SLT', 'AT4', 'Denali', 'Denali Ultimate'],
+      'Yukon XL': ['SLE', 'SLT', 'AT4', 'Denali'],
+    },
+    'Honda': {
+      'Accord': ['LX', 'Sport', 'EX', 'EX-L', 'Touring'],
+      'CR-V': ['LX', 'Sport', 'EX', 'EX-L', 'Touring'],
+      'HR-V': ['LX', 'Sport', 'EX', 'EX-L'],
+      'Odyssey': ['LX', 'EX', 'EX-L', 'Sport', 'Elite'],
+      'Passport': ['Sport', 'EX-L', 'TrailSport', 'Elite'],
+      'Pilot': ['Sport', 'EX-L', 'TrailSport', 'Black Edition', 'Elite'],
+      'Ridgeline': ['Sport', 'RTL', 'RTL-E', 'Black Edition'],
+    },
+    'Hyundai': {
+      'Elantra': ['SE', 'SEL', 'N Line', 'Limited', 'N'],
+      'Kona': ['SE', 'SEL', 'N Line', 'Limited'],
+      'Palisade': ['SE', 'SEL', 'XRT', 'Limited', 'Calligraphy'],
+      'Santa Cruz': ['SE', 'SEL', 'XRT', 'Limited'],
+      'Santa Fe': ['SE', 'SEL', 'XRT', 'Limited', 'Calligraphy'],
+      'Sonata': ['SE', 'SEL', 'N Line', 'Limited'],
+      'Tucson': ['SE', 'SEL', 'N Line', 'XRT', 'Limited'],
+    },
+    'Jeep': {
+      'Cherokee': ['Sport', 'Latitude', 'Latitude Lux', 'Altitude', 'Limited', 'Trailhawk', 'Overland'],
+      'Compass': ['Sport', 'Latitude', 'Altitude', 'Limited', 'Trailhawk'],
+      'Gladiator': ['Sport', 'Willys', 'Sport S', 'Altitude', 'Overland', 'Mojave', 'Rubicon'],
+      'Grand Cherokee': ['Laredo', 'Altitude', 'Limited', 'Overland', 'Trailhawk', 'Summit', 'SRT'],
+      'Grand Cherokee L': ['Laredo', 'Altitude', 'Limited', 'Overland', 'Summit', 'Summit Reserve'],
+      'Renegade': ['Sport', 'Latitude', 'Altitude', 'Limited', 'Trailhawk'],
+      'Wrangler': ['Sport', 'Sport S', 'Willys', 'Altitude', 'Sahara', 'Rubicon', '4xe', 'Rubicon 392'],
+    },
+    'Kia': {
+      'Carnival': ['LX', 'EX', 'SX', 'SX Prestige'],
+      'Forte': ['FE', 'LXS', 'GT-Line', 'GT'],
+      'K5': ['LXS', 'GT-Line', 'EX', 'GT'],
+      'Seltos': ['LX', 'S', 'EX', 'SX'],
+      'Sorento': ['LX', 'S', 'EX', 'SX', 'SX Prestige', 'X-Line'],
+      'Soul': ['LX', 'S', 'GT-Line', 'Turbo'],
+      'Sportage': ['LX', 'EX', 'SX Prestige', 'X-Pro'],
+      'Telluride': ['LX', 'S', 'EX', 'SX', 'SX-Prestige', 'X-Pro'],
+    },
+    'Land Rover': {
+      'Defender': ['90 S', '90 SE', '110 S', '110 SE', '110 HSE', '110 X'],
+      'Discovery': ['S', 'SE', 'R-Dynamic SE', 'HSE', 'R-Dynamic HSE'],
+      'Discovery Sport': ['S', 'SE', 'R-Dynamic SE', 'HSE', 'R-Dynamic HSE'],
+      'Range Rover': ['SE', 'HSE', 'Autobiography', 'SV'],
+      'Range Rover Sport': ['SE', 'HSE', 'Dynamic SE', 'Dynamic HSE', 'Autobiography'],
+      'Range Rover Velar': ['S', 'SE', 'R-Dynamic SE', 'HSE', 'R-Dynamic HSE'],
+    },
+    'Lexus': {
+      'ES': ['ES 250', 'ES 300h', 'ES 350', 'F Sport'],
+      'GX': ['460 Base', '460 Premium', '460 Luxury'],
+      'IS': ['IS 300', 'IS 350', 'IS 500', 'F Sport'],
+      'LX': ['LX 600 Base', 'LX 600 Premium', 'LX 600 Luxury', 'F Sport'],
+      'NX': ['NX 250', 'NX 350', 'NX 350h', 'NX 450h+', 'F Sport'],
+      'RX': ['RX 350', 'RX 350h', 'RX 500h', 'F Sport'],
+    },
+    'Lincoln': {
+      'Aviator': ['Standard', 'Reserve', 'Grand Touring', 'Black Label'],
+      'Corsair': ['Standard', 'Reserve', 'Grand Touring', 'Black Label'],
+      'Nautilus': ['Standard', 'Reserve', 'Black Label'],
+      'Navigator': ['Standard', 'Reserve', 'Black Label'],
+    },
+    'Mazda': {
+      'CX-30': ['2.5 S', '2.5 S Select', '2.5 S Preferred', '2.5 S Premium', 'Turbo'],
+      'CX-5': ['2.5 S', '2.5 S Select', '2.5 S Preferred', '2.5 S Premium', 'Turbo'],
+      'CX-9': ['Sport', 'Touring', 'Grand Touring', 'Carbon Edition', 'Signature'],
+      'Mazda3': ['2.5 S', '2.5 S Select', '2.5 S Preferred', '2.5 S Premium', 'Turbo'],
+      'MX-5 Miata': ['Sport', 'Club', 'Grand Touring'],
+    },
+    'Mercedes-Benz': {
+      'C-Class': ['C 300', 'C 300 4MATIC', 'AMG C 43', 'AMG C 63'],
+      'E-Class': ['E 350', 'E 450', 'E 450 4MATIC', 'AMG E 53'],
+      'GLC': ['GLC 300', 'GLC 300 4MATIC', 'AMG GLC 43', 'AMG GLC 63'],
+      'GLE': ['GLE 350', 'GLE 450', 'GLE 580', 'AMG GLE 53', 'AMG GLE 63 S'],
+      'S-Class': ['S 500', 'S 580', 'S 680', 'AMG S 63'],
+      'Sprinter': ['1500', '2500', '3500'],
+    },
+    'Mitsubishi': {
+      'Eclipse Cross': ['ES', 'LE', 'SE', 'SEL'],
+      'Outlander': ['ES', 'LE', 'SE', 'SEL', 'PHEV'],
+      'Outlander Sport': ['ES', 'LE', 'BE', 'SE', 'SEL'],
+    },
+    'Nissan': {
+      'Altima': ['S', 'SR', 'SV', 'SL', 'Platinum'],
+      'Armada': ['S', 'SV', 'SL', 'Platinum'],
+      'Frontier': ['S', 'SV', 'Pro-4X', 'PRO-X', 'SL'],
+      'Murano': ['S', 'SV', 'SL', 'Platinum'],
+      'Pathfinder': ['S', 'SV', 'SL', 'Platinum', 'Rock Creek'],
+      'Rogue': ['S', 'SV', 'SL', 'Platinum'],
+      'Sentra': ['S', 'SR', 'SV'],
+      'Titan': ['S', 'SV', 'Pro-4X', 'SL', 'Platinum Reserve'],
+      'Versa': ['S', 'SR', 'SV'],
+    },
+    'Porsche': {
+      '911': ['Carrera', 'Carrera S', 'Carrera 4', 'Carrera 4S', 'Targa', 'GT3', 'Turbo S'],
+      'Cayenne': ['Base', 'S', 'GTS', 'Turbo', 'Turbo GT'],
+      'Macan': ['Base', 'S', 'GTS'],
+      'Panamera': ['Base', '4', 'S', '4S', 'GTS', 'Turbo', 'Turbo S'],
+    },
+    'Ram': {
+      '1500': ['Tradesman', 'Big Horn', 'Lone Star', 'Laramie', 'Rebel', 'Laramie Longhorn', 'Limited', 'TRX'],
+      '2500': ['Tradesman', 'Big Horn', 'Lone Star', 'Laramie', 'Power Wagon', 'Laramie Longhorn', 'Limited'],
+      '3500': ['Tradesman', 'Big Horn', 'Lone Star', 'Laramie', 'Laramie Longhorn', 'Limited'],
+      'ProMaster': ['1500 Low Roof', '2500 Low Roof', '2500 High Roof', '3500 High Roof'],
+    },
+    'Subaru': {
+      'Ascent': ['Base', 'Premium', 'Limited', 'Touring'],
+      'Crosstrek': ['Base', 'Premium', 'Sport', 'Limited'],
+      'Forester': ['Base', 'Premium', 'Sport', 'Limited', 'Touring'],
+      'Impreza': ['Base', 'Premium', 'Sport', 'Limited'],
+      'Legacy': ['Base', 'Premium', 'Sport', 'Limited', 'Touring XT'],
+      'Outback': ['Base', 'Premium', 'Onyx Edition', 'Sport', 'Limited', 'Touring XT', 'Wilderness'],
+      'WRX': ['Base', 'Premium', 'Sport', 'Limited', 'GT'],
+    },
+    'Tesla': {
+      'Model 3': ['Standard Range', 'Long Range', 'Performance'],
+      'Model S': ['Long Range', 'Plaid'],
+      'Model X': ['Long Range', 'Plaid'],
+      'Model Y': ['Standard Range', 'Long Range', 'Performance'],
+      'Cybertruck': ['Standard', 'All-Wheel Drive', 'Cyberbeast'],
+    },
+    'Toyota': {
+      '4Runner': ['SR5', 'TRD Sport', 'TRD Off-Road', 'Limited', 'TRD Pro', 'Venture'],
+      'Camry': ['LE', 'SE', 'XSE', 'XLE', 'TRD', 'Nightshade'],
+      'Corolla': ['L', 'LE', 'SE', 'XLE', 'XSE', 'Hatchback'],
+      'FJ Cruiser': ['Base'],
+      'Highlander': ['LE', 'XLE', 'XSE', 'Limited', 'Platinum'],
+      'Land Cruiser': ['Base', 'Heritage Edition', '1958'],
+      'RAV4': ['LE', 'XLE', 'XLE Premium', 'Adventure', 'TRD Off-Road', 'Limited', 'Prime SE', 'Prime XSE'],
+      'Sequoia': ['SR5', 'TRD Sport', 'Limited', 'Platinum', 'TRD Pro', 'Capstone'],
+      'Sienna': ['LE', 'XSE', 'XLE', 'Limited', 'Platinum'],
+      'Tacoma': ['SR', 'SR5', 'TRD Sport', 'TRD Off-Road', 'Limited', 'TRD Pro', 'Trailhunter'],
+      'Tundra': ['SR', 'SR5', 'Limited', 'Platinum', '1794 Edition', 'Capstone', 'TRD Pro'],
+    },
+    'Volkswagen': {
+      'Atlas': ['S', 'SE', 'SE with Technology', 'SEL', 'SEL Premium'],
+      'Atlas Cross Sport': ['S', 'SE', 'SE with Technology', 'SEL', 'SEL Premium'],
+      'Golf GTI': ['S', 'SE', 'Autobahn'],
+      'Jetta': ['S', 'Sport', 'SE', 'SEL', 'GLI'],
+      'Passat': ['S', 'SE', 'SEL'],
+      'Taos': ['S', 'SE', 'SEL'],
+      'Tiguan': ['S', 'SE', 'SE R-Line Black', 'SEL', 'SEL R-Line Black', 'SEL Premium'],
+    },
+    'Volvo': {
+      'S60': ['B5 Momentum', 'B5 R-Design', 'B6 R-Design', 'Recharge T8'],
+      'S90': ['B6 Momentum', 'B6 R-Design', 'Inscription', 'Recharge T8'],
+      'XC40': ['Momentum', 'R-Design', 'Inscription', 'Recharge'],
+      'XC60': ['Momentum', 'R-Design', 'Inscription', 'Recharge T8'],
+      'XC90': ['Momentum', 'R-Design', 'Inscription', 'Recharge T8'],
+    },
+  };
+
+  // Vintage / older makes with limited years
+  const vintageMakes: Record<string, { startYear: number; endYear: number; models: Record<string, string[]> }> = {
+    'Datsun': {
+      startYear: 1990, endYear: 1986, // effectively only old cars
+      models: {
+        '210': ['Base'],
+        '280Z': ['Base'],
+        '310': ['Base'],
+        '510': ['Base'],
+        '720': ['Standard', 'Deluxe', 'King Cab'],
+      },
+    },
+    'Oldsmobile': {
+      startYear: 1990, endYear: 2004,
+      models: {
+        'Alero': ['GL', 'GLS', 'GX'],
+        'Aurora': ['Base'],
+        'Bravada': ['Base'],
+        'Cutlass': ['GL', 'GLS'],
+        'Intrigue': ['GL', 'GLS', 'GX'],
+        'Silhouette': ['GL', 'GLS'],
+      },
+    },
+    'Pontiac': {
+      startYear: 1990, endYear: 2010,
+      models: {
+        'Aztek': ['Base', 'GT', 'GTX'],
+        'Bonneville': ['SE', 'SLE', 'SSEi'],
+        'Firebird': ['Base', 'Formula', 'Trans Am'],
+        'G6': ['Base', 'GT', 'GTP'],
+        'GTO': ['Base'],
+        'Grand Am': ['SE', 'GT'],
+        'Grand Prix': ['GT', 'GTP', 'GXP'],
+        'Montana': ['Base', 'Luxury'],
+        'Solstice': ['Base', 'GXP'],
+        'Vibe': ['Base', 'GT'],
+      },
+    },
+    'Saturn': {
+      startYear: 1991, endYear: 2010,
+      models: {
+        'Aura': ['XE', 'XR'],
+        'Ion': ['1', '2', '3'],
+        'Outlook': ['XE', 'XR'],
+        'Sky': ['Base', 'Red Line'],
+        'SL': ['SL', 'SL1', 'SL2'],
+        'Vue': ['Base', 'V6'],
+      },
+    },
+    'Plymouth': {
+      startYear: 1990, endYear: 2001,
+      models: {
+        'Breeze': ['Base'],
+        'Grand Voyager': ['SE', 'LE'],
+        'Neon': ['Highline', 'Expresso', 'Sport'],
+        'Prowler': ['Base'],
+        'Voyager': ['Base', 'SE', 'LE'],
+      },
+    },
+    'Mercury': {
+      startYear: 1990, endYear: 2011,
+      models: {
+        'Grand Marquis': ['GS', 'LS'],
+        'Mariner': ['Convenience', 'Premier'],
+        'Milan': ['I4', 'V6', 'Premier'],
+        'Monterey': ['Convenience', 'Premier', 'Luxury'],
+        'Mountaineer': ['Base', 'Convenience', 'Premier'],
+        'Mystique': ['GS', 'LS'],
+        'Sable': ['GS', 'LS'],
+        'Tracer': ['Base', 'LS'],
+        'Villager': ['GS', 'Estate'],
+      },
+    },
+    'Isuzu': {
+      startYear: 1990, endYear: 2008,
+      models: {
+        'Amigo': ['S', 'XS'],
+        'Ascender': ['S', 'LS'],
+        'Axiom': ['S', 'XS'],
+        'i-280': ['Standard'],
+        'i-350': ['Standard'],
+        'Rodeo': ['S', 'LS', 'LSE'],
+        'Trooper': ['S', 'LS'],
+        'VehiCROSS': ['Base'],
+      },
+    },
+    'Saab': {
+      startYear: 1990, endYear: 2011,
+      models: {
+        '9-3': ['Linear', 'Arc', 'Vector', 'Aero'],
+        '9-5': ['Linear', 'Arc', 'Vector', 'Aero'],
+        '9-7X': ['Linear', 'Arc', 'Aero'],
+      },
+    },
+    'Hummer': {
+      startYear: 1992, endYear: 2010,
+      models: {
+        'H1': ['Open Top', 'Wagon', 'Hard Top', 'Alpha'],
+        'H2': ['Base', 'SUT'],
+        'H3': ['Base', 'Adventure', 'Luxury', 'Alpha'],
+        'H3T': ['Base', 'Adventure', 'Alpha'],
+      },
+    },
+    'Scion': {
+      startYear: 2003, endYear: 2016,
+      models: {
+        'FR-S': ['Base', 'Series 1.0', 'Series 2.0'],
+        'iA': ['Base'],
+        'iM': ['Base'],
+        'iQ': ['Base'],
+        'tC': ['Base', 'RS'],
+        'xA': ['Base'],
+        'xB': ['Base', 'RS'],
+        'xD': ['Base', 'RS'],
+      },
+    },
+  };
+
+  for (const year of years) {
+    data[year] = {};
+    // Add mainstream makes for all years
+    for (const [make, models] of Object.entries(makes)) {
+      // Tesla only from 2008+
+      if (make === 'Tesla' && year < 2008) continue;
+      // Cybertruck only from 2023+
+      if (make === 'Tesla' && year < 2023) {
+        const { Cybertruck: _ct, ...rest } = models as Record<string, string[]>;
+        data[year][make] = rest;
+        continue;
+      }
+      // FJ Cruiser only 2006-2014
+      if (make === 'Toyota') {
+        const filtered: Record<string, string[]> = {};
+        for (const [model, trims] of Object.entries(models)) {
+          if (model === 'FJ Cruiser' && (year < 2006 || year > 2014)) continue;
+          filtered[model] = trims;
+        }
+        data[year][make] = filtered;
+        continue;
+      }
+      data[year][make] = models;
+    }
+    // Add vintage makes with year ranges
+    for (const [make, info] of Object.entries(vintageMakes)) {
+      if (year >= info.startYear && year <= info.endYear) {
+        data[year][make] = info.models;
+      }
+    }
+  }
+
+  return data;
+}
+
+const VEHICLE_DB = buildVehicleDB();
+
+function getYears(): number[] {
+  return Object.keys(VEHICLE_DB).map(Number).sort((a, b) => b - a);
+}
+function getMakes(year: number): string[] {
+  return Object.keys(VEHICLE_DB[year] ?? {}).sort();
+}
+function getModels(year: number, make: string): string[] {
+  return Object.keys(VEHICLE_DB[year]?.[make] ?? {}).sort();
+}
+function getTrims(year: number, make: string, model: string): string[] {
+  return VEHICLE_DB[year]?.[make]?.[model] ?? [];
+}
+function vehicleString(f: FormData): string {
+  const parts = [f.vehicleYear, f.vehicleMake, f.vehicleModel, f.vehicleTrim].filter(Boolean);
+  return parts.join(' ');
+}
+
+// ── VEHICLE SELECTOR COMPONENT ───────────────────────────────────────────────
+function VehicleSelector({ form, setForm }: {
+  form: FormData;
+  setForm: Dispatch<SetStateAction<FormData>>;
+}) {
+  const years = getYears();
+  const makes = form.vehicleYear ? getMakes(Number(form.vehicleYear)) : [];
+  const models = form.vehicleYear && form.vehicleMake ? getModels(Number(form.vehicleYear), form.vehicleMake) : [];
+  const trims = form.vehicleYear && form.vehicleMake && form.vehicleModel
+    ? getTrims(Number(form.vehicleYear), form.vehicleMake, form.vehicleModel)
+    : [];
+
+  const selectClass = 'w-full bg-gray-900 border border-gray-800 text-white text-sm px-3 py-2.5 outline-none focus:border-red-600 transition-colors disabled:text-gray-600 disabled:cursor-not-allowed';
+
+  return (
+    <div className="col-span-2 grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <div>
+        <label className="block text-gray-500 text-xs font-bold uppercase tracking-wider mb-1.5">Year</label>
+        <select
+          className={selectClass}
+          value={form.vehicleYear}
+          onChange={e => setForm(p => ({ ...p, vehicleYear: e.target.value, vehicleMake: '', vehicleModel: '', vehicleTrim: '' }))}
+        >
+          <option value="">Year</option>
+          {years.map(y => <option key={y} value={y}>{y}</option>)}
+        </select>
+      </div>
+      <div>
+        <label className="block text-gray-500 text-xs font-bold uppercase tracking-wider mb-1.5">Make</label>
+        <select
+          className={selectClass}
+          value={form.vehicleMake}
+          disabled={!form.vehicleYear}
+          onChange={e => setForm(p => ({ ...p, vehicleMake: e.target.value, vehicleModel: '', vehicleTrim: '' }))}
+        >
+          <option value="">Make</option>
+          {makes.map(m => <option key={m} value={m}>{m}</option>)}
+        </select>
+      </div>
+      <div>
+        <label className="block text-gray-500 text-xs font-bold uppercase tracking-wider mb-1.5">Model</label>
+        <select
+          className={selectClass}
+          value={form.vehicleModel}
+          disabled={!form.vehicleMake}
+          onChange={e => setForm(p => ({ ...p, vehicleModel: e.target.value, vehicleTrim: '' }))}
+        >
+          <option value="">Model</option>
+          {models.map(m => <option key={m} value={m}>{m}</option>)}
+        </select>
+      </div>
+      <div>
+        <label className="block text-gray-500 text-xs font-bold uppercase tracking-wider mb-1.5">Trim</label>
+        <select
+          className={selectClass}
+          value={form.vehicleTrim}
+          disabled={!form.vehicleModel || trims.length === 0}
+          onChange={e => setForm(p => ({ ...p, vehicleTrim: e.target.value }))}
+        >
+          <option value="">Trim</option>
+          {trims.map(t => <option key={t} value={t}>{t}</option>)}
+        </select>
+      </div>
+    </div>
+  );
 }
 
 function loadEmailJS(): Promise<void> {
@@ -185,7 +655,7 @@ const INIT_STATE: State = {
   calYear: new Date().getFullYear(), calMonth: new Date().getMonth(),
   suspensionPart: null, brakeService: null,
 };
-const INIT_FORM: FormData = { fname: '', lname: '', phone: '', email: '', vehicle: '', notes: '' };
+const INIT_FORM: FormData = { fname: '', lname: '', phone: '', email: '', vehicleYear: '', vehicleMake: '', vehicleModel: '', vehicleTrim: '', notes: '' };
 
 export default function BookingWidget({ autoOpen, preselectedService, onClose }: { autoOpen?: boolean; preselectedService?: string; onClose?: () => void } = {}) {
   const [open, setOpen] = useState(!!autoOpen);
@@ -265,7 +735,7 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
   function nextMonth() { setS(p => p.calMonth === 11 ? { ...p, calMonth: 0, calYear: p.calYear + 1 } : { ...p, calMonth: p.calMonth + 1 }); }
 
   async function handleSubmit() {
-    if (!form.fname || !form.phone || !form.vehicle) {
+    if (!form.fname || !form.phone || !form.vehicleYear || !form.vehicleMake || !form.vehicleModel) {
       alert('Please fill in your name, phone, and vehicle info.');
       return;
     }
@@ -275,7 +745,8 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
       id: `GG-${Date.now()}`,
       service: s.service, serviceIcon: svc.icon,
       date: s.date, time: s.time,
-      ...form,
+      fname: form.fname, lname: form.lname, phone: form.phone, email: form.email,
+      vehicle: vehicleString(form),
       notes: [
         s.suspensionPart ? `Suspension part: ${s.suspensionPart.replace(/_/g, ' ')}` : '',
         s.brakeService ? `Brake service: ${s.brakeService.replace(/_/g, ' ')}` : '',
@@ -447,16 +918,16 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
                       { id: 'lname', label: 'Last Name', placeholder: 'Smith', type: 'text', full: false },
                       { id: 'phone', label: 'Phone', placeholder: '480-555-0100', type: 'tel', full: false },
                       { id: 'email', label: 'Email', placeholder: 'you@email.com', type: 'email', full: false },
-                      { id: 'vehicle', label: 'Vehicle (Year, Make, Model)', placeholder: 'e.g. 2019 Toyota Camry', type: 'text', full: true },
                     ].map(f => (
                       <div key={f.id} className={f.full ? 'col-span-2' : ''}>
                         <label className="block text-gray-500 text-xs font-bold uppercase tracking-wider mb-1.5">{f.label}</label>
                         <input type={f.type} placeholder={f.placeholder}
-                          value={form[f.id as keyof FormData]}
+                          value={form[f.id as keyof FormData] as string}
                           onChange={e => setForm(p => ({ ...p, [f.id]: e.target.value }))}
                           className="w-full bg-gray-900 border border-gray-800 text-white text-sm px-3 py-2.5 outline-none focus:border-red-600 transition-colors" />
                       </div>
                     ))}
+                    <VehicleSelector form={form} setForm={setForm} />
                     <div className="col-span-2">
                       <label className="block text-gray-500 text-xs font-bold uppercase tracking-wider mb-1.5">Notes (optional)</label>
                       <textarea placeholder="Any additional details..." value={form.notes}
