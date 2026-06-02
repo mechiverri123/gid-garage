@@ -535,6 +535,7 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
 
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [showCancelPolicy, setShowCancelPolicy] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   async function handleSubmit() {
     const errors: Record<string, string> = {};
@@ -545,6 +546,7 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
     if (!form.vehicleModel) errors.vehicleModel = 'Select a model';
     if (Object.keys(errors).length > 0) { setFieldErrors(errors); return; }
     setFieldErrors({});
+    setSubmitError(null);
     if (!s.service || !s.date || !s.time || !svc) return;
     setSubmitting(true);
     const booking: Booking = {
@@ -564,7 +566,19 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
       createdAt: new Date().toISOString(),
     };
     saveLocalBooking(booking);
-    try { await insertSupabaseBooking(booking); } catch (e) { console.warn('Supabase insert failed', e); }
+    try {
+      await insertSupabaseBooking(booking);
+    } catch (e: any) {
+      deleteLocalBooking(booking.id);
+      setSubmitting(false);
+      // Unique constraint violation = slot was just taken
+      if (e?.message?.includes('unique') || e?.message?.includes('duplicate') || e?.message?.includes('23505')) {
+        setSubmitError('Sorry, that time slot was just booked by someone else. Please go back and choose a different time.');
+      } else {
+        setSubmitError('Something went wrong. Please try again or call us directly.');
+      }
+      return;
+    }
     try { await sendEmail(booking); } catch (e) { console.warn('Email send failed', e); }
     setSubmitting(false);
     setSubmitted(true);
@@ -762,6 +776,11 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
                     </div>
                   </div>
                   <p className="text-gray-600 text-xs mt-3">By booking, you agree to our <button type="button" onClick={() => setShowCancelPolicy(true)} className="text-red-500 hover:text-red-400 underline underline-offset-2 transition-colors">cancellation policy</button>. Please cancel at least 24 hours in advance to avoid a cancellation fee.</p>
+                  {submitError && (
+                    <div className="mt-4 bg-red-950/50 border border-red-700 text-red-400 text-sm px-4 py-3">
+                      {submitError}
+                    </div>
+                  )}
                   <button onClick={handleSubmit} disabled={submitting}
                     className={`btn-primary w-full mt-4 py-4 text-sm ${submitting ? 'opacity-50 cursor-not-allowed' : ''}`}>
                     {submitting ? 'Submitting...' : 'Submit Request'}
