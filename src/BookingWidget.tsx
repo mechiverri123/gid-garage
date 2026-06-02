@@ -1,4 +1,4 @@
-import { useState, useEffect, type Dispatch, type SetStateAction } from 'react';
+import { useState, useEffect, useRef, type Dispatch, type SetStateAction } from 'react';
 
 const PHONE = '480-599-0118';
 
@@ -44,6 +44,7 @@ async function getSupabaseBookings(): Promise<Booking[]> {
       email: b.email,
       vehicle: b.vehicle,
       notes: b.notes || '',
+      garageNotes: b.garage_notes || '',
       status: b.status,
       createdAt: b.created_at,
     }));
@@ -68,6 +69,7 @@ async function insertSupabaseBooking(b: Booking): Promise<void> {
       email: b.email,
       vehicle: b.vehicle,
       notes: b.notes,
+      garage_notes: b.garageNotes || '',
       status: b.status,
       created_at: b.createdAt,
     }),
@@ -78,6 +80,13 @@ async function updateSupabaseBooking(id: string, status: Booking['status']): Pro
   await sbFetch(`/bookings?id=eq.${id}`, {
     method: 'PATCH',
     body: JSON.stringify({ status }),
+  });
+}
+
+async function updateSupabaseGarageNotes(id: string, garageNotes: string): Promise<void> {
+  await sbFetch(`/bookings?id=eq.${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ garage_notes: garageNotes }),
   });
 }
 
@@ -137,6 +146,7 @@ interface Booking {
   email: string;
   vehicle: string;
   notes: string;
+  garageNotes: string;
   status: 'confirmed' | 'completed' | 'cancelled';
   createdAt: string;
 }
@@ -428,6 +438,10 @@ function updateLocalBooking(id: string, status: Booking['status']) {
   const all = getLocalBookings().map(b => b.id === id ? { ...b, status } : b);
   localStorage.setItem('gg_bookings', JSON.stringify(all));
 }
+function updateLocalGarageNotes(id: string, garageNotes: string) {
+  const all = getLocalBookings().map(b => b.id === id ? { ...b, garageNotes } : b);
+  localStorage.setItem('gg_bookings', JSON.stringify(all));
+}
 
 // ── BOOKING WIDGET ──────────────────────────────────────────────────────────
 interface State {
@@ -542,6 +556,7 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
         s.audioPackage ? `Audio package: ${AUDIO_LABELS[s.audioPackage] ?? s.audioPackage}` : '',
         form.notes,
       ].filter(Boolean).join(' | '),
+      garageNotes: '',
       status: 'confirmed',
       createdAt: new Date().toISOString(),
     };
@@ -885,6 +900,64 @@ function BookingDetailModal({ booking, onClose, onUpdate }: { booking: Booking; 
   );
 }
 
+// ── GARAGE NOTES FIELD ──────────────────────────────────────────────────────
+function GarageNotesField({ booking, onSave }: { booking: Booking; onSave: (id: string, notes: string) => Promise<void> }) {
+  const [text, setText] = useState(booking.garageNotes || '');
+  const [saved, setSaved] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const autoSaveRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Sync if booking changes (e.g. refresh)
+  useEffect(() => {
+    setText(booking.garageNotes || '');
+    setSaved(true);
+  }, [booking.id]);
+
+  function handleChange(val: string) {
+    setText(val);
+    setSaved(false);
+    if (autoSaveRef.current) clearTimeout(autoSaveRef.current);
+    autoSaveRef.current = setTimeout(async () => {
+      setSaving(true);
+      await onSave(booking.id, val);
+      setSaving(false);
+      setSaved(true);
+    }, 1500);
+  }
+
+  async function handleManualSave() {
+    if (autoSaveRef.current) clearTimeout(autoSaveRef.current);
+    setSaving(true);
+    await onSave(booking.id, text);
+    setSaving(false);
+    setSaved(true);
+  }
+
+  return (
+    <div className="border-t border-gray-800 pt-3 mt-1">
+      <div className="flex items-center justify-between mb-1.5">
+        <label className="text-xs font-bold uppercase tracking-wider text-yellow-600">🔧 Garage Notes</label>
+        <div className="flex items-center gap-2">
+          {saving && <span className="text-gray-600 text-[10px] uppercase tracking-wider">Saving…</span>}
+          {!saving && saved && text !== '' && <span className="text-gray-600 text-[10px] uppercase tracking-wider">✓ Saved</span>}
+          {!saving && !saved && <span className="text-gray-600 text-[10px] uppercase tracking-wider">Unsaved</span>}
+          <button onClick={handleManualSave} disabled={saving}
+            className="text-[10px] font-bold uppercase tracking-wider px-2 py-1 border border-yellow-800/60 text-yellow-700 hover:border-yellow-600 hover:text-yellow-500 transition-colors disabled:opacity-50">
+            Save
+          </button>
+        </div>
+      </div>
+      <textarea
+        value={text}
+        onChange={e => handleChange(e.target.value)}
+        placeholder="Internal notes about this visit — not visible to the customer…"
+        rows={2}
+        className="w-full bg-black/30 border border-gray-800 focus:border-yellow-700 text-white/80 text-sm px-3 py-2 outline-none resize-none placeholder-gray-700 transition-colors"
+      />
+    </div>
+  );
+}
+
 // ── ADMIN SCHEDULE VIEW ─────────────────────────────────────────────────────
 export function AdminSchedule() {
   const [unlocked, setUnlocked] = useState(() => sessionStorage.getItem('gg_admin_auth') === '1');
@@ -914,6 +987,12 @@ export function AdminSchedule() {
     updateLocalBooking(id, status);
     try { await updateSupabaseBooking(id, status); } catch (e) { console.warn('Supabase update failed', e); }
     setBookings(prev => prev.map(b => b.id === id ? { ...b, status } : b));
+  }
+
+  async function saveGarageNotes(id: string, garageNotes: string) {
+    updateLocalGarageNotes(id, garageNotes);
+    try { await updateSupabaseGarageNotes(id, garageNotes); } catch (e) { console.warn('Supabase garage_notes update failed', e); }
+    setBookings(prev => prev.map(b => b.id === id ? { ...b, garageNotes } : b));
   }
 
   async function deleteBooking(id: string) {
@@ -1174,32 +1253,38 @@ export function AdminSchedule() {
               const dateStr = new Date(b.date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
               const isPast = b.date < today;
               return (
-                <div key={b.id} className={`bg-gray-900 border p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 ${b.status === 'cancelled' ? 'border-gray-800 opacity-50' : b.status === 'completed' ? 'border-green-900' : isPast ? 'border-yellow-900/50' : 'border-gray-800 border-l-4 border-l-red-600'}`}>
-                  <button className="flex items-start gap-4 text-left flex-1" onClick={() => setSelectedBooking(b)}>
-                    <div className="text-2xl mt-0.5">{svcInfo?.icon ?? '🔧'}</div>
-                    <div>
-                      <div className="text-white font-bold text-base">{b.fname} {b.lname}</div>
-                      <div className="text-gray-400 text-sm">{svcInfo?.name} · {dateStr} at {b.time}</div>
-                      <div className="text-gray-500 text-xs mt-0.5">{b.vehicle} · {b.phone}</div>
-                      {b.notes && <div className="text-gray-600 text-xs mt-1 italic">"{b.notes}"</div>}
+                <div key={b.id} className={`bg-gray-900 border p-5 flex flex-col gap-3 ${b.status === 'cancelled' ? 'border-gray-800 opacity-50' : b.status === 'completed' ? 'border-green-900' : isPast ? 'border-yellow-900/50' : 'border-gray-800 border-l-4 border-l-red-600'}`}>
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <button className="flex items-start gap-4 text-left flex-1" onClick={() => setSelectedBooking(b)}>
+                      <div className="text-2xl mt-0.5">{svcInfo?.icon ?? '🔧'}</div>
+                      <div>
+                        <div className="text-white font-bold text-base">{b.fname} {b.lname}</div>
+                        <div className="text-gray-400 text-sm">{svcInfo?.name} · {dateStr} at {b.time}</div>
+                        <div className="text-gray-500 text-xs mt-0.5">{b.vehicle} · {b.phone}</div>
+                        {b.notes && <div className="text-gray-600 text-xs mt-1 italic">"{b.notes}"</div>}
+                      </div>
+                    </button>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <span className={`text-xs font-bold uppercase tracking-wider px-2.5 py-1 ${
+                        b.status === 'confirmed' ? 'bg-red-900/40 text-red-400' :
+                        b.status === 'completed' ? 'bg-green-900/40 text-green-400' :
+                        'bg-gray-800 text-gray-500'}`}>
+                        {b.status}
+                      </span>
+                      {b.status === 'confirmed' && (
+                        <button onClick={() => updateStatus(b.id, 'completed')}
+                          className="text-xs font-bold uppercase tracking-wider px-2.5 py-1 border border-green-800 text-green-600 hover:bg-green-900/30 transition-colors">✓ Done</button>
+                      )}
+                      {b.status !== 'cancelled' && (
+                        <button onClick={() => { if (confirm('Cancel this appointment?')) updateStatus(b.id, 'cancelled'); }}
+                          className="text-xs font-bold uppercase tracking-wider px-2.5 py-1 border border-gray-700 text-gray-500 hover:border-red-700 hover:text-red-500 transition-colors">✕</button>
+                      )}
+                      <button onClick={() => { if (confirm(`Permanently delete ${b.fname} ${b.lname}'s appointment? This cannot be undone.`)) deleteBooking(b.id); }}
+                        title="Delete permanently"
+                        className="text-xs font-bold uppercase tracking-wider px-2.5 py-1 border border-gray-800 text-gray-600 hover:border-red-700 hover:text-red-500 transition-colors">🗑</button>
                     </div>
-                  </button>
-                  <div className="flex items-center gap-2 flex-shrink-0">
-                    <span className={`text-xs font-bold uppercase tracking-wider px-2.5 py-1 ${
-                      b.status === 'confirmed' ? 'bg-red-900/40 text-red-400' :
-                      b.status === 'completed' ? 'bg-green-900/40 text-green-400' :
-                      'bg-gray-800 text-gray-500'}`}>
-                      {b.status}
-                    </span>
-                    {b.status === 'confirmed' && (
-                      <button onClick={() => updateStatus(b.id, 'completed')}
-                        className="text-xs font-bold uppercase tracking-wider px-2.5 py-1 border border-green-800 text-green-600 hover:bg-green-900/30 transition-colors">✓ Done</button>
-                    )}
-                    {b.status !== 'cancelled' && (
-                      <button onClick={() => { if (confirm('Cancel this appointment?')) updateStatus(b.id, 'cancelled'); }}
-                        className="text-xs font-bold uppercase tracking-wider px-2.5 py-1 border border-gray-700 text-gray-500 hover:border-red-700 hover:text-red-500 transition-colors">✕</button>
-                    )}
                   </div>
+                  <GarageNotesField booking={b} onSave={saveGarageNotes} />
                 </div>
               );
             })}
@@ -1227,32 +1312,35 @@ export function AdminSchedule() {
                   const svcInfo = SERVICES.find(s => s.id === b.service);
                   const dateStr = new Date(b.date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
                   return (
-                    <div key={b.id} className="bg-gray-900 border border-green-900/50 p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                      <div className="flex items-start gap-4 flex-1">
-                        <div className="text-2xl mt-0.5">{svcInfo?.icon ?? '🔧'}</div>
-                        <div>
-                          <div className="text-white font-bold text-base">{b.fname} {b.lname}</div>
-                          <div className="text-gray-400 text-sm">{svcInfo?.name} · {dateStr} at {b.time}</div>
-                          <div className="text-gray-500 text-xs mt-0.5">{b.vehicle} · {b.phone}</div>
-                          {b.notes && <div className="text-gray-600 text-xs mt-1 italic">"{b.notes}"</div>}
-                          <div className="text-gray-700 text-xs mt-1 font-mono">{b.id}</div>
+                    <div key={b.id} className="bg-gray-900 border border-green-900/50 p-5 flex flex-col gap-3">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                        <div className="flex items-start gap-4 flex-1">
+                          <div className="text-2xl mt-0.5">{svcInfo?.icon ?? '🔧'}</div>
+                          <div>
+                            <div className="text-white font-bold text-base">{b.fname} {b.lname}</div>
+                            <div className="text-gray-400 text-sm">{svcInfo?.name} · {dateStr} at {b.time}</div>
+                            <div className="text-gray-500 text-xs mt-0.5">{b.vehicle} · {b.phone}</div>
+                            {b.notes && <div className="text-gray-600 text-xs mt-1 italic">"{b.notes}"</div>}
+                            <div className="text-gray-700 text-xs mt-1 font-mono">{b.id}</div>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                          <span className="text-xs font-bold uppercase tracking-wider px-2.5 py-1 bg-green-900/40 text-green-400">Completed</span>
+                          <button
+                            onClick={() => { if (confirm('Move this back to confirmed? (Marked complete by accident)')) updateStatus(b.id, 'confirmed'); }}
+                            title="Undo — move back to confirmed"
+                            className="text-xs font-bold uppercase tracking-wider px-2.5 py-1 border border-gray-700 text-gray-500 hover:border-yellow-600 hover:text-yellow-400 transition-colors">
+                            ↩ Undo
+                          </button>
+                          <button
+                            onClick={() => { if (confirm(`Permanently delete ${b.fname} ${b.lname}'s appointment? This cannot be undone.`)) deleteBooking(b.id); }}
+                            title="Delete permanently"
+                            className="text-xs font-bold uppercase tracking-wider px-2.5 py-1 border border-gray-800 text-gray-600 hover:border-red-700 hover:text-red-500 transition-colors">
+                            🗑
+                          </button>
                         </div>
                       </div>
-                      <div className="flex items-center gap-2 flex-shrink-0">
-                        <span className="text-xs font-bold uppercase tracking-wider px-2.5 py-1 bg-green-900/40 text-green-400">Completed</span>
-                        <button
-                          onClick={() => { if (confirm('Move this back to confirmed? (Marked complete by accident)')) updateStatus(b.id, 'confirmed'); }}
-                          title="Undo — move back to confirmed"
-                          className="text-xs font-bold uppercase tracking-wider px-2.5 py-1 border border-gray-700 text-gray-500 hover:border-yellow-600 hover:text-yellow-400 transition-colors">
-                          ↩ Undo
-                        </button>
-                        <button
-                          onClick={() => { if (confirm(`Permanently delete ${b.fname} ${b.lname}'s appointment? This cannot be undone.`)) deleteBooking(b.id); }}
-                          title="Delete permanently"
-                          className="text-xs font-bold uppercase tracking-wider px-2.5 py-1 border border-gray-800 text-gray-600 hover:border-red-700 hover:text-red-500 transition-colors">
-                          🗑
-                        </button>
-                      </div>
+                      <GarageNotesField booking={b} onSave={saveGarageNotes} />
                     </div>
                   );
                 })}

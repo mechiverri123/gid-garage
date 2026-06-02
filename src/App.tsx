@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { Phone, Mail, Menu, X } from 'lucide-react';
 import BookingWidget, { AdminSchedule } from './BookingWidget';
 
@@ -359,20 +359,73 @@ function ServiceMap() {
   );
 }
 
-function PhotoStrip() {
+function PhotoGallery() {
   const photos = [
-    { src: 'https://images.unsplash.com/photo-1486262715619-67b85e0b08d3?w=800&q=80&auto=format&fit=crop', position: 'object-center' },
-    { src: '/photo-audio.jpg', position: 'object-center' },
-    { src: '/photo-brakes.jpg', position: 'object-center' },
+    { src: 'https://images.unsplash.com/photo-1486262715619-67b85e0b08d3?w=800&q=80&auto=format&fit=crop', alt: 'Mechanic at work' },
+    { src: '/photo-audio.jpg', alt: 'Car audio installation' },
+    { src: '/photo-brakes.jpg', alt: 'Brake service' },
   ];
+
+  const [current, setCurrent] = useState(0);
+  const total = photos.length;
+
+  // Desktop: 3 at a time in a sliding window (loop-safe)
+  const desktopOffset = current; // first visible index
+
+  function prev() { setCurrent(c => (c - 1 + total) % total); }
+  function next() { setCurrent(c => (c + 1) % total); }
+
+  // Swipe support for mobile
+  const touchStartX = useRef<number | null>(null);
+  function onTouchStart(e: React.TouchEvent) { touchStartX.current = e.touches[0].clientX; }
+  function onTouchEnd(e: React.TouchEvent) {
+    if (touchStartX.current === null) return;
+    const dx = e.changedTouches[0].clientX - touchStartX.current;
+    if (dx < -40) next();
+    else if (dx > 40) prev();
+    touchStartX.current = null;
+  }
+
+  // Build desktop visible photos (3 cycling)
+  const desktopPhotos = [0, 1, 2].map(i => photos[(desktopOffset + i) % total]);
+
   return (
-    <section className="py-0 bg-light">
-      <div className="grid grid-cols-1 sm:grid-cols-3">
-        {photos.map(({ src, position }) => (
-          <div key={src} className="relative overflow-hidden" style={{ aspectRatio: '4/3' }}>
-            <img src={src} alt="Garage work" className={`w-full h-full object-cover ${position} hover:scale-105 transition-transform duration-500`} />
+    <section className="py-0 bg-light relative overflow-hidden" onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
+      {/* Desktop: 3 across */}
+      <div className="hidden sm:grid sm:grid-cols-3 relative">
+        {desktopPhotos.map(({ src, alt }, i) => (
+          <div key={`${src}-${i}`} className="relative overflow-hidden" style={{ aspectRatio: '4/3' }}>
+            <img src={src} alt={alt} className="w-full h-full object-cover object-center hover:scale-105 transition-transform duration-500" />
           </div>
         ))}
+        {/* Arrows over desktop */}
+        <button onClick={prev} aria-label="Previous photos"
+          className="absolute left-3 top-1/2 -translate-y-1/2 z-10 w-10 h-10 bg-black/60 hover:bg-red-600 text-white flex items-center justify-center transition-colors border border-white/10 text-lg">
+          ‹
+        </button>
+        <button onClick={next} aria-label="Next photos"
+          className="absolute right-3 top-1/2 -translate-y-1/2 z-10 w-10 h-10 bg-black/60 hover:bg-red-600 text-white flex items-center justify-center transition-colors border border-white/10 text-lg">
+          ›
+        </button>
+      </div>
+
+      {/* Mobile: single photo carousel */}
+      <div className="sm:hidden relative">
+        <div className="relative overflow-hidden" style={{ aspectRatio: '4/3' }}>
+          <img src={photos[current].src} alt={photos[current].alt}
+            className="w-full h-full object-cover object-center transition-opacity duration-300" />
+        </div>
+        <button onClick={prev} aria-label="Previous"
+          className="absolute left-2 top-1/2 -translate-y-1/2 z-10 w-9 h-9 bg-black/60 hover:bg-red-600 text-white flex items-center justify-center transition-colors text-xl">‹</button>
+        <button onClick={next} aria-label="Next"
+          className="absolute right-2 top-1/2 -translate-y-1/2 z-10 w-9 h-9 bg-black/60 hover:bg-red-600 text-white flex items-center justify-center transition-colors text-xl">›</button>
+        {/* Dots */}
+        <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1.5">
+          {photos.map((_, i) => (
+            <button key={i} onClick={() => setCurrent(i)}
+              className={`w-2 h-2 rounded-full transition-colors ${i === current ? 'bg-red-500' : 'bg-white/40'}`} />
+          ))}
+        </div>
       </div>
     </section>
   );
@@ -479,7 +532,7 @@ export default function App() {
       <Services onBookService={handleBookService} />
       <WhyUs />
       <ServiceMap />
-      <PhotoStrip />
+      <PhotoGallery />
       <BookingSection openBooking={openBooking} />
       <ContactBar openBooking={openBooking} />
       <Footer />
