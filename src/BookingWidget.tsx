@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, type Dispatch, type SetStateAction } from 'react';
 
-const PHONE = '480-599-0118';
+const PHONE = '480-757-0476';
 
 // ── CONFIG ─────────────────────────────────────────────────────────────────
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string;
@@ -389,7 +389,7 @@ async function sendCancellationNotification(booking: Booking) {
               <p>Hi ${booking.fname},</p>
               <p>Your appointment for <strong>${svc?.name ?? booking.service}</strong> on <strong>${dateStr} at ${booking.time}</strong> has been cancelled.</p>
               <p>If you'd like to reschedule, just visit our site or give us a call.</p>
-              <p style="margin-top:24px;">Questions? Call us at <strong>480-599-0118</strong></p>
+              <p style="margin-top:24px;">Questions? Call us at <strong>480-757-0476</strong></p>
               <p style="color:#6b7280;font-size:13px;">— GID Garage</p>
             </div>
           </div>
@@ -446,7 +446,7 @@ async function sendEmail(booking: Booking) {
           <tr><td style="padding:8px;border-bottom:1px solid #f3f4f6;color:#6b7280;">Notes</td><td style="padding:8px;border-bottom:1px solid #f3f4f6;">${booking.notes || 'None'}</td></tr>
           <tr><td style="padding:8px;color:#6b7280;">Booking ID</td><td style="padding:8px;font-family:monospace;font-size:12px;">${booking.id}</td></tr>
         </table>
-        <p style="margin-top:24px;">Questions? Call us at <strong>480-599-0118</strong></p>
+        <p style="margin-top:24px;">Questions? Call us at <strong>480-757-0476</strong></p>
         <hr style="border:none;border-top:1px solid #e5e7eb;margin:24px 0;" />
         <p style="font-size:13px;color:#6b7280;">Need to cancel? Please do so at least 24 hours in advance.</p>
         <a href="${cancelUrl}" style="display:inline-block;margin-top:8px;padding:10px 20px;background:#111;color:#ef4444;border:1px solid #ef4444;font-size:13px;font-weight:600;text-decoration:none;">Cancel My Appointment</a>
