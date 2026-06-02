@@ -364,6 +364,8 @@ function PhotoGallery() {
     { src: 'https://images.unsplash.com/photo-1486262715619-67b85e0b08d3?w=800&q=80&auto=format&fit=crop', alt: 'Mechanic at work' },
     { src: '/photo-audio.jpg', alt: 'Car audio installation' },
     { src: '/photo-brakes.jpg', alt: 'Brake service' },
+    { src: '/magnaride.jpg', alt: 'Magnaride suspension work' },
+    { src: '/rav4shocks.jpg', alt: 'RAV4 shock replacement' },
   ];
 
   const [current, setCurrent] = useState(0);
@@ -394,8 +396,8 @@ function PhotoGallery() {
       {/* Desktop: 3 across */}
       <div className="hidden sm:grid sm:grid-cols-3 relative">
         {desktopPhotos.map(({ src, alt }, i) => (
-          <div key={`${src}-${i}`} className="relative overflow-hidden" style={{ aspectRatio: '4/3' }}>
-            <img src={src} alt={alt} className="w-full h-full object-cover object-center hover:scale-105 transition-transform duration-500" />
+          <div key={`${src}-${i}`} className="relative overflow-hidden bg-[#0f0f0f]" style={{ aspectRatio: '4/3' }}>
+            <img src={src} alt={alt} className="w-full h-full object-contain hover:scale-105 transition-transform duration-500" />
           </div>
         ))}
         {/* Arrows over desktop */}
@@ -411,9 +413,9 @@ function PhotoGallery() {
 
       {/* Mobile: single photo carousel */}
       <div className="sm:hidden relative">
-        <div className="relative overflow-hidden" style={{ aspectRatio: '4/3' }}>
+        <div className="relative overflow-hidden bg-[#0f0f0f]" style={{ aspectRatio: '4/3' }}>
           <img src={photos[current].src} alt={photos[current].alt}
-            className="w-full h-full object-cover object-center transition-opacity duration-300" />
+            className="w-full h-full object-contain transition-opacity duration-300" />
         </div>
         <button onClick={prev} aria-label="Previous"
           className="absolute left-2 top-1/2 -translate-y-1/2 z-10 w-9 h-9 bg-black/60 hover:bg-red-600 text-white flex items-center justify-center transition-colors text-xl">‹</button>
