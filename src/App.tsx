@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from 'react';
 import { Phone, Mail, Menu, X } from 'lucide-react';
-import BookingWidget, { AdminSchedule } from './BookingWidget';
+import BookingWidget, { AdminSchedule, verifyCancelToken, updateSupabaseBooking, deleteLocalBooking, sendCancellationNotification, getSupabaseBookings } from './BookingWidget';
 
 const PHONE = '480-757-0476';
 const EMAIL = 'gidgarageaz@hotmail.com';
@@ -508,9 +508,129 @@ function Footer() {
   );
 }
 
+function CancelPage({ bookingId, token }: { bookingId: string; token: string }) {
+  const [state, setState] = useState<'verifying' | 'ready' | 'invalid' | 'cancelling' | 'done' | 'error'>('verifying');
+  const [booking, setBooking] = useState<any>(null);
+
+  useEffect(() => {
+    async function verify() {
+      const valid = await verifyCancelToken(bookingId, token);
+      if (!valid) { setState('invalid'); return; }
+      // Fetch the booking details
+      try {
+        const all = await getSupabaseBookings();
+        const found = all.find((b: any) => b.id === bookingId);
+        if (!found) { setState('invalid'); return; }
+        if (found.status === 'cancelled') { setState('done'); return; }
+        setBooking(found);
+        setState('ready');
+      } catch {
+        setState('invalid');
+      }
+    }
+    verify();
+  }, [bookingId, token]);
+
+  async function confirmCancel() {
+    setState('cancelling');
+    try {
+      deleteLocalBooking(bookingId);
+      await updateSupabaseBooking(bookingId, 'cancelled');
+      if (booking) await sendCancellationNotification(booking);
+      setState('done');
+    } catch {
+      setState('error');
+    }
+  }
+
+  const dateStr = booking ? new Date(booking.date + 'T12:00:00').toLocaleDateString('en-US', {
+    weekday: 'long', month: 'long', day: 'numeric', year: 'numeric'
+  }) : '';
+
+  return (
+    <div className="min-h-screen bg-dark flex items-center justify-center px-4">
+      <div className="w-full max-w-md text-center">
+        <a href="/" className="flex justify-center mb-8">
+          <img src="/website_logo.png" alt="GID Garage" className="h-14 w-auto" />
+        </a>
+
+        {state === 'verifying' && (
+          <p className="text-gray-500 text-sm uppercase tracking-wider font-bold">Verifying your link…</p>
+        )}
+
+        {state === 'invalid' && (
+          <>
+            <div className="text-4xl mb-4">⚠️</div>
+            <h1 className="text-2xl font-black text-white mb-3">Invalid or Expired Link</h1>
+            <p className="text-gray-500 text-sm mb-6">This cancellation link is no longer valid. If you need to cancel, please call us directly.</p>
+            <a href={`tel:480-757-0476`} className="btn-primary text-xs px-8 py-4 inline-block">Call Us</a>
+          </>
+        )}
+
+        {state === 'ready' && booking && (
+          <>
+            <div className="text-4xl mb-4">📅</div>
+            <p className="text-red-500 text-xs font-bold uppercase tracking-[0.25em] mb-2">Cancel Appointment</p>
+            <h1 className="text-2xl font-black text-white mb-6">Are you sure?</h1>
+            <div className="bg-gray-900 border border-gray-800 p-5 mb-6 text-left space-y-2">
+              <div className="flex justify-between border-b border-gray-800 pb-2">
+                <span className="text-gray-500 text-xs font-bold uppercase tracking-wider">Name</span>
+                <span className="text-white text-sm">{booking.fname} {booking.lname}</span>
+              </div>
+              <div className="flex justify-between border-b border-gray-800 pb-2">
+                <span className="text-gray-500 text-xs font-bold uppercase tracking-wider">Date</span>
+                <span className="text-white text-sm">{dateStr}</span>
+              </div>
+              <div className="flex justify-between border-b border-gray-800 pb-2">
+                <span className="text-gray-500 text-xs font-bold uppercase tracking-wider">Time</span>
+                <span className="text-white text-sm">{booking.time}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-500 text-xs font-bold uppercase tracking-wider">Vehicle</span>
+                <span className="text-white text-sm">{booking.vehicle}</span>
+              </div>
+            </div>
+            <p className="text-gray-600 text-xs mb-6">Cancellations within 24 hours of your appointment may incur a fee.</p>
+            <div className="flex gap-3">
+              <a href="/" className="flex-1 border border-gray-700 text-gray-400 hover:border-white hover:text-white text-xs font-bold uppercase tracking-wider py-3 transition-colors text-center">Keep It</a>
+              <button onClick={confirmCancel} className="flex-1 bg-red-700 hover:bg-red-600 text-white text-xs font-bold uppercase tracking-wider py-3 transition-colors">Yes, Cancel</button>
+            </div>
+          </>
+        )}
+
+        {state === 'cancelling' && (
+          <p className="text-gray-500 text-sm uppercase tracking-wider font-bold">Cancelling your appointment…</p>
+        )}
+
+        {state === 'done' && (
+          <>
+            <div className="text-4xl mb-4">✓</div>
+            <h1 className="text-2xl font-black text-white mb-3">Appointment Cancelled</h1>
+            <p className="text-gray-500 text-sm mb-6">Your appointment has been cancelled. We've sent a confirmation to your email.</p>
+            <a href="/" className="btn-primary text-xs px-8 py-4 inline-block">Back to Site</a>
+          </>
+        )}
+
+        {state === 'error' && (
+          <>
+            <div className="text-4xl mb-4">⚠️</div>
+            <h1 className="text-2xl font-black text-white mb-3">Something Went Wrong</h1>
+            <p className="text-gray-500 text-sm mb-6">We couldn't cancel your appointment. Please call us and we'll take care of it.</p>
+            <a href={`tel:480-757-0476`} className="btn-primary text-xs px-8 py-4 inline-block">Call Us</a>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function App() {
   const [bookingServiceId, setBookingServiceId] = useState<string | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
+
+  const params = new URLSearchParams(window.location.search);
+  const cancelId = params.get('cancel');
+  const cancelToken = params.get('token');
   const isAdmin = window.location.pathname === '/admin' || window.location.hash === '#admin';
 
   function handleBookService(id: string) {
@@ -524,6 +644,7 @@ export default function App() {
   }
 
   if (isAdmin) return <AdminSchedule />;
+  if (cancelId && cancelToken) return <CancelPage bookingId={cancelId} token={cancelToken} />;
 
   return (
     <div className="bg-dark text-dark min-h-screen font-sans">

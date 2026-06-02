@@ -323,6 +323,82 @@ const SUSPENSION_LABELS: Record<string, string> = {
   cv_axles: 'CV Axles',
 };
 
+// ── CANCEL TOKEN ────────────────────────────────────────────────────────────
+// Simple hash so customers can't guess/forge cancel links
+async function generateCancelToken(bookingId: string): Promise<string> {
+  const secret = 'gid-garage-cancel-secret-2024';
+  const data = bookingId + secret;
+  const encoder = new TextEncoder();
+  const hashBuffer = await crypto.subtle.digest('SHA-256', encoder.encode(data));
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('').slice(0, 32);
+}
+
+async function verifyCancelToken(bookingId: string, token: string): Promise<boolean> {
+  const expected = await generateCancelToken(bookingId);
+  return expected === token;
+}
+
+async function sendCancellationNotification(booking: Booking) {
+  const svc = SERVICES.find(s => s.id === booking.service);
+  const dateStr = new Date(booking.date + 'T12:00:00').toLocaleDateString('en-US', {
+    weekday: 'long', month: 'long', day: 'numeric', year: 'numeric'
+  });
+  const customerName = `${booking.fname} ${booking.lname}`;
+
+  // Notify owner
+  await fetch('https://api.brevo.com/v3/smtp/email', {
+    method: 'POST',
+    headers: { 'api-key': BREVO_API_KEY, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      sender: { name: 'GID Garage Bookings', email: 'bookings@gidgarage.com' },
+      to: [{ email: 'gidgarageaz@hotmail.com', name: 'GID Garage' }],
+      subject: `❌ Cancellation: ${customerName} — ${svc?.name} on ${dateStr}`,
+      htmlContent: `
+        <div style="font-family:sans-serif;max-width:600px;margin:0 auto;color:#222;">
+          <h2 style="background:#991b1b;color:#fff;padding:16px 20px;margin:0;">Appointment Cancelled — GID Garage</h2>
+          <div style="padding:24px 20px;border:1px solid #e5e7eb;">
+            <p>The following appointment was cancelled by the customer:</p>
+            <table style="width:100%;border-collapse:collapse;margin:16px 0;">
+              <tr><td style="padding:8px;border-bottom:1px solid #f3f4f6;color:#6b7280;width:40%;">Customer</td><td style="padding:8px;border-bottom:1px solid #f3f4f6;font-weight:600;">${customerName}</td></tr>
+              <tr><td style="padding:8px;border-bottom:1px solid #f3f4f6;color:#6b7280;">Phone</td><td style="padding:8px;border-bottom:1px solid #f3f4f6;">${booking.phone}</td></tr>
+              <tr><td style="padding:8px;border-bottom:1px solid #f3f4f6;color:#6b7280;">Service</td><td style="padding:8px;border-bottom:1px solid #f3f4f6;font-weight:600;">${svc?.name ?? booking.service}</td></tr>
+              <tr><td style="padding:8px;border-bottom:1px solid #f3f4f6;color:#6b7280;">Date</td><td style="padding:8px;border-bottom:1px solid #f3f4f6;font-weight:600;">${dateStr}</td></tr>
+              <tr><td style="padding:8px;color:#6b7280;">Time</td><td style="padding:8px;font-weight:600;">${booking.time}</td></tr>
+            </table>
+            <p style="color:#6b7280;font-size:13px;">This slot is now open again.</p>
+          </div>
+        </div>
+      `,
+    }),
+  });
+
+  // Confirm to customer
+  if (booking.email) {
+    await fetch('https://api.brevo.com/v3/smtp/email', {
+      method: 'POST',
+      headers: { 'api-key': BREVO_API_KEY, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        sender: { name: 'GID Garage', email: 'bookings@gidgarage.com' },
+        to: [{ email: booking.email, name: customerName }],
+        subject: 'Your GID Garage appointment has been cancelled',
+        htmlContent: `
+          <div style="font-family:sans-serif;max-width:600px;margin:0 auto;color:#222;">
+            <h2 style="background:#991b1b;color:#fff;padding:16px 20px;margin:0;">Appointment Cancelled</h2>
+            <div style="padding:24px 20px;border:1px solid #e5e7eb;">
+              <p>Hi ${booking.fname},</p>
+              <p>Your appointment for <strong>${svc?.name ?? booking.service}</strong> on <strong>${dateStr} at ${booking.time}</strong> has been cancelled.</p>
+              <p>If you'd like to reschedule, just visit our site or give us a call.</p>
+              <p style="margin-top:24px;">Questions? Call us at <strong>480-599-0118</strong></p>
+              <p style="color:#6b7280;font-size:13px;">— GID Garage</p>
+            </div>
+          </div>
+        `,
+      }),
+    });
+  }
+}
+
 async function sendEmail(booking: Booking) {
   const svc = SERVICES.find(s => s.id === booking.service);
   const dateStr = new Date(booking.date + 'T12:00:00').toLocaleDateString('en-US', {
@@ -353,6 +429,9 @@ async function sendEmail(booking: Booking) {
   }
 
   const customerName = `${booking.fname} ${booking.lname}`;
+  const cancelToken = await generateCancelToken(booking.id);
+  const cancelUrl = `${window.location.origin}/?cancel=${booking.id}&token=${cancelToken}`;
+
   const emailBody = `
     <div style="font-family:sans-serif;max-width:600px;margin:0 auto;color:#222;">
       <h2 style="background:#b91c1c;color:#fff;padding:16px 20px;margin:0;">GID Garage — Booking Confirmation</h2>
@@ -368,7 +447,10 @@ async function sendEmail(booking: Booking) {
           <tr><td style="padding:8px;color:#6b7280;">Booking ID</td><td style="padding:8px;font-family:monospace;font-size:12px;">${booking.id}</td></tr>
         </table>
         <p style="margin-top:24px;">Questions? Call us at <strong>480-599-0118</strong></p>
-        <p style="color:#6b7280;font-size:13px;">— GID Garage</p>
+        <hr style="border:none;border-top:1px solid #e5e7eb;margin:24px 0;" />
+        <p style="font-size:13px;color:#6b7280;">Need to cancel? Please do so at least 24 hours in advance.</p>
+        <a href="${cancelUrl}" style="display:inline-block;margin-top:8px;padding:10px 20px;background:#111;color:#ef4444;border:1px solid #ef4444;font-size:13px;font-weight:600;text-decoration:none;">Cancel My Appointment</a>
+        <p style="color:#6b7280;font-size:13px;margin-top:24px;">— GID Garage</p>
       </div>
     </div>
   `;
@@ -410,6 +492,7 @@ async function sendEmail(booking: Booking) {
         vehicle: booking.vehicle,
         notes: booking.notes || 'None',
         booking_id: booking.id,
+        cancel_url: cancelUrl,
       },
     }),
   });
@@ -458,6 +541,8 @@ const INIT_STATE: State = {
   suspensionPart: null, brakeService: null, audioPackage: null,
 };
 const INIT_FORM: FormData = { fname: '', lname: '', phone: '', email: '', vehicleYear: '', vehicleMake: '', vehicleModel: '', vehicleTrim: '', notes: '' };
+
+export { verifyCancelToken, updateSupabaseBooking, deleteLocalBooking, sendCancellationNotification, getSupabaseBookings };
 
 export default function BookingWidget({ autoOpen, preselectedService, onClose }: { autoOpen?: boolean; preselectedService?: string; onClose?: () => void } = {}) {
   const [open, setOpen] = useState(!!autoOpen);
