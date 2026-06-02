@@ -91,7 +91,10 @@ async function updateSupabaseGarageNotes(id: string, garageNotes: string): Promi
 }
 
 async function deleteSupabaseBooking(id: string): Promise<void> {
-  await sbFetch(`/bookings?id=eq.${id}`, { method: 'DELETE' });
+  await sbFetch(`/bookings?id=eq.${id}`, {
+    method: 'DELETE',
+    headers: { 'Prefer': 'return=minimal' },
+  });
 }
 
 function deleteLocalBooking(id: string) {
