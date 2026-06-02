@@ -389,7 +389,7 @@ async function sendCancellationNotification(booking: Booking) {
               <p>Hi ${booking.fname},</p>
               <p>Your appointment for <strong>${svc?.name ?? booking.service}</strong> on <strong>${dateStr} at ${booking.time}</strong> has been cancelled.</p>
               <p>If you'd like to reschedule, just visit our site or give us a call.</p>
-              <p style="margin-top:24px;">Questions? Call us at <strong>480-757-0476</strong></p>
+              <p style="margin-top:24px;">Questions? Call or email us:<br><strong>480-757-0476</strong> &nbsp;|&nbsp; <a href="mailto:gidgarageaz@hotmail.com" style="color:#ef4444;">gidgarageaz@hotmail.com</a></p>
               <p style="color:#6b7280;font-size:13px;">— GID Garage</p>
             </div>
           </div>
@@ -695,7 +695,8 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
                 <p className="text-gray-400 text-sm leading-relaxed">
                   We've received your quote request for <span className="text-red-500 font-bold">{svc?.name}</span>.<br />We'll call you to confirm availability and pricing.<br />
                   <span className="text-red-500 font-bold">{dateStr} at {s.time}</span>.<br /><br />
-                  A confirmation has been sent to {form.email || 'your email'}.
+                  A confirmation has been sent to {form.email || 'your email'}.<br />
+                  <span className="text-gray-500 text-xs">If you don't see it, check your junk or spam folder.</span>
                 </p>
                 {s.service === 'audio' && (
                   <p className="text-yellow-500/80 text-xs mt-4 max-w-xs mx-auto">Note: If parts need to be sourced, we'll reach out to confirm a deposit and lead time before your appointment.</p>
@@ -1084,8 +1085,9 @@ export function AdminSchedule() {
 
   useEffect(() => {
     if (!unlocked) return;
-    const interval = setInterval(() => { getSupabaseBookings().then(setBookings); }, 30000);
-    return () => clearInterval(interval);
+    const dataInterval = setInterval(() => { getSupabaseBookings().then(setBookings); }, 5 * 60 * 1000);
+    const reloadInterval = setInterval(() => { window.location.reload(); }, 5 * 60 * 1000);
+    return () => { clearInterval(dataInterval); clearInterval(reloadInterval); };
   }, [unlocked]);
 
   if (!unlocked) return <AdminPasswordGate onUnlock={() => setUnlocked(true)} />;
