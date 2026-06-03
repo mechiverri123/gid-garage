@@ -3,7 +3,7 @@
 // In App.tsx, add the EstimatePage route and Jobs tab to AdminSchedule
 // ────────────────────────────────────────────────────────────────────────────
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string;
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
@@ -21,6 +21,20 @@ export type JobStatus =
   | 'PAID'
   | 'CANCELLED';
 
+export interface LineItem {
+  id: string;
+  label: string;
+  amount: number;
+  type: 'mobile' | 'labor' | 'parts' | 'fixed' | 'other';
+}
+
+export interface JobPhoto {
+  id: string;
+  dataUrl: string;
+  note: string;
+  takenAt: string;
+}
+
 export interface Job {
   id: string;
   service: string;
@@ -33,12 +47,13 @@ export interface Job {
   vehicle: string;
   notes: string;
   garageNotes: string;
-  status: string; // booking status (confirmed/completed/cancelled)
+  status: string;
   jobStatus: JobStatus;
   createdAt: string;
   // estimate
   estimateAmount: number | null;
   estimateNotes: string;
+  lineItems: LineItem[];
   // signing
   preExistingDamage: string;
   customerAgreed: boolean;
@@ -48,6 +63,8 @@ export interface Job {
   invoiceAmount: number | null;
   stripeTransactionId: string;
   paidAt: string | null;
+  // photos
+  jobPhotos: JobPhoto[];
 }
 
 // ── SUPABASE HELPERS ─────────────────────────────────────────────────────────
@@ -86,6 +103,7 @@ function mapJob(b: any): Job {
     createdAt: b.created_at,
     estimateAmount: b.estimate_amount ?? null,
     estimateNotes: b.estimate_notes || '',
+    lineItems: b.line_items ? (typeof b.line_items === 'string' ? JSON.parse(b.line_items) : b.line_items) : [],
     preExistingDamage: b.pre_existing_damage || '',
     customerAgreed: b.customer_agreed || false,
     customerSignature: b.customer_signature || '',
@@ -93,6 +111,7 @@ function mapJob(b: any): Job {
     invoiceAmount: b.invoice_amount ?? null,
     stripeTransactionId: b.stripe_transaction_id || '',
     paidAt: b.paid_at || null,
+    jobPhotos: b.job_photos ? (typeof b.job_photos === 'string' ? JSON.parse(b.job_photos) : b.job_photos) : [],
   };
 }
 
@@ -116,7 +135,70 @@ async function patchJob(id: string, fields: Record<string, any>) {
 
 // ── BREVO: SEND ESTIMATE EMAIL ────────────────────────────────────────────────
 
-async function sendEstimateEmail(job: Job) {
+async function sendEstimateEmail(job: Job, shopAvg: number = 0) {
+  const estimateUrl = `${window.location.origin}/estimate?id=${job.id}`;
+  const dateStr = new Date(job.date + 'T12:00:00').toLocaleDateString('en-US', {
+    weekday: 'long', month: 'long', day: 'numeric', year: 'numeric',
+  });
+  const savings = shopAvg > 0 ? shopAvg - (job.estimateAmount || 0) : 0;
+
+  const lineItemsHtml = job.lineItems?.length
+    ? job.lineItems.map(item => `
+        <tr>
+          <td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#9ca3af;font-size:13px;">${item.label}</td>
+          <td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#fff;font-size:13px;text-align:right;">${item.amount === 0 ? 'FREE' : '$' + item.amount.toFixed(2)}</td>
+        </tr>`).join('')
+    : `<tr><td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#9ca3af;font-size:13px;">${resolveServiceName(job.service, job.notes)}</td>
+       <td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#fff;font-size:13px;text-align:right;">$${job.estimateAmount?.toFixed(2)}</td></tr>`;
+
+  const savingsHtml = savings > 10 ? `
+    <div style="background:#052e16;border:1px solid #166534;padding:16px;margin-bottom:24px;border-radius:4px;display:flex;justify-content:space-between;align-items:center;">
+      <div>
+        <p style="color:#4ade80;font-size:11px;font-weight:bold;text-transform:uppercase;letter-spacing:0.1em;margin:0 0 2px;">vs. Flagstaff Shops</p>
+        <p style="color:#6b7280;font-size:12px;margin:0;">They'd charge ~$${shopAvg.toFixed(2)}</p>
+      </div>
+      <p style="color:#4ade80;font-size:24px;font-weight:900;margin:0;">Save $${savings.toFixed(2)}</p>
+    </div>` : '';
+
+  await fetch('https://api.brevo.com/v3/smtp/email', {
+    method: 'POST',
+    headers: { 'api-key': BREVO_API_KEY, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      sender: { name: 'GID Garage', email: 'bookings@gidgarage.com' },
+      to: [{ email: job.email, name: `${job.fname} ${job.lname}` }],
+      subject: `Your GID Garage Estimate — ${job.vehicle}`,
+      htmlContent: `
+        <div style="font-family:sans-serif;max-width:560px;margin:0 auto;background:#0f0f0f;color:#fff;padding:32px;border-radius:4px;">
+          <img src="https://gidgarage.com/website_logo.png" alt="GID Garage" style="height:48px;margin-bottom:24px;" />
+          <h2 style="color:#fff;font-size:22px;margin:0 0 8px;">Your Estimate is Ready</h2>
+          <p style="color:#9ca3af;margin:0 0 24px;">Hi ${job.fname}, here's your quote for the upcoming appointment.</p>
+
+          <table style="width:100%;border-collapse:collapse;margin-bottom:8px;">
+            <tr><td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#6b7280;font-size:13px;">Vehicle</td>
+                <td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#fff;font-size:13px;text-align:right;">${job.vehicle}</td></tr>
+            <tr><td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#6b7280;font-size:13px;">Appointment</td>
+                <td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#fff;font-size:13px;text-align:right;">${dateStr} at ${job.time}</td></tr>
+            ${lineItemsHtml}
+            <tr><td style="padding:10px 0 0;color:#fff;font-size:14px;font-weight:bold;">Total</td>
+                <td style="padding:10px 0 0;color:#ef4444;font-size:20px;font-weight:900;text-align:right;">$${job.estimateAmount?.toFixed(2)}</td></tr>
+          </table>
+
+          ${job.estimateNotes ? `<p style="color:#9ca3af;font-size:13px;margin:16px 0;padding:12px;background:#1f2937;border-left:3px solid #ef4444;">${job.estimateNotes}</p>` : ''}
+
+          ${savingsHtml}
+
+          <a href="${estimateUrl}" style="display:inline-block;background:#dc2626;color:#fff;text-decoration:none;font-weight:bold;font-size:13px;padding:14px 28px;letter-spacing:0.05em;text-transform:uppercase;margin-bottom:24px;">
+            Review &amp; Approve Estimate →
+          </a>
+
+          <p style="color:#4b5563;font-size:12px;margin:0;">Questions? Call or text <strong style="color:#9ca3af;">480-757-0476</strong> — GID Garage, Flagstaff AZ</p>
+        </div>
+      `,
+    }),
+  });
+}
+
+
   const estimateUrl = `${window.location.origin}/estimate?id=${job.id}`;
   const dateStr = new Date(job.date + 'T12:00:00').toLocaleDateString('en-US', {
     weekday: 'long', month: 'long', day: 'numeric', year: 'numeric',
@@ -165,6 +247,15 @@ async function sendInvoiceEmail(job: Job) {
   const invoiceUrl = `${window.location.origin}/invoice?id=${job.id}`;
   const amount = job.invoiceAmount ?? job.estimateAmount;
 
+  const lineItemsHtml = job.lineItems?.length
+    ? job.lineItems.map(item => `
+        <tr>
+          <td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#9ca3af;font-size:13px;">${item.label}</td>
+          <td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#fff;font-size:13px;text-align:right;">${item.amount === 0 ? 'FREE' : '$' + item.amount.toFixed(2)}</td>
+        </tr>`).join('')
+    : `<tr><td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#9ca3af;font-size:13px;">${resolveServiceName(job.service, job.notes)}</td>
+       <td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#fff;font-size:13px;text-align:right;">$${amount?.toFixed(2)}</td></tr>`;
+
   await fetch('https://api.brevo.com/v3/smtp/email', {
     method: 'POST',
     headers: { 'api-key': BREVO_API_KEY, 'Content-Type': 'application/json' },
@@ -178,12 +269,11 @@ async function sendInvoiceEmail(job: Job) {
           <h2 style="color:#fff;font-size:22px;margin:0 0 8px;">Invoice from GID Garage</h2>
           <p style="color:#9ca3af;margin:0 0 24px;">Hi ${job.fname}, thank you for choosing GID Garage. Here is your invoice.</p>
           <table style="width:100%;border-collapse:collapse;margin-bottom:24px;">
-            <tr><td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#6b7280;font-size:13px;">Service</td>
-                <td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#fff;font-size:13px;">${resolveServiceName(job.service, job.notes)}</td></tr>
-            <tr><td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#6b7280;font-size:13px;">Vehicle</td>
-                <td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#fff;font-size:13px;">${job.vehicle}</td></tr>
-            <tr><td style="padding:8px 0;color:#6b7280;font-size:13px;">Amount Due</td>
-                <td style="padding:8px 0;color:#ef4444;font-size:22px;font-weight:bold;">$${amount?.toFixed(2)}</td></tr>
+            <tr><td style="padding:8px 0;border-bottom:1px solid #374151;color:#6b7280;font-size:13px;">Vehicle</td>
+                <td style="padding:8px 0;border-bottom:1px solid #374151;color:#fff;font-size:13px;text-align:right;">${job.vehicle}</td></tr>
+            ${lineItemsHtml}
+            <tr><td style="padding:10px 0 0;color:#fff;font-size:14px;font-weight:bold;">Total Due</td>
+                <td style="padding:10px 0 0;color:#ef4444;font-size:22px;font-weight:900;text-align:right;">$${amount?.toFixed(2)}</td></tr>
           </table>
           <a href="${invoiceUrl}" style="display:inline-block;background:#dc2626;color:#fff;text-decoration:none;font-weight:bold;font-size:13px;padding:14px 28px;letter-spacing:0.05em;text-transform:uppercase;margin-bottom:24px;">
             View Invoice
@@ -311,9 +401,706 @@ function StatusBadge({ status }: { status: JobStatus }) {
   );
 }
 
+// ── PRICING CONSTANTS ─────────────────────────────────────────────────────────
+
+const LABOR_RATE = 75;
+const MOBILE_FEE = 25;
+const PARTS_MARKUP = 0.20;
+
+// Flagstaff shop averages per axle where applicable
+const SHOP_AVERAGES: Record<string, number> = {
+  oil:                    95,
+  diag:                   100,
+  full:                   0,
+  brakes_pads:            175,   // per axle
+  brakes_pads_rotors:     350,   // per axle
+  brakes_full:            425,   // per axle
+  suspension_struts_front: 500,  // pair
+  suspension_struts_rear:  350,  // pair
+  suspension_control_arms: 350,  // each
+  suspension_tie_rods:     280,  // each
+  suspension_cv_axles:     350,  // each
+  audio_head_unit:         150,
+  audio_speakers:          200,
+  audio_head_unit_supplied: 100,
+  audio_4ch_amp:           200,
+  audio_mono_amp:          175,
+  audio_full_system:       800,
+};
+
+const LABOR_HOURS: Record<string, number> = {
+  oil:                    0.5,
+  diag:                   1.0,
+  full:                   0.5,
+  brakes_pads:            1.0,   // per axle
+  brakes_pads_rotors:     1.5,   // per axle
+  brakes_full:            2.0,   // per axle
+  suspension_struts_front: 2.5,  // pair
+  suspension_struts_rear:  1.5,  // pair
+  suspension_control_arms: 1.5,  // each
+  suspension_tie_rods:     1.0,  // each
+  suspension_cv_axles:     1.5,  // each
+  audio_head_unit:         1.0,
+  audio_speakers:          1.5,
+  audio_head_unit_supplied: 1.0,
+  audio_4ch_amp:           2.0,
+  audio_mono_amp:          2.0,
+  audio_full_system:       6.0,
+};
+
+// ── AXLE SCHEMATIC ────────────────────────────────────────────────────────────
+
+interface AxleConfig {
+  frontEnabled: boolean;
+  rearEnabled: boolean;
+  frontPartsCost: string;
+  rearPartsCost: string;
+  frontLaborHours: number;
+  rearLaborHours: number;
+  frontLabel: string;
+  rearLabel: string;
+  frontShopAvg: number;
+  rearShopAvg: number;
+}
+
+function AxleSchematic({ config, onChange }: { config: AxleConfig; onChange: (c: AxleConfig) => void }) {
+  return (
+    <div className="bg-gray-900 border border-gray-700 p-4 space-y-4">
+      <p className="text-gray-500 text-xs font-bold uppercase tracking-widest">Axle Configuration</p>
+
+      {/* Vehicle diagram */}
+      <div className="flex flex-col items-center gap-2 py-2">
+        {/* Front axle */}
+        <div className="flex items-center gap-3 w-full max-w-xs">
+          <button
+            onClick={() => onChange({ ...config, frontEnabled: !config.frontEnabled })}
+            className={`w-8 h-14 rounded-sm border-2 flex items-center justify-center text-[10px] font-black transition-all ${config.frontEnabled ? 'border-red-500 bg-red-900/30 text-red-400' : 'border-gray-700 bg-gray-800 text-gray-600'}`}
+          >LF</button>
+          <div className="flex-1 flex flex-col items-center gap-1">
+            <span className="text-gray-600 text-[10px] font-bold uppercase tracking-wider">Front</span>
+            <div className={`w-full h-0.5 ${config.frontEnabled ? 'bg-red-600' : 'bg-gray-700'}`} />
+            {config.frontEnabled && (
+              <div className="w-full space-y-1 mt-1">
+                <div className="flex items-center gap-1">
+                  <span className="text-gray-600 text-[10px] w-12">Parts $</span>
+                  <input
+                    type="number"
+                    value={config.frontPartsCost}
+                    onChange={e => onChange({ ...config, frontPartsCost: e.target.value })}
+                    placeholder="0.00"
+                    className="flex-1 bg-gray-800 border border-gray-700 text-white px-2 py-1 text-xs font-mono focus:border-red-600 outline-none"
+                  />
+                </div>
+                <div className="flex items-center gap-1">
+                  <span className="text-gray-600 text-[10px] w-12">Hrs</span>
+                  <input
+                    type="number"
+                    step="0.5"
+                    value={config.frontLaborHours}
+                    onChange={e => onChange({ ...config, frontLaborHours: parseFloat(e.target.value) || 0 })}
+                    className="flex-1 bg-gray-800 border border-gray-700 text-white px-2 py-1 text-xs font-mono focus:border-red-600 outline-none"
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+          <button
+            onClick={() => onChange({ ...config, frontEnabled: !config.frontEnabled })}
+            className={`w-8 h-14 rounded-sm border-2 flex items-center justify-center text-[10px] font-black transition-all ${config.frontEnabled ? 'border-red-500 bg-red-900/30 text-red-400' : 'border-gray-700 bg-gray-800 text-gray-600'}`}
+          >RF</button>
+        </div>
+
+        {/* Vehicle body */}
+        <div className="w-16 h-20 border-2 border-gray-700 bg-gray-800/50 rounded-sm flex items-center justify-center">
+          <span className="text-gray-600 text-[10px] font-bold">🚗</span>
+        </div>
+
+        {/* Rear axle */}
+        <div className="flex items-center gap-3 w-full max-w-xs">
+          <button
+            onClick={() => onChange({ ...config, rearEnabled: !config.rearEnabled })}
+            className={`w-8 h-14 rounded-sm border-2 flex items-center justify-center text-[10px] font-black transition-all ${config.rearEnabled ? 'border-blue-500 bg-blue-900/30 text-blue-400' : 'border-gray-700 bg-gray-800 text-gray-600'}`}
+          >LR</button>
+          <div className="flex-1 flex flex-col items-center gap-1">
+            <div className={`w-full h-0.5 ${config.rearEnabled ? 'bg-blue-600' : 'bg-gray-700'}`} />
+            <span className="text-gray-600 text-[10px] font-bold uppercase tracking-wider">Rear</span>
+            {config.rearEnabled && (
+              <div className="w-full space-y-1 mt-1">
+                <div className="flex items-center gap-1">
+                  <span className="text-gray-600 text-[10px] w-12">Parts $</span>
+                  <input
+                    type="number"
+                    value={config.rearPartsCost}
+                    onChange={e => onChange({ ...config, rearPartsCost: e.target.value })}
+                    placeholder="0.00"
+                    className="flex-1 bg-gray-800 border border-gray-700 text-white px-2 py-1 text-xs font-mono focus:border-red-600 outline-none"
+                  />
+                </div>
+                <div className="flex items-center gap-1">
+                  <span className="text-gray-600 text-[10px] w-12">Hrs</span>
+                  <input
+                    type="number"
+                    step="0.5"
+                    value={config.rearLaborHours}
+                    onChange={e => onChange({ ...config, rearLaborHours: parseFloat(e.target.value) || 0 })}
+                    className="flex-1 bg-gray-800 border border-gray-700 text-white px-2 py-1 text-xs font-mono focus:border-red-600 outline-none"
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+          <button
+            onClick={() => onChange({ ...config, rearEnabled: !config.rearEnabled })}
+            className={`w-8 h-14 rounded-sm border-2 flex items-center justify-center text-[10px] font-black transition-all ${config.rearEnabled ? 'border-blue-500 bg-blue-900/30 text-blue-400' : 'border-gray-700 bg-gray-800 text-gray-600'}`}
+          >RR</button>
+        </div>
+      </div>
+
+      {/* Per-corner pricing display */}
+      {(config.frontEnabled || config.rearEnabled) && (
+        <div className="grid grid-cols-2 gap-2 border-t border-gray-700 pt-3">
+          {config.frontEnabled && (
+            <>
+              <div className="bg-red-900/20 border border-red-900/50 p-2 text-center">
+                <p className="text-red-400 text-[10px] font-bold uppercase tracking-wider">LF</p>
+                <p className="text-white text-sm font-bold">${((parseFloat(config.frontPartsCost) || 0) * (1 + PARTS_MARKUP) / 2 + config.frontLaborHours / 2 * LABOR_RATE).toFixed(2)}</p>
+              </div>
+              <div className="bg-red-900/20 border border-red-900/50 p-2 text-center">
+                <p className="text-red-400 text-[10px] font-bold uppercase tracking-wider">RF</p>
+                <p className="text-white text-sm font-bold">${((parseFloat(config.frontPartsCost) || 0) * (1 + PARTS_MARKUP) / 2 + config.frontLaborHours / 2 * LABOR_RATE).toFixed(2)}</p>
+              </div>
+            </>
+          )}
+          {config.rearEnabled && (
+            <>
+              <div className="bg-blue-900/20 border border-blue-900/50 p-2 text-center">
+                <p className="text-blue-400 text-[10px] font-bold uppercase tracking-wider">LR</p>
+                <p className="text-white text-sm font-bold">${((parseFloat(config.rearPartsCost) || 0) * (1 + PARTS_MARKUP) / 2 + config.rearLaborHours / 2 * LABOR_RATE).toFixed(2)}</p>
+              </div>
+              <div className="bg-blue-900/20 border border-blue-900/50 p-2 text-center">
+                <p className="text-blue-400 text-[10px] font-bold uppercase tracking-wider">RR</p>
+                <p className="text-white text-sm font-bold">${((parseFloat(config.rearPartsCost) || 0) * (1 + PARTS_MARKUP) / 2 + config.rearLaborHours / 2 * LABOR_RATE).toFixed(2)}</p>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── QUOTE CALCULATOR ──────────────────────────────────────────────────────────
+
+function QuoteCalculator({ job, onApply }: { job: Job; onApply: (items: LineItem[], total: number, shopTotal: number) => void }) {
+  const [serviceType, setServiceType] = useState('');
+  const [partsCost, setPartsCost] = useState('');
+  const [laborHours, setLaborHours] = useState('');
+  const [extraQuarts, setExtraQuarts] = useState(0);
+  const [axle, setAxle] = useState<AxleConfig>({
+    frontEnabled: false, rearEnabled: false,
+    frontPartsCost: '', rearPartsCost: '',
+    frontLaborHours: 0, rearLaborHours: 0,
+    frontLabel: 'Front', rearLabel: 'Rear',
+    frontShopAvg: 0, rearShopAvg: 0,
+  });
+
+  const isAxleService = serviceType.startsWith('brakes_') || serviceType.startsWith('suspension_struts');
+  const isOil = serviceType === 'oil';
+  const isDiag = serviceType === 'diag';
+  const isFull = serviceType === 'full';
+  const isFixed = isOil || isDiag || isFull;
+
+  // Auto-fill labor hours when service changes
+  function handleServiceChange(svc: string) {
+    setServiceType(svc);
+    if (LABOR_HOURS[svc]) setLaborHours(LABOR_HOURS[svc].toString());
+    // Set axle defaults for axle services
+    if (svc.startsWith('brakes_')) {
+      setAxle(prev => ({
+        ...prev,
+        frontLaborHours: LABOR_HOURS[svc] || 1.0,
+        rearLaborHours: LABOR_HOURS[svc] || 1.0,
+        frontShopAvg: SHOP_AVERAGES[svc] || 0,
+        rearShopAvg: SHOP_AVERAGES[svc] || 0,
+      }));
+    }
+    if (svc === 'suspension_struts_front') {
+      setAxle(prev => ({ ...prev, frontLaborHours: LABOR_HOURS[svc] || 2.5, frontShopAvg: SHOP_AVERAGES[svc] || 500 }));
+    }
+    if (svc === 'suspension_struts_rear') {
+      setAxle(prev => ({ ...prev, rearLaborHours: LABOR_HOURS[svc] || 1.5, rearShopAvg: SHOP_AVERAGES[svc] || 350 }));
+    }
+  }
+
+  // Calculate line items
+  function buildLineItems(): { items: LineItem[]; total: number; shopTotal: number } {
+    const items: LineItem[] = [];
+    let shopTotal = SHOP_AVERAGES[serviceType] || 0;
+
+    // Always add mobile fee
+    items.push({ id: 'mobile', label: 'Mobile Service Fee', amount: MOBILE_FEE, type: 'mobile' });
+
+    if (isOil) {
+      const base = 79.99 + (extraQuarts * 10.99);
+      items.push({ id: 'oil_labor', label: `Oil Change — Full Synthetic (${5 + extraQuarts}qt)`, amount: base, type: 'fixed' });
+      shopTotal = 95 + (extraQuarts * 15);
+    } else if (isDiag) {
+      items.push({ id: 'diag_labor', label: 'Diagnostics — OBD2 Scan & Repair Recommendation', amount: 75, type: 'fixed' });
+      shopTotal = 100;
+    } else if (isFull) {
+      items.push({ id: 'full_labor', label: 'Multi-Point Inspection (Complimentary)', amount: 0, type: 'fixed' });
+      shopTotal = 0;
+    } else if (isAxleService) {
+      shopTotal = 0;
+      if (axle.frontEnabled) {
+        const frontParts = (parseFloat(axle.frontPartsCost) || 0) * (1 + PARTS_MARKUP);
+        const frontLabor = axle.frontLaborHours * LABOR_RATE;
+        const svcLabel = serviceType.startsWith('brakes_') ? 'Brakes' : 'Struts';
+        if (frontParts > 0) items.push({ id: 'front_parts', label: `Front ${svcLabel} — Parts (LF + RF)`, amount: frontParts, type: 'parts' });
+        items.push({ id: 'front_labor', label: `Front ${svcLabel} — Labor (${axle.frontLaborHours}hr @ $${LABOR_RATE}/hr)`, amount: frontLabor, type: 'labor' });
+        shopTotal += (axle.frontShopAvg || SHOP_AVERAGES[serviceType] || 0);
+      }
+      if (axle.rearEnabled) {
+        const rearParts = (parseFloat(axle.rearPartsCost) || 0) * (1 + PARTS_MARKUP);
+        const rearLabor = axle.rearLaborHours * LABOR_RATE;
+        const svcLabel = serviceType.startsWith('brakes_') ? 'Brakes' : 'Shocks';
+        if (rearParts > 0) items.push({ id: 'rear_parts', label: `Rear ${svcLabel} — Parts (LR + RR)`, amount: rearParts, type: 'parts' });
+        items.push({ id: 'rear_labor', label: `Rear ${svcLabel} — Labor (${axle.rearLaborHours}hr @ $${LABOR_RATE}/hr)`, amount: rearLabor, type: 'labor' });
+        shopTotal += (axle.rearShopAvg || SHOP_AVERAGES[serviceType] || 0);
+      }
+    } else if (serviceType) {
+      const parts = (parseFloat(partsCost) || 0) * (1 + PARTS_MARKUP);
+      const hrs = parseFloat(laborHours) || LABOR_HOURS[serviceType] || 1;
+      const labor = hrs * LABOR_RATE;
+      if (parts > 0) items.push({ id: 'parts', label: `Parts (${serviceType.replace(/_/g,' ')})`, amount: parts, type: 'parts' });
+      items.push({ id: 'labor', label: `Labor — ${hrs}hr @ $${LABOR_RATE}/hr`, amount: labor, type: 'labor' });
+    }
+
+    const total = items.reduce((s, i) => s + i.amount, 0);
+    return { items, total, shopTotal };
+  }
+
+  const { items, total, shopTotal } = buildLineItems();
+  const savings = shopTotal > 0 ? shopTotal - total : 0;
+  const canApply = items.length > 1 && total > 0;
+
+  const SERVICE_OPTIONS = [
+    { group: 'Fixed Price', options: [
+      { value: 'oil', label: 'Oil Change — $79.99' },
+      { value: 'diag', label: 'Diagnostics — $75 flat' },
+      { value: 'full', label: 'Full Service — Free' },
+    ]},
+    { group: 'Brakes', options: [
+      { value: 'brakes_pads', label: 'Brake Pads Only' },
+      { value: 'brakes_pads_rotors', label: 'Brake Pads + Rotors' },
+      { value: 'brakes_full', label: 'Full Brake Service (Pads + Rotors + Fluid)' },
+    ]},
+    { group: 'Suspension', options: [
+      { value: 'suspension_struts_front', label: 'Front Struts (pair)' },
+      { value: 'suspension_struts_rear', label: 'Rear Shocks (pair)' },
+      { value: 'suspension_control_arms', label: 'Control Arms' },
+      { value: 'suspension_tie_rods', label: 'Tie Rods' },
+      { value: 'suspension_cv_axles', label: 'CV Axles' },
+    ]},
+    { group: 'Car Audio', options: [
+      { value: 'audio_head_unit', label: 'Head Unit Replacement' },
+      { value: 'audio_speakers', label: 'Speaker Replacement (pair)' },
+      { value: 'audio_head_unit_supplied', label: 'Head Unit Install (Customer Parts)' },
+      { value: 'audio_4ch_amp', label: '4-Channel Amp Install' },
+      { value: 'audio_mono_amp', label: 'Monoblock + Sub Install' },
+      { value: 'audio_full_system', label: 'Full Sound System' },
+    ]},
+  ];
+
+  return (
+    <div className="space-y-4">
+      <p className="text-gray-500 text-xs font-bold uppercase tracking-widest">Quote Calculator</p>
+
+      {/* Service selector */}
+      <div>
+        <label className="text-gray-600 text-xs font-bold uppercase tracking-wider block mb-1">Service Type</label>
+        <select
+          value={serviceType}
+          onChange={e => handleServiceChange(e.target.value)}
+          className="bg-gray-800 border border-gray-700 text-white px-3 py-2 text-sm w-full focus:border-red-600 outline-none"
+        >
+          <option value="">— Select service —</option>
+          {SERVICE_OPTIONS.map(group => (
+            <optgroup key={group.group} label={group.group}>
+              {group.options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+            </optgroup>
+          ))}
+        </select>
+      </div>
+
+      {/* Oil extra quarts */}
+      {isOil && (
+        <div>
+          <label className="text-gray-600 text-xs font-bold uppercase tracking-wider block mb-1">Extra Quarts (over 5)</label>
+          <div className="flex items-center gap-3">
+            <button onClick={() => setExtraQuarts(Math.max(0, extraQuarts - 1))} className="w-8 h-8 bg-gray-800 border border-gray-700 text-white font-bold hover:border-red-600 transition-colors">−</button>
+            <span className="text-white font-mono w-4 text-center">{extraQuarts}</span>
+            <button onClick={() => setExtraQuarts(extraQuarts + 1)} className="w-8 h-8 bg-gray-800 border border-gray-700 text-white font-bold hover:border-red-600 transition-colors">+</button>
+            {extraQuarts > 0 && <span className="text-gray-500 text-xs">+${(extraQuarts * 10.99).toFixed(2)}</span>}
+          </div>
+        </div>
+      )}
+
+      {/* Axle schematic for brakes/struts */}
+      {isAxleService && (
+        <AxleSchematic config={axle} onChange={setAxle} />
+      )}
+
+      {/* Parts + labor for non-fixed, non-axle services */}
+      {!isFixed && !isAxleService && serviceType && (
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="text-gray-600 text-xs font-bold uppercase tracking-wider block mb-1">Your Parts Cost</label>
+            <div className="flex items-center gap-1">
+              <span className="text-gray-500 text-sm">$</span>
+              <input type="number" value={partsCost} onChange={e => setPartsCost(e.target.value)}
+                placeholder="0.00" className="bg-gray-800 border border-gray-700 text-white px-2 py-2 text-sm font-mono w-full focus:border-red-600 outline-none" />
+            </div>
+            {partsCost && <p className="text-gray-600 text-[10px] mt-0.5">Customer sees: ${((parseFloat(partsCost) || 0) * (1 + PARTS_MARKUP)).toFixed(2)}</p>}
+          </div>
+          <div>
+            <label className="text-gray-600 text-xs font-bold uppercase tracking-wider block mb-1">Labor Hours</label>
+            <input type="number" step="0.5" value={laborHours} onChange={e => setLaborHours(e.target.value)}
+              className="bg-gray-800 border border-gray-700 text-white px-2 py-2 text-sm font-mono w-full focus:border-red-600 outline-none" />
+          </div>
+        </div>
+      )}
+
+      {/* Line items preview */}
+      {items.length > 1 && (
+        <div className="bg-gray-900 border border-gray-700 divide-y divide-gray-800">
+          <p className="text-gray-600 text-[10px] font-bold uppercase tracking-widest px-3 py-2">Itemized Quote</p>
+          {items.map(item => (
+            <div key={item.id} className="flex justify-between px-3 py-2">
+              <span className="text-gray-400 text-xs">{item.label}</span>
+              <span className={`text-xs font-mono font-bold ${item.amount === 0 ? 'text-gray-600' : 'text-white'}`}>
+                {item.amount === 0 ? 'FREE' : `$${item.amount.toFixed(2)}`}
+              </span>
+            </div>
+          ))}
+          <div className="flex justify-between px-3 py-2.5 bg-gray-800/50">
+            <span className="text-white text-xs font-bold uppercase tracking-wider">Total</span>
+            <span className="text-white text-sm font-black">${total.toFixed(2)}</span>
+          </div>
+        </div>
+      )}
+
+      {/* Savings callout */}
+      {savings > 0 && (
+        <div className="bg-emerald-900/20 border border-emerald-700 p-4 flex items-center justify-between">
+          <div>
+            <p className="text-emerald-400 text-xs font-bold uppercase tracking-widest">vs. Flagstaff Shops</p>
+            <p className="text-gray-400 text-xs mt-0.5">They'd charge ~${shopTotal.toFixed(2)}</p>
+          </div>
+          <div className="text-right">
+            <p className="text-emerald-400 text-2xl font-black">-${savings.toFixed(2)}</p>
+            <p className="text-emerald-600 text-[10px] font-bold uppercase">Customer Saves</p>
+          </div>
+        </div>
+      )}
+
+      {canApply && (
+        <button
+          onClick={() => onApply(items, total, shopTotal)}
+          className="w-full bg-red-600 hover:bg-red-500 text-white text-xs font-bold uppercase tracking-widest py-3 transition-colors"
+        >
+          Apply to Estimate →
+        </button>
+      )}
+    </div>
+  );
+}
+
+// ── PHOTO PANEL ───────────────────────────────────────────────────────────────
+
+function PhotoPanel({ job, onUpdate }: { job: Job; onUpdate: (j: Job) => void }) {
+  const [photos, setPhotos] = useState<JobPhoto[]>(job.jobPhotos || []);
+  const [saving, setSaving] = useState(false);
+  const [editingNote, setEditingNote] = useState<string | null>(null);
+  const fileRef = useRef<HTMLInputElement | null>(null);
+
+  function handleCapture(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = e.target.files;
+    if (!files) return;
+    Array.from(files).forEach(file => {
+      const reader = new FileReader();
+      reader.onload = ev => {
+        const newPhoto: JobPhoto = {
+          id: Math.random().toString(36).slice(2),
+          dataUrl: ev.target?.result as string,
+          note: '',
+          takenAt: new Date().toISOString(),
+        };
+        setPhotos(prev => [...prev, newPhoto]);
+      };
+      reader.readAsDataURL(file);
+    });
+    e.target.value = '';
+  }
+
+  function updateNote(id: string, note: string) {
+    setPhotos(prev => prev.map(p => p.id === id ? { ...p, note } : p));
+  }
+
+  function deletePhoto(id: string) {
+    setPhotos(prev => prev.filter(p => p.id !== id));
+  }
+
+  async function savePhotos() {
+    setSaving(true);
+    await patchJob(job.id, { job_photos: JSON.stringify(photos) });
+    onUpdate({ ...job, jobPhotos: photos });
+    setSaving(false);
+  }
+
+  const hasChanges = JSON.stringify(photos) !== JSON.stringify(job.jobPhotos || []);
+
+  return (
+    <div className="space-y-4">
+      {/* Capture button */}
+      <div>
+        <label className="flex items-center justify-center gap-2 w-full bg-gray-800 border-2 border-dashed border-gray-600 hover:border-red-600 text-gray-400 hover:text-white py-4 cursor-pointer transition-colors">
+          <span className="text-xl">📷</span>
+          <span className="text-xs font-bold uppercase tracking-widest">Take Photo / Upload</span>
+          <input
+            type="file"
+            accept="image/*"
+            capture="environment"
+            multiple
+            className="hidden"
+            onChange={handleCapture}
+          />
+        </label>
+        <p className="text-gray-700 text-xs mt-1 text-center">Opens camera on mobile · Add notes per photo</p>
+      </div>
+
+      {/* Photo grid */}
+      {photos.length === 0 && (
+        <div className="text-center py-8 text-gray-700 text-sm">No photos yet</div>
+      )}
+
+      <div className="space-y-3">
+        {photos.map((photo) => (
+          <div key={photo.id} className="bg-gray-900 border border-gray-800">
+            <div className="relative">
+              <img src={photo.dataUrl} alt="Job photo" className="w-full max-h-48 object-cover" />
+              <button
+                onClick={() => deletePhoto(photo.id)}
+                className="absolute top-2 right-2 w-7 h-7 bg-black/70 text-red-500 hover:bg-red-900/80 flex items-center justify-center text-sm transition-colors"
+              >×</button>
+              <span className="absolute bottom-2 left-2 text-[10px] text-gray-400 bg-black/60 px-1.5 py-0.5">
+                {new Date(photo.takenAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+              </span>
+            </div>
+            <div className="p-3">
+              {editingNote === photo.id ? (
+                <div className="flex gap-2">
+                  <input
+                    autoFocus
+                    type="text"
+                    value={photo.note}
+                    onChange={e => updateNote(photo.id, e.target.value)}
+                    onBlur={() => setEditingNote(null)}
+                    onKeyDown={e => e.key === 'Enter' && setEditingNote(null)}
+                    placeholder="Add a note…"
+                    className="flex-1 bg-gray-800 border border-gray-600 text-white px-2 py-1.5 text-xs focus:border-red-600 outline-none"
+                  />
+                </div>
+              ) : (
+                <button
+                  onClick={() => setEditingNote(photo.id)}
+                  className="w-full text-left text-xs text-gray-500 hover:text-gray-300 transition-colors"
+                >
+                  {photo.note || <span className="italic">+ Add note…</span>}
+                </button>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {photos.length > 0 && (
+        <button
+          onClick={savePhotos}
+          disabled={saving || !hasChanges}
+          className="w-full bg-gray-700 hover:bg-gray-600 disabled:opacity-40 text-white text-xs font-bold uppercase tracking-widest py-3 transition-colors"
+        >
+          {saving ? 'Saving…' : hasChanges ? 'Save Photos & Notes' : '✓ Saved'}
+        </button>
+      )}
+    </div>
+  );
+}
+
 // ── ESTIMATE PANEL (inside admin job detail) ──────────────────────────────────
 
 function EstimatePanel({ job, onUpdate }: { job: Job; onUpdate: (j: Job) => void }) {
+  const [lineItems, setLineItems] = useState<LineItem[]>(job.lineItems?.length ? job.lineItems : [
+    { id: 'mobile', label: 'Mobile Service Fee', amount: MOBILE_FEE, type: 'mobile' },
+  ]);
+  const [notes, setNotes] = useState(job.estimateNotes);
+  const [saving, setSaving] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [sent, setSent] = useState(false);
+  const [showCalc, setShowCalc] = useState(!job.lineItems?.length);
+  const [shopAvg, setShopAvg] = useState(0);
+
+  const total = lineItems.reduce((s, i) => s + i.amount, 0);
+
+  function handleApplyCalc(items: LineItem[], calcTotal: number, calcShopAvg: number) {
+    setLineItems(items);
+    setShopAvg(calcShopAvg);
+    setShowCalc(false);
+  }
+
+  function updateLineItem(id: string, field: 'label' | 'amount', value: string) {
+    setLineItems(prev => prev.map(i => i.id === id ? { ...i, [field]: field === 'amount' ? parseFloat(value) || 0 : value } : i));
+  }
+
+  function removeLineItem(id: string) {
+    if (id === 'mobile') return; // can't remove mobile fee
+    setLineItems(prev => prev.filter(i => i.id !== id));
+  }
+
+  function addLineItem() {
+    setLineItems(prev => [...prev, { id: Math.random().toString(36).slice(2), label: '', amount: 0, type: 'other' }]);
+  }
+
+  async function saveEstimate() {
+    setSaving(true);
+    await patchJob(job.id, {
+      estimate_amount: total,
+      estimate_notes: notes,
+      line_items: JSON.stringify(lineItems),
+    });
+    onUpdate({ ...job, estimateAmount: total, estimateNotes: notes, lineItems });
+    setSaving(false);
+  }
+
+  async function sendEstimate() {
+    if (!total || !job.email) return;
+    setSending(true);
+    await patchJob(job.id, {
+      estimate_amount: total,
+      estimate_notes: notes,
+      line_items: JSON.stringify(lineItems),
+      job_status: 'ESTIMATE_SENT',
+    });
+    const updated = { ...job, estimateAmount: total, estimateNotes: notes, lineItems, jobStatus: 'ESTIMATE_SENT' as JobStatus };
+    await sendEstimateEmail(updated, shopAvg);
+    onUpdate(updated);
+    setSending(false);
+    setSent(true);
+  }
+
+  const canSend = total > 0 && !!job.email;
+  const savings = shopAvg > 0 ? shopAvg - total : 0;
+
+  return (
+    <div className="space-y-5">
+      {/* Calculator toggle */}
+      <button
+        onClick={() => setShowCalc(v => !v)}
+        className="text-xs font-bold uppercase tracking-widest text-red-500 hover:text-red-400 transition-colors flex items-center gap-2"
+      >
+        🧮 {showCalc ? 'Hide Calculator' : 'Open Quote Calculator'}
+      </button>
+
+      {showCalc && <QuoteCalculator job={job} onApply={handleApplyCalc} />}
+
+      {/* Line items editor */}
+      <div>
+        <div className="flex items-center justify-between mb-2">
+          <label className="text-gray-500 text-xs font-bold uppercase tracking-widest">Line Items</label>
+          <button onClick={addLineItem} className="text-xs text-gray-500 hover:text-white transition-colors">+ Add Line</button>
+        </div>
+        <div className="space-y-1.5">
+          {lineItems.map(item => (
+            <div key={item.id} className="flex items-center gap-2">
+              <input
+                type="text"
+                value={item.label}
+                onChange={e => updateLineItem(item.id, 'label', e.target.value)}
+                placeholder="Description"
+                disabled={item.id === 'mobile'}
+                className="flex-1 bg-gray-800 border border-gray-700 text-white px-2 py-1.5 text-xs focus:border-red-600 outline-none disabled:opacity-50"
+              />
+              <div className="flex items-center gap-1 flex-shrink-0">
+                <span className="text-gray-600 text-xs">$</span>
+                <input
+                  type="number"
+                  value={item.amount}
+                  onChange={e => updateLineItem(item.id, 'amount', e.target.value)}
+                  disabled={item.id === 'mobile'}
+                  className="w-20 bg-gray-800 border border-gray-700 text-white px-2 py-1.5 text-xs font-mono focus:border-red-600 outline-none disabled:opacity-50"
+                />
+              </div>
+              {item.id !== 'mobile' && (
+                <button onClick={() => removeLineItem(item.id)} className="text-gray-700 hover:text-red-500 text-sm transition-colors w-5">×</button>
+              )}
+            </div>
+          ))}
+        </div>
+
+        {/* Total */}
+        <div className="flex justify-between border-t border-gray-700 mt-3 pt-3">
+          <span className="text-gray-400 text-xs font-bold uppercase tracking-wider">Total</span>
+          <span className="text-white text-sm font-black">${total.toFixed(2)}</span>
+        </div>
+      </div>
+
+      {/* Savings callout if shop avg set */}
+      {savings > 0 && (
+        <div className="bg-emerald-900/20 border border-emerald-700 px-4 py-3 flex items-center justify-between">
+          <p className="text-emerald-400 text-xs font-bold uppercase tracking-widest">Customer saves vs shops</p>
+          <p className="text-emerald-400 font-black text-lg">-${savings.toFixed(2)}</p>
+        </div>
+      )}
+
+      {/* Scope notes */}
+      <div>
+        <label className="text-gray-500 text-xs font-bold uppercase tracking-widest block mb-1">Scope Notes <span className="text-gray-700 normal-case font-normal">(shown to customer)</span></label>
+        <textarea
+          value={notes}
+          onChange={e => setNotes(e.target.value)}
+          rows={2}
+          placeholder="e.g. Full synthetic oil change, inspect brakes while on site…"
+          className="bg-gray-800 border border-gray-700 text-white px-3 py-2 text-sm w-full focus:border-red-600 outline-none resize-none"
+        />
+      </div>
+
+      {/* CYA terms */}
+      <div className="bg-gray-800/50 border border-gray-700 p-3">
+        <p className="text-gray-600 text-xs font-bold uppercase tracking-widest mb-2">Terms included</p>
+        <ul className="space-y-1">
+          {CYA_TERMS.map((t, i) => (
+            <li key={i} className="text-gray-500 text-xs flex gap-2">
+              <span className="text-red-700 font-bold flex-shrink-0">✓</span> {t}
+            </li>
+          ))}
+        </ul>
+      </div>
+
+      <div className="flex gap-3">
+        <button onClick={saveEstimate} disabled={saving}
+          className="border border-gray-600 text-gray-400 hover:border-white hover:text-white text-xs font-bold uppercase tracking-widest px-4 py-2 transition-colors disabled:opacity-40">
+          {saving ? 'Saving…' : 'Save Draft'}
+        </button>
+        <button onClick={sendEstimate} disabled={!canSend || sending || sent}
+          className="bg-red-600 hover:bg-red-500 disabled:opacity-40 text-white text-xs font-bold uppercase tracking-widest px-6 py-2 transition-colors">
+          {sending ? 'Sending…' : sent ? '✓ Sent' : `Send to ${job.email}`}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+
   const [amount, setAmount] = useState(job.estimateAmount?.toString() ?? '');
   const [notes, setNotes] = useState(job.estimateNotes);
   const [saving, setSaving] = useState(false);
@@ -520,7 +1307,7 @@ function JobDetailPanel({ job: initialJob, onClose, onJobUpdate }: {
   onJobUpdate: (j: Job) => void;
 }) {
   const [job, setJob] = useState(initialJob);
-  const [tab, setTab] = useState<'overview' | 'estimate' | 'payment'>('overview');
+  const [tab, setTab] = useState<'overview' | 'estimate' | 'payment' | 'photos'>('overview');
 
   function handleUpdate(updated: Job) {
     setJob(updated);
@@ -582,12 +1369,12 @@ function JobDetailPanel({ job: initialJob, onClose, onJobUpdate }: {
 
         {/* Tabs */}
         <div className="flex border-b border-gray-800">
-          {(['overview', 'estimate', 'payment'] as const).map(t => (
+          {(['overview', 'estimate', 'payment', 'photos'] as const).map(t => (
             <button key={t} onClick={() => setTab(t)}
               className={`text-xs font-bold uppercase tracking-widest px-5 py-3 transition-colors border-b-2 -mb-px ${
                 tab === t ? 'border-red-600 text-white' : 'border-transparent text-gray-600 hover:text-gray-300'
               }`}>
-              {t === 'overview' ? '📋 Overview' : t === 'estimate' ? '📝 Estimate' : '💳 Payment'}
+              {t === 'overview' ? '📋 Overview' : t === 'estimate' ? '📝 Estimate' : t === 'payment' ? '💳 Payment' : `📷 Photos${job.jobPhotos?.length ? ` (${job.jobPhotos.length})` : ''}`}
             </button>
           ))}
         </div>
@@ -671,6 +1458,9 @@ function JobDetailPanel({ job: initialJob, onClose, onJobUpdate }: {
 
           {/* PAYMENT TAB */}
           {tab === 'payment' && <PaymentPanel job={job} onUpdate={handleUpdate} />}
+
+          {/* PHOTOS TAB */}
+          {tab === 'photos' && <PhotoPanel job={job} onUpdate={handleUpdate} />}
         </div>
       </div>
     </div>
@@ -887,7 +1677,6 @@ export function InvoicePage() {
           <div className="divide-y divide-white/10">
             {[
               ['Customer', `${job.fname} ${job.lname}`],
-              ['Service', resolveServiceName(job.service, job.notes)],
               ['Vehicle', job.vehicle],
               ['Service Date', serviceDateStr],
               ...(isPaid && paidDateStr ? [['Date Paid', paidDateStr]] : []),
@@ -899,6 +1688,23 @@ export function InvoicePage() {
               </div>
             ))}
           </div>
+
+          {/* Line items */}
+          {job.lineItems?.length > 0 && (
+            <div className="border-t border-white/10">
+              <p className="text-gray-600 text-[10px] font-bold uppercase tracking-widest px-6 py-2">Services</p>
+              <div className="divide-y divide-white/5">
+                {job.lineItems.map(item => (
+                  <div key={item.id} className="flex justify-between px-6 py-2.5">
+                    <span className="text-gray-300 text-sm">{item.label}</span>
+                    <span className={`text-sm font-mono font-bold ${item.amount === 0 ? 'text-gray-600' : 'text-white'}`}>
+                      {item.amount === 0 ? 'FREE' : `$${item.amount.toFixed(2)}`}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Scope notes if present */}
           {job.estimateNotes && (
@@ -1021,7 +1827,6 @@ export function EstimatePage() {
             {/* Job summary */}
             <div className="bg-white/5 border border-white/10 divide-y divide-white/10">
               {[
-                ['Service', resolveServiceName(job.service, job.notes)],
                 ['Vehicle', job.vehicle],
                 ['Appointment', `${dateStr} at ${job.time}`],
               ].map(([label, val]) => (
@@ -1030,8 +1835,26 @@ export function EstimatePage() {
                   <span className="text-white text-sm">{val}</span>
                 </div>
               ))}
+              {/* Line items */}
+              {job.lineItems?.length > 0 ? (
+                <>
+                  {job.lineItems.map(item => (
+                    <div key={item.id} className="flex justify-between px-4 py-3">
+                      <span className="text-gray-300 text-sm">{item.label}</span>
+                      <span className={`text-sm font-mono font-bold ${item.amount === 0 ? 'text-gray-600' : 'text-white'}`}>
+                        {item.amount === 0 ? 'FREE' : `$${item.amount.toFixed(2)}`}
+                      </span>
+                    </div>
+                  ))}
+                </>
+              ) : (
+                <div className="flex justify-between px-4 py-3">
+                  <span className="text-gray-300 text-sm">{resolveServiceName(job.service, job.notes)}</span>
+                  <span className="text-white text-sm font-mono">${job.estimateAmount?.toFixed(2)}</span>
+                </div>
+              )}
               <div className="flex justify-between px-4 py-4">
-                <span className="text-gray-500 text-xs font-bold uppercase tracking-wider">Estimate Total</span>
+                <span className="text-gray-500 text-xs font-bold uppercase tracking-wider">Total</span>
                 <span className="text-red-400 text-2xl font-black">${job.estimateAmount?.toFixed(2)}</span>
               </div>
             </div>

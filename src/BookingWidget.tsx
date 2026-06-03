@@ -1146,7 +1146,7 @@ export function AdminSchedule() {
   }
 
   const filtered = bookings.filter(b => filter === 'all' || b.status === filter)
-    .sort((a, b) => a.date.localeCompare(b.date) || a.time.localeCompare(b.time));
+    .sort((a, b) => b.date.localeCompare(a.date) || b.time.localeCompare(a.time));
 
   const today = new Date().toISOString().slice(0, 10);
   const upcoming = bookings.filter(b => b.date >= today && b.status === 'confirmed').length;

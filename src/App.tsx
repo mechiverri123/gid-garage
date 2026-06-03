@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { Phone, Mail, Menu, X } from 'lucide-react';
 import BookingWidget, { AdminSchedule, verifyCancelToken, updateSupabaseBooking, deleteLocalBooking, sendCancellationNotification, getSupabaseBookings } from './BookingWidget';
-import { EstimatePage, InvoicePage } from './JobOps';
+import { EstimatePage } from './JobOps';
 
 const PHONE = '480-757-0476';
 const EMAIL = 'gidgarageaz@hotmail.com';
@@ -10,37 +10,37 @@ const services = [
   {
     id: 'oil',
     title: 'Oil Change',
-    desc: "Full synthetic only — because your engine deserves better than the bare minimum. Starting at $79.99* · Price may vary by vehicle.",
+    desc: 'Full synthetic only — $79.99 up to 5 quarts, +$10.99/qt after. We come to you. Flagstaff shops average $95+.',
     badge: null,
   },
   {
     id: 'brakes',
     title: 'Brakes',
-    desc: 'Pad replacement, rotor resurfacing, and complete brake system diagnostics. Pricing varies per vehicle — get a free estimate when you book!',
+    desc: 'Pad replacement, rotor resurfacing, and complete brake system service. Starting at $112.49/axle — Flagstaff shops average $175+/axle.',
     badge: null,
   },
   {
     id: 'diag',
     title: 'Diagnostics',
-    desc: "Computer diagnostics to identify and resolve check engine light issues. Know what you need to know before spending a dime.",
+    desc: 'OBD2 scan, code pull, and repair recommendation — $75 flat. Shops charge $100-150 for the same scan.',
     badge: null,
   },
   {
     id: 'suspension',
     title: 'Suspension',
-    desc: 'Shocks, struts, control arms, tie rods, and CV axles. Pricing varies per vehicle — get a free estimate when you book!',
+    desc: 'Shocks, struts, control arms, tie rods, and CV axles. Pricing varies by vehicle and position — get a free estimate when you book.',
     badge: null,
   },
   {
     id: 'full',
     title: 'Full Service',
-    desc: 'Comprehensive multi-point inspection and maintenance. The full picture on your vehicle\'s health.',
-    badge: null,
+    desc: 'Comprehensive multi-point inspection — complimentary with any mechanical service. Know exactly what your vehicle needs before spending a dime.',
+    badge: 'Free',
   },
   {
     id: 'audio',
     title: 'Car Audio',
-    desc: 'Mobile car audio installation — head units, speakers, amplifiers, and full sound system builds. Deposit may be required for sourced parts.',
+    desc: 'Mobile car audio installation — head units, speakers, amplifiers, and full system builds. Starting at $75 labor. Deposit may be required for sourced parts.',
     badge: 'New',
   },
 ];
@@ -123,26 +123,26 @@ function ServiceCard({ s, onBookService }: { s: typeof services[0]; onBookServic
   const [open, setOpen] = useState(false);
 
   const suspensionItems = [
-    { label: 'Shocks', detail: 'Pricing varies by vehicle' },
-    { label: 'Struts', detail: 'Pricing varies by vehicle' },
-    { label: 'Control Arms', detail: 'Pricing varies by vehicle' },
-    { label: 'Tie Rods', detail: 'Pricing varies by vehicle' },
-    { label: 'CV Axles', detail: 'Pricing varies by vehicle' },
+    { label: 'Front Struts (pair)', detail: 'Starting at $299.99 + parts · Shops avg $500+' },
+    { label: 'Rear Shocks (pair)', detail: 'Starting at $199.99 + parts · Shops avg $350+' },
+    { label: 'Control Arms', detail: 'Starting at $187.99 + parts · Shops avg $350+' },
+    { label: 'Tie Rods', detail: 'Starting at $149.99 + parts · Shops avg $280+' },
+    { label: 'CV Axles', detail: 'Starting at $187.99 + parts · Shops avg $350+' },
   ];
 
   const brakeItems = [
-    { label: 'Brake Pads Only', detail: 'Starting at $139.99' },
-    { label: 'Brake Pads + Rotors', detail: 'Starting at $549.99' },
-    { label: 'Full Service (Pads + Rotors + Fluid Flush)', detail: 'Starting at $649.99' },
+    { label: 'Brake Pads Only (per axle)', detail: 'Starting at $112.49 · Shops avg $175/axle' },
+    { label: 'Brake Pads + Rotors (per axle)', detail: 'Starting at $224.99 · Shops avg $350/axle' },
+    { label: 'Full Service — Pads + Rotors + Fluid Flush (per axle)', detail: 'Starting at $274.99 · Shops avg $425/axle' },
   ];
 
   const audioItems = [
-    { label: 'Head Unit Replacement', detail: 'Starting at $149.99 + parts' },
-    { label: 'Speaker Replacement', detail: 'Starting at $99.99 + parts (pair)' },
-    { label: 'Head Unit Install (Customer-Supplied)', detail: 'Starting at $79.99 labor' },
-    { label: '4-Channel Amp Install', detail: 'Starting at $129.99 + parts' },
-    { label: 'Monoblock + Subwoofer Install', detail: 'Starting at $119.99 + parts' },
-    { label: 'Full Sound System (Head Unit + Speakers + 4ch Amp + Mono Amp + Sub)', detail: 'Starting at $549.99 + parts — deposit required' },
+    { label: 'Head Unit Replacement', detail: 'Starting at $75 labor + parts · Shops avg $150+' },
+    { label: 'Speaker Replacement (pair)', detail: 'Starting at $112.49 labor + parts · Shops avg $200+' },
+    { label: 'Head Unit Install (Customer-Supplied)', detail: '$75 labor only' },
+    { label: '4-Channel Amp Install', detail: 'Starting at $149.99 labor + parts' },
+    { label: 'Monoblock + Subwoofer Install', detail: 'Starting at $112.49 labor + parts' },
+    { label: 'Full Sound System (Head Unit + Speakers + 4ch Amp + Mono Amp + Sub)', detail: 'Starting at $449.99 labor + parts — deposit required' },
   ];
 
   const dropdownItems = s.id === 'suspension' ? suspensionItems : s.id === 'brakes' ? brakeItems : s.id === 'audio' ? audioItems : null;
@@ -637,7 +637,6 @@ export default function App() {
   const isAdmin = window.location.pathname === '/admin' || window.location.hash === '#admin';
   const isBookingsRoute = window.location.pathname === '/bookings';
   const isEstimate = window.location.pathname === '/estimate';
-  const isInvoice = window.location.pathname === '/invoice';
 
   function handleBookService(id: string) {
     setBookingServiceId(id);
@@ -651,7 +650,6 @@ export default function App() {
 
   if (isAdmin) return <AdminSchedule />;
   if (isEstimate) return <EstimatePage />;
-  if (isInvoice) return <InvoicePage />;
   if (cancelId && cancelToken) return <CancelPage bookingId={cancelId} token={cancelToken} />;
 
   return (
