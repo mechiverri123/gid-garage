@@ -137,7 +137,7 @@ async function sendEstimateEmail(job: Job) {
 
           <table style="width:100%;border-collapse:collapse;margin-bottom:24px;">
             <tr><td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#6b7280;font-size:13px;">Service</td>
-                <td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#fff;font-size:13px;">${job.service}</td></tr>
+                <td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#fff;font-size:13px;">${resolveServiceName(job.service, job.notes)}</td></tr>
             <tr><td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#6b7280;font-size:13px;">Vehicle</td>
                 <td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#fff;font-size:13px;">${job.vehicle}</td></tr>
             <tr><td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#6b7280;font-size:13px;">Appointment</td>
@@ -159,6 +159,84 @@ async function sendEstimateEmail(job: Job) {
   });
 }
 
+// ── BREVO: SEND INVOICE EMAIL ─────────────────────────────────────────────────
+
+async function sendInvoiceEmail(job: Job) {
+  const invoiceUrl = `${window.location.origin}/invoice?id=${job.id}`;
+  const amount = job.invoiceAmount ?? job.estimateAmount;
+
+  await fetch('https://api.brevo.com/v3/smtp/email', {
+    method: 'POST',
+    headers: { 'api-key': BREVO_API_KEY, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      sender: { name: 'GID Garage', email: 'bookings@gidgarage.com' },
+      to: [{ email: job.email, name: `${job.fname} ${job.lname}` }],
+      subject: `Your GID Garage Invoice — ${job.vehicle}`,
+      htmlContent: `
+        <div style="font-family:sans-serif;max-width:560px;margin:0 auto;background:#0f0f0f;color:#fff;padding:32px;border-radius:4px;">
+          <img src="https://gidgarage.com/website_logo.png" alt="GID Garage" style="height:48px;margin-bottom:24px;" />
+          <h2 style="color:#fff;font-size:22px;margin:0 0 8px;">Invoice from GID Garage</h2>
+          <p style="color:#9ca3af;margin:0 0 24px;">Hi ${job.fname}, thank you for choosing GID Garage. Here is your invoice.</p>
+          <table style="width:100%;border-collapse:collapse;margin-bottom:24px;">
+            <tr><td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#6b7280;font-size:13px;">Service</td>
+                <td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#fff;font-size:13px;">${resolveServiceName(job.service, job.notes)}</td></tr>
+            <tr><td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#6b7280;font-size:13px;">Vehicle</td>
+                <td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#fff;font-size:13px;">${job.vehicle}</td></tr>
+            <tr><td style="padding:8px 0;color:#6b7280;font-size:13px;">Amount Due</td>
+                <td style="padding:8px 0;color:#ef4444;font-size:22px;font-weight:bold;">$${amount?.toFixed(2)}</td></tr>
+          </table>
+          <a href="${invoiceUrl}" style="display:inline-block;background:#dc2626;color:#fff;text-decoration:none;font-weight:bold;font-size:13px;padding:14px 28px;letter-spacing:0.05em;text-transform:uppercase;margin-bottom:24px;">
+            View Invoice
+          </a>
+          <p style="color:#4b5563;font-size:12px;margin:0;">Questions? Call or text <strong style="color:#9ca3af;">480-757-0476</strong> — GID Garage, Flagstaff AZ</p>
+        </div>
+      `,
+    }),
+  });
+}
+
+// ── BREVO: SEND RECEIPT EMAIL ─────────────────────────────────────────────────
+
+async function sendReceiptEmail(job: Job) {
+  const invoiceUrl = `${window.location.origin}/invoice?id=${job.id}`;
+  const paidDate = job.paidAt
+    ? new Date(job.paidAt).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })
+    : new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+
+  await fetch('https://api.brevo.com/v3/smtp/email', {
+    method: 'POST',
+    headers: { 'api-key': BREVO_API_KEY, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      sender: { name: 'GID Garage', email: 'bookings@gidgarage.com' },
+      to: [{ email: job.email, name: `${job.fname} ${job.lname}` }],
+      subject: `Payment Receipt — GID Garage`,
+      htmlContent: `
+        <div style="font-family:sans-serif;max-width:560px;margin:0 auto;background:#0f0f0f;color:#fff;padding:32px;border-radius:4px;">
+          <img src="https://gidgarage.com/website_logo.png" alt="GID Garage" style="height:48px;margin-bottom:24px;" />
+          <div style="background:#052e16;border:1px solid #166534;padding:16px;margin-bottom:24px;border-radius:4px;">
+            <p style="color:#4ade80;font-size:12px;font-weight:bold;text-transform:uppercase;letter-spacing:0.1em;margin:0 0 4px;">Payment Received</p>
+            <p style="color:#fff;font-size:28px;font-weight:900;margin:0;">$${job.invoiceAmount?.toFixed(2)}</p>
+          </div>
+          <table style="width:100%;border-collapse:collapse;margin-bottom:24px;">
+            <tr><td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#6b7280;font-size:13px;">Service</td>
+                <td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#fff;font-size:13px;">${resolveServiceName(job.service, job.notes)}</td></tr>
+            <tr><td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#6b7280;font-size:13px;">Vehicle</td>
+                <td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#fff;font-size:13px;">${job.vehicle}</td></tr>
+            <tr><td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#6b7280;font-size:13px;">Date Paid</td>
+                <td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#fff;font-size:13px;">${paidDate}</td></tr>
+            <tr><td style="padding:8px 0;color:#6b7280;font-size:13px;">Transaction ID</td>
+                <td style="padding:8px 0;color:#9ca3af;font-size:12px;font-family:monospace;">${job.stripeTransactionId}</td></tr>
+          </table>
+          <a href="${invoiceUrl}" style="display:inline-block;background:#166534;color:#fff;text-decoration:none;font-weight:bold;font-size:13px;padding:14px 28px;letter-spacing:0.05em;text-transform:uppercase;margin-bottom:24px;">
+            View Receipt
+          </a>
+          <p style="color:#4b5563;font-size:12px;margin:0;">Thank you for your business! — GID Garage &middot; 480-757-0476</p>
+        </div>
+      `,
+    }),
+  });
+}
+
 // ── CYA TERMS ────────────────────────────────────────────────────────────────
 
 const CYA_TERMS = [
@@ -167,6 +245,49 @@ const CYA_TERMS = [
   'GID Garage is not responsible for pre-existing conditions unrelated to the service performed.',
   'Parts carry manufacturer warranty. Labor is warranted for 30 days from date of service.',
 ];
+
+// ── SERVICE NAME RESOLUTION ───────────────────────────────────────────────────
+
+const SERVICE_NAMES: Record<string, string> = {
+  oil:        'Oil Change',
+  brakes:     'Brakes',
+  diag:       'Diagnostics',
+  suspension: 'Suspension',
+  audio:      'Car Audio',
+  full:       'Full Service',
+};
+
+const BRAKE_LABELS: Record<string, string> = {
+  pads:        'Brake Pads Only',
+  pads_rotors: 'Brake Pads + Rotors',
+  full:        'Full Brake Service (Pads + Rotors + Fluid Flush)',
+};
+
+const AUDIO_LABELS: Record<string, string> = {
+  head_unit_replacement: 'Head Unit Replacement',
+  speaker_replacement:   'Speaker Replacement (pair)',
+  head_unit_install:     'Head Unit Install (Customer-Supplied)',
+  '4ch_amp_install':     '4-Channel Amp Install',
+  mono_amp_install:      'Monoblock + Subwoofer Install',
+  full_system:           'Full Sound System',
+};
+
+function resolveServiceName(service: string, notes: string): string {
+  const base = SERVICE_NAMES[service] ?? service;
+  if (service === 'brakes') {
+    const match = notes.match(/Brake service: ([^|]+)/);
+    if (match) return `Brakes — ${BRAKE_LABELS[match[1].trim()] ?? match[1].trim()}`;
+  }
+  if (service === 'suspension') {
+    const match = notes.match(/Suspension: ([^|]+)/);
+    if (match) return `Suspension — ${match[1].trim()}`;
+  }
+  if (service === 'audio') {
+    const match = notes.match(/Audio package: ([^|]+)/);
+    if (match) return `Car Audio — ${AUDIO_LABELS[match[1].trim()] ?? match[1].trim()}`;
+  }
+  return base;
+}
 
 // ── JOB STATUS CONFIG ─────────────────────────────────────────────────────────
 
@@ -297,29 +418,35 @@ function PaymentPanel({ job, onUpdate }: { job: Job; onUpdate: (j: Job) => void 
   async function markPaid() {
     if (!stripeId) return;
     setSaving(true);
+    const paidAt = new Date().toISOString();
+    const finalAmount = parseFloat(invoiceAmt) || job.estimateAmount;
     const fields = {
-      invoice_amount: parseFloat(invoiceAmt) || job.estimateAmount,
+      invoice_amount: finalAmount,
       stripe_transaction_id: stripeId,
-      paid_at: new Date().toISOString(),
+      paid_at: paidAt,
       job_status: 'PAID',
       status: 'completed',
     };
     await patchJob(job.id, fields);
-    onUpdate({
+    const updated = {
       ...job,
-      invoiceAmount: parseFloat(invoiceAmt) || job.estimateAmount,
+      invoiceAmount: finalAmount,
       stripeTransactionId: stripeId,
-      paidAt: fields.paid_at,
-      jobStatus: 'PAID',
+      paidAt,
+      jobStatus: 'PAID' as JobStatus,
       status: 'completed',
-    });
+    };
+    onUpdate(updated);
     setSaving(false);
   }
 
   async function markInvoiced() {
     setSaving(true);
-    await patchJob(job.id, { job_status: 'INVOICED', invoice_amount: parseFloat(invoiceAmt) || job.estimateAmount });
-    onUpdate({ ...job, jobStatus: 'INVOICED', invoiceAmount: parseFloat(invoiceAmt) || job.estimateAmount });
+    const finalAmount = parseFloat(invoiceAmt) || job.estimateAmount;
+    await patchJob(job.id, { job_status: 'INVOICED', invoice_amount: finalAmount });
+    const updated = { ...job, jobStatus: 'INVOICED' as JobStatus, invoiceAmount: finalAmount };
+    await sendInvoiceEmail(updated);
+    onUpdate(updated);
     setSaving(false);
   }
 
@@ -473,7 +600,7 @@ function JobDetailPanel({ job: initialJob, onClose, onJobUpdate }: {
               {/* Customer & Job info */}
               <div className="space-y-2">
                 {[
-                  ['Service', job.service],
+                  ['Service', resolveServiceName(job.service, job.notes)],
                   ['Date', `${dateStr} at ${job.time}`],
                   ['Phone', job.phone],
                   ['Email', job.email],
@@ -651,7 +778,7 @@ export function JobsTab() {
                   <div className="text-gray-500 text-xs">{job.vehicle}</div>
                 </div>
                 <div className="hidden sm:block text-gray-600 text-xs">
-                  <div>{job.service}</div>
+                  <div>{resolveServiceName(job.service, job.notes)}</div>
                   <div>{dateStr} · {job.time}</div>
                 </div>
                 {job.estimateAmount && (
@@ -680,7 +807,129 @@ export function JobsTab() {
   );
 }
 
-// ── CUSTOMER-FACING ESTIMATE PAGE ─────────────────────────────────────────────
+// ── INVOICE / RECEIPT PAGE (customer-facing) ──────────────────────────────────
+
+export function InvoicePage() {
+  const params = new URLSearchParams(window.location.search);
+  const jobId = params.get('id');
+  const [job, setJob] = useState<Job | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [notFound, setNotFound] = useState(false);
+
+  useEffect(() => {
+    if (!jobId) { setNotFound(true); setLoading(false); return; }
+    getJobById(jobId).then(j => {
+      if (!j) setNotFound(true);
+      else setJob(j);
+      setLoading(false);
+    });
+  }, [jobId]);
+
+  if (loading) return (
+    <div className="min-h-screen bg-[#0f0f0f] flex items-center justify-center">
+      <p className="text-gray-600 text-sm font-bold uppercase tracking-widest">Loading…</p>
+    </div>
+  );
+
+  if (notFound || !job) return (
+    <div className="min-h-screen bg-[#0f0f0f] flex items-center justify-center px-4">
+      <div className="text-center">
+        <div className="text-4xl mb-4">⚠️</div>
+        <h1 className="text-white text-2xl font-black mb-3">Invoice Not Found</h1>
+        <p className="text-gray-500 text-sm mb-6">This link may be invalid. Please call us.</p>
+        <a href="tel:4807570476" className="inline-block bg-red-600 text-white text-xs font-bold uppercase tracking-widest px-8 py-4">Call 480-757-0476</a>
+      </div>
+    </div>
+  );
+
+  const isPaid = job.jobStatus === 'PAID';
+  const amount = job.invoiceAmount ?? job.estimateAmount;
+  const serviceDateStr = new Date(job.date + 'T12:00:00').toLocaleDateString('en-US', {
+    weekday: 'long', month: 'long', day: 'numeric', year: 'numeric',
+  });
+  const paidDateStr = job.paidAt
+    ? new Date(job.paidAt).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+    : null;
+  const invoiceNumber = `GID-${job.id.slice(0, 8).toUpperCase()}`;
+
+  return (
+    <div className="min-h-screen bg-[#0f0f0f] py-12 px-4">
+      <div className="max-w-lg mx-auto">
+
+        {/* Header */}
+        <div className="flex items-start justify-between mb-8">
+          <a href="/">
+            <img src="/website_logo.png" alt="GID Garage" className="h-10 w-auto" />
+          </a>
+          <div className="text-right">
+            {isPaid
+              ? <span className="inline-block bg-emerald-900/40 border border-emerald-700 text-emerald-400 text-xs font-bold uppercase tracking-widest px-3 py-1.5">✓ Paid</span>
+              : <span className="inline-block bg-yellow-900/40 border border-yellow-700 text-yellow-400 text-xs font-bold uppercase tracking-widest px-3 py-1.5">Amount Due</span>
+            }
+          </div>
+        </div>
+
+        {/* Invoice card */}
+        <div className="bg-white/5 border border-white/10">
+
+          {/* Title row */}
+          <div className="px-6 py-5 border-b border-white/10 flex items-center justify-between">
+            <div>
+              <p className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-0.5">{isPaid ? 'Receipt' : 'Invoice'}</p>
+              <p className="text-white font-mono text-sm">{invoiceNumber}</p>
+            </div>
+            <div className="text-right">
+              <p className={`text-3xl font-black ${isPaid ? 'text-emerald-400' : 'text-red-400'}`}>${amount?.toFixed(2)}</p>
+            </div>
+          </div>
+
+          {/* Job details */}
+          <div className="divide-y divide-white/10">
+            {[
+              ['Customer', `${job.fname} ${job.lname}`],
+              ['Service', resolveServiceName(job.service, job.notes)],
+              ['Vehicle', job.vehicle],
+              ['Service Date', serviceDateStr],
+              ...(isPaid && paidDateStr ? [['Date Paid', paidDateStr]] : []),
+              ...(isPaid && job.stripeTransactionId ? [['Transaction ID', job.stripeTransactionId]] : []),
+            ].map(([label, val]) => (
+              <div key={label} className="flex justify-between px-6 py-3 gap-4">
+                <span className="text-gray-500 text-xs font-bold uppercase tracking-wider flex-shrink-0">{label}</span>
+                <span className={`text-sm text-right ${label === 'Transaction ID' ? 'text-gray-400 font-mono text-xs break-all' : 'text-white'}`}>{val}</span>
+              </div>
+            ))}
+          </div>
+
+          {/* Scope notes if present */}
+          {job.estimateNotes && (
+            <div className="px-6 py-4 border-t border-white/10">
+              <p className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-1.5">Scope of Work</p>
+              <p className="text-gray-300 text-sm leading-relaxed">{job.estimateNotes}</p>
+            </div>
+          )}
+
+          {/* Amount row */}
+          <div className={`px-6 py-5 border-t border-white/10 flex items-center justify-between ${isPaid ? 'bg-emerald-900/10' : 'bg-red-900/10'}`}>
+            <span className="text-white font-bold uppercase tracking-wider text-sm">{isPaid ? 'Total Paid' : 'Total Due'}</span>
+            <span className={`text-2xl font-black ${isPaid ? 'text-emerald-400' : 'text-red-400'}`}>${amount?.toFixed(2)}</span>
+          </div>
+        </div>
+
+        {/* Signed disclaimer */}
+        {job.customerAgreed && (
+          <div className="mt-4 px-4 py-3 border border-white/10 bg-white/5">
+            <p className="text-gray-600 text-xs">Estimate approved by <strong className="text-gray-400">{job.customerSignature}</strong>
+              {job.signedAt ? ` on ${new Date(job.signedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}` : ''}.
+            </p>
+          </div>
+        )}
+
+        <p className="text-gray-700 text-xs text-center mt-8">GID Garage · Flagstaff, AZ · 480-757-0476 · gidgarage.com</p>
+      </div>
+    </div>
+  );
+}
+
 
 export function EstimatePage() {
   const params = new URLSearchParams(window.location.search);
@@ -772,7 +1021,7 @@ export function EstimatePage() {
             {/* Job summary */}
             <div className="bg-white/5 border border-white/10 divide-y divide-white/10">
               {[
-                ['Service', job.service],
+                ['Service', resolveServiceName(job.service, job.notes)],
                 ['Vehicle', job.vehicle],
                 ['Appointment', `${dateStr} at ${job.time}`],
               ].map(([label, val]) => (
