@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { Phone, Mail, Menu, X } from 'lucide-react';
 import BookingWidget, { AdminSchedule, verifyCancelToken, updateSupabaseBooking, deleteLocalBooking, sendCancellationNotification, getSupabaseBookings } from './BookingWidget';
+import { EstimatePage } from './JobOps';
 
 const PHONE = '480-757-0476';
 const EMAIL = 'gidgarageaz@hotmail.com';
@@ -635,6 +636,7 @@ export default function App() {
   const cancelToken = params.get('token');
   const isAdmin = window.location.pathname === '/admin' || window.location.hash === '#admin';
   const isBookingsRoute = window.location.pathname === '/bookings';
+  const isEstimate = window.location.pathname === '/estimate';
 
   function handleBookService(id: string) {
     setBookingServiceId(id);
@@ -647,6 +649,7 @@ export default function App() {
   }
 
   if (isAdmin) return <AdminSchedule />;
+  if (isEstimate) return <EstimatePage />;
   if (cancelId && cancelToken) return <CancelPage bookingId={cancelId} token={cancelToken} />;
 
   return (
