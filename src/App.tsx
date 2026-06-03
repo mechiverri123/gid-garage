@@ -248,11 +248,11 @@ function WhyUs() {
           <div className="grid grid-cols-2 gap-x-8 gap-y-2">
             <div>
               <p className="text-white font-bold text-sm">Monday – Friday</p>
-              <p className="text-white/60 text-sm">1:00 PM – 8:00 PM</p>
+              <p className="text-white/60 text-sm">1:30 PM – 8:00 PM</p>
             </div>
             <div>
               <p className="text-white font-bold text-sm">Saturday – Sunday</p>
-              <p className="text-white/60 text-sm">8:00 AM – 5:00 PM</p>
+              <p className="text-white/60 text-sm">5:00 AM – 8:00 PM</p>
             </div>
           </div>
           <p className="text-white/40 text-xs mt-3">Appointments required. Same-day bookings subject to availability.</p>
@@ -444,7 +444,7 @@ function BookingSection({ openBooking }: { openBooking: () => void }) {
           <a href={`tel:${PHONE}`} className="text-red-500 hover:text-red-400 font-semibold transition-colors underline underline-offset-2">call {PHONE}</a>{' '}
           to chat with us first.
         </div>
-        <div className="text-white/30 text-xs mb-8">Mon–Fri 1–8 PM · Sat–Sun 8 AM–5 PM</div>
+        <div className="text-white/30 text-xs mb-8">Mon–Fri 1:30–8 PM · Sat–Sun 5 AM–8 PM</div>
         <button onClick={openBooking} className="btn-primary text-xs px-8 py-4">Get a Quote</button>
       </div>
     </section>
@@ -480,8 +480,8 @@ function Footer() {
           </div>
           <div className="flex flex-col gap-3">
             <div className="text-white/50 text-xs uppercase tracking-widest font-semibold mb-1">Hours</div>
-            <p className="text-white/70 text-sm">Mon–Fri: 1:00 PM – 8:00 PM</p>
-            <p className="text-white/70 text-sm">Sat–Sun: 8:00 AM – 5:00 PM</p>
+            <p className="text-white/70 text-sm">Mon–Fri: 1:30 PM – 8:00 PM</p>
+            <p className="text-white/70 text-sm">Sat–Sun: 5:00 AM – 8:00 PM</p>
             <div className="border-t border-gray-800 pt-3 mt-1">
               <a href={`tel:${PHONE}`} className="flex items-center gap-3 text-white/70 hover:text-white transition-colors group">
                 <Phone className="w-4 h-4 text-red-600 group-hover:scale-110 transition-transform" />
@@ -628,12 +628,13 @@ function CancelPage({ bookingId, token }: { bookingId: string; token: string }) 
 
 export default function App() {
   const [bookingServiceId, setBookingServiceId] = useState<string | null>(null);
-  const [modalOpen, setModalOpen] = useState(false);
+  const [modalOpen, setModalOpen] = useState(window.location.pathname === '/bookings');
 
   const params = new URLSearchParams(window.location.search);
   const cancelId = params.get('cancel');
   const cancelToken = params.get('token');
   const isAdmin = window.location.pathname === '/admin' || window.location.hash === '#admin';
+  const isBookingsRoute = window.location.pathname === '/bookings';
 
   function handleBookService(id: string) {
     setBookingServiceId(id);

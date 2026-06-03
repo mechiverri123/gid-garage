@@ -124,9 +124,9 @@ const SERVICES = [
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 const DAY_LABELS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 
-// Mon–Fri 1pm–8pm, Sat–Sun 8am–5pm — resolved at selection time
-const WEEKDAY_SLOTS = ['1:00 PM','2:00 PM','3:00 PM','4:00 PM','5:00 PM','6:00 PM','7:00 PM'];
-const WEEKEND_SLOTS = ['8:00 AM','9:00 AM','10:00 AM','11:00 AM','12:00 PM','1:00 PM','2:00 PM','3:00 PM','4:00 PM'];
+// Mon–Fri 1:30pm–8pm, Sat–Sun 5am–8pm — resolved at selection time
+const WEEKDAY_SLOTS = ['1:30 PM','2:30 PM','3:30 PM','4:30 PM','5:30 PM','6:30 PM','7:00 PM'];
+const WEEKEND_SLOTS = ['5:00 AM','6:00 AM','7:00 AM','8:00 AM','9:00 AM','10:00 AM','11:00 AM','12:00 PM','1:00 PM','2:00 PM','3:00 PM','4:00 PM','5:00 PM','6:00 PM','7:00 PM'];
 
 function getSlotsForDate(dateStr: string): string[] {
   if (!dateStr) return WEEKDAY_SLOTS;
@@ -156,11 +156,11 @@ interface Booking {
 
 interface FormData {
   fname: string; lname: string; phone: string;
-  email: string; vehicleYear: string; vehicleMake: string; vehicleModel: string; vehicleTrim: string; notes: string;
+  email: string; vehicleYear: string; vehicleMake: string; vehicleModel: string; vehicleEngine: string; notes: string; serviceAddress: string;
 }
 
 function vehicleString(f: FormData): string {
-  const parts = [f.vehicleYear, f.vehicleMake, f.vehicleModel, f.vehicleTrim].filter(Boolean);
+  const parts = [f.vehicleYear, f.vehicleMake, f.vehicleModel, f.vehicleEngine].filter(Boolean);
   return parts.join(' ');
 }
 
@@ -269,7 +269,7 @@ function VehicleSelector({ form, setForm, errors, clearError }: {
         <div>
           {errors.vehicleYear && <p className="text-red-500 text-xs mb-1">{errors.vehicleYear}</p>}
           <select className={sc('vehicleYear')} value={form.vehicleYear}
-            onChange={e => { setForm(p => ({ ...p, vehicleYear: e.target.value, vehicleMake: '', vehicleModel: '', vehicleTrim: '' })); clearError('vehicleYear'); clearError('vehicleMake'); clearError('vehicleModel'); }}>
+            onChange={e => { setForm(p => ({ ...p, vehicleYear: e.target.value, vehicleMake: '', vehicleModel: '', vehicleEngine: '' })); clearError('vehicleYear'); clearError('vehicleMake'); clearError('vehicleModel'); }}>
             <option value="">Year</option>
             {years.map(y => <option key={y} value={String(y)}>{y}</option>)}
           </select>
@@ -277,7 +277,7 @@ function VehicleSelector({ form, setForm, errors, clearError }: {
         <div>
           {errors.vehicleMake && <p className="text-red-500 text-xs mb-1">{errors.vehicleMake}</p>}
           <select className={sc('vehicleMake')} value={form.vehicleMake} disabled={!form.vehicleYear || loadingMakes}
-            onChange={e => { setForm(p => ({ ...p, vehicleMake: e.target.value, vehicleModel: '', vehicleTrim: '' })); clearError('vehicleMake'); clearError('vehicleModel'); }}>
+            onChange={e => { setForm(p => ({ ...p, vehicleMake: e.target.value, vehicleModel: '', vehicleEngine: '' })); clearError('vehicleMake'); clearError('vehicleModel'); }}>
             <option value="">{loadingMakes ? 'Loading…' : 'Make'}</option>
             {makes.map(m => <option key={m} value={m}>{m}</option>)}
           </select>
@@ -291,9 +291,33 @@ function VehicleSelector({ form, setForm, errors, clearError }: {
           </select>
         </div>
         <div>
-          <input type="text" className={ic('vehicleTrim')} placeholder="Trim" value={form.vehicleTrim}
+          <select className={sc('vehicleEngine')} value={form.vehicleEngine}
             disabled={!form.vehicleModel}
-            onChange={e => { setForm(p => ({ ...p, vehicleTrim: e.target.value })); clearError('vehicleTrim'); }} />
+            onChange={e => { setForm(p => ({ ...p, vehicleEngine: e.target.value })); clearError('vehicleEngine'); }}>
+            <option value="">Engine</option>
+            <option value="3cyl">3-Cyl</option>
+            <option value="4cyl_1.0">1.0L 4-Cyl</option>
+            <option value="4cyl_1.4">1.4L 4-Cyl</option>
+            <option value="4cyl_1.5">1.5L 4-Cyl</option>
+            <option value="4cyl_1.6">1.6L 4-Cyl</option>
+            <option value="4cyl_1.8">1.8L 4-Cyl</option>
+            <option value="4cyl_2.0">2.0L 4-Cyl</option>
+            <option value="4cyl_2.4">2.4L 4-Cyl</option>
+            <option value="4cyl_2.5">2.5L 4-Cyl</option>
+            <option value="6cyl_2.7">2.7L V6</option>
+            <option value="6cyl_3.0">3.0L V6</option>
+            <option value="6cyl_3.5">3.5L V6</option>
+            <option value="6cyl_3.6">3.6L V6</option>
+            <option value="8cyl_4.6">4.6L V8</option>
+            <option value="8cyl_5.0">5.0L V8</option>
+            <option value="8cyl_5.3">5.3L V8</option>
+            <option value="8cyl_5.7">5.7L V8</option>
+            <option value="8cyl_6.2">6.2L V8</option>
+            <option value="diesel">Diesel</option>
+            <option value="hybrid">Hybrid</option>
+            <option value="electric">Electric</option>
+            <option value="other">Other</option>
+          </select>
         </div>
       </div>
     </div>
@@ -540,7 +564,7 @@ const INIT_STATE: State = {
   calYear: new Date().getFullYear(), calMonth: new Date().getMonth(),
   suspensionPart: null, brakeService: null, audioPackage: null,
 };
-const INIT_FORM: FormData = { fname: '', lname: '', phone: '', email: '', vehicleYear: '', vehicleMake: '', vehicleModel: '', vehicleTrim: '', notes: '' };
+const INIT_FORM: FormData = { fname: '', lname: '', phone: '', email: '', vehicleYear: '', vehicleMake: '', vehicleModel: '', vehicleEngine: '', notes: '', serviceAddress: '' };
 
 export { verifyCancelToken, updateSupabaseBooking, deleteLocalBooking, sendCancellationNotification, getSupabaseBookings };
 
@@ -626,6 +650,7 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
     const errors: Record<string, string> = {};
     if (!form.fname) errors.fname = 'First name is required';
     if (!form.phone) errors.phone = 'Phone number is required';
+    if (!form.serviceAddress) errors.serviceAddress = 'Service address is required';
     if (!form.vehicleYear) errors.vehicleYear = 'Select a year';
     if (!form.vehicleMake) errors.vehicleMake = 'Select a make';
     if (!form.vehicleModel) errors.vehicleModel = 'Select a model';
@@ -641,6 +666,7 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
       fname: form.fname, lname: form.lname, phone: form.phone, email: form.email,
       vehicle: vehicleString(form),
       notes: [
+        `Address: ${form.serviceAddress}`,
         s.suspensionPart ? `Suspension: ${SUSPENSION_LABELS[s.suspensionPart] ?? s.suspensionPart.replace(/_/g, ' ')}` : '',
         s.brakeService ? `Brake service: ${BRAKE_LABELS[s.brakeService] ?? s.brakeService.replace(/_/g, ' ')}` : '',
         s.audioPackage ? `Audio package: ${AUDIO_LABELS[s.audioPackage] ?? s.audioPackage}` : '',
@@ -802,7 +828,7 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
                       );
                     })}
                   </div>
-                  <p className="text-gray-700 text-[10px] mt-1">Mon–Fri: 1 PM–8 PM · Sat–Sun: 8 AM–5 PM</p>
+                  <p className="text-gray-700 text-[10px] mt-1">Mon–Fri: 1:30 PM–8 PM · Sat–Sun: 5 AM–8 PM</p>
                 </>)}
 
                 {s.step >= 3 && s.date && (<>
@@ -855,8 +881,16 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
                     ))}
                     <VehicleSelector form={form} setForm={setForm} errors={fieldErrors} clearError={(k) => setFieldErrors(p => ({ ...p, [k]: '' }))} />
                     <div className="col-span-2">
+                      <label className={`block text-xs font-bold uppercase tracking-wider mb-1.5 ${fieldErrors.serviceAddress ? 'text-red-500' : 'text-gray-500'}`}>Service Address <span className="text-red-500">*</span></label>
+                      <input type="text" placeholder="123 Main St, Flagstaff, AZ 86001"
+                        value={form.serviceAddress}
+                        onChange={e => { setForm(p => ({ ...p, serviceAddress: e.target.value })); setFieldErrors(p => ({ ...p, serviceAddress: '' })); }}
+                        className={`w-full bg-gray-900 text-white text-sm px-3 py-2.5 outline-none transition-colors border ${fieldErrors.serviceAddress ? 'border-red-500 focus:border-red-400' : 'border-gray-800 focus:border-red-600'}`} />
+                      {fieldErrors.serviceAddress && <p className="text-red-500 text-xs mt-1">{fieldErrors.serviceAddress}</p>}
+                    </div>
+                    <div className="col-span-2">
                       <label className="block text-gray-500 text-xs font-bold uppercase tracking-wider mb-1.5">Notes (optional)</label>
-                      <textarea placeholder="Anything we should know? Address, gate code, specific concern..." value={form.notes}
+                      <textarea placeholder="Gate code, parking notes, specific concern..." value={form.notes}
                         onChange={e => setForm(p => ({ ...p, notes: e.target.value }))} rows={3}
                         className="w-full bg-gray-900 border border-gray-800 text-white text-sm px-3 py-2.5 outline-none focus:border-red-600 transition-colors resize-y" />
                     </div>
