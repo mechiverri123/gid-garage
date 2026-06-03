@@ -199,48 +199,6 @@ async function sendEstimateEmail(job: Job, shopAvg: number = 0) {
 }
 
 
-  const estimateUrl = `${window.location.origin}/estimate?id=${job.id}`;
-  const dateStr = new Date(job.date + 'T12:00:00').toLocaleDateString('en-US', {
-    weekday: 'long', month: 'long', day: 'numeric', year: 'numeric',
-  });
-
-  await fetch('https://api.brevo.com/v3/smtp/email', {
-    method: 'POST',
-    headers: { 'api-key': BREVO_API_KEY, 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      sender: { name: 'GID Garage', email: 'bookings@gidgarage.com' },
-      to: [{ email: job.email, name: `${job.fname} ${job.lname}` }],
-      subject: `Your GID Garage Estimate — ${job.vehicle}`,
-      htmlContent: `
-        <div style="font-family:sans-serif;max-width:560px;margin:0 auto;background:#0f0f0f;color:#fff;padding:32px;border-radius:4px;">
-          <img src="https://gidgarage.com/website_logo.png" alt="GID Garage" style="height:48px;margin-bottom:24px;" />
-          <h2 style="color:#fff;font-size:22px;margin:0 0 8px;">Your Estimate is Ready</h2>
-          <p style="color:#9ca3af;margin:0 0 24px;">Hi ${job.fname}, here's your quote for the upcoming appointment.</p>
-
-          <table style="width:100%;border-collapse:collapse;margin-bottom:24px;">
-            <tr><td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#6b7280;font-size:13px;">Service</td>
-                <td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#fff;font-size:13px;">${resolveServiceName(job.service, job.notes)}</td></tr>
-            <tr><td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#6b7280;font-size:13px;">Vehicle</td>
-                <td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#fff;font-size:13px;">${job.vehicle}</td></tr>
-            <tr><td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#6b7280;font-size:13px;">Appointment</td>
-                <td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#fff;font-size:13px;">${dateStr} at ${job.time}</td></tr>
-            <tr><td style="padding:8px 0;color:#6b7280;font-size:13px;">Estimate</td>
-                <td style="padding:8px 0;color:#ef4444;font-size:18px;font-weight:bold;">$${job.estimateAmount?.toFixed(2)}</td></tr>
-          </table>
-
-          ${job.estimateNotes ? `<p style="color:#9ca3af;font-size:13px;margin-bottom:24px;padding:12px;background:#1f2937;border-left:3px solid #ef4444;">${job.estimateNotes}</p>` : ''}
-
-          <a href="${estimateUrl}" style="display:inline-block;background:#dc2626;color:#fff;text-decoration:none;font-weight:bold;font-size:13px;padding:14px 28px;letter-spacing:0.05em;text-transform:uppercase;margin-bottom:24px;">
-            Review &amp; Approve Estimate →
-          </a>
-
-          <p style="color:#4b5563;font-size:12px;margin:0;">Questions? Call or text <strong style="color:#9ca3af;">480-757-0476</strong> — GID Garage, Flagstaff AZ</p>
-        </div>
-      `,
-    }),
-  });
-}
-
 // ── BREVO: SEND INVOICE EMAIL ─────────────────────────────────────────────────
 
 async function sendInvoiceEmail(job: Job) {
@@ -450,141 +408,110 @@ const LABOR_HOURS: Record<string, number> = {
 
 // ── AXLE SCHEMATIC ────────────────────────────────────────────────────────────
 
-interface AxleConfig {
-  frontEnabled: boolean;
-  rearEnabled: boolean;
-  frontPartsCost: string;
-  rearPartsCost: string;
-  frontLaborHours: number;
-  rearLaborHours: number;
-  frontLabel: string;
-  rearLabel: string;
-  frontShopAvg: number;
-  rearShopAvg: number;
+export interface AxleConfig {
+  lf: { enabled: boolean; parts: string; hours: number };
+  rf: { enabled: boolean; parts: string; hours: number };
+  lr: { enabled: boolean; parts: string; hours: number };
+  rr: { enabled: boolean; parts: string; hours: number };
+  shopAvg: number;
 }
 
-function AxleSchematic({ config, onChange }: { config: AxleConfig; onChange: (c: AxleConfig) => void }) {
+function AxleSchematic({ config, onChange, defaultHours }: {
+  config: AxleConfig;
+  onChange: (c: AxleConfig) => void;
+  defaultHours: number;
+}) {
+  const corners = [
+    { key: 'lf' as const, label: 'LF', color: 'red' },
+    { key: 'rf' as const, label: 'RF', color: 'red' },
+    { key: 'lr' as const, label: 'LR', color: 'blue' },
+    { key: 'rr' as const, label: 'RR', color: 'blue' },
+  ];
+
+  function toggle(key: 'lf' | 'rf' | 'lr' | 'rr') {
+    const cur = config[key];
+    onChange({
+      ...config,
+      [key]: { ...cur, enabled: !cur.enabled, hours: cur.hours || defaultHours },
+    });
+  }
+
+  function update(key: 'lf' | 'rf' | 'lr' | 'rr', field: 'parts' | 'hours', val: string) {
+    onChange({
+      ...config,
+      [key]: { ...config[key], [field]: field === 'hours' ? parseFloat(val) || 0 : val },
+    });
+  }
+
   return (
-    <div className="bg-gray-900 border border-gray-700 p-4 space-y-4">
-      <p className="text-gray-500 text-xs font-bold uppercase tracking-widest">Axle Configuration</p>
+    <div className="bg-gray-900 border border-gray-700 p-4 space-y-3">
+      <p className="text-gray-500 text-xs font-bold uppercase tracking-widest">Corner Selection — tap to enable</p>
 
-      {/* Vehicle diagram */}
-      <div className="flex flex-col items-center gap-2 py-2">
-        {/* Front axle */}
-        <div className="flex items-center gap-3 w-full max-w-xs">
-          <button
-            onClick={() => onChange({ ...config, frontEnabled: !config.frontEnabled })}
-            className={`w-8 h-14 rounded-sm border-2 flex items-center justify-center text-[10px] font-black transition-all ${config.frontEnabled ? 'border-red-500 bg-red-900/30 text-red-400' : 'border-gray-700 bg-gray-800 text-gray-600'}`}
-          >LF</button>
-          <div className="flex-1 flex flex-col items-center gap-1">
-            <span className="text-gray-600 text-[10px] font-bold uppercase tracking-wider">Front</span>
-            <div className={`w-full h-0.5 ${config.frontEnabled ? 'bg-red-600' : 'bg-gray-700'}`} />
-            {config.frontEnabled && (
-              <div className="w-full space-y-1 mt-1">
-                <div className="flex items-center gap-1">
-                  <span className="text-gray-600 text-[10px] w-12">Parts $</span>
-                  <input
-                    type="number"
-                    value={config.frontPartsCost}
-                    onChange={e => onChange({ ...config, frontPartsCost: e.target.value })}
-                    placeholder="0.00"
-                    className="flex-1 bg-gray-800 border border-gray-700 text-white px-2 py-1 text-xs font-mono focus:border-red-600 outline-none"
-                  />
-                </div>
-                <div className="flex items-center gap-1">
-                  <span className="text-gray-600 text-[10px] w-12">Hrs</span>
-                  <input
-                    type="number"
-                    step="0.5"
-                    value={config.frontLaborHours}
-                    onChange={e => onChange({ ...config, frontLaborHours: parseFloat(e.target.value) || 0 })}
-                    className="flex-1 bg-gray-800 border border-gray-700 text-white px-2 py-1 text-xs font-mono focus:border-red-600 outline-none"
-                  />
-                </div>
-              </div>
-            )}
-          </div>
-          <button
-            onClick={() => onChange({ ...config, frontEnabled: !config.frontEnabled })}
-            className={`w-8 h-14 rounded-sm border-2 flex items-center justify-center text-[10px] font-black transition-all ${config.frontEnabled ? 'border-red-500 bg-red-900/30 text-red-400' : 'border-gray-700 bg-gray-800 text-gray-600'}`}
-          >RF</button>
-        </div>
+      {/* 2x2 grid matching car layout */}
+      <div className="grid grid-cols-2 gap-2 max-w-xs mx-auto">
+        {corners.map(({ key, label, color }) => {
+          const c = config[key];
+          const isRed = color === 'red';
+          const price = (parseFloat(c.parts) || 0) * (1 + PARTS_MARKUP) + c.hours * LABOR_RATE;
+          return (
+            <div key={key} className={`border-2 transition-all ${c.enabled
+              ? isRed ? 'border-red-500 bg-red-900/20' : 'border-blue-500 bg-blue-900/20'
+              : 'border-gray-700 bg-gray-800/50'}`}>
+              {/* Corner header — tap to toggle */}
+              <button
+                onClick={() => toggle(key)}
+                className="w-full flex items-center justify-between px-3 py-2"
+              >
+                <span className={`text-sm font-black ${c.enabled ? isRed ? 'text-red-400' : 'text-blue-400' : 'text-gray-600'}`}>
+                  {label}
+                </span>
+                {c.enabled && price > 0 && (
+                  <span className="text-white text-xs font-mono font-bold">${price.toFixed(2)}</span>
+                )}
+                {!c.enabled && <span className="text-gray-700 text-xs">off</span>}
+              </button>
 
-        {/* Vehicle body */}
-        <div className="w-16 h-20 border-2 border-gray-700 bg-gray-800/50 rounded-sm flex items-center justify-center">
-          <span className="text-gray-600 text-[10px] font-bold">🚗</span>
-        </div>
-
-        {/* Rear axle */}
-        <div className="flex items-center gap-3 w-full max-w-xs">
-          <button
-            onClick={() => onChange({ ...config, rearEnabled: !config.rearEnabled })}
-            className={`w-8 h-14 rounded-sm border-2 flex items-center justify-center text-[10px] font-black transition-all ${config.rearEnabled ? 'border-blue-500 bg-blue-900/30 text-blue-400' : 'border-gray-700 bg-gray-800 text-gray-600'}`}
-          >LR</button>
-          <div className="flex-1 flex flex-col items-center gap-1">
-            <div className={`w-full h-0.5 ${config.rearEnabled ? 'bg-blue-600' : 'bg-gray-700'}`} />
-            <span className="text-gray-600 text-[10px] font-bold uppercase tracking-wider">Rear</span>
-            {config.rearEnabled && (
-              <div className="w-full space-y-1 mt-1">
-                <div className="flex items-center gap-1">
-                  <span className="text-gray-600 text-[10px] w-12">Parts $</span>
-                  <input
-                    type="number"
-                    value={config.rearPartsCost}
-                    onChange={e => onChange({ ...config, rearPartsCost: e.target.value })}
-                    placeholder="0.00"
-                    className="flex-1 bg-gray-800 border border-gray-700 text-white px-2 py-1 text-xs font-mono focus:border-red-600 outline-none"
-                  />
+              {/* Inputs — only shown when enabled */}
+              {c.enabled && (
+                <div className="px-2 pb-2 space-y-1.5 border-t border-gray-700 pt-2">
+                  <div className="flex items-center gap-1">
+                    <span className="text-gray-600 text-[10px] w-10 flex-shrink-0">Parts $</span>
+                    <input
+                      type="number"
+                      value={c.parts}
+                      onChange={e => update(key, 'parts', e.target.value)}
+                      placeholder="0.00"
+                      className="flex-1 min-w-0 bg-gray-800 border border-gray-700 text-white px-2 py-1 text-xs font-mono focus:border-red-600 outline-none"
+                    />
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <span className="text-gray-600 text-[10px] w-10 flex-shrink-0">Hrs</span>
+                    <input
+                      type="number"
+                      step="0.5"
+                      value={c.hours}
+                      onChange={e => update(key, 'hours', e.target.value)}
+                      className="flex-1 min-w-0 bg-gray-800 border border-gray-700 text-white px-2 py-1 text-xs font-mono focus:border-red-600 outline-none"
+                    />
+                  </div>
+                  {c.parts && (
+                    <p className="text-gray-600 text-[10px]">
+                      Parts w/ markup: ${((parseFloat(c.parts) || 0) * (1 + PARTS_MARKUP)).toFixed(2)}
+                    </p>
+                  )}
                 </div>
-                <div className="flex items-center gap-1">
-                  <span className="text-gray-600 text-[10px] w-12">Hrs</span>
-                  <input
-                    type="number"
-                    step="0.5"
-                    value={config.rearLaborHours}
-                    onChange={e => onChange({ ...config, rearLaborHours: parseFloat(e.target.value) || 0 })}
-                    className="flex-1 bg-gray-800 border border-gray-700 text-white px-2 py-1 text-xs font-mono focus:border-red-600 outline-none"
-                  />
-                </div>
-              </div>
-            )}
-          </div>
-          <button
-            onClick={() => onChange({ ...config, rearEnabled: !config.rearEnabled })}
-            className={`w-8 h-14 rounded-sm border-2 flex items-center justify-center text-[10px] font-black transition-all ${config.rearEnabled ? 'border-blue-500 bg-blue-900/30 text-blue-400' : 'border-gray-700 bg-gray-800 text-gray-600'}`}
-          >RR</button>
-        </div>
+              )}
+            </div>
+          );
+        })}
       </div>
 
-      {/* Per-corner pricing display */}
-      {(config.frontEnabled || config.rearEnabled) && (
-        <div className="grid grid-cols-2 gap-2 border-t border-gray-700 pt-3">
-          {config.frontEnabled && (
-            <>
-              <div className="bg-red-900/20 border border-red-900/50 p-2 text-center">
-                <p className="text-red-400 text-[10px] font-bold uppercase tracking-wider">LF</p>
-                <p className="text-white text-sm font-bold">${((parseFloat(config.frontPartsCost) || 0) * (1 + PARTS_MARKUP) / 2 + config.frontLaborHours / 2 * LABOR_RATE).toFixed(2)}</p>
-              </div>
-              <div className="bg-red-900/20 border border-red-900/50 p-2 text-center">
-                <p className="text-red-400 text-[10px] font-bold uppercase tracking-wider">RF</p>
-                <p className="text-white text-sm font-bold">${((parseFloat(config.frontPartsCost) || 0) * (1 + PARTS_MARKUP) / 2 + config.frontLaborHours / 2 * LABOR_RATE).toFixed(2)}</p>
-              </div>
-            </>
-          )}
-          {config.rearEnabled && (
-            <>
-              <div className="bg-blue-900/20 border border-blue-900/50 p-2 text-center">
-                <p className="text-blue-400 text-[10px] font-bold uppercase tracking-wider">LR</p>
-                <p className="text-white text-sm font-bold">${((parseFloat(config.rearPartsCost) || 0) * (1 + PARTS_MARKUP) / 2 + config.rearLaborHours / 2 * LABOR_RATE).toFixed(2)}</p>
-              </div>
-              <div className="bg-blue-900/20 border border-blue-900/50 p-2 text-center">
-                <p className="text-blue-400 text-[10px] font-bold uppercase tracking-wider">RR</p>
-                <p className="text-white text-sm font-bold">${((parseFloat(config.rearPartsCost) || 0) * (1 + PARTS_MARKUP) / 2 + config.rearLaborHours / 2 * LABOR_RATE).toFixed(2)}</p>
-              </div>
-            </>
-          )}
+      {/* Vehicle body center */}
+      <div className="flex justify-center">
+        <div className="text-gray-700 text-xs font-bold uppercase tracking-widest">
+          {[config.lf, config.rf, config.lr, config.rr].filter(c => c.enabled).length} corner(s) selected
         </div>
-      )}
+      </div>
     </div>
   );
 }
@@ -597,47 +524,38 @@ function QuoteCalculator({ job, onApply }: { job: Job; onApply: (items: LineItem
   const [laborHours, setLaborHours] = useState('');
   const [extraQuarts, setExtraQuarts] = useState(0);
   const [axle, setAxle] = useState<AxleConfig>({
-    frontEnabled: false, rearEnabled: false,
-    frontPartsCost: '', rearPartsCost: '',
-    frontLaborHours: 0, rearLaborHours: 0,
-    frontLabel: 'Front', rearLabel: 'Rear',
-    frontShopAvg: 0, rearShopAvg: 0,
+    lf: { enabled: false, parts: '', hours: 0 },
+    rf: { enabled: false, parts: '', hours: 0 },
+    lr: { enabled: false, parts: '', hours: 0 },
+    rr: { enabled: false, parts: '', hours: 0 },
+    shopAvg: 0,
   });
 
-  const isAxleService = serviceType.startsWith('brakes_') || serviceType.startsWith('suspension_struts');
+  const isAxleService = serviceType.startsWith('brakes_') || serviceType.startsWith('suspension_');
   const isOil = serviceType === 'oil';
   const isDiag = serviceType === 'diag';
   const isFull = serviceType === 'full';
   const isFixed = isOil || isDiag || isFull;
 
-  // Auto-fill labor hours when service changes
   function handleServiceChange(svc: string) {
     setServiceType(svc);
     if (LABOR_HOURS[svc]) setLaborHours(LABOR_HOURS[svc].toString());
-    // Set axle defaults for axle services
-    if (svc.startsWith('brakes_')) {
-      setAxle(prev => ({
-        ...prev,
-        frontLaborHours: LABOR_HOURS[svc] || 1.0,
-        rearLaborHours: LABOR_HOURS[svc] || 1.0,
-        frontShopAvg: SHOP_AVERAGES[svc] || 0,
-        rearShopAvg: SHOP_AVERAGES[svc] || 0,
-      }));
-    }
-    if (svc === 'suspension_struts_front') {
-      setAxle(prev => ({ ...prev, frontLaborHours: LABOR_HOURS[svc] || 2.5, frontShopAvg: SHOP_AVERAGES[svc] || 500 }));
-    }
-    if (svc === 'suspension_struts_rear') {
-      setAxle(prev => ({ ...prev, rearLaborHours: LABOR_HOURS[svc] || 1.5, rearShopAvg: SHOP_AVERAGES[svc] || 350 }));
-    }
+    const defaultHrs = LABOR_HOURS[svc] || 1.0;
+    const avg = SHOP_AVERAGES[svc] || 0;
+    // Reset axle with new default hours and shop avg
+    setAxle({
+      lf: { enabled: false, parts: '', hours: defaultHrs },
+      rf: { enabled: false, parts: '', hours: defaultHrs },
+      lr: { enabled: false, parts: '', hours: defaultHrs },
+      rr: { enabled: false, parts: '', hours: defaultHrs },
+      shopAvg: avg,
+    });
   }
 
-  // Calculate line items
   function buildLineItems(): { items: LineItem[]; total: number; shopTotal: number } {
     const items: LineItem[] = [];
     let shopTotal = SHOP_AVERAGES[serviceType] || 0;
 
-    // Always add mobile fee
     items.push({ id: 'mobile', label: 'Mobile Service Fee', amount: MOBILE_FEE, type: 'mobile' });
 
     if (isOil) {
@@ -651,28 +569,37 @@ function QuoteCalculator({ job, onApply }: { job: Job; onApply: (items: LineItem
       items.push({ id: 'full_labor', label: 'Multi-Point Inspection (Complimentary)', amount: 0, type: 'fixed' });
       shopTotal = 0;
     } else if (isAxleService) {
-      shopTotal = 0;
-      if (axle.frontEnabled) {
-        const frontParts = (parseFloat(axle.frontPartsCost) || 0) * (1 + PARTS_MARKUP);
-        const frontLabor = axle.frontLaborHours * LABOR_RATE;
-        const svcLabel = serviceType.startsWith('brakes_') ? 'Brakes' : 'Struts';
-        if (frontParts > 0) items.push({ id: 'front_parts', label: `Front ${svcLabel} — Parts (LF + RF)`, amount: frontParts, type: 'parts' });
-        items.push({ id: 'front_labor', label: `Front ${svcLabel} — Labor (${axle.frontLaborHours}hr @ $${LABOR_RATE}/hr)`, amount: frontLabor, type: 'labor' });
-        shopTotal += (axle.frontShopAvg || SHOP_AVERAGES[serviceType] || 0);
-      }
-      if (axle.rearEnabled) {
-        const rearParts = (parseFloat(axle.rearPartsCost) || 0) * (1 + PARTS_MARKUP);
-        const rearLabor = axle.rearLaborHours * LABOR_RATE;
-        const svcLabel = serviceType.startsWith('brakes_') ? 'Brakes' : 'Shocks';
-        if (rearParts > 0) items.push({ id: 'rear_parts', label: `Rear ${svcLabel} — Parts (LR + RR)`, amount: rearParts, type: 'parts' });
-        items.push({ id: 'rear_labor', label: `Rear ${svcLabel} — Labor (${axle.rearLaborHours}hr @ $${LABOR_RATE}/hr)`, amount: rearLabor, type: 'labor' });
-        shopTotal += (axle.rearShopAvg || SHOP_AVERAGES[serviceType] || 0);
-      }
+      const corners = [
+        { key: 'lf' as const, label: 'LF' },
+        { key: 'rf' as const, label: 'RF' },
+        { key: 'lr' as const, label: 'LR' },
+        { key: 'rr' as const, label: 'RR' },
+      ];
+      const svcLabel = serviceType.startsWith('brakes_') ? 'Brakes'
+        : serviceType.includes('strut') ? 'Strut'
+        : serviceType.includes('control') ? 'Control Arm'
+        : serviceType.includes('tie') ? 'Tie Rod'
+        : serviceType.includes('cv') ? 'CV Axle'
+        : 'Suspension';
+
+      let enabledCount = 0;
+      corners.forEach(({ key, label }) => {
+        const c = axle[key];
+        if (!c.enabled) return;
+        enabledCount++;
+        const parts = (parseFloat(c.parts) || 0) * (1 + PARTS_MARKUP);
+        const labor = c.hours * LABOR_RATE;
+        if (parts > 0) items.push({ id: `${key}_parts`, label: `${label} ${svcLabel} — Parts`, amount: parts, type: 'parts' });
+        if (labor > 0) items.push({ id: `${key}_labor`, label: `${label} ${svcLabel} — Labor (${c.hours}hr @ $${LABOR_RATE}/hr)`, amount: labor, type: 'labor' });
+      });
+
+      // Shop avg scales per corner enabled
+      shopTotal = axle.shopAvg * enabledCount;
     } else if (serviceType) {
       const parts = (parseFloat(partsCost) || 0) * (1 + PARTS_MARKUP);
       const hrs = parseFloat(laborHours) || LABOR_HOURS[serviceType] || 1;
       const labor = hrs * LABOR_RATE;
-      if (parts > 0) items.push({ id: 'parts', label: `Parts (${serviceType.replace(/_/g,' ')})`, amount: parts, type: 'parts' });
+      if (parts > 0) items.push({ id: 'parts', label: `Parts — ${serviceType.replace(/_/g, ' ')}`, amount: parts, type: 'parts' });
       items.push({ id: 'labor', label: `Labor — ${hrs}hr @ $${LABOR_RATE}/hr`, amount: labor, type: 'labor' });
     }
 
@@ -748,7 +675,7 @@ function QuoteCalculator({ job, onApply }: { job: Job; onApply: (items: LineItem
 
       {/* Axle schematic for brakes/struts */}
       {isAxleService && (
-        <AxleSchematic config={axle} onChange={setAxle} />
+        <AxleSchematic config={axle} onChange={setAxle} defaultHours={LABOR_HOURS[serviceType] || 1} />
       )}
 
       {/* Parts + labor for non-fixed, non-axle services */}
@@ -1100,100 +1027,6 @@ function EstimatePanel({ job, onUpdate }: { job: Job; onUpdate: (j: Job) => void
   );
 }
 
-
-  const [amount, setAmount] = useState(job.estimateAmount?.toString() ?? '');
-  const [notes, setNotes] = useState(job.estimateNotes);
-  const [saving, setSaving] = useState(false);
-  const [sending, setSending] = useState(false);
-  const [sent, setSent] = useState(false);
-
-  async function saveEstimate() {
-    setSaving(true);
-    const fields = {
-      estimate_amount: parseFloat(amount) || null,
-      estimate_notes: notes,
-    };
-    await patchJob(job.id, fields);
-    onUpdate({ ...job, estimateAmount: parseFloat(amount) || null, estimateNotes: notes });
-    setSaving(false);
-  }
-
-  async function sendEstimate() {
-    if (!amount || !job.email) return;
-    setSending(true);
-    // Save first, then send
-    const fields = {
-      estimate_amount: parseFloat(amount) || null,
-      estimate_notes: notes,
-      job_status: 'ESTIMATE_SENT',
-    };
-    await patchJob(job.id, fields);
-    const updated = { ...job, estimateAmount: parseFloat(amount) || null, estimateNotes: notes, jobStatus: 'ESTIMATE_SENT' as JobStatus };
-    await sendEstimateEmail(updated);
-    onUpdate(updated);
-    setSending(false);
-    setSent(true);
-  }
-
-  const canSend = !!amount && parseFloat(amount) > 0 && !!job.email;
-
-  return (
-    <div className="space-y-4">
-      <div>
-        <label className="text-gray-500 text-xs font-bold uppercase tracking-widest block mb-1">Estimate Amount</label>
-        <div className="flex items-center gap-2">
-          <span className="text-gray-500 text-lg font-bold">$</span>
-          <input
-            type="number"
-            value={amount}
-            onChange={e => setAmount(e.target.value)}
-            placeholder="0.00"
-            className="bg-gray-800 border border-gray-700 text-white px-3 py-2 text-sm font-mono w-36 focus:border-red-600 outline-none"
-          />
-        </div>
-      </div>
-
-      <div>
-        <label className="text-gray-500 text-xs font-bold uppercase tracking-widest block mb-1">Scope Notes <span className="text-gray-700 normal-case font-normal">(optional — shown to customer)</span></label>
-        <textarea
-          value={notes}
-          onChange={e => setNotes(e.target.value)}
-          rows={3}
-          placeholder="e.g. Full synthetic oil change, drain/fill transmission fluid, inspect brakes..."
-          className="bg-gray-800 border border-gray-700 text-white px-3 py-2 text-sm w-full focus:border-red-600 outline-none resize-none"
-        />
-      </div>
-
-      <div className="bg-gray-800/50 border border-gray-700 p-4">
-        <p className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-2">Terms included in estimate</p>
-        <ul className="space-y-1.5">
-          {CYA_TERMS.map((t, i) => (
-            <li key={i} className="text-gray-400 text-xs flex gap-2">
-              <span className="text-red-600 font-bold flex-shrink-0">✓</span> {t}
-            </li>
-          ))}
-        </ul>
-      </div>
-
-      <div className="flex gap-3">
-        <button
-          onClick={saveEstimate}
-          disabled={saving}
-          className="border border-gray-600 text-gray-400 hover:border-white hover:text-white text-xs font-bold uppercase tracking-widest px-4 py-2 transition-colors disabled:opacity-40"
-        >
-          {saving ? 'Saving…' : 'Save Draft'}
-        </button>
-        <button
-          onClick={sendEstimate}
-          disabled={!canSend || sending || sent}
-          className="bg-red-600 hover:bg-red-500 disabled:opacity-40 text-white text-xs font-bold uppercase tracking-widest px-6 py-2 transition-colors"
-        >
-          {sending ? 'Sending…' : sent ? '✓ Sent to Customer' : `Send to ${job.email}`}
-        </button>
-      </div>
-    </div>
-  );
-}
 
 // ── PAYMENT PANEL ─────────────────────────────────────────────────────────────
 
