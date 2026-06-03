@@ -125,8 +125,8 @@ const MONTHS = ['January','February','March','April','May','June','July','August
 const DAY_LABELS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 
 // Mon–Fri 1pm–8pm, Sat–Sun 8am–5pm — resolved at selection time
-const WEEKDAY_SLOTS = ['1:30 PM','2:30 PM','3:30 PM','4:30 PM','5:30 PM','6:30 PM','7:30 PM'];
-const WEEKEND_SLOTS = ['5:00 AM','6:00 AM','7:00 AM','8:00 AM','9:00 AM','10:00 AM','11:00 AM','12:00 PM','1:00 PM','2:00 PM','3:00 PM','4:00 PM','5:00 PM','6:00 PM','7:00 PM','8:00 PM'];
+const WEEKDAY_SLOTS = ['1:00 PM','2:00 PM','3:00 PM','4:00 PM','5:00 PM','6:00 PM','7:00 PM'];
+const WEEKEND_SLOTS = ['8:00 AM','9:00 AM','10:00 AM','11:00 AM','12:00 PM','1:00 PM','2:00 PM','3:00 PM','4:00 PM'];
 
 function getSlotsForDate(dateStr: string): string[] {
   if (!dateStr) return WEEKDAY_SLOTS;
@@ -156,7 +156,7 @@ interface Booking {
 
 interface FormData {
   fname: string; lname: string; phone: string;
-  email: string; vehicleYear: string; vehicleMake: string; vehicleModel: string; vehicleTrim: string; serviceAddress: string; notes: string;
+  email: string; vehicleYear: string; vehicleMake: string; vehicleModel: string; vehicleTrim: string; notes: string;
 }
 
 function vehicleString(f: FormData): string {
@@ -291,7 +291,7 @@ function VehicleSelector({ form, setForm, errors, clearError }: {
           </select>
         </div>
         <div>
-          <input type="text" className={ic('vehicleTrim')} placeholder="Package / Engine Option (EcoBoost, HEMI, Hybrid, Turbo, etc.)" value={form.vehicleTrim}
+          <input type="text" className={ic('vehicleTrim')} placeholder="Trim" value={form.vehicleTrim}
             disabled={!form.vehicleModel}
             onChange={e => { setForm(p => ({ ...p, vehicleTrim: e.target.value })); clearError('vehicleTrim'); }} />
         </div>
@@ -540,7 +540,7 @@ const INIT_STATE: State = {
   calYear: new Date().getFullYear(), calMonth: new Date().getMonth(),
   suspensionPart: null, brakeService: null, audioPackage: null,
 };
-const INIT_FORM: FormData = { fname: '', lname: '', phone: '', email: '', vehicleYear: '', vehicleMake: '', vehicleModel: '', vehicleTrim: '', serviceAddress: '', notes: '' };
+const INIT_FORM: FormData = { fname: '', lname: '', phone: '', email: '', vehicleYear: '', vehicleMake: '', vehicleModel: '', vehicleTrim: '', notes: '' };
 
 export { verifyCancelToken, updateSupabaseBooking, deleteLocalBooking, sendCancellationNotification, getSupabaseBookings };
 
