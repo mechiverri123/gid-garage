@@ -900,11 +900,11 @@ function PhotoPanel({ job, onUpdate }: { job: Job; onUpdate: (j: Job) => void })
 
   return (
     <div className="space-y-4">
-      {/* Capture button */}
-      <div>
-        <label className="flex items-center justify-center gap-2 w-full bg-gray-800 border-2 border-dashed border-gray-600 hover:border-red-600 text-gray-400 hover:text-white py-4 cursor-pointer transition-colors">
+      {/* Capture buttons — two separate so library is always accessible */}
+      <div className="grid grid-cols-2 gap-2">
+        <label className="flex flex-col items-center justify-center gap-1.5 bg-gray-800 border-2 border-dashed border-gray-600 hover:border-red-600 text-gray-400 hover:text-white py-4 cursor-pointer transition-colors">
           <span className="text-xl">📷</span>
-          <span className="text-xs font-bold uppercase tracking-widest">Take Photo / Upload</span>
+          <span className="text-xs font-bold uppercase tracking-widest">Camera</span>
           <input
             type="file"
             accept="image/*"
@@ -914,8 +914,19 @@ function PhotoPanel({ job, onUpdate }: { job: Job; onUpdate: (j: Job) => void })
             onChange={handleCapture}
           />
         </label>
-        <p className="text-gray-700 text-xs mt-1 text-center">Opens camera on mobile · Add notes per photo</p>
+        <label className="flex flex-col items-center justify-center gap-1.5 bg-gray-800 border-2 border-dashed border-gray-600 hover:border-red-600 text-gray-400 hover:text-white py-4 cursor-pointer transition-colors">
+          <span className="text-xl">🖼️</span>
+          <span className="text-xs font-bold uppercase tracking-widest">Library</span>
+          <input
+            type="file"
+            accept="image/*"
+            multiple
+            className="hidden"
+            onChange={handleCapture}
+          />
+        </label>
       </div>
+      <p className="text-gray-700 text-xs text-center">Add notes per photo after uploading</p>
 
       {/* Photo grid */}
       {photos.length === 0 && (
@@ -1144,6 +1155,17 @@ function EstimatePanel({ job, onUpdate }: { job: Job; onUpdate: (j: Job) => void
           className="bg-red-600 hover:bg-red-500 disabled:opacity-40 text-white text-xs font-bold uppercase tracking-widest px-6 py-2 transition-colors">
           {sending ? 'Sending…' : sent ? '✓ Sent!' : alreadySent ? `↺ Resend to ${job.email}` : `Send to ${job.email}`}
         </button>
+        {alreadySent && (
+          <button
+            onClick={async () => {
+              await patchJob(job.id, { customer_agreed: false, customer_signature: '', signed_at: null, job_status: 'BOOKED' });
+              onUpdate({ ...job, customerAgreed: false, customerSignature: '', signedAt: null, jobStatus: 'BOOKED', lineItems, estimateAmount: total, estimateNotes: notes });
+            }}
+            className="border border-yellow-700 text-yellow-600 hover:border-yellow-500 hover:text-yellow-400 text-xs font-bold uppercase tracking-widest px-4 py-2 transition-colors"
+          >
+            ✏️ Revise Quote
+          </button>
+        )}
       </div>
     </div>
   );
@@ -1269,6 +1291,120 @@ function PaymentPanel({ job, onUpdate, onRequote }: { job: Job; onUpdate: (j: Jo
   );
 }
 
+// ── SIGNED DOCUMENT VIEWER ───────────────────────────────────────────────────
+
+function SignedDocSection({ job }: { job: Job }) {
+  const [open, setOpen] = useState(false);
+  const signedDate = job.signedAt
+    ? new Date(job.signedAt).toLocaleString('en-US', { month: 'long', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })
+    : 'Unknown';
+  const amount = job.invoiceAmount ?? job.estimateAmount;
+
+  return (
+    <>
+      <div className="bg-purple-900/20 border border-purple-800 p-4">
+        <div className="flex items-start justify-between gap-3">
+          <div className="space-y-1">
+            <p className="text-purple-400 text-xs font-bold uppercase tracking-widest">✓ Estimate Signed</p>
+            <p className="text-white text-sm font-bold">{job.customerSignature}</p>
+            {job.preExistingDamage && <p className="text-gray-400 text-xs">Pre-existing damage: {job.preExistingDamage}</p>}
+            {job.signedAt && <p className="text-gray-600 text-xs">{signedDate}</p>}
+          </div>
+          <button
+            onClick={() => setOpen(true)}
+            className="flex-shrink-0 border border-purple-700 text-purple-400 hover:border-purple-400 hover:text-purple-300 text-xs font-bold uppercase tracking-wider px-3 py-1.5 transition-colors"
+          >
+            Open Doc
+          </button>
+        </div>
+      </div>
+
+      {open && (
+        <div className="fixed inset-0 z-[200] bg-black/90 overflow-y-auto flex items-start justify-center p-4" onClick={() => setOpen(false)}>
+          <div className="bg-[#0f0f0f] border border-gray-700 w-full max-w-lg my-4 relative" onClick={e => e.stopPropagation()}>
+            <div className="sticky top-0 bg-[#0f0f0f] border-b border-gray-800 px-6 py-4 flex items-center justify-between z-10">
+              <div>
+                <p className="text-purple-400 text-xs font-bold uppercase tracking-widest">Signed Document</p>
+                <h3 className="text-white font-black text-base mt-0.5">{job.fname} {job.lname}</h3>
+              </div>
+              <button onClick={() => setOpen(false)} className="text-gray-500 hover:text-white text-2xl leading-none transition-colors">×</button>
+            </div>
+
+            <div className="px-6 py-5 space-y-5">
+              {/* Job summary */}
+              <div className="divide-y divide-white/10 border border-white/10">
+                {[
+                  ['Vehicle', job.vehicle],
+                  ['Service', resolveServiceName(job.service, job.notes)],
+                  ['Appointment', `${new Date(job.date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })} at ${job.time}`],
+                  ...(amount ? [['Quoted Amount', `$${amount.toFixed(2)}`]] : []),
+                ].map(([label, val]) => (
+                  <div key={label} className="flex justify-between px-4 py-2.5 gap-4">
+                    <span className="text-gray-500 text-xs font-bold uppercase tracking-wider flex-shrink-0">{label}</span>
+                    <span className="text-white text-sm text-right">{val}</span>
+                  </div>
+                ))}
+              </div>
+
+              {/* Line items */}
+              {job.lineItems?.length > 0 && (
+                <div className="border border-white/10 divide-y divide-white/5">
+                  <p className="text-gray-600 text-[10px] font-bold uppercase tracking-widest px-4 py-2">Itemized</p>
+                  {job.lineItems.map(item => (
+                    <div key={item.id} className="flex justify-between px-4 py-2">
+                      <span className="text-gray-300 text-sm">{item.label}</span>
+                      <span className="text-white text-sm font-mono">{item.amount === 0 ? 'FREE' : `$${item.amount.toFixed(2)}`}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Scope notes */}
+              {job.estimateNotes && (
+                <div className="bg-white/5 border-l-4 border-red-600 px-4 py-3">
+                  <p className="text-gray-400 text-sm leading-relaxed">{job.estimateNotes}</p>
+                </div>
+              )}
+
+              {/* Terms agreed to */}
+              <div className="bg-white/5 border border-white/10 p-4">
+                <p className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-3">Terms Agreed To</p>
+                <ul className="space-y-2">
+                  {CYA_TERMS.map((t, i) => (
+                    <li key={i} className="text-gray-400 text-xs flex gap-2">
+                      <span className="text-green-600 font-bold flex-shrink-0">✓</span> {t}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+
+              {/* Pre-existing damage */}
+              {job.preExistingDamage && (
+                <div className="bg-yellow-900/20 border border-yellow-800 px-4 py-3">
+                  <p className="text-yellow-500 text-xs font-bold uppercase tracking-widest mb-1">Pre-Existing Damage Noted</p>
+                  <p className="text-gray-300 text-sm">{job.preExistingDamage}</p>
+                </div>
+              )}
+
+              {/* Signature block */}
+              <div className="bg-purple-900/20 border border-purple-800 px-4 py-4">
+                <p className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-2">Electronic Signature</p>
+                <p className="text-white text-lg font-bold" style={{ fontFamily: 'Georgia, serif', fontStyle: 'italic' }}>{job.customerSignature}</p>
+                <p className="text-gray-600 text-xs mt-1">{signedDate}</p>
+                <p className="text-gray-700 text-[10px] mt-2">Signed electronically under the Uniform Electronic Transactions Act (UETA). This constitutes a legally binding agreement.</p>
+              </div>
+
+              <button onClick={() => window.print()} className="w-full border border-gray-700 text-gray-400 hover:border-white hover:text-white text-xs font-bold uppercase tracking-widest py-3 transition-colors">
+                🖨 Print / Save as PDF
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
 // ── JOB DETAIL PANEL ──────────────────────────────────────────────────────────
 
 const JOB_PIPELINE: JobStatus[] = ['BOOKED', 'ESTIMATE_SENT', 'SIGNED', 'IN_PROGRESS', 'COMPLETED', 'INVOICED', 'PAID'];
@@ -1375,12 +1511,7 @@ function JobDetailPanel({ job: initialJob, onClose, onJobUpdate }: {
 
               {/* Signature info if signed */}
               {job.customerAgreed && (
-                <div className="bg-purple-900/20 border border-purple-800 p-4 space-y-1">
-                  <p className="text-purple-400 text-xs font-bold uppercase tracking-widest">✓ Estimate Signed</p>
-                  <p className="text-white text-sm font-bold">{job.customerSignature}</p>
-                  {job.preExistingDamage && <p className="text-gray-400 text-xs">Pre-existing damage noted: {job.preExistingDamage}</p>}
-                  {job.signedAt && <p className="text-gray-600 text-xs">{new Date(job.signedAt).toLocaleString()}</p>}
-                </div>
+                <SignedDocSection job={job} />
               )}
 
               {/* Payment summary if paid */}
@@ -1450,14 +1581,14 @@ export function JobsTab() {
 
   useEffect(() => {
     getAllJobs().then(data => { setJobs(data); setLoading(false); });
-    // Poll every 30s so SIGNED/status changes reflect without manual refresh
+    // Poll every 10s — fast enough to catch SIGNED status without manual refresh
     const interval = setInterval(() => {
       getAllJobs().then(data => {
         setJobs(data);
-        // Update selected job if open
+        // Update selected job if open so status/sig reflects immediately
         setSelected(prev => prev ? (data.find(j => j.id === prev.id) ?? prev) : null);
       });
-    }, 30000);
+    }, 10000);
     return () => clearInterval(interval);
   }, []);
 
