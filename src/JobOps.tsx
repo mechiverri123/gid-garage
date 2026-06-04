@@ -1806,7 +1806,7 @@ export function EstimatePage() {
   }) : '';
 
   return (
-    <div className="min-h-screen bg-[#0f0f0f] flex items-start justify-center px-4 py-12">
+    <div className="min-h-screen bg-[#0f0f0f] flex items-start justify-center px-4 py-12" style={{ WebkitOverflowScrolling: 'touch' }}>
       <div className="w-full max-w-lg">
         <a href="/" className="flex justify-center mb-8">
           <img src="/website_logo.png" alt="GID Garage" className="h-12 w-auto" />
@@ -1911,6 +1911,7 @@ export function EstimatePage() {
                 </summary>
                 <div
                   className="mt-3 max-h-48 overflow-y-auto pr-1 space-y-2 scrollbar-thin"
+                  style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-y' }}
                   onScroll={e => {
                     const el = e.currentTarget;
                     if (el.scrollTop + el.clientHeight >= el.scrollHeight - 4) {

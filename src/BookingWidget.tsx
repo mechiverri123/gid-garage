@@ -157,11 +157,11 @@ interface Booking {
 
 interface FormData {
   fname: string; lname: string; phone: string;
-  email: string; vehicleYear: string; vehicleMake: string; vehicleModel: string; vehicleEngine: string; notes: string; serviceAddress: string;
+  email: string; vehicleYear: string; vehicleMake: string; vehicleModel: string; vehicleEngine: string; vehicleTrim: string; licensePlate: string; notes: string; serviceAddress: string;
 }
 
 function vehicleString(f: FormData): string {
-  const parts = [f.vehicleYear, f.vehicleMake, f.vehicleModel, f.vehicleEngine].filter(Boolean);
+  const parts = [f.vehicleYear, f.vehicleMake, f.vehicleModel, f.vehicleEngine, f.vehicleTrim].filter(Boolean);
   return parts.join(' ');
 }
 
@@ -266,11 +266,11 @@ function VehicleSelector({ form, setForm, errors, clearError }: {
   return (
     <div className="col-span-2">
       <label className={`block text-xs font-bold uppercase tracking-wider mb-1.5 ${(errors.vehicleYear||errors.vehicleMake||errors.vehicleModel) ? 'text-red-500' : 'text-gray-500'}`}>Vehicle</label>
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
         <div>
           {errors.vehicleYear && <p className="text-red-500 text-xs mb-1">{errors.vehicleYear}</p>}
           <select className={sc('vehicleYear')} value={form.vehicleYear}
-            onChange={e => { setForm(p => ({ ...p, vehicleYear: e.target.value, vehicleMake: '', vehicleModel: '', vehicleEngine: '' })); clearError('vehicleYear'); clearError('vehicleMake'); clearError('vehicleModel'); }}>
+            onChange={e => { setForm(p => ({ ...p, vehicleYear: e.target.value, vehicleMake: '', vehicleModel: '', vehicleEngine: '', vehicleTrim: '' })); clearError('vehicleYear'); clearError('vehicleMake'); clearError('vehicleModel'); }}>
             <option value="">Year</option>
             {years.map(y => <option key={y} value={String(y)}>{y}</option>)}
           </select>
@@ -278,7 +278,7 @@ function VehicleSelector({ form, setForm, errors, clearError }: {
         <div>
           {errors.vehicleMake && <p className="text-red-500 text-xs mb-1">{errors.vehicleMake}</p>}
           <select className={sc('vehicleMake')} value={form.vehicleMake} disabled={!form.vehicleYear || loadingMakes}
-            onChange={e => { setForm(p => ({ ...p, vehicleMake: e.target.value, vehicleModel: '', vehicleEngine: '' })); clearError('vehicleMake'); clearError('vehicleModel'); }}>
+            onChange={e => { setForm(p => ({ ...p, vehicleMake: e.target.value, vehicleModel: '', vehicleEngine: '', vehicleTrim: '' })); clearError('vehicleMake'); clearError('vehicleModel'); }}>
             <option value="">{loadingMakes ? 'Loading…' : 'Make'}</option>
             {makes.map(m => <option key={m} value={m}>{m}</option>)}
           </select>
@@ -328,6 +328,17 @@ function VehicleSelector({ form, setForm, errors, clearError }: {
             <option value="electric">Electric</option>
             <option value="other">Other</option>
           </select>
+        </div>
+        <div>
+          <input
+            type="text"
+            placeholder="Trim *"
+            value={form.vehicleTrim}
+            disabled={!form.vehicleModel}
+            onChange={e => { setForm(p => ({ ...p, vehicleTrim: e.target.value })); clearError('vehicleTrim'); }}
+            className={`w-full bg-gray-900 text-white text-sm px-3 py-2.5 outline-none transition-colors disabled:text-gray-600 disabled:cursor-not-allowed placeholder-gray-600 border ${errors.vehicleTrim ? 'border-red-500 focus:border-red-400' : 'border-gray-800 focus:border-red-600'}`}
+          />
+          {errors.vehicleTrim && <p className="text-red-500 text-xs mt-1">{errors.vehicleTrim}</p>}
         </div>
       </div>
     </div>
@@ -574,7 +585,7 @@ const INIT_STATE: State = {
   calYear: new Date().getFullYear(), calMonth: new Date().getMonth(),
   suspensionPart: null, brakeService: null, audioPackage: null,
 };
-const INIT_FORM: FormData = { fname: '', lname: '', phone: '', email: '', vehicleYear: '', vehicleMake: '', vehicleModel: '', vehicleEngine: '', notes: '', serviceAddress: '' };
+const INIT_FORM: FormData = { fname: '', lname: '', phone: '', email: '', vehicleYear: '', vehicleMake: '', vehicleModel: '', vehicleEngine: '', vehicleTrim: '', licensePlate: '', notes: '', serviceAddress: '' };
 
 export { verifyCancelToken, updateSupabaseBooking, deleteLocalBooking, sendCancellationNotification, getSupabaseBookings };
 
@@ -664,6 +675,7 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
     if (!form.vehicleYear) errors.vehicleYear = 'Select a year';
     if (!form.vehicleMake) errors.vehicleMake = 'Select a make';
     if (!form.vehicleModel) errors.vehicleModel = 'Select a model';
+    if (!form.vehicleTrim) errors.vehicleTrim = 'Enter trim (e.g. LE, Sport, XLT)';
     if (Object.keys(errors).length > 0) { setFieldErrors(errors); return; }
     setFieldErrors({});
     setSubmitError(null);
@@ -677,6 +689,7 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
       vehicle: vehicleString(form),
       notes: [
         `Address: ${form.serviceAddress}`,
+        form.licensePlate ? `Plate/VIN: ${form.licensePlate}` : '',
         s.suspensionPart ? `Suspension: ${SUSPENSION_LABELS[s.suspensionPart] ?? s.suspensionPart.replace(/_/g, ' ')}` : '',
         s.brakeService ? `Brake service: ${BRAKE_LABELS[s.brakeService] ?? s.brakeService.replace(/_/g, ' ')}` : '',
         s.audioPackage ? `Audio package: ${AUDIO_LABELS[s.audioPackage] ?? s.audioPackage}` : '',
@@ -890,6 +903,15 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
                       </div>
                     ))}
                     <VehicleSelector form={form} setForm={setForm} errors={fieldErrors} clearError={(k) => setFieldErrors(p => ({ ...p, [k]: '' }))} />
+                    <div className="col-span-2">
+                      <label className="block text-gray-500 text-xs font-bold uppercase tracking-wider mb-1.5">
+                        License Plate or VIN <span className="normal-case font-normal text-gray-600">(optional — helps us get the exact fit for your vehicle)</span>
+                      </label>
+                      <input type="text" placeholder="e.g. AZ ABC1234 or 1HGCM82633A123456"
+                        value={form.licensePlate}
+                        onChange={e => setForm(p => ({ ...p, licensePlate: e.target.value }))}
+                        className="w-full bg-gray-900 text-white text-sm px-3 py-2.5 outline-none transition-colors border border-gray-800 focus:border-red-600" />
+                    </div>
                     <div className="col-span-2">
                       <label className={`block text-xs font-bold uppercase tracking-wider mb-1.5 ${fieldErrors.serviceAddress ? 'text-red-500' : 'text-gray-500'}`}>Service Address <span className="text-red-500">*</span> <span className="normal-case font-normal text-gray-600">(where we service your vehicle)</span></label>
                       <input type="text" placeholder="123 Main St, Flagstaff, AZ 86001"
