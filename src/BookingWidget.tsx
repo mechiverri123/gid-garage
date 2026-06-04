@@ -1315,11 +1315,16 @@ export function AdminSchedule() {
 
     // Subscribe to Web Push so notifications work when app is closed
     try {
+      const vapidKey = import.meta.env.VITE_VAPID_PUBLIC_KEY as string;
+      if (!vapidKey) { alert('Push setup error: VAPID key missing. Check .env file.'); return; }
+
       const existing = await reg.pushManager.getSubscription();
       const subscription = existing ?? await reg.pushManager.subscribe({
         userVisibleOnly: true,
-        applicationServerKey: import.meta.env.VITE_VAPID_PUBLIC_KEY as string,
+        applicationServerKey: vapidKey,
       });
+
+      if (!subscription) { alert('Push subscription failed — browser returned null.'); return; }
 
       // Save subscription endpoint to Supabase
       await sbFetch('/push_subscriptions', {
@@ -1337,9 +1342,8 @@ export function AdminSchedule() {
         icon: '/favicon-192.png',
         tag: 'gid-notif-test',
       });
-    } catch (err) {
-      console.warn('Push subscription failed:', err);
-      // Fall back — at least show in-app notifications while open
+    } catch (err: any) {
+      alert('Push error: ' + (err?.message ?? String(err)));
     }
   }
 
