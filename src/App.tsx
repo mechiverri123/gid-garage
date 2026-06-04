@@ -10,13 +10,13 @@ const services = [
   {
     id: 'oil',
     title: 'Oil Change',
-    desc: 'Full synthetic only — $79.99 up to 5 quarts, +$10.99/qt after. We come to you. Flagstaff shops average $95+.',
+    desc: 'Full synthetic only — $79.99 up to 5 quarts, +$10.99/qt after. We come to you. Flagstaff shops average $89+.',
     badge: null,
   },
   {
     id: 'brakes',
     title: 'Brakes',
-    desc: 'Pad replacement, rotor resurfacing, and complete brake system service. Starting at $112.49/axle — Flagstaff shops average $175+/axle.',
+    desc: 'Pad replacement, rotor resurfacing, and complete brake system service. Starting at $112.49/axle — Flagstaff shops average $200+/axle.',
     badge: null,
   },
   {
@@ -123,26 +123,26 @@ function ServiceCard({ s, onBookService }: { s: typeof services[0]; onBookServic
   const [open, setOpen] = useState(false);
 
   const suspensionItems = [
-    { label: 'Front Struts (pair)', detail: 'Starting at $299.99 + parts · Shops avg $500+' },
-    { label: 'Rear Shocks (pair)', detail: 'Starting at $199.99 + parts · Shops avg $350+' },
-    { label: 'Control Arms', detail: 'Starting at $187.99 + parts · Shops avg $350+' },
-    { label: 'Tie Rods', detail: 'Starting at $149.99 + parts · Shops avg $280+' },
-    { label: 'CV Axles', detail: 'Starting at $187.99 + parts · Shops avg $350+' },
+    { label: 'Front Struts (pair)', detail: 'Starting at $299.99 + parts · Shops avg $550+' },
+    { label: 'Rear Shocks (pair)', detail: 'Starting at $199.99 + parts · Shops avg $400+' },
+    { label: 'Control Arms', detail: 'Starting at $187.99 + parts · Shops avg $375+' },
+    { label: 'Tie Rods', detail: 'Starting at $149.99 + parts · Shops avg $300+' },
+    { label: 'CV Axles', detail: 'Starting at $187.99 + parts · Shops avg $375+' },
   ];
 
   const brakeItems = [
-    { label: 'Brake Pads Only (per axle)', detail: 'Starting at $112.49 · Shops avg $175/axle' },
-    { label: 'Brake Pads + Rotors (per axle)', detail: 'Starting at $224.99 · Shops avg $350/axle' },
-    { label: 'Full Service — Pads + Rotors + Fluid Flush (per axle)', detail: 'Starting at $274.99 · Shops avg $425/axle' },
+    { label: 'Brake Pads Only (per axle)', detail: 'Starting at $112.49 · Shops avg $200/axle' },
+    { label: 'Brake Pads + Rotors (per axle)', detail: 'Starting at $224.99 · Shops avg $400/axle' },
+    { label: 'Full Service — Pads + Rotors + Fluid Flush (per axle)', detail: 'Starting at $274.99 · Shops avg $475/axle' },
   ];
 
   const audioItems = [
-    { label: 'Head Unit Replacement', detail: 'Starting at $75 labor + parts · Shops avg $150+' },
-    { label: 'Speaker Replacement (pair)', detail: 'Starting at $112.49 labor + parts · Shops avg $200+' },
-    { label: 'Head Unit Install (Customer-Supplied)', detail: '$75 labor only' },
-    { label: '4-Channel Amp Install', detail: 'Starting at $149.99 labor + parts' },
-    { label: 'Monoblock + Subwoofer Install', detail: 'Starting at $112.49 labor + parts' },
-    { label: 'Full Sound System (Head Unit + Speakers + 4ch Amp + Mono Amp + Sub)', detail: 'Starting at $449.99 labor + parts — deposit required' },
+    { label: 'Head Unit Replacement', detail: 'Starting at $75 labor + parts · Shops avg $250+' },
+    { label: 'Speaker Replacement (pair)', detail: 'Starting at $112.49 labor + parts · Shops avg $300+' },
+    { label: 'Head Unit Install (Customer-Supplied)', detail: '$150 labor only' },
+    { label: '4-Channel Amp Install', detail: 'Starting at $149.99 labor + parts · Shops avg $350+' },
+    { label: 'Monoblock + Subwoofer Install', detail: 'Starting at $149.99 labor + parts · Shops avg $400+' },
+    { label: 'Full Sound System (Head Unit + Speakers + 4ch Amp + Mono Amp + Sub)', detail: 'Starting at $449.99 labor + parts — deposit required · Shops avg $1,400+' },
   ];
 
   const dropdownItems = s.id === 'suspension' ? suspensionItems : s.id === 'brakes' ? brakeItems : s.id === 'audio' ? audioItems : null;

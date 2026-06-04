@@ -152,13 +152,17 @@ async function sendEstimateEmail(job: Job, shopAvg: number = 0) {
        <td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#fff;font-size:13px;text-align:right;">$${job.estimateAmount?.toFixed(2)}</td></tr>`;
 
   const savingsHtml = savings > 10 ? `
-    <div style="background:#052e16;border:1px solid #166534;padding:16px;margin-bottom:24px;border-radius:4px;display:flex;justify-content:space-between;align-items:center;">
-      <div>
-        <p style="color:#4ade80;font-size:11px;font-weight:bold;text-transform:uppercase;letter-spacing:0.1em;margin:0 0 2px;">vs. Flagstaff Shops</p>
-        <p style="color:#6b7280;font-size:12px;margin:0;">They'd charge ~$${shopAvg.toFixed(2)}</p>
-      </div>
-      <p style="color:#4ade80;font-size:24px;font-weight:900;margin:0;">Save $${savings.toFixed(2)}</p>
-    </div>` : '';
+    <table style="width:100%;background:#052e16;border:1px solid #166534;border-radius:4px;margin-bottom:24px;border-collapse:collapse;">
+      <tr>
+        <td style="padding:16px;">
+          <p style="color:#4ade80;font-size:11px;font-weight:bold;text-transform:uppercase;letter-spacing:0.1em;margin:0 0 2px;">vs. Flagstaff Shops</p>
+          <p style="color:#6b7280;font-size:12px;margin:0;">They'd charge ~$${shopAvg.toFixed(2)}</p>
+        </td>
+        <td style="padding:16px;text-align:right;white-space:nowrap;">
+          <p style="color:#4ade80;font-size:24px;font-weight:900;margin:0;">Save $${savings.toFixed(2)}</p>
+        </td>
+      </tr>
+    </table>` : '';
 
   await fetch('https://api.brevo.com/v3/smtp/email', {
     method: 'POST',
@@ -607,10 +611,10 @@ function QuoteCalculator({ job, onApply }: { job: Job; onApply: (items: LineItem
 
   function handleServiceChange(svc: string) {
     setServiceType(svc);
-    setShopTotalOverride('');
+    const avg = getShopAvg(svc, job.vehicle);
+    setShopTotalOverride(avg > 0 ? avg.toFixed(2) : '');
     if (LABOR_HOURS[svc]) setLaborHours(LABOR_HOURS[svc].toString());
     const defaultHrs = LABOR_HOURS[svc] || 1.0;
-    const avg = getShopAvg(svc, job.vehicle);
     // Reset axle with new default hours and shop avg
     setAxle({
       lf: { enabled: false, parts: '', hours: defaultHrs },
@@ -798,7 +802,7 @@ function QuoteCalculator({ job, onApply }: { job: Job; onApply: (items: LineItem
                 <span className="text-gray-500 text-sm">$</span>
                 <input
                   type="number"
-                  value={shopTotalOverride !== '' ? shopTotalOverride : shopTotal.toFixed(2)}
+                  value={shopTotalOverride}
                   onChange={e => setShopTotalOverride(e.target.value)}
                   className="bg-gray-800 border border-gray-700 text-white px-2 py-1.5 text-sm font-mono w-full focus:border-red-600 outline-none"
                 />
@@ -1135,6 +1139,11 @@ function PaymentPanel({ job, onUpdate }: { job: Job; onUpdate: (j: Job) => void 
     setSaving(true);
     const paidAt = new Date().toISOString();
     const finalAmount = parseFloat(invoiceAmt) || job.estimateAmount;
+    // If not yet invoiced, send invoice email first
+    if (job.jobStatus !== 'INVOICED') {
+      await patchJob(job.id, { job_status: 'INVOICED', invoice_amount: finalAmount });
+      await sendInvoiceEmail({ ...job, jobStatus: 'INVOICED' as JobStatus, invoiceAmount: finalAmount });
+    }
     const fields = {
       invoice_amount: finalAmount,
       stripe_transaction_id: stripeId,
@@ -1734,12 +1743,20 @@ export function EstimatePage() {
   async function handleSign() {
     if (!job || !agreed || !signature.trim()) return;
     setSubmitting(true);
+    // Capture IP for electronic signature record
+    let signerIp = '';
+    try {
+      const res = await fetch('https://api.ipify.org?format=json');
+      const data = await res.json();
+      signerIp = data.ip || '';
+    } catch { /* non-critical */ }
     await patchJob(job.id, {
       pre_existing_damage: damage,
       customer_agreed: true,
       customer_signature: signature.trim(),
       signed_at: new Date().toISOString(),
       job_status: 'SIGNED',
+      signer_ip: signerIp,
     });
     setDone(true);
     setSubmitting(false);
@@ -1858,8 +1875,18 @@ export function EstimatePage() {
                   onScroll={e => {
                     const el = e.currentTarget;
                     if (el.scrollTop + el.clientHeight >= el.scrollHeight - 4) {
-                      (document.getElementById('sig-input') as HTMLInputElement)?.removeAttribute('disabled');
-                      document.getElementById('sig-section')?.classList.remove('opacity-40', 'pointer-events-none');
+                      const sigSection = document.getElementById('sig-section');
+                      const sigInput = document.getElementById('sig-input') as HTMLInputElement;
+                      if (sigSection) {
+                        sigSection.classList.remove('opacity-40', 'pointer-events-none');
+                        sigSection.classList.add('opacity-100');
+                      }
+                      if (sigInput) {
+                        sigInput.removeAttribute('disabled');
+                        sigInput.classList.remove('bg-white/5', 'border-white/10');
+                        sigInput.classList.add('bg-white/10', 'border-red-600/50', 'ring-1', 'ring-red-600/30');
+                        sigInput.focus();
+                      }
                     }
                   }}
                   id="extended-terms-scroll"
@@ -1900,7 +1927,7 @@ export function EstimatePage() {
               </label>
 
               <div>
-                <label className="text-gray-400 text-xs font-bold uppercase tracking-widest block mb-2">Type your full name to sign</label>
+                <label className="text-gray-400 text-xs font-bold uppercase tracking-widest block mb-2">Electronic Signature — Type Your Full Legal Name</label>
                 <input
                   id="sig-input"
                   type="text"
@@ -1908,9 +1935,9 @@ export function EstimatePage() {
                   onChange={e => setSignature(e.target.value)}
                   placeholder="Full legal name"
                   disabled
-                  className="bg-white/5 border border-white/10 text-white px-3 py-3 text-sm w-full focus:border-red-600 outline-none placeholder-gray-700"
+                  className="bg-white/5 border border-white/10 text-white px-3 py-3 text-sm w-full focus:border-red-600 outline-none placeholder-gray-700 transition-all duration-300"
                 />
-                <p className="text-gray-600 text-[10px] mt-1">Scroll through all terms above to unlock signature field.</p>
+                <p className="text-gray-500 text-[10px] mt-1.5">Please read all terms above to unlock the signature field. By typing your name, you are providing an electronic signature legally binding under the Uniform Electronic Transactions Act (UETA).</p>
               </div>
 
               <button
