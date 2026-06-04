@@ -1291,18 +1291,55 @@ export function AdminSchedule() {
     return Notification.permission;
   });
 
-  async function requestNotifications() {
+  // Re-sync permission when user returns to the app (iOS doesn't push state updates)
+  useEffect(() => {
     if (!('Notification' in window)) return;
+    const sync = () => setNotifPerm(Notification.permission);
+    window.addEventListener('focus', sync);
+    document.addEventListener('visibilitychange', sync);
+    return () => {
+      window.removeEventListener('focus', sync);
+      document.removeEventListener('visibilitychange', sync);
+    };
+  }, []);
+
+  async function requestNotifications() {
+    if (!('Notification' in window) || !('serviceWorker' in navigator)) return;
+
+    // Must wait for SW to be active before requesting on iOS
+    const reg = await navigator.serviceWorker.ready;
+
     const perm = await Notification.requestPermission();
     setNotifPerm(perm);
-    if (perm === 'granted' && 'serviceWorker' in navigator) {
-      // Show a test notification
-      const reg = await navigator.serviceWorker.ready;
-      reg.showNotification('GID Garage Notifications On ✓', {
-        body: "You'll be notified of new bookings here.",
+    if (perm !== 'granted') return;
+
+    // Subscribe to Web Push so notifications work when app is closed
+    try {
+      const existing = await reg.pushManager.getSubscription();
+      const subscription = existing ?? await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: import.meta.env.VITE_VAPID_PUBLIC_KEY as string,
+      });
+
+      // Save subscription endpoint to Supabase
+      await sbFetch('/push_subscriptions', {
+        method: 'POST',
+        headers: { 'Prefer': 'resolution=merge-duplicates' },
+        body: JSON.stringify({
+          endpoint: subscription.endpoint,
+          subscription: JSON.stringify(subscription),
+        }),
+      });
+
+      // Confirm with a test notification
+      reg.showNotification('GID Garage Alerts On ✓', {
+        body: "You'll get notified of new bookings even when the app is closed.",
         icon: '/favicon-192.png',
         tag: 'gid-notif-test',
       });
+    } catch (err) {
+      console.warn('Push subscription failed:', err);
+      // Fall back — at least show in-app notifications while open
     }
   }
 
@@ -1316,29 +1353,27 @@ export function AdminSchedule() {
     if (!unlocked) return;
     // Only auto-refresh booking data when on schedule tab — never reload the page
     const dataInterval = setInterval(async () => {
-      if (adminTab === 'schedule') {
-        const fresh = await getSupabaseBookings();
-        setBookings(prev => {
-          const prevIds = new Set(prev.map(b => b.id));
-          const newOnes = fresh.filter(b => !prevIds.has(b.id) && b.status === 'confirmed');
-          if (newOnes.length > 0 && Notification.permission === 'granted' && 'serviceWorker' in navigator) {
-            navigator.serviceWorker.ready.then(reg => {
-              newOnes.forEach(b => {
-                reg.showNotification(`New Quote Request — ${b.fname} ${b.lname}`, {
-                  body: `${b.vehicle} · ${b.service} · ${b.date} at ${b.time}`,
-                  icon: '/favicon-192.png',
-                  tag: b.id,
-                  data: { url: '/bookings' },
-                });
+      const fresh = await getSupabaseBookings();
+      setBookings(prev => {
+        const prevIds = new Set(prev.map(b => b.id));
+        const newOnes = fresh.filter(b => !prevIds.has(b.id) && b.status === 'confirmed');
+        if (newOnes.length > 0 && Notification.permission === 'granted' && 'serviceWorker' in navigator) {
+          navigator.serviceWorker.ready.then(reg => {
+            newOnes.forEach(b => {
+              reg.showNotification(`New Booking — ${b.fname} ${b.lname}`, {
+                body: `${b.vehicle} · ${b.service} · ${b.date} at ${b.time}`,
+                icon: '/favicon-192.png',
+                tag: b.id,
+                data: { url: '/bookings' },
               });
             });
-          }
-          return fresh;
-        });
-      }
+          });
+        }
+        return fresh;
+      });
     }, 5 * 60 * 1000);
     return () => clearInterval(dataInterval);
-  }, [unlocked, adminTab]);
+  }, [unlocked]);
 
   if (!unlocked) return <AdminPasswordGate onUnlock={() => setUnlocked(true)} />;
 
