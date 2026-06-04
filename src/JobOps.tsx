@@ -367,26 +367,77 @@ const LABOR_RATE = 75;
 const MOBILE_FEE = 25;
 const PARTS_MARKUP = 0.20;
 
-// Flagstaff shop averages per axle where applicable
-const SHOP_AVERAGES: Record<string, number> = {
-  oil:                    89,
-  diag:                   110,
-  full:                   0,
-  brakes_pads:            200,   // per axle
-  brakes_pads_rotors:     400,   // per axle
-  brakes_full:            475,   // per axle
-  suspension_struts_front: 550,  // pair
-  suspension_struts_rear:  400,  // pair
-  suspension_control_arms: 375,  // each
-  suspension_tie_rods:     300,  // each
-  suspension_cv_axles:     375,  // each
-  audio_head_unit:         250,
-  audio_speakers:          300,
-  audio_head_unit_supplied: 150,
-  audio_4ch_amp:           350,
-  audio_mono_amp:          400,
-  audio_full_system:       1400,
+// ── VEHICLE TIERS ─────────────────────────────────────────────────────────────
+// Tier 1: Small car     — Civic, Corolla, Sentra, Fit, Elantra, Focus
+// Tier 2: Mid / CUV     — Camry, RAV4, CR-V, Accord, Altima, Rogue, Escape
+// Tier 3: Large SUV / half-ton truck — F-150, Silverado, Tahoe, 4Runner, Tundra, Expedition
+// Tier 4: HD truck      — F-250/350, Ram 2500/3500, Silverado/Sierra 2500/3500
+
+type VehicleTier = 1 | 2 | 3 | 4;
+
+const SMALL_MAKES = ['honda','toyota','nissan','hyundai','kia','mazda','subaru','mitsubishi','vw','volkswagen','mini','fiat','smart'];
+const MID_MAKES   = ['honda','toyota','nissan','hyundai','kia','mazda','subaru','ford','chevrolet','chevy','gmc','dodge','chrysler','jeep','buick','acura','infiniti','lexus','lincoln','cadillac','volvo','audi','bmw','mercedes','mercedes-benz','genesis','volkswagen','vw'];
+
+// Small car models (subset of mid makes that are small)
+const SMALL_MODELS = ['civic','corolla','sentra','fit','elantra','accent','rio','yaris','versa','mirage','spark','sonic','aveo','focus','fiesta','impreza','juke','mini','fiat','smart','200','dart'];
+
+// Large/HD engine displacement thresholds
+const HD_ENGINES   = ['6.6l','6.7l','7.3l','6.6 duramax','6.7 powerstroke','6.7 cummins','diesel_6.6','diesel_6.7_powerstroke','diesel_6.7_cummins','diesel_7.3'];
+const LARGE_ENGINES = ['5.3l','5.0l v8','5.7l','6.2l','6.4l','4.6l v8','5.4l','5.6l','4.7l'];
+
+function classifyVehicle(vehicleStr: string): VehicleTier {
+  if (!vehicleStr) return 2;
+  const v = vehicleStr.toLowerCase();
+
+  // HD truck — engine or known HD models
+  if (HD_ENGINES.some(e => v.includes(e))) return 4;
+  if (/\b(f[- ]?250|f[- ]?350|f[- ]?450|ram\s*25|ram\s*35|silverado\s*25|silverado\s*35|sierra\s*25|sierra\s*35|2500|3500)\b/.test(v)) return 4;
+
+  // Large SUV / half-ton
+  if (LARGE_ENGINES.some(e => v.includes(e))) return 3;
+  if (/\b(f[- ]?150|silverado|sierra|tahoe|suburban|yukon|expedition|navigator|sequoia|tundra|4runner|4-runner|armada|titan|durango|commander|wagoneer|grand wagoneer|ram\s*15|ram 1500|bronco)\b/.test(v)) return 3;
+  if (/\b(v8|8cyl)\b/.test(v)) return 3;
+
+  // Small car — check model name
+  if (SMALL_MODELS.some(m => v.includes(m))) return 1;
+
+  // Default mid
+  return 2;
+}
+
+// Flagstaff shop averages by tier — per corner/axle for brakes/suspension
+const SHOP_AVERAGES_TIERED: Record<string, [number, number, number, number]> = {
+  //                                           T1    T2    T3    T4
+  oil:                     [79,   89,   99,   110],
+  diag:                    [100,  110,  120,  130],
+  full:                    [0,    0,    0,    0  ],
+  brakes_pads:             [160,  200,  240,  300],   // per axle
+  brakes_pads_rotors:      [320,  400,  480,  600],   // per axle
+  brakes_full:             [380,  475,  560,  700],   // per axle
+  suspension_struts_front: [420,  550,  650,  750],   // pair
+  suspension_struts_rear:  [320,  400,  480,  560],   // pair
+  suspension_control_arms: [280,  375,  450,  550],   // each
+  suspension_tie_rods:     [220,  300,  360,  440],   // each
+  suspension_cv_axles:     [280,  375,  450,  540],   // each
+  audio_head_unit:         [250,  250,  250,  250],
+  audio_speakers:          [300,  300,  300,  300],
+  audio_head_unit_supplied:[150,  150,  150,  150],
+  audio_4ch_amp:           [350,  350,  350,  350],
+  audio_mono_amp:          [400,  400,  400,  400],
+  audio_full_system:       [1400, 1400, 1400, 1400],
 };
+
+function getShopAvg(serviceKey: string, vehicleStr: string): number {
+  const tier = classifyVehicle(vehicleStr);
+  const row = SHOP_AVERAGES_TIERED[serviceKey];
+  if (!row) return 0;
+  return row[tier - 1];
+}
+
+// Flat legacy alias for audio/fixed services that don't vary by vehicle
+const SHOP_AVERAGES: Record<string, number> = Object.fromEntries(
+  Object.entries(SHOP_AVERAGES_TIERED).map(([k, v]) => [k, v[1]]) // default to tier 2
+);
 
 const LABOR_HOURS: Record<string, number> = {
   oil:                    0.5,
@@ -543,7 +594,7 @@ function QuoteCalculator({ job, onApply }: { job: Job; onApply: (items: LineItem
     setServiceType(svc);
     if (LABOR_HOURS[svc]) setLaborHours(LABOR_HOURS[svc].toString());
     const defaultHrs = LABOR_HOURS[svc] || 1.0;
-    const avg = SHOP_AVERAGES[svc] || 0;
+    const avg = getShopAvg(svc, job.vehicle);
     // Reset axle with new default hours and shop avg
     setAxle({
       lf: { enabled: false, parts: '', hours: defaultHrs },
@@ -556,17 +607,17 @@ function QuoteCalculator({ job, onApply }: { job: Job; onApply: (items: LineItem
 
   function buildLineItems(): { items: LineItem[]; total: number; shopTotal: number } {
     const items: LineItem[] = [];
-    let shopTotal = SHOP_AVERAGES[serviceType] || 0;
+    let shopTotal = getShopAvg(serviceType, job.vehicle);
 
     items.push({ id: 'mobile', label: 'Mobile Service Fee', amount: MOBILE_FEE, type: 'mobile' });
 
     if (isOil) {
       const base = 79.99 + (extraQuarts * 10.99);
       items.push({ id: 'oil_labor', label: `Oil Change — Full Synthetic (${5 + extraQuarts}qt)`, amount: base, type: 'fixed' });
-      shopTotal = 95 + (extraQuarts * 15);
+      shopTotal = getShopAvg('oil', job.vehicle) + (extraQuarts * 15);
     } else if (isDiag) {
       items.push({ id: 'diag_labor', label: 'Diagnostics — OBD2 Scan & Repair Recommendation', amount: 75, type: 'fixed' });
-      shopTotal = 100;
+      shopTotal = getShopAvg('diag', job.vehicle);
     } else if (isFull) {
       items.push({ id: 'full_labor', label: 'Multi-Point Inspection (Complimentary)', amount: 0, type: 'fixed' });
       shopTotal = 0;
