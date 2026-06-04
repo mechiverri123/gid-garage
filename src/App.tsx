@@ -369,6 +369,7 @@ function PhotoGallery() {
     { src: '/rav4shocks.jpg', alt: 'RAV4 shock replacement' },
     { src: '/rotor_before.jpg', alt: 'Rotor before service' },
     { src: '/rotor_after.jpg', alt: 'Rotor after service' },
+    { src: '/afba.jpg', alt: 'GID Garage work' },
   ];
 
   const [current, setCurrent] = useState(0);
