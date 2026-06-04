@@ -468,22 +468,22 @@ async function sendEmail(booking: Booking) {
 
   const emailBody = `
     <div style="font-family:sans-serif;max-width:600px;margin:0 auto;color:#222;">
-      <h2 style="background:#b91c1c;color:#fff;padding:16px 20px;margin:0;">GID Garage — Booking Confirmation</h2>
+      <h2 style="background:#b91c1c;color:#fff;padding:16px 20px;margin:0;">GID Garage — Quote Request Received</h2>
       <div style="padding:24px 20px;border:1px solid #e5e7eb;">
-        <p>Hi ${customerName},</p>
-        <p>Your appointment has been confirmed. Here are your details:</p>
+        <p>Hi ${booking.fname},</p>
+        <p>We received your request for a quote. We look forward to servicing your vehicle.</p>
         <table style="width:100%;border-collapse:collapse;margin:16px 0;">
           <tr><td style="padding:8px;border-bottom:1px solid #f3f4f6;color:#6b7280;width:40%;">Service</td><td style="padding:8px;border-bottom:1px solid #f3f4f6;font-weight:600;">${serviceName}</td></tr>
-          <tr><td style="padding:8px;border-bottom:1px solid #f3f4f6;color:#6b7280;">Date</td><td style="padding:8px;border-bottom:1px solid #f3f4f6;font-weight:600;">${dateStr}</td></tr>
-          <tr><td style="padding:8px;border-bottom:1px solid #f3f4f6;color:#6b7280;">Time</td><td style="padding:8px;border-bottom:1px solid #f3f4f6;font-weight:600;">${booking.time}</td></tr>
+          <tr><td style="padding:8px;border-bottom:1px solid #f3f4f6;color:#6b7280;">Requested Date</td><td style="padding:8px;border-bottom:1px solid #f3f4f6;font-weight:600;">${dateStr}</td></tr>
+          <tr><td style="padding:8px;border-bottom:1px solid #f3f4f6;color:#6b7280;">Requested Time</td><td style="padding:8px;border-bottom:1px solid #f3f4f6;font-weight:600;">${booking.time}</td></tr>
           <tr><td style="padding:8px;border-bottom:1px solid #f3f4f6;color:#6b7280;">Vehicle</td><td style="padding:8px;border-bottom:1px solid #f3f4f6;font-weight:600;">${booking.vehicle}</td></tr>
           <tr><td style="padding:8px;border-bottom:1px solid #f3f4f6;color:#6b7280;">Notes</td><td style="padding:8px;border-bottom:1px solid #f3f4f6;">${booking.notes || 'None'}</td></tr>
-          <tr><td style="padding:8px;color:#6b7280;">Booking ID</td><td style="padding:8px;font-family:monospace;font-size:12px;">${booking.id}</td></tr>
+          <tr><td style="padding:8px;color:#6b7280;">Request ID</td><td style="padding:8px;font-family:monospace;font-size:12px;">${booking.id}</td></tr>
         </table>
         <p style="margin-top:24px;">Questions? Call us at <strong>480-757-0476</strong></p>
         <hr style="border:none;border-top:1px solid #e5e7eb;margin:24px 0;" />
         <p style="font-size:13px;color:#6b7280;">Need to cancel? Please do so at least 24 hours in advance.</p>
-        <a href="${cancelUrl}" style="display:inline-block;margin-top:8px;padding:10px 20px;background:#111;color:#ef4444;border:1px solid #ef4444;font-size:13px;font-weight:600;text-decoration:none;">Cancel My Appointment</a>
+        <a href="${cancelUrl}" style="display:inline-block;margin-top:8px;padding:10px 20px;background:#111;color:#ef4444;border:1px solid #ef4444;font-size:13px;font-weight:600;text-decoration:none;">Cancel My Request</a>
         <p style="color:#6b7280;font-size:13px;margin-top:24px;">— GID Garage</p>
       </div>
     </div>
@@ -491,7 +491,7 @@ async function sendEmail(booking: Booking) {
 
   const ownerBody = `
     <div style="font-family:sans-serif;max-width:600px;margin:0 auto;color:#222;">
-      <h2 style="background:#b91c1c;color:#fff;padding:16px 20px;margin:0;">New Booking — GID Garage</h2>
+      <h2 style="background:#b91c1c;color:#fff;padding:16px 20px;margin:0;">New Quote Request — GID Garage</h2>
       <div style="padding:24px 20px;border:1px solid #e5e7eb;">
         <table style="width:100%;border-collapse:collapse;">
           <tr><td style="padding:8px;border-bottom:1px solid #f3f4f6;color:#6b7280;width:40%;">Customer</td><td style="padding:8px;border-bottom:1px solid #f3f4f6;font-weight:600;">${customerName}</td></tr>
@@ -541,7 +541,7 @@ async function sendEmail(booking: Booking) {
     body: JSON.stringify({
       sender: { name: 'GID Garage Bookings', email: 'bookings@gidgarage.com' },
       to: [{ email: 'gidgarageaz@hotmail.com', name: 'GID Garage' }],
-      subject: `New Booking: ${customerName} — ${serviceName} on ${dateStr}`,
+      subject: `New Quote Request: ${customerName} — ${serviceName} on ${dateStr}`,
       htmlContent: ownerBody,
     }),
   });
@@ -1120,6 +1120,25 @@ export function AdminSchedule() {
   const [calDate, setCalDate] = useState(new Date());
   const [loading, setLoading] = useState(true);
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
+  const [notifPerm, setNotifPerm] = useState<NotificationPermission | 'unsupported'>(() => {
+    if (!('Notification' in window)) return 'unsupported';
+    return Notification.permission;
+  });
+
+  async function requestNotifications() {
+    if (!('Notification' in window)) return;
+    const perm = await Notification.requestPermission();
+    setNotifPerm(perm);
+    if (perm === 'granted' && 'serviceWorker' in navigator) {
+      // Show a test notification
+      const reg = await navigator.serviceWorker.ready;
+      reg.showNotification('GID Garage Notifications On ✓', {
+        body: "You'll be notified of new bookings here.",
+        icon: '/favicon-192.png',
+        tag: 'gid-notif-test',
+      });
+    }
+  }
 
   useEffect(() => {
     if (!unlocked) return;
@@ -1130,9 +1149,26 @@ export function AdminSchedule() {
   useEffect(() => {
     if (!unlocked) return;
     // Only auto-refresh booking data when on schedule tab — never reload the page
-    const dataInterval = setInterval(() => {
+    const dataInterval = setInterval(async () => {
       if (adminTab === 'schedule') {
-        getSupabaseBookings().then(setBookings);
+        const fresh = await getSupabaseBookings();
+        setBookings(prev => {
+          const prevIds = new Set(prev.map(b => b.id));
+          const newOnes = fresh.filter(b => !prevIds.has(b.id) && b.status === 'confirmed');
+          if (newOnes.length > 0 && Notification.permission === 'granted' && 'serviceWorker' in navigator) {
+            navigator.serviceWorker.ready.then(reg => {
+              newOnes.forEach(b => {
+                reg.showNotification(`New Quote Request — ${b.fname} ${b.lname}`, {
+                  body: `${b.vehicle} · ${b.service} · ${b.date} at ${b.time}`,
+                  icon: '/favicon-192.png',
+                  tag: b.id,
+                  data: { url: '/bookings' },
+                });
+              });
+            });
+          }
+          return fresh;
+        });
       }
     }, 5 * 60 * 1000);
     return () => clearInterval(dataInterval);
@@ -1223,6 +1259,13 @@ export function AdminSchedule() {
             <h1 className="text-4xl font-black text-white tracking-tight">Schedule</h1>
           </div>
           <div className="flex gap-3 items-center">
+            {notifPerm !== 'unsupported' && notifPerm !== 'granted' && (
+              <button onClick={requestNotifications}
+                className="border border-yellow-700 text-yellow-600 hover:border-yellow-500 hover:text-yellow-400 text-xs font-bold uppercase tracking-widest px-4 py-2 transition-colors">🔔 Enable Alerts</button>
+            )}
+            {notifPerm === 'granted' && (
+              <span className="text-xs text-green-600 font-bold uppercase tracking-widest">🔔 Alerts On</span>
+            )}
             <button onClick={() => getSupabaseBookings().then(setBookings)}
               className="border border-gray-700 text-gray-400 hover:border-red-600 hover:text-white text-xs font-bold uppercase tracking-widest px-4 py-2 transition-colors">↻ Refresh</button>
             <button onClick={() => { sessionStorage.removeItem('gg_admin_auth'); setUnlocked(false); }}

@@ -7,7 +7,14 @@
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="format-detection" content="telephone=no">
+    <link rel="manifest" href="/manifest.json">
+    <script>
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js').catch(() => {});
+      }
+    </script>
     <meta name="supported-color-schemes" content="light dark">
     <title>GID Garage | Mobile Auto Repair – Flagstaff, AZ</title>
     <meta name="description" content="GID Garage is Flagstaff's mobile mechanic — we come to you. Oil changes, brakes, diagnostics, suspension, car audio & more. Call 480-757-0476 or book online." />

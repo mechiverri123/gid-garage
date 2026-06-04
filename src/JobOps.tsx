@@ -175,7 +175,7 @@ async function sendEstimateEmail(job: Job, shopAvg: number = 0) {
         <div style="font-family:sans-serif;max-width:560px;margin:0 auto;background:#0f0f0f;color:#fff;padding:32px;border-radius:4px;">
           <img src="https://gidgarage.com/website_logo.png" alt="GID Garage" style="height:48px;margin-bottom:24px;" />
           <h2 style="color:#fff;font-size:22px;margin:0 0 8px;">Your Estimate is Ready</h2>
-          <p style="color:#9ca3af;margin:0 0 24px;">Hi ${job.fname}, here's your quote for the upcoming appointment.</p>
+          <p style="color:#9ca3af;margin:0 0 16px;">Hi ${job.fname}, here's your quote for the upcoming appointment.</p>
 
           <table style="width:100%;border-collapse:collapse;margin-bottom:8px;">
             <tr><td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#6b7280;font-size:13px;">Vehicle</td>
@@ -189,11 +189,11 @@ async function sendEstimateEmail(job: Job, shopAvg: number = 0) {
 
           ${job.estimateNotes ? `<p style="color:#9ca3af;font-size:13px;margin:16px 0;padding:12px;background:#1f2937;border-left:3px solid #ef4444;">${job.estimateNotes}</p>` : ''}
 
-          ${savingsHtml}
-
-          <a href="${estimateUrl}" style="display:inline-block;background:#dc2626;color:#fff;text-decoration:none;font-weight:bold;font-size:13px;padding:14px 28px;letter-spacing:0.05em;text-transform:uppercase;margin-bottom:24px;">
-            Review &amp; Approve Estimate →
+          <a href="${estimateUrl}" style="display:inline-block;background:#dc2626;color:#fff;text-decoration:none;font-weight:bold;font-size:13px;padding:14px 28px;letter-spacing:0.05em;text-transform:uppercase;margin:16px 0 24px;">
+            Review &amp; Approve Estimate &rarr;
           </a>
+
+          ${savingsHtml}
 
           <p style="color:#4b5563;font-size:12px;margin:0;">Questions? Call or text <strong style="color:#9ca3af;">480-757-0476</strong> — GID Garage, Flagstaff AZ</p>
         </div>
@@ -229,7 +229,10 @@ async function sendInvoiceEmail(job: Job) {
         <div style="font-family:sans-serif;max-width:560px;margin:0 auto;background:#0f0f0f;color:#fff;padding:32px;border-radius:4px;">
           <img src="https://gidgarage.com/website_logo.png" alt="GID Garage" style="height:48px;margin-bottom:24px;" />
           <h2 style="color:#fff;font-size:22px;margin:0 0 8px;">Invoice from GID Garage</h2>
-          <p style="color:#9ca3af;margin:0 0 24px;">Hi ${job.fname}, thank you for choosing GID Garage. Here is your invoice.</p>
+          <p style="color:#9ca3af;margin:0 0 16px;">Hi ${job.fname}, thank you for choosing GID Garage. Here is your invoice.</p>
+          <a href="${invoiceUrl}" style="display:inline-block;background:#dc2626;color:#fff;text-decoration:none;font-weight:bold;font-size:13px;padding:14px 28px;letter-spacing:0.05em;text-transform:uppercase;margin-bottom:24px;">
+            View Invoice
+          </a>
           <table style="width:100%;border-collapse:collapse;margin-bottom:24px;">
             <tr><td style="padding:8px 0;border-bottom:1px solid #374151;color:#6b7280;font-size:13px;">Vehicle</td>
                 <td style="padding:8px 0;border-bottom:1px solid #374151;color:#fff;font-size:13px;text-align:right;">${job.vehicle}</td></tr>
@@ -237,9 +240,6 @@ async function sendInvoiceEmail(job: Job) {
             <tr><td style="padding:10px 0 0;color:#fff;font-size:14px;font-weight:bold;">Total Due</td>
                 <td style="padding:10px 0 0;color:#ef4444;font-size:22px;font-weight:900;text-align:right;">$${amount?.toFixed(2)}</td></tr>
           </table>
-          <a href="${invoiceUrl}" style="display:inline-block;background:#dc2626;color:#fff;text-decoration:none;font-weight:bold;font-size:13px;padding:14px 28px;letter-spacing:0.05em;text-transform:uppercase;margin-bottom:24px;">
-            View Invoice
-          </a>
           <p style="color:#4b5563;font-size:12px;margin:0;">Questions? Call or text <strong style="color:#9ca3af;">480-757-0476</strong> — GID Garage, Flagstaff AZ</p>
         </div>
       `,
@@ -595,6 +595,7 @@ function QuoteCalculator({ job, onApply }: { job: Job; onApply: (items: LineItem
   const [laborHours, setLaborHours] = useState('');
   const [extraQuarts, setExtraQuarts] = useState(0);
   const [shopTotalOverride, setShopTotalOverride] = useState<string>('');
+  const [showShopComparison, setShowShopComparison] = useState(true);
   const [axle, setAxle] = useState<AxleConfig>({
     lf: { enabled: false, parts: '', hours: 0 },
     rf: { enabled: false, parts: '', hours: 0 },
@@ -632,8 +633,10 @@ function QuoteCalculator({ job, onApply }: { job: Job; onApply: (items: LineItem
     items.push({ id: 'mobile', label: 'Mobile Service Fee', amount: MOBILE_FEE, type: 'mobile' });
 
     if (isOil) {
-      const base = 79.99 + (extraQuarts * 10.99);
-      items.push({ id: 'oil_labor', label: `Oil Change — Full Synthetic (${5 + extraQuarts}qt)`, amount: base, type: 'fixed' });
+      items.push({ id: 'oil_labor', label: `Oil Change — Full Synthetic (5qt)`, amount: 79.99, type: 'fixed' });
+      if (extraQuarts > 0) {
+        items.push({ id: 'oil_extra', label: `Extra Oil (${extraQuarts}qt @ $10.99/qt)`, amount: extraQuarts * 10.99, type: 'other' });
+      }
       shopTotal = getShopAvg('oil', job.vehicle) + (extraQuarts * 15);
     } else if (isDiag) {
       items.push({ id: 'diag_labor', label: 'Diagnostics — OBD2 Scan & Repair Recommendation', amount: 75, type: 'fixed' });
@@ -810,8 +813,12 @@ function QuoteCalculator({ job, onApply }: { job: Job; onApply: (items: LineItem
               {shopTotalOverride !== '' && (
                 <button onClick={() => setShopTotalOverride('')} className="text-gray-600 hover:text-gray-400 text-xs whitespace-nowrap">reset</button>
               )}
+              <label className="flex items-center gap-1.5 cursor-pointer flex-shrink-0 ml-1">
+                <input type="checkbox" checked={showShopComparison} onChange={e => setShowShopComparison(e.target.checked)} className="accent-emerald-600 w-3.5 h-3.5" />
+                <span className="text-gray-600 text-[10px] uppercase tracking-wider whitespace-nowrap">Show in email</span>
+              </label>
             </div>
-            {effectiveSavings > 0 && (
+            {effectiveSavings > 0 && showShopComparison && (
               <div className="bg-emerald-900/20 border border-emerald-700 p-4 flex items-center justify-between">
                 <div>
                   <p className="text-emerald-400 text-xs font-bold uppercase tracking-widest">vs. Flagstaff Shops</p>
@@ -823,6 +830,9 @@ function QuoteCalculator({ job, onApply }: { job: Job; onApply: (items: LineItem
                 </div>
               </div>
             )}
+            {effectiveSavings > 0 && !showShopComparison && (
+              <p className="text-gray-700 text-xs italic">Savings comparison hidden from customer email</p>
+            )}
           </div>
         );
       })()}
@@ -831,7 +841,7 @@ function QuoteCalculator({ job, onApply }: { job: Job; onApply: (items: LineItem
         <button
           onClick={() => {
             const effectiveShopTotal = shopTotalOverride !== '' ? (parseFloat(shopTotalOverride) || 0) : shopTotal;
-            onApply(items, total, effectiveShopTotal);
+            onApply(items, total, showShopComparison ? effectiveShopTotal : 0);
           }}
           className="w-full bg-red-600 hover:bg-red-500 text-white text-xs font-bold uppercase tracking-widest py-3 transition-colors"
         >
@@ -973,8 +983,10 @@ function EstimatePanel({ job, onUpdate }: { job: Job; onUpdate: (j: Job) => void
   const [saving, setSaving] = useState(false);
   const [sending, setSending] = useState(false);
   const [sent, setSent] = useState(false);
+  const alreadySent = job.jobStatus === 'ESTIMATE_SENT' || job.jobStatus === 'SIGNED' || job.jobStatus === 'IN_PROGRESS' || job.jobStatus === 'COMPLETED' || job.jobStatus === 'INVOICED' || job.jobStatus === 'PAID';
   const [showCalc, setShowCalc] = useState(!job.lineItems?.length);
   const [shopAvg, setShopAvg] = useState(0);
+  const [showShopComparison, setShowShopComparison] = useState(true);
 
   const total = lineItems.reduce((s, i) => s + i.amount, 0);
 
@@ -1018,7 +1030,7 @@ function EstimatePanel({ job, onUpdate }: { job: Job; onUpdate: (j: Job) => void
       job_status: 'ESTIMATE_SENT',
     });
     const updated = { ...job, estimateAmount: total, estimateNotes: notes, lineItems, jobStatus: 'ESTIMATE_SENT' as JobStatus };
-    await sendEstimateEmail(updated, shopAvg);
+    await sendEstimateEmail(updated, showShopComparison ? shopAvg : 0);
     onUpdate(updated);
     setSending(false);
     setSent(true);
@@ -1082,9 +1094,18 @@ function EstimatePanel({ job, onUpdate }: { job: Job; onUpdate: (j: Job) => void
 
       {/* Savings callout if shop avg set */}
       {savings > 0 && (
-        <div className="bg-emerald-900/20 border border-emerald-700 px-4 py-3 flex items-center justify-between">
-          <p className="text-emerald-400 text-xs font-bold uppercase tracking-widest">Customer saves vs shops</p>
-          <p className="text-emerald-400 font-black text-lg">-${savings.toFixed(2)}</p>
+        <div className="space-y-1">
+          <div className="bg-emerald-900/20 border border-emerald-700 px-4 py-3 flex items-center justify-between">
+            <p className="text-emerald-400 text-xs font-bold uppercase tracking-widest">Customer saves vs shops</p>
+            <div className="flex items-center gap-3">
+              <p className="text-emerald-400 font-black text-lg">-${savings.toFixed(2)}</p>
+              <label className="flex items-center gap-1.5 cursor-pointer">
+                <input type="checkbox" checked={showShopComparison} onChange={e => setShowShopComparison(e.target.checked)} className="accent-emerald-600 w-3.5 h-3.5" />
+                <span className="text-gray-500 text-[10px] uppercase tracking-wider">Show in email</span>
+              </label>
+            </div>
+          </div>
+          {!showShopComparison && <p className="text-gray-700 text-xs italic">Hidden from customer email</p>}
         </div>
       )}
 
@@ -1112,14 +1133,14 @@ function EstimatePanel({ job, onUpdate }: { job: Job; onUpdate: (j: Job) => void
         </ul>
       </div>
 
-      <div className="flex gap-3">
+      <div className="flex gap-3 flex-wrap">
         <button onClick={saveEstimate} disabled={saving}
           className="border border-gray-600 text-gray-400 hover:border-white hover:text-white text-xs font-bold uppercase tracking-widest px-4 py-2 transition-colors disabled:opacity-40">
           {saving ? 'Saving…' : 'Save Draft'}
         </button>
-        <button onClick={sendEstimate} disabled={!canSend || sending || sent}
+        <button onClick={sendEstimate} disabled={!canSend || sending}
           className="bg-red-600 hover:bg-red-500 disabled:opacity-40 text-white text-xs font-bold uppercase tracking-widest px-6 py-2 transition-colors">
-          {sending ? 'Sending…' : sent ? '✓ Sent' : `Send to ${job.email}`}
+          {sending ? 'Sending…' : sent ? '✓ Sent!' : alreadySent ? `↺ Resend to ${job.email}` : `Send to ${job.email}`}
         </button>
       </div>
     </div>
@@ -1129,7 +1150,7 @@ function EstimatePanel({ job, onUpdate }: { job: Job; onUpdate: (j: Job) => void
 
 // ── PAYMENT PANEL ─────────────────────────────────────────────────────────────
 
-function PaymentPanel({ job, onUpdate }: { job: Job; onUpdate: (j: Job) => void }) {
+function PaymentPanel({ job, onUpdate, onRequote }: { job: Job; onUpdate: (j: Job) => void; onRequote?: () => void }) {
   const [invoiceAmt, setInvoiceAmt] = useState(job.invoiceAmount?.toString() ?? job.estimateAmount?.toString() ?? '');
   const [stripeId, setStripeId] = useState(job.stripeTransactionId);
   const [saving, setSaving] = useState(false);
@@ -1214,7 +1235,7 @@ function PaymentPanel({ job, onUpdate }: { job: Job; onUpdate: (j: Job) => void 
         <p className="text-gray-700 text-xs mt-1">Paste from Stripe dashboard or Tap to Pay receipt</p>
       </div>
 
-      <div className="flex gap-3">
+      <div className="flex gap-3 flex-wrap">
         <button
           onClick={markInvoiced}
           disabled={saving || job.jobStatus === 'INVOICED'}
@@ -1229,6 +1250,18 @@ function PaymentPanel({ job, onUpdate }: { job: Job; onUpdate: (j: Job) => void 
         >
           {saving ? 'Saving…' : '✓ Mark Paid'}
         </button>
+        {onRequote && (
+          <button
+            onClick={async () => {
+              // Reset signing state so customer can sign the new quote
+              await patchJob(job.id, { customer_agreed: false, customer_signature: '', signed_at: null, job_status: 'BOOKED' });
+              onRequote();
+            }}
+            className="border border-yellow-700 text-yellow-600 hover:border-yellow-500 hover:text-yellow-400 text-xs font-bold uppercase tracking-widest px-4 py-2 transition-colors"
+          >
+            ✏️ Revise Quote
+          </button>
+        )}
       </div>
     </div>
   );
@@ -1394,7 +1427,7 @@ function JobDetailPanel({ job: initialJob, onClose, onJobUpdate }: {
           {tab === 'estimate' && <EstimatePanel job={job} onUpdate={handleUpdate} />}
 
           {/* PAYMENT TAB */}
-          {tab === 'payment' && <PaymentPanel job={job} onUpdate={handleUpdate} />}
+          {tab === 'payment' && <PaymentPanel job={job} onUpdate={handleUpdate} onRequote={() => setTab('estimate')} />}
 
           {/* PHOTOS TAB */}
           {tab === 'photos' && <PhotoPanel job={job} onUpdate={handleUpdate} />}
@@ -1586,7 +1619,7 @@ export function InvoicePage() {
   const paidDateStr = job.paidAt
     ? new Date(job.paidAt).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
     : null;
-  const invoiceNumber = `GID-${job.id.slice(0, 8).toUpperCase()}`;
+  const invoiceNumber = job.id.startsWith('GID-') ? job.id : `GID-${job.id.slice(0, 8).toUpperCase()}`;
 
   return (
     <div className="min-h-screen bg-[#0f0f0f] py-12 px-4">
@@ -1750,16 +1783,22 @@ export function EstimatePage() {
       const data = await res.json();
       signerIp = data.ip || '';
     } catch { /* non-critical */ }
-    await patchJob(job.id, {
-      pre_existing_damage: damage,
-      customer_agreed: true,
-      customer_signature: signature.trim(),
-      signed_at: new Date().toISOString(),
-      job_status: 'SIGNED',
-      signer_ip: signerIp,
-    });
-    setDone(true);
-    setSubmitting(false);
+    try {
+      await patchJob(job.id, {
+        pre_existing_damage: damage,
+        customer_agreed: true,
+        customer_signature: signature.trim(),
+        signed_at: new Date().toISOString(),
+        job_status: 'SIGNED',
+        signer_ip: signerIp,
+      });
+      setDone(true);
+    } catch (err) {
+      console.error('Sign failed', err);
+      alert('Something went wrong submitting. Please try again or call us at 480-757-0476.');
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   const dateStr = job ? new Date(job.date + 'T12:00:00').toLocaleDateString('en-US', {
