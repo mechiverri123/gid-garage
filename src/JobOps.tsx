@@ -288,10 +288,12 @@ async function sendReceiptEmail(job: Job) {
 // ── CYA TERMS ────────────────────────────────────────────────────────────────
 
 const CYA_TERMS = [
-  'Price is as quoted. Any additional work requires your approval before proceeding.',
-  'Payment is due in full at time of completion.',
-  'GID Garage is not responsible for pre-existing conditions unrelated to the service performed.',
-  'Parts carry manufacturer warranty. Labor is warranted for 30 days from date of service.',
+  'Price is as quoted. Any additional work discovered during service requires your explicit approval before proceeding. We will contact you before performing any work beyond the scope of this estimate.',
+  'Payment is due in full at time of completion. Unpaid balances may be subject to a storage or holding fee.',
+  'GID Garage is not responsible for pre-existing conditions, hidden damage, or issues unrelated to the service performed. Pre-existing damage noted by the customer at time of signing is documented and acknowledged.',
+  'Parts carry manufacturer warranty. Labor is warranted for 30 days from date of service. Warranty is void if vehicle is serviced by another party for the same issue.',
+  'GID Garage is a mobile service provider. We are not liable for delays caused by weather, parts availability, or circumstances outside our control. We will notify you promptly of any scheduling changes.',
+  'By signing this estimate, you authorize GID Garage to perform the described work and agree to these terms.',
 ];
 
 // ── SERVICE NAME RESOLUTION ───────────────────────────────────────────────────
@@ -367,23 +369,23 @@ const PARTS_MARKUP = 0.20;
 
 // Flagstaff shop averages per axle where applicable
 const SHOP_AVERAGES: Record<string, number> = {
-  oil:                    95,
-  diag:                   100,
+  oil:                    89,
+  diag:                   110,
   full:                   0,
-  brakes_pads:            175,   // per axle
-  brakes_pads_rotors:     350,   // per axle
-  brakes_full:            425,   // per axle
-  suspension_struts_front: 500,  // pair
-  suspension_struts_rear:  350,  // pair
-  suspension_control_arms: 350,  // each
-  suspension_tie_rods:     280,  // each
-  suspension_cv_axles:     350,  // each
-  audio_head_unit:         150,
-  audio_speakers:          200,
-  audio_head_unit_supplied: 100,
-  audio_4ch_amp:           200,
-  audio_mono_amp:          175,
-  audio_full_system:       800,
+  brakes_pads:            200,   // per axle
+  brakes_pads_rotors:     400,   // per axle
+  brakes_full:            475,   // per axle
+  suspension_struts_front: 550,  // pair
+  suspension_struts_rear:  400,  // pair
+  suspension_control_arms: 375,  // each
+  suspension_tie_rods:     300,  // each
+  suspension_cv_axles:     375,  // each
+  audio_head_unit:         250,
+  audio_speakers:          300,
+  audio_head_unit_supplied: 150,
+  audio_4ch_amp:           350,
+  audio_mono_amp:          400,
+  audio_full_system:       1400,
 };
 
 const LABOR_HOURS: Record<string, number> = {
@@ -1311,6 +1313,15 @@ export function JobsTab() {
 
   useEffect(() => {
     getAllJobs().then(data => { setJobs(data); setLoading(false); });
+    // Poll every 30s so SIGNED/status changes reflect without manual refresh
+    const interval = setInterval(() => {
+      getAllJobs().then(data => {
+        setJobs(data);
+        // Update selected job if open
+        setSelected(prev => prev ? (data.find(j => j.id === prev.id) ?? prev) : null);
+      });
+    }, 30000);
+    return () => clearInterval(interval);
   }, []);
 
   function handleJobUpdate(updated: Job) {
@@ -1562,6 +1573,39 @@ export function InvoicePage() {
             </p>
           </div>
         )}
+
+        {/* Garage notes if present */}
+        {job.garageNotes && (
+          <div className="mt-4 border border-white/10 bg-white/5 px-6 py-4">
+            <p className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-1.5">Technician Notes</p>
+            <p className="text-gray-300 text-sm leading-relaxed">{job.garageNotes}</p>
+          </div>
+        )}
+
+        {/* Job photos if present */}
+        {job.jobPhotos?.length > 0 && (
+          <div className="mt-4 border border-white/10 bg-white/5 px-6 py-4">
+            <p className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-3">Job Photos</p>
+            <div className="space-y-3">
+              {job.jobPhotos.map(photo => (
+                <div key={photo.id}>
+                  <img src={photo.dataUrl} alt="Job photo" className="w-full max-h-64 object-cover" />
+                  {photo.note && <p className="text-gray-400 text-xs mt-1">{photo.note}</p>}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Download / Save button */}
+        <div className="mt-6 flex justify-center">
+          <button
+            onClick={() => window.print()}
+            className="border border-white/20 text-gray-400 hover:border-white hover:text-white text-xs font-bold uppercase tracking-widest px-8 py-3 transition-colors"
+          >
+            🖨 Save / Print Receipt
+          </button>
+        </div>
 
         <p className="text-gray-700 text-xs text-center mt-8">GID Garage · Flagstaff, AZ · 480-757-0476 · gidgarage.com</p>
       </div>

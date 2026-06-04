@@ -295,7 +295,7 @@ function VehicleSelector({ form, setForm, errors, clearError }: {
           <select className={sc('vehicleEngine')} value={form.vehicleEngine}
             disabled={!form.vehicleModel}
             onChange={e => { setForm(p => ({ ...p, vehicleEngine: e.target.value })); clearError('vehicleEngine'); }}>
-            <option value="">Engine</option>
+            <option value="">Engine *</option>
             <option value="3cyl">3-Cyl</option>
             <option value="4cyl_1.0">1.0L 4-Cyl</option>
             <option value="4cyl_1.4">1.4L 4-Cyl</option>
@@ -309,12 +309,21 @@ function VehicleSelector({ form, setForm, errors, clearError }: {
             <option value="6cyl_3.0">3.0L V6</option>
             <option value="6cyl_3.5">3.5L V6</option>
             <option value="6cyl_3.6">3.6L V6</option>
+            <option value="6cyl_4.0">4.0L V6</option>
             <option value="8cyl_4.6">4.6L V8</option>
             <option value="8cyl_5.0">5.0L V8</option>
             <option value="8cyl_5.3">5.3L V8</option>
-            <option value="8cyl_5.7">5.7L V8</option>
+            <option value="8cyl_5.7">5.7L V8 (Hemi)</option>
+            <option value="8cyl_6.1">6.1L V8 (Hemi SRT)</option>
             <option value="8cyl_6.2">6.2L V8</option>
-            <option value="diesel">Diesel</option>
+            <option value="8cyl_6.4">6.4L V8 (Hemi 392)</option>
+            <option value="10cyl_6.8">6.8L V10</option>
+            <option value="diesel_3.0">3.0L Diesel (V6)</option>
+            <option value="diesel_5.0">5.0L Diesel (V8)</option>
+            <option value="diesel_6.6">6.6L Duramax Diesel</option>
+            <option value="diesel_6.7_powerstroke">6.7L Powerstroke Diesel</option>
+            <option value="diesel_6.7_cummins">6.7L Cummins Diesel</option>
+            <option value="diesel_7.3">7.3L Diesel (Godzilla/IDI)</option>
             <option value="hybrid">Hybrid</option>
             <option value="electric">Electric</option>
             <option value="other">Other</option>
@@ -866,9 +875,9 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     {[
-                      { id: 'fname', label: 'First Name', placeholder: 'John', type: 'text' },
+                      { id: 'fname', label: 'First Name *', placeholder: 'John', type: 'text' },
                       { id: 'lname', label: 'Last Name', placeholder: 'Smith', type: 'text' },
-                      { id: 'phone', label: 'Phone', placeholder: '928-555-0100', type: 'tel' },
+                      { id: 'phone', label: 'Phone *', placeholder: '928-555-0100', type: 'tel' },
                       { id: 'email', label: 'Email', placeholder: 'you@email.com', type: 'email' },
                     ].map(f => (
                       <div key={f.id}>
@@ -882,7 +891,7 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
                     ))}
                     <VehicleSelector form={form} setForm={setForm} errors={fieldErrors} clearError={(k) => setFieldErrors(p => ({ ...p, [k]: '' }))} />
                     <div className="col-span-2">
-                      <label className={`block text-xs font-bold uppercase tracking-wider mb-1.5 ${fieldErrors.serviceAddress ? 'text-red-500' : 'text-gray-500'}`}>Service Address <span className="text-red-500">*</span></label>
+                      <label className={`block text-xs font-bold uppercase tracking-wider mb-1.5 ${fieldErrors.serviceAddress ? 'text-red-500' : 'text-gray-500'}`}>Service Address <span className="text-red-500">*</span> <span className="normal-case font-normal text-gray-600">(where we service your vehicle)</span></label>
                       <input type="text" placeholder="123 Main St, Flagstaff, AZ 86001"
                         value={form.serviceAddress}
                         onChange={e => { setForm(p => ({ ...p, serviceAddress: e.target.value })); setFieldErrors(p => ({ ...p, serviceAddress: '' })); }}
