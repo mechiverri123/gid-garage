@@ -287,14 +287,28 @@ async function sendReceiptEmail(job: Job) {
 
 // ── CYA TERMS ────────────────────────────────────────────────────────────────
 
-const CYA_TERMS = [
+const CYA_TERMS_CORE = [
   'Price is as quoted. Any additional work discovered during service requires your explicit approval before proceeding. We will contact you before performing any work beyond the scope of this estimate.',
-  'Payment is due in full at time of completion. Unpaid balances may be subject to a storage or holding fee.',
-  'GID Garage is not responsible for pre-existing conditions, hidden damage, or issues unrelated to the service performed. Pre-existing damage noted by the customer at time of signing is documented and acknowledged.',
-  'Parts carry manufacturer warranty. Labor is warranted for 30 days from date of service. Warranty is void if vehicle is serviced by another party for the same issue.',
-  'GID Garage is a mobile service provider. We are not liable for delays caused by weather, parts availability, or circumstances outside our control. We will notify you promptly of any scheduling changes.',
-  'By signing this estimate, you authorize GID Garage to perform the described work and agree to these terms.',
+  'Payment is due in full at time of completion. Unpaid balances may be subject to a storage or holding fee. Returned checks or disputed charges are subject to a $35 processing fee.',
+  'By signing this estimate, you authorize GID Garage to perform the described work, confirm you are 18 years of age or older, and agree to all terms listed herein.',
 ];
+
+const CYA_TERMS_EXTENDED = [
+  'GID Garage is not responsible for pre-existing conditions, hidden damage, or issues unrelated to the service performed. Vehicle condition may be documented via photo before and during service. Pre-existing damage noted by the customer at time of signing is documented and acknowledged.',
+  'On vehicles with high mileage or aged components, the act of performing service may cause adjacent or related components to fail. This is an inherent risk of servicing older vehicles and does not constitute negligence or liability on the part of the technician.',
+  'Parts carry manufacturer warranty. Labor is warranted for 30 days from date of service. Warranty is void if the vehicle is serviced by another party for the same issue, or if customer-supplied parts are determined to be the cause of failure. GID Garage assumes no warranty responsibility for customer-supplied parts.',
+  'Diagnostic recommendations are based on available data at time of inspection and do not constitute a guarantee of all underlying issues.',
+  'GID Garage is a mobile service provider. We are not liable for delays caused by weather, parts availability, or circumstances outside our control. We will notify you promptly of any scheduling changes. GID Garage reserves the right to reschedule service due to unsafe working conditions including extreme weather, insufficient lighting, or unstable ground conditions.',
+  'Customer is responsible for ensuring the vehicle is accessible, on a flat stable surface, with sufficient clearance to perform the service safely. If conditions are unsafe upon arrival, GID Garage reserves the right to charge a trip fee and reschedule.',
+  'Customer authorizes GID Garage to operate the vehicle as necessary to complete and verify the service performed.',
+  'GID Garage disposes of fluids and materials responsibly per local regulations. Customer is responsible for any pre-existing fluid contamination on their property.',
+  'If the customer is unreachable for approval of additional work, GID Garage reserves the right to pause or halt service until contact is made.',
+  'GID Garage is not liable for service interruptions caused by third parties, property owners, or local ordinances restricting vehicle repair at the service location. Customer is responsible for ensuring repair work is permitted on the premises.',
+  'Any disputes arising from services rendered shall be governed by the laws of the State of Arizona. Coconino County shall be the agreed venue for any legal proceedings.',
+];
+
+// Combined for admin display
+const CYA_TERMS = [...CYA_TERMS_CORE, ...CYA_TERMS_EXTENDED];
 
 // ── SERVICE NAME RESOLUTION ───────────────────────────────────────────────────
 
@@ -576,6 +590,7 @@ function QuoteCalculator({ job, onApply }: { job: Job; onApply: (items: LineItem
   const [partsCost, setPartsCost] = useState('');
   const [laborHours, setLaborHours] = useState('');
   const [extraQuarts, setExtraQuarts] = useState(0);
+  const [shopTotalOverride, setShopTotalOverride] = useState<string>('');
   const [axle, setAxle] = useState<AxleConfig>({
     lf: { enabled: false, parts: '', hours: 0 },
     rf: { enabled: false, parts: '', hours: 0 },
@@ -592,6 +607,7 @@ function QuoteCalculator({ job, onApply }: { job: Job; onApply: (items: LineItem
 
   function handleServiceChange(svc: string) {
     setServiceType(svc);
+    setShopTotalOverride('');
     if (LABOR_HOURS[svc]) setLaborHours(LABOR_HOURS[svc].toString());
     const defaultHrs = LABOR_HOURS[svc] || 1.0;
     const avg = getShopAvg(svc, job.vehicle);
@@ -771,22 +787,48 @@ function QuoteCalculator({ job, onApply }: { job: Job; onApply: (items: LineItem
       )}
 
       {/* Savings callout */}
-      {savings > 0 && (
-        <div className="bg-emerald-900/20 border border-emerald-700 p-4 flex items-center justify-between">
-          <div>
-            <p className="text-emerald-400 text-xs font-bold uppercase tracking-widest">vs. Flagstaff Shops</p>
-            <p className="text-gray-400 text-xs mt-0.5">They'd charge ~${shopTotal.toFixed(2)}</p>
+      {items.length > 1 && serviceType && (() => {
+        const effectiveShopTotal = shopTotalOverride !== '' ? (parseFloat(shopTotalOverride) || 0) : shopTotal;
+        const effectiveSavings = effectiveShopTotal > 0 ? effectiveShopTotal - total : 0;
+        return (
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <label className="text-gray-600 text-xs font-bold uppercase tracking-widest whitespace-nowrap">Shop charges ~</label>
+              <div className="flex items-center gap-1 flex-1">
+                <span className="text-gray-500 text-sm">$</span>
+                <input
+                  type="number"
+                  value={shopTotalOverride !== '' ? shopTotalOverride : shopTotal.toFixed(2)}
+                  onChange={e => setShopTotalOverride(e.target.value)}
+                  className="bg-gray-800 border border-gray-700 text-white px-2 py-1.5 text-sm font-mono w-full focus:border-red-600 outline-none"
+                />
+              </div>
+              {shopTotalOverride !== '' && (
+                <button onClick={() => setShopTotalOverride('')} className="text-gray-600 hover:text-gray-400 text-xs whitespace-nowrap">reset</button>
+              )}
+            </div>
+            {effectiveSavings > 0 && (
+              <div className="bg-emerald-900/20 border border-emerald-700 p-4 flex items-center justify-between">
+                <div>
+                  <p className="text-emerald-400 text-xs font-bold uppercase tracking-widest">vs. Flagstaff Shops</p>
+                  <p className="text-gray-400 text-xs mt-0.5">They'd charge ~${effectiveShopTotal.toFixed(2)}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-emerald-400 text-2xl font-black">-${effectiveSavings.toFixed(2)}</p>
+                  <p className="text-emerald-600 text-[10px] font-bold uppercase">Customer Saves</p>
+                </div>
+              </div>
+            )}
           </div>
-          <div className="text-right">
-            <p className="text-emerald-400 text-2xl font-black">-${savings.toFixed(2)}</p>
-            <p className="text-emerald-600 text-[10px] font-bold uppercase">Customer Saves</p>
-          </div>
-        </div>
-      )}
+        );
+      })()}
 
       {canApply && (
         <button
-          onClick={() => onApply(items, total, shopTotal)}
+          onClick={() => {
+            const effectiveShopTotal = shopTotalOverride !== '' ? (parseFloat(shopTotalOverride) || 0) : shopTotal;
+            onApply(items, total, effectiveShopTotal);
+          }}
           className="w-full bg-red-600 hover:bg-red-500 text-white text-xs font-bold uppercase tracking-widest py-3 transition-colors"
         >
           Apply to Estimate →
@@ -1797,59 +1839,88 @@ export function EstimatePage() {
             {/* Terms */}
             <div className="bg-white/5 border border-white/10 p-4">
               <p className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-3">Terms of Service</p>
-              <ul className="space-y-2">
-                {CYA_TERMS.map((t, i) => (
+              {/* Core terms — always visible */}
+              <ul className="space-y-2 mb-3">
+                {CYA_TERMS_CORE.map((t, i) => (
                   <li key={i} className="text-gray-300 text-sm flex gap-2.5">
                     <span className="text-red-600 font-bold flex-shrink-0 mt-0.5">✓</span> {t}
                   </li>
                 ))}
               </ul>
+              {/* Extended terms — collapsible scrollable box */}
+              <details className="group">
+                <summary className="text-red-500 text-xs font-bold uppercase tracking-widest cursor-pointer select-none hover:text-red-400 transition-colors list-none flex items-center gap-1.5">
+                  <span className="group-open:hidden">▶ View all terms ({CYA_TERMS_EXTENDED.length} additional)</span>
+                  <span className="hidden group-open:inline">▼ Hide additional terms</span>
+                </summary>
+                <div
+                  className="mt-3 max-h-48 overflow-y-auto pr-1 space-y-2 scrollbar-thin"
+                  onScroll={e => {
+                    const el = e.currentTarget;
+                    if (el.scrollTop + el.clientHeight >= el.scrollHeight - 4) {
+                      (document.getElementById('sig-input') as HTMLInputElement)?.removeAttribute('disabled');
+                      document.getElementById('sig-section')?.classList.remove('opacity-40', 'pointer-events-none');
+                    }
+                  }}
+                  id="extended-terms-scroll"
+                >
+                  {CYA_TERMS_EXTENDED.map((t, i) => (
+                    <div key={i} className="text-gray-400 text-xs flex gap-2 border-b border-white/5 pb-2 last:border-0">
+                      <span className="text-gray-600 font-bold flex-shrink-0">{i + 1}.</span> {t}
+                    </div>
+                  ))}
+                  <p className="text-gray-600 text-[10px] text-center pt-1 pb-0.5">— End of terms —</p>
+                </div>
+              </details>
             </div>
 
-            {/* Pre-existing damage */}
-            <div>
-              <label className="text-gray-400 text-xs font-bold uppercase tracking-widest block mb-2">
-                Note any pre-existing damage <span className="text-gray-700 normal-case font-normal">(optional)</span>
+            {/* Pre-existing damage + signature — dimmed until extended terms scrolled */}
+            <div id="sig-section" className="space-y-4 opacity-40 pointer-events-none transition-opacity duration-300">
+              <div>
+                <label className="text-gray-400 text-xs font-bold uppercase tracking-widest block mb-2">
+                  Note any pre-existing damage <span className="text-gray-700 normal-case font-normal">(optional)</span>
+                </label>
+                <textarea
+                  value={damage}
+                  onChange={e => setDamage(e.target.value)}
+                  rows={2}
+                  placeholder="e.g. small dent on passenger door, cracked bumper…"
+                  className="bg-white/5 border border-white/10 text-white px-3 py-2 text-sm w-full focus:border-red-600 outline-none resize-none placeholder-gray-700"
+                />
+              </div>
+
+              <label className="flex items-start gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={agreed}
+                  onChange={e => setAgreed(e.target.checked)}
+                  className="mt-1 accent-red-600 w-4 h-4 flex-shrink-0"
+                />
+                <span className="text-gray-300 text-sm">I have read and agree to the above terms and authorize GID Garage to perform the described service at the quoted price.</span>
               </label>
-              <textarea
-                value={damage}
-                onChange={e => setDamage(e.target.value)}
-                rows={2}
-                placeholder="e.g. small dent on passenger door, cracked bumper…"
-                className="bg-white/5 border border-white/10 text-white px-3 py-2 text-sm w-full focus:border-red-600 outline-none resize-none placeholder-gray-700"
-              />
+
+              <div>
+                <label className="text-gray-400 text-xs font-bold uppercase tracking-widest block mb-2">Type your full name to sign</label>
+                <input
+                  id="sig-input"
+                  type="text"
+                  value={signature}
+                  onChange={e => setSignature(e.target.value)}
+                  placeholder="Full legal name"
+                  disabled
+                  className="bg-white/5 border border-white/10 text-white px-3 py-3 text-sm w-full focus:border-red-600 outline-none placeholder-gray-700"
+                />
+                <p className="text-gray-600 text-[10px] mt-1">Scroll through all terms above to unlock signature field.</p>
+              </div>
+
+              <button
+                onClick={handleSign}
+                disabled={!agreed || !signature.trim() || submitting}
+                className="w-full bg-red-600 hover:bg-red-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-black text-sm uppercase tracking-widest py-4 transition-colors"
+              >
+                {submitting ? 'Submitting…' : 'Approve Estimate'}
+              </button>
             </div>
-
-            {/* Agreement checkbox */}
-            <label className="flex items-start gap-3 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={agreed}
-                onChange={e => setAgreed(e.target.checked)}
-                className="mt-1 accent-red-600 w-4 h-4 flex-shrink-0"
-              />
-              <span className="text-gray-300 text-sm">I have read and agree to the above terms and authorize GID Garage to perform the described service at the quoted price.</span>
-            </label>
-
-            {/* Signature */}
-            <div>
-              <label className="text-gray-400 text-xs font-bold uppercase tracking-widest block mb-2">Type your full name to sign</label>
-              <input
-                type="text"
-                value={signature}
-                onChange={e => setSignature(e.target.value)}
-                placeholder="Full name"
-                className="bg-white/5 border border-white/10 text-white px-3 py-3 text-sm w-full focus:border-red-600 outline-none font-medium"
-              />
-            </div>
-
-            <button
-              onClick={handleSign}
-              disabled={!agreed || !signature.trim() || submitting}
-              className="w-full bg-red-600 hover:bg-red-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-black text-sm uppercase tracking-widest py-4 transition-colors"
-            >
-              {submitting ? 'Submitting…' : 'Approve Estimate'}
-            </button>
 
             <p className="text-gray-700 text-xs text-center">Questions before signing? Call or text us at <strong className="text-gray-600">480-757-0476</strong></p>
           </div>
