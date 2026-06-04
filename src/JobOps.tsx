@@ -70,17 +70,19 @@ export interface Job {
 // ── SUPABASE HELPERS ─────────────────────────────────────────────────────────
 
 async function sbFetch(path: string, options: RequestInit = {}) {
+  const isPatch = options.method === 'PATCH' || options.method === 'DELETE';
   const res = await fetch(`${SUPABASE_URL}/rest/v1${path}`, {
     ...options,
     headers: {
       'apikey': SUPABASE_ANON_KEY,
       'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
       'Content-Type': 'application/json',
-      'Prefer': 'return=representation',
+      'Prefer': isPatch ? 'return=minimal' : 'return=representation',
       ...(options.headers || {}),
     },
   });
   if (!res.ok) { const err = await res.text(); throw new Error(err); }
+  if (isPatch) return null;
   const text = await res.text();
   return text ? JSON.parse(text) : null;
 }
@@ -1790,7 +1792,6 @@ export function EstimatePage() {
         customer_signature: signature.trim(),
         signed_at: new Date().toISOString(),
         job_status: 'SIGNED',
-        signer_ip: signerIp,
       });
       setDone(true);
     } catch (err) {

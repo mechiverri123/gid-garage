@@ -12,13 +12,14 @@ const ADMIN_PASSWORD = '0000';
 
 // ── SUPABASE HELPERS ────────────────────────────────────────────────────────
 async function sbFetch(path: string, options: RequestInit = {}) {
+  const isPatch = options.method === 'PATCH' || options.method === 'DELETE';
   const res = await fetch(`${SUPABASE_URL}/rest/v1${path}`, {
     ...options,
     headers: {
       'apikey': SUPABASE_ANON_KEY,
       'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
       'Content-Type': 'application/json',
-      'Prefer': 'return=representation',
+      'Prefer': isPatch ? 'return=minimal' : 'return=representation',
       ...(options.headers || {}),
     },
   });
@@ -26,6 +27,7 @@ async function sbFetch(path: string, options: RequestInit = {}) {
     const err = await res.text();
     throw new Error(err);
   }
+  if (isPatch) return null;
   const text = await res.text();
   return text ? JSON.parse(text) : null;
 }
@@ -578,16 +580,112 @@ function updateLocalGarageNotes(id: string, garageNotes: string) {
 interface State {
   step: number; service: string | null; date: string | null;
   time: string | null; calYear: number; calMonth: number;
-  suspensionPart: string | null; brakeService: string | null; audioPackage: string | null;
+  suspensionPart: string | null; suspensionPosition: string | null;
+  brakeService: string | null; brakePosition: string | null; brakePadType: string | null; audioPackage: string | null;
 }
 const INIT_STATE: State = {
   step: 1, service: null, date: null, time: null,
   calYear: new Date().getFullYear(), calMonth: new Date().getMonth(),
-  suspensionPart: null, brakeService: null, audioPackage: null,
+  suspensionPart: null, suspensionPosition: null,
+  brakeService: null, brakePosition: null, brakePadType: null, audioPackage: null,
 };
 const INIT_FORM: FormData = { fname: '', lname: '', phone: '', email: '', vehicleYear: '', vehicleMake: '', vehicleModel: '', vehicleEngine: '', vehicleTrim: '', licensePlate: '', notes: '', serviceAddress: '' };
 
 export { verifyCancelToken, updateSupabaseBooking, deleteLocalBooking, sendCancellationNotification, getSupabaseBookings };
+
+// ── BRAKE PAD SELECTOR ──────────────────────────────────────────────────────
+const PAD_OPTIONS = [
+  {
+    id: 'Duralast (Economy)',
+    label: 'Economy',
+    brand: 'Duralast',
+    price: '$',
+    color: 'border-gray-600',
+    activeColor: 'border-gray-400 bg-gray-800/60',
+    details: {
+      material: 'Organic / semi-metallic blend',
+      noise: 'Moderate',
+      dust: 'Moderate',
+      life: 'Good — everyday driving',
+      best: 'Budget-conscious drivers, city/stop-and-go use',
+      note: 'A solid everyday pad. Does the job well at a lower cost.',
+    },
+  },
+  {
+    id: 'Duralast Gold (Ceramic)',
+    label: 'Ceramic',
+    brand: 'Duralast Gold',
+    price: '$$',
+    color: 'border-yellow-700',
+    activeColor: 'border-yellow-500 bg-yellow-900/20',
+    details: {
+      material: 'Ceramic compound',
+      noise: 'Very low — quieter stop',
+      dust: 'Low — cleaner wheels',
+      life: 'Excellent — lasts longer',
+      best: 'Daily drivers who want a cleaner, quieter ride',
+      note: 'Our most popular choice. Better performance, less dust, longer life — worth the upgrade.',
+    },
+  },
+];
+
+function BrakePadSelector({ value, onChange }: { value: string | null; onChange: (v: string) => void }) {
+  const [infoOpen, setInfoOpen] = useState<string | null>(null);
+
+  return (
+    <div>
+      <div className="flex items-center gap-2 mb-2">
+        <label className="block text-gray-500 text-xs font-bold uppercase tracking-wider">Pad Type</label>
+        <span className="text-gray-600 text-xs">(optional)</span>
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        {PAD_OPTIONS.map(pad => (
+          <div key={pad.id} className={`border-2 transition-all cursor-pointer ${value === pad.id ? pad.activeColor : pad.color + ' bg-gray-900/50'}`}>
+            <button
+              type="button"
+              onClick={() => onChange(value === pad.id ? '' : pad.id)}
+              className="w-full text-left p-3"
+            >
+              <div className="flex items-start justify-between gap-1">
+                <div>
+                  <div className="text-white text-sm font-bold">{pad.label}</div>
+                  <div className="text-gray-500 text-xs">{pad.brand}</div>
+                </div>
+                <div className="flex items-center gap-1.5 flex-shrink-0">
+                  <span className="text-gray-500 text-xs font-mono">{pad.price}</span>
+                  <button
+                    type="button"
+                    onClick={e => { e.stopPropagation(); setInfoOpen(infoOpen === pad.id ? null : pad.id); }}
+                    className="w-5 h-5 rounded-full border border-gray-600 text-gray-400 hover:border-red-500 hover:text-red-400 flex items-center justify-center text-[10px] font-bold transition-colors flex-shrink-0"
+                    aria-label={`Info about ${pad.label}`}
+                  >i</button>
+                </div>
+              </div>
+            </button>
+            {infoOpen === pad.id && (
+              <div className="border-t border-gray-700 bg-gray-950 px-3 py-3 space-y-1.5">
+                {[
+                  ['Material', pad.details.material],
+                  ['Noise', pad.details.noise],
+                  ['Dust', pad.details.dust],
+                  ['Lifespan', pad.details.life],
+                  ['Best for', pad.details.best],
+                ].map(([k, v]) => (
+                  <div key={k} className="flex gap-2">
+                    <span className="text-gray-600 text-[10px] font-bold uppercase tracking-wider w-14 flex-shrink-0 pt-px">{k}</span>
+                    <span className="text-gray-300 text-xs leading-snug">{v}</span>
+                  </div>
+                ))}
+                <p className="text-red-400/80 text-[10px] leading-snug mt-1 pt-1 border-t border-gray-800">{pad.details.note}</p>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+      <p className="text-gray-600 text-xs mt-1.5">Not sure? We'll recommend the right fit for your vehicle when we follow up.</p>
+    </div>
+  );
+}
 
 export default function BookingWidget({ autoOpen, preselectedService, onClose }: { autoOpen?: boolean; preselectedService?: string; onClose?: () => void } = {}) {
   const [open, setOpen] = useState(!!autoOpen);
@@ -690,8 +788,8 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
       notes: [
         `Address: ${form.serviceAddress}`,
         form.licensePlate ? `Plate/VIN: ${form.licensePlate}` : '',
-        s.suspensionPart ? `Suspension: ${SUSPENSION_LABELS[s.suspensionPart] ?? s.suspensionPart.replace(/_/g, ' ')}` : '',
-        s.brakeService ? `Brake service: ${BRAKE_LABELS[s.brakeService] ?? s.brakeService.replace(/_/g, ' ')}` : '',
+        s.suspensionPart ? `Suspension: ${SUSPENSION_LABELS[s.suspensionPart] ?? s.suspensionPart.replace(/_/g, ' ')}${s.suspensionPosition ? ` (${s.suspensionPosition})` : ''}` : '',
+        s.brakeService ? `Brake service: ${BRAKE_LABELS[s.brakeService] ?? s.brakeService.replace(/_/g, ' ')}${s.brakePosition ? ` (${s.brakePosition})` : ''}${s.brakePadType ? ` — ${s.brakePadType}` : ''}` : '',
         s.audioPackage ? `Audio package: ${AUDIO_LABELS[s.audioPackage] ?? s.audioPackage}` : '',
         form.notes,
       ].filter(Boolean).join(' | '),
@@ -776,32 +874,78 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
                 </div>
 
                 {s.service === 'suspension' && (
-                  <div className="mt-3">
-                    <label className="block text-gray-500 text-xs font-bold uppercase tracking-wider mb-1.5">What are you looking to replace?</label>
-                    <select value={s.suspensionPart ?? ''} onChange={e => setS(p => ({ ...p, suspensionPart: e.target.value }))}
-                      className="w-full bg-gray-900 border border-gray-800 text-white text-sm px-3 py-2.5 outline-none focus:border-red-600 transition-colors">
-                      <option value="">Select a part...</option>
-                      <option value="shocks">Shocks</option>
-                      <option value="struts">Struts</option>
-                      <option value="control_arms">Control Arms</option>
-                      <option value="tie_rods">Tie Rods</option>
-                      <option value="cv_axles">CV Axles</option>
-                    </select>
-                    <p className="text-gray-600 text-xs mt-1">Pricing varies per vehicle — get a free estimate when you book!</p>
+                  <div className="mt-3 space-y-3">
+                    <div>
+                      <label className="block text-gray-500 text-xs font-bold uppercase tracking-wider mb-1.5">What are you looking to replace?</label>
+                      <select value={s.suspensionPart ?? ''} onChange={e => setS(p => ({ ...p, suspensionPart: e.target.value, suspensionPosition: null }))}
+                        className="w-full bg-gray-900 border border-gray-800 text-white text-sm px-3 py-2.5 outline-none focus:border-red-600 transition-colors">
+                        <option value="">Select a part...</option>
+                        <option value="shocks">Shocks</option>
+                        <option value="struts">Struts</option>
+                        <option value="control_arms">Control Arms</option>
+                        <option value="tie_rods">Tie Rods</option>
+                        <option value="cv_axles">CV Axles</option>
+                      </select>
+                    </div>
+                    {s.suspensionPart && (
+                      <div>
+                        <label className="block text-gray-500 text-xs font-bold uppercase tracking-wider mb-1.5">Which ones?</label>
+                        <select value={s.suspensionPosition ?? ''} onChange={e => setS(p => ({ ...p, suspensionPosition: e.target.value }))}
+                          className="w-full bg-gray-900 border border-gray-800 text-white text-sm px-3 py-2.5 outline-none focus:border-red-600 transition-colors">
+                          <option value="">Select position...</option>
+                          <option value="Both Fronts">Both Fronts</option>
+                          <option value="Both Rears">Both Rears</option>
+                          <option value="Front Left">Front Left</option>
+                          <option value="Front Right">Front Right</option>
+                          <option value="Rear Left">Rear Left</option>
+                          <option value="Rear Right">Rear Right</option>
+                        </select>
+                        <div className="mt-2 bg-blue-950/40 border border-blue-800/40 px-3 py-2 text-blue-300/80 text-xs leading-relaxed">
+                          💡 We recommend replacing in pairs (both fronts or both rears) for optimal performance and even wear.
+                        </div>
+                      </div>
+                    )}
+                    <p className="text-gray-600 text-xs">Pricing varies per vehicle — get a free estimate when you book!</p>
                   </div>
                 )}
 
                 {s.service === 'brakes' && (
-                  <div className="mt-3">
-                    <label className="block text-gray-500 text-xs font-bold uppercase tracking-wider mb-1.5">What brake service do you need?</label>
-                    <select value={s.brakeService ?? ''} onChange={e => setS(p => ({ ...p, brakeService: e.target.value }))}
-                      className="w-full bg-gray-900 border border-gray-800 text-white text-sm px-3 py-2.5 outline-none focus:border-red-600 transition-colors">
-                      <option value="">Select a service...</option>
-                      <option value="pads">Brake Pads Only — Starting at $139.99</option>
-                      <option value="pads_rotors">Brake Pads + Rotors — Starting at $549.99</option>
-                      <option value="full">Full Service: Pads + Rotors + Fluid Flush &amp; Inspection — Starting at $649.99</option>
-                    </select>
-                    <p className="text-gray-600 text-xs mt-1">Pricing varies per vehicle — get a free estimate when you book!</p>
+                  <div className="mt-3 space-y-3">
+                    <div>
+                      <label className="block text-gray-500 text-xs font-bold uppercase tracking-wider mb-1.5">What brake service do you need?</label>
+                      <select value={s.brakeService ?? ''} onChange={e => setS(p => ({ ...p, brakeService: e.target.value, brakePosition: null, brakePadType: null }))}
+                        className="w-full bg-gray-900 border border-gray-800 text-white text-sm px-3 py-2.5 outline-none focus:border-red-600 transition-colors">
+                        <option value="">Select a service...</option>
+                        <option value="pads">Brake Pads Only — Starting at $139.99</option>
+                        <option value="pads_rotors">Brake Pads + Rotors — Starting at $549.99</option>
+                        <option value="full">Full Service: Pads + Rotors + Fluid Flush &amp; Inspection — Starting at $649.99</option>
+                      </select>
+                    </div>
+                    {s.brakeService && (
+                      <div>
+                        <label className="block text-gray-500 text-xs font-bold uppercase tracking-wider mb-1.5">Which ones?</label>
+                        <select value={s.brakePosition ?? ''} onChange={e => setS(p => ({ ...p, brakePosition: e.target.value }))}
+                          className="w-full bg-gray-900 border border-gray-800 text-white text-sm px-3 py-2.5 outline-none focus:border-red-600 transition-colors">
+                          <option value="">Select position...</option>
+                          <option value="Both Fronts">Both Fronts</option>
+                          <option value="Both Rears">Both Rears</option>
+                          <option value="Front Left">Front Left</option>
+                          <option value="Front Right">Front Right</option>
+                          <option value="Rear Left">Rear Left</option>
+                          <option value="Rear Right">Rear Right</option>
+                        </select>
+                        <div className="mt-2 bg-blue-950/40 border border-blue-800/40 px-3 py-2 text-blue-300/80 text-xs leading-relaxed">
+                          💡 We recommend replacing brakes in pairs (both fronts or both rears) for optimal performance and even wear.
+                        </div>
+                      </div>
+                    )}
+                    {s.brakePosition && (
+                      <BrakePadSelector
+                        value={s.brakePadType}
+                        onChange={v => setS(p => ({ ...p, brakePadType: v }))}
+                      />
+                    )}
+                    <p className="text-gray-600 text-xs">Pricing varies per vehicle — get a free estimate when you book!</p>
                   </div>
                 )}
 
