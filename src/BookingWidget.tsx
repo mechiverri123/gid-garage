@@ -1120,10 +1120,14 @@ export function AdminSchedule() {
 
   useEffect(() => {
     if (!unlocked) return;
-    const dataInterval = setInterval(() => { getSupabaseBookings().then(setBookings); }, 5 * 60 * 1000);
-    const reloadInterval = setInterval(() => { window.location.reload(); }, 5 * 60 * 1000);
-    return () => { clearInterval(dataInterval); clearInterval(reloadInterval); };
-  }, [unlocked]);
+    // Only auto-refresh booking data when on schedule tab — never reload the page
+    const dataInterval = setInterval(() => {
+      if (adminTab === 'schedule') {
+        getSupabaseBookings().then(setBookings);
+      }
+    }, 5 * 60 * 1000);
+    return () => clearInterval(dataInterval);
+  }, [unlocked, adminTab]);
 
   if (!unlocked) return <AdminPasswordGate onUnlock={() => setUnlocked(true)} />;
 
