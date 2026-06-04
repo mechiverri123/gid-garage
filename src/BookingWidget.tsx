@@ -1465,7 +1465,8 @@ export function AdminSchedule() {
                 className="border border-yellow-700 text-yellow-600 hover:border-yellow-500 hover:text-yellow-400 text-xs font-bold uppercase tracking-widest px-4 py-2 transition-colors">🔔 Enable Alerts</button>
             )}
             {notifPerm === 'granted' && (
-              <span className="text-xs text-green-600 font-bold uppercase tracking-widest">🔔 Alerts On</span>
+              <button onClick={requestNotifications}
+                className="text-xs text-green-600 font-bold uppercase tracking-widest">🔔 Alerts On</button>
             )}
             <button onClick={() => getSupabaseBookings().then(setBookings)}
               className="border border-gray-700 text-gray-400 hover:border-red-600 hover:text-white text-xs font-bold uppercase tracking-widest px-4 py-2 transition-colors">↻ Refresh</button>
