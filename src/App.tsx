@@ -16,13 +16,13 @@ const services = [
   {
     id: 'brakes',
     title: 'Brakes',
-    desc: 'Pad replacement, rotor resurfacing, and complete brake system service. Starting at $149.99/axle — Flagstaff shops average $240–320+/axle.',
+    desc: 'Pad replacement, rotor replacement, and complete brake system service. Starting at $149.99/axle — Flagstaff shops average $240–320+/axle.',
     badge: null,
   },
   {
     id: 'diag',
     title: 'Diagnostics',
-    desc: 'OBD2 scan, code pull, and repair recommendation — $89.99 flat. Flagstaff shops charge $130–170 for the same scan.',
+    desc: '$89.99 flat. We come to you, pull and interpret your OBD2 codes, and give you a clear explanation of what\'s wrong and what it\'ll take to fix it — no dealer visit, no upselling. Includes a full visual inspection.',
     badge: null,
   },
   {
@@ -133,7 +133,7 @@ function ServiceCard({ s, onBookService }: { s: typeof services[0]; onBookServic
   const brakeItems = [
     { label: 'Brake Pads Only (per axle)', detail: 'Starting at $149.99 · Shops avg $240–320/axle' },
     { label: 'Brake Pads + Rotors (per axle)', detail: 'Starting at $269.99 · Shops avg $420–600/axle' },
-    { label: 'Full Service — Pads + Rotors + Fluid Flush (per axle)', detail: 'Starting at $319.99 · Shops avg $520–700/axle' },
+    { label: 'Full Service — Pads + Rotor Replacement + Fluid Flush (per axle)', detail: 'Starting at $319.99 · Shops avg $520–700/axle' },
   ];
 
   const audioItems = [
