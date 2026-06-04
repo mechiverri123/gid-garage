@@ -367,6 +367,8 @@ function PhotoGallery() {
     { src: '/photo-brakes.jpg', alt: 'Brake service' },
     { src: '/magnaride.jpg', alt: 'Magnaride suspension work' },
     { src: '/rav4shocks.jpg', alt: 'RAV4 shock replacement' },
+    { src: '/rotor_before.jpg', alt: 'Rotor before service' },
+    { src: '/rotor_after.jpg', alt: 'Rotor after service' },
   ];
 
   const [current, setCurrent] = useState(0);
