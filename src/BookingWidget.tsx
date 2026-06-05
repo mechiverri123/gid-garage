@@ -156,8 +156,8 @@ interface Booking {
   notes: string;
   garageNotes: string;
   status: 'pending' | 'confirmed' | 'completed' | 'cancelled';
-  createdAt: string;
   stripeCustomerId?: string;
+  createdAt: string;
 }
 
 interface FormData {
@@ -1044,7 +1044,7 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
   async function handleFinalSubmit(customerId: string | null = null, last4: string | null = null) {
     if (!s.service || !s.date || !s.time || !svc || !s.bookingId) return;
     setSubmitting(true);
-    // Flip status to confirmed now that card step is complete, attach stripe fields
+    // save-card worker already set status+stripe fields server-side; this is belt-and-suspenders
     try {
       await sbFetch(`/bookings?id=eq.${s.bookingId}`, {
         method: 'PATCH',
@@ -1628,14 +1628,14 @@ export function AdminSchedule() {
     if (!unlocked) return;
     setLoading(true);
 
-    // Initial load — seed seenBookingIds so existing bookings never fire notifications
+    // Seed seenBookingIds on initial load — existing bookings never trigger notifications
     getSupabaseBookings().then(data => {
       seenBookingIds.current = new Set(data.map(b => b.id));
       setBookings(data);
       setLoading(false);
     });
 
-    // Poll every 5 min — only notify for IDs we haven't seen before
+    // Poll every 5 min — only notify for bookings that have a card saved (stripeCustomerId)
     const dataInterval = setInterval(async () => {
       const fresh = await getSupabaseBookings();
       if (seenBookingIds.current) {

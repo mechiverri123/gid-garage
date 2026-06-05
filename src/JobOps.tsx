@@ -137,7 +137,7 @@ async function writePaymentEvent(
         error_message: errorMessage ?? null,
       }),
     });
-  } catch { /* non-critical — don't block UI */ }
+  } catch { /* non-critical */ }
 }
 
 export async function getAllJobs(): Promise<Job[]> {
@@ -1685,7 +1685,6 @@ export function JobsTab() {
   useEffect(() => {
     getAllJobs().then(data => { setJobs(data); setLoading(false); });
 
-    // Poll every 10s — catches SIGNED status, new bookings, and payment events
     const interval = setInterval(async () => {
       const fresh = await getAllJobs();
       setJobs(fresh);
