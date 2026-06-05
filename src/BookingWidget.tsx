@@ -982,7 +982,7 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
   const [submitError, setSubmitError] = useState<string | null>(null);
 
   // Validate step 4 and advance to card step
-  function handleAdvanceToCard() {
+  async function handleAdvanceToCard() {
     const errors: Record<string, string> = {};
     if (!form.fname) errors.fname = 'First name is required';
     if (!form.phone) errors.phone = 'Phone number is required';
@@ -994,19 +994,12 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
     if (Object.keys(errors).length > 0) { setFieldErrors(errors); return; }
     setFieldErrors({});
     setSubmitError(null);
-    setS(p => ({ ...p, step: 5, bookingId: p.bookingId ?? `GID-${Date.now()}` }));
-  }
-
-  function handleCardSaved(token: string, last4: string) {
-    setS(p => ({ ...p, cardToken: token, cardLast4: last4 }));
-    handleFinalSubmit(token, last4);
-  }
-
-  async function handleFinalSubmit(cardToken: string | null = null, cardLast4: string | null = null) {
     if (!s.service || !s.date || !s.time || !svc) return;
-    setSubmitting(true);
+
+    // Generate ID and insert booking into Supabase NOW so the card worker can patch it
+    const bookingId = s.bookingId ?? `GID-${Date.now()}`;
     const booking: Booking = {
-      id: s.bookingId ?? `GID-${Date.now()}`,
+      id: bookingId,
       service: s.service, serviceIcon: svc.icon,
       date: s.date, time: s.time,
       fname: form.fname, lname: form.lname, phone: form.phone, email: form.email,
@@ -1017,20 +1010,18 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
         s.suspensionPart ? `Suspension: ${SUSPENSION_LABELS[s.suspensionPart] ?? s.suspensionPart.replace(/_/g, ' ')}${s.suspensionPosition ? ` (${s.suspensionPosition})` : ''}` : '',
         s.brakeService ? `Brake service: ${BRAKE_LABELS[s.brakeService] ?? s.brakeService.replace(/_/g, ' ')}${s.brakePosition ? ` (${s.brakePosition})` : ''}${s.brakePadType ? ` — ${s.brakePadType}` : ''}` : '',
         s.audioPackage ? `Audio package: ${AUDIO_LABELS[s.audioPackage] ?? s.audioPackage}` : '',
-        cardToken ? `Card on file: ****${cardLast4} (token: ${cardToken})` : 'No card on file',
         form.notes,
       ].filter(Boolean).join(' | '),
       garageNotes: '',
       status: 'confirmed',
       createdAt: new Date().toISOString(),
     };
+
     saveLocalBooking(booking);
     try {
       await insertSupabaseBooking(booking);
     } catch (e: any) {
-      deleteLocalBooking(booking.id);
-      setSubmitting(false);
-      // Unique constraint violation = slot was just taken
+      deleteLocalBooking(bookingId);
       if (e?.message?.includes('unique') || e?.message?.includes('duplicate') || e?.message?.includes('23505')) {
         setSubmitError('Sorry, that time slot was just booked by someone else. Please go back and choose a different time.');
       } else {
@@ -1038,6 +1029,30 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
       }
       return;
     }
+
+    setS(p => ({ ...p, step: 5, bookingId }));
+  }
+
+  function handleCardSaved(customerId: string, last4: string) {
+    setS(p => ({ ...p, cardToken: customerId, cardLast4: last4 }));
+    handleFinalSubmit(customerId, last4);
+  }
+
+  async function handleFinalSubmit(customerId: string | null = null, last4: string | null = null) {
+    if (!s.service || !s.date || !s.time || !svc || !s.bookingId) return;
+    setSubmitting(true);
+    // Booking already inserted — just send confirmation email
+    const booking: Booking = {
+      id: s.bookingId,
+      service: s.service, serviceIcon: svc.icon,
+      date: s.date, time: s.time,
+      fname: form.fname, lname: form.lname, phone: form.phone, email: form.email,
+      vehicle: vehicleString(form),
+      notes: '',
+      garageNotes: '',
+      status: 'confirmed',
+      createdAt: new Date().toISOString(),
+    };
     try { await sendEmail(booking); } catch (e) { console.warn('Email send failed', e); }
     setSubmitting(false);
     setSubmitted(true);
