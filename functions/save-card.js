@@ -64,6 +64,7 @@ export async function onRequestPost({ request, env }) {
       body: JSON.stringify({
         stripe_customer_id: customer.id,
         stripe_last4: last4,
+        status: 'confirmed',
       }),
     });
 
