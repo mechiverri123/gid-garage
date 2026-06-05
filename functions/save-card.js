@@ -67,12 +67,17 @@ export async function onRequestPost({ request, env }) {
       }),
     });
 
+    const sbBody = await sbRes.text();
     if (!sbRes.ok) {
-      const err = await sbRes.text();
-      console.error('Supabase patch failed:', err);
+      console.error('Supabase patch failed:', sbRes.status, sbBody);
     }
 
-    return new Response(JSON.stringify({ customerId: customer.id, last4 }), {
+    return new Response(JSON.stringify({ 
+      customerId: customer.id, 
+      last4,
+      supabaseStatus: sbRes.status,
+      supabaseBody: sbBody,
+    }), {
       status: 200,
       headers: { 'Content-Type': 'application/json', ...corsHeaders },
     });
