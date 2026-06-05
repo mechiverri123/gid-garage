@@ -813,7 +813,7 @@ function CardOnFileStep({ serviceId, audioPackage, onCardSaved, onSkip, onSubmit
         {[
           { icon: '🔒', label: 'Encrypted', sub: 'Stripe-secured' },
           { icon: '💳', label: 'Not Charged', sub: 'Until job is done' },
-          { icon: '✓', label: 'You're in Control', sub: 'Cancel anytime' },
+          { icon: '✓', label: "You're in Control", sub: 'Cancel anytime' },
         ].map(t => (
           <div key={t.label} className="bg-gray-900 border border-gray-800 p-3 text-center">
             <div className="text-xl mb-1">{t.icon}</div>
