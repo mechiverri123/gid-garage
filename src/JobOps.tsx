@@ -141,7 +141,7 @@ async function writePaymentEvent(
 }
 
 export async function getAllJobs(): Promise<Job[]> {
-  const data = await sbFetch('/bookings?select=*&order=date.desc,time.desc');
+  const data = await sbFetch('/bookings?select=*&status=not.in.(pending,cancelled)&order=date.desc,time.desc');
   return (data || []).map(mapJob);
 }
 

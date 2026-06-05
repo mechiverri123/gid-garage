@@ -80,9 +80,10 @@ async function insertSupabaseBooking(b: Booking): Promise<void> {
 }
 
 async function updateSupabaseBooking(id: string, status: Booking['status']): Promise<void> {
+  const extra = status === 'cancelled' ? { job_status: 'CANCELLED' } : {};
   await sbFetch(`/bookings?id=eq.${id}`, {
     method: 'PATCH',
-    body: JSON.stringify({ status }),
+    body: JSON.stringify({ status, ...extra }),
   });
 }
 
@@ -1636,8 +1637,11 @@ export function AdminSchedule() {
     const dataInterval = setInterval(async () => {
       const fresh = await getSupabaseBookings();
       if (seenBookingIds.current) {
+        const sixMinutesAgo = Date.now() - 6 * 60 * 1000;
         const newOnes = fresh.filter(
-          b => !seenBookingIds.current!.has(b.id) && b.status === 'confirmed'
+          b => !seenBookingIds.current!.has(b.id)
+            && b.status === 'confirmed'
+            && new Date(b.createdAt).getTime() > sixMinutesAgo
         );
         newOnes.forEach(b => seenBookingIds.current!.add(b.id));
         if (newOnes.length > 0 && Notification.permission === 'granted' && 'serviceWorker' in navigator) {
