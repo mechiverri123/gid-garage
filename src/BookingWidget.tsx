@@ -1013,7 +1013,7 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
         form.notes,
       ].filter(Boolean).join(' | '),
       garageNotes: '',
-      status: 'confirmed',
+      status: 'pending' as any,
       createdAt: new Date().toISOString(),
     };
 
@@ -1041,7 +1041,17 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
   async function handleFinalSubmit(customerId: string | null = null, last4: string | null = null) {
     if (!s.service || !s.date || !s.time || !svc || !s.bookingId) return;
     setSubmitting(true);
-    // Booking already inserted — just send confirmation email
+    // Flip status to confirmed now that card step is complete, attach stripe fields
+    try {
+      await sbFetch(`/bookings?id=eq.${s.bookingId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          status: 'confirmed',
+          ...(customerId ? { stripe_customer_id: customerId } : {}),
+          ...(last4 ? { stripe_last4: last4 } : {}),
+        }),
+      });
+    } catch (e) { console.warn('Status update failed', e); }
     const booking: Booking = {
       id: s.bookingId,
       service: s.service, serviceIcon: svc.icon,
