@@ -1619,20 +1619,27 @@ export function AdminSchedule() {
     }
   }
 
-  useEffect(() => {
-    if (!unlocked) return;
-    setLoading(true);
-    getSupabaseBookings().then(data => { setBookings(data); setLoading(false); });
-  }, [unlocked]);
+  const seenBookingIds = useRef<Set<string> | null>(null);
 
   useEffect(() => {
     if (!unlocked) return;
-    // Only auto-refresh booking data when on schedule tab — never reload the page
+    setLoading(true);
+
+    // Initial load — seed seenBookingIds so existing bookings never fire notifications
+    getSupabaseBookings().then(data => {
+      seenBookingIds.current = new Set(data.map(b => b.id));
+      setBookings(data);
+      setLoading(false);
+    });
+
+    // Poll every 5 min — only notify for IDs we haven't seen before
     const dataInterval = setInterval(async () => {
       const fresh = await getSupabaseBookings();
-      setBookings(prev => {
-        const prevIds = new Set(prev.map(b => b.id));
-        const newOnes = fresh.filter(b => !prevIds.has(b.id) && b.status === 'confirmed');
+      if (seenBookingIds.current) {
+        const newOnes = fresh.filter(
+          b => !seenBookingIds.current!.has(b.id) && b.status === 'confirmed'
+        );
+        newOnes.forEach(b => seenBookingIds.current!.add(b.id));
         if (newOnes.length > 0 && Notification.permission === 'granted' && 'serviceWorker' in navigator) {
           navigator.serviceWorker.ready.then(reg => {
             newOnes.forEach(b => {
@@ -1645,9 +1652,10 @@ export function AdminSchedule() {
             });
           });
         }
-        return fresh;
-      });
+      }
+      setBookings(fresh);
     }, 5 * 60 * 1000);
+
     return () => clearInterval(dataInterval);
   }, [unlocked]);
 
