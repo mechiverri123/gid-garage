@@ -853,10 +853,12 @@ function CardOnFileStep({ serviceId, audioPackage, bookingId, customerName, cust
 
           {/* Stripe trust block */}
           <div className="bg-gray-950 border border-gray-800 px-4 py-3 mb-4 flex items-start gap-3">
-            {/* Official Stripe wordmark SVG */}
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 60 25" className="w-10 flex-shrink-0 mt-0.5" aria-label="Stripe">
-              <path fill="#635BFF" d="M59.64 14.28h-8.06c.19 1.93 1.6 2.55 3.2 2.55 1.64 0 2.96-.37 4.05-.95v3.32a8.33 8.33 0 0 1-4.56 1.1c-4.01 0-6.83-2.5-6.83-7.48 0-4.19 2.39-7.52 6.3-7.52 3.92 0 5.96 3.28 5.96 7.5 0 .4-.04 1.26-.06 1.48zm-5.92-5.62c-1.03 0-2.17.73-2.17 2.58h4.25c0-1.85-1.07-2.58-2.08-2.58zM40.95 20.3c-1.44 0-2.32-.6-2.9-1.04l-.02 4.63-4.44.94V6.27h3.94l.18 1.06c.55-.73 1.57-1.38 3.18-1.38 3.51 0 6.03 3.04 6.03 7.4 0 4.23-2.5 6.95-6.97 6.95zM40 9.54c-.85 0-1.44.3-1.95.75l.02 5.65c.48.42 1.05.72 1.93.72 1.56 0 2.5-1.44 2.5-3.6 0-2.07-.97-3.52-2.5-3.52zM28.24 5.07c-1.44 0-2.38 1.07-2.38 2.35S26.8 9.7 28.24 9.7c1.44 0 2.38-1.07 2.38-2.35s-.94-2.28-2.38-2.28zM26.02 20.15V6.27h4.44v13.88h-4.44zM17.56 20.15V6.27h4.44l.02 13.88h-4.46zM22.02 4.2c0 1.3-1.07 2.35-2.44 2.35-1.38 0-2.44-1.05-2.44-2.35S18.2 1.85 19.58 1.85s2.44 1.05 2.44 2.35zM8.56 20.3c-2.44 0-4.5-.48-6.03-1.44l1.5-3.22c1.32.8 3.13 1.34 4.65 1.34 1.15 0 1.67-.37 1.67-.97 0-.67-.67-.94-2.48-1.46C5.3 13.87 2.7 12.87 2.7 9.6c0-3.5 2.9-3.93 5.22-3.93 2.12 0 4.02.52 5.4 1.3l-1.42 3.2c-1.1-.67-2.7-1.15-3.98-1.15-.9 0-1.45.3-1.45.88 0 .65.67.88 2.6 1.46 2.63.8 5.1 1.85 5.1 5.05 0 3.5-2.75 4.9-5.61 4.9z"/>
-            </svg>
+            {/* Stripe official hosted badge */}
+            <img
+              src="https://upload.wikimedia.org/wikipedia/commons/b/ba/Stripe_Logo%2C_revised_2016.svg"
+              alt="Stripe"
+              className="w-12 flex-shrink-0 mt-0.5 opacity-90"
+            />
             <div>
               <p className="text-gray-300 text-xs font-semibold mb-0.5">Payment secured by Stripe</p>
               <p className="text-gray-500 text-[10px] leading-relaxed">
