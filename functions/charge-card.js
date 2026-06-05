@@ -1,22 +1,15 @@
 // Cloudflare Pages Function — runs server-side
 // POST /charge-card  { customerId, amountCents, description, bookingId }
-// → Charges the Stripe customer's saved card, updates Supabase with transaction ID
+// → Charges the Stripe customer's saved card, updates Supabase
 
-interface Env {
-  STRIPE_SECRET_KEY: string;
-  SUPABASE_URL: string;
-  VITE_SUPABASE_URL: string;
-  SUPABASE_SERVICE_KEY: string;
-}
-
-export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
+export async function onRequestPost({ request, env }) {
   const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Headers': 'Content-Type',
   };
 
   try {
-    const { customerId, amountCents, description, bookingId } = await request.json() as any;
+    const { customerId, amountCents, description, bookingId } = await request.json();
 
     if (!customerId || !amountCents || !bookingId) {
       return new Response(JSON.stringify({ error: 'Missing required fields' }), {
@@ -30,17 +23,18 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
       });
     }
 
-    // Idempotency key = bookingId + amount — same combo can never produce two charges
-    const idempotencyKey = `${bookingId}-${amountCents}`;
+    const supabaseUrl = env.SUPABASE_URL ?? env.VITE_SUPABASE_URL;
+    const stripeKey = env.STRIPE_SECRET_KEY;
+    const supabaseKey = env.SUPABASE_SERVICE_KEY;
 
-    // Check if already paid in Supabase before even hitting Stripe
-    const checkRes = await fetch(`${env.SUPABASE_URL ?? env.VITE_SUPABASE_URL}/rest/v1/bookings?id=eq.${bookingId}&select=job_status,stripe_transaction_id`, {
+    // Check if already paid
+    const checkRes = await fetch(`${supabaseUrl}/rest/v1/bookings?id=eq.${bookingId}&select=job_status,stripe_transaction_id`, {
       headers: {
-        apikey: env.SUPABASE_SERVICE_KEY,
-        Authorization: `Bearer ${env.SUPABASE_SERVICE_KEY}`,
+        apikey: supabaseKey,
+        Authorization: `Bearer ${supabaseKey}`,
       },
     });
-    const rows = await checkRes.json() as any[];
+    const rows = await checkRes.json();
     if (rows?.[0]?.job_status === 'PAID') {
       return new Response(JSON.stringify({
         error: 'already_paid',
@@ -49,13 +43,15 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
       }), { status: 409, headers: { 'Content-Type': 'application/json', ...corsHeaders } });
     }
 
-    // Charge the customer's saved card
+    // Idempotency key — same booking + amount can never double charge
+    const idempotencyKey = `${bookingId}-${amountCents}`;
+
     const chargeRes = await fetch('https://api.stripe.com/v1/charges', {
       method: 'POST',
       headers: {
-        Authorization: `Bearer ${env.STRIPE_SECRET_KEY}`,
+        Authorization: `Bearer ${stripeKey}`,
         'Content-Type': 'application/x-www-form-urlencoded',
-        'Idempotency-Key': idempotencyKey, // Stripe deduplicates on this — same key = same charge returned, no duplicate
+        'Idempotency-Key': idempotencyKey,
       },
       body: new URLSearchParams({
         amount: String(amountCents),
@@ -65,15 +61,15 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
       }).toString(),
     });
 
-    const charge = await chargeRes.json() as any;
+    const charge = await chargeRes.json();
     if (charge.error) throw new Error(charge.error.message);
 
-    // Update Supabase — mark paid, save transaction ID
-    await fetch(`${env.SUPABASE_URL ?? env.VITE_SUPABASE_URL}/rest/v1/bookings?id=eq.${bookingId}`, {
+    // Update Supabase
+    await fetch(`${supabaseUrl}/rest/v1/bookings?id=eq.${bookingId}`, {
       method: 'PATCH',
       headers: {
-        apikey: env.SUPABASE_SERVICE_KEY,
-        Authorization: `Bearer ${env.SUPABASE_SERVICE_KEY}`,
+        apikey: supabaseKey,
+        Authorization: `Bearer ${supabaseKey}`,
         'Content-Type': 'application/json',
         Prefer: 'return=minimal',
       },
@@ -95,15 +91,15 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
       headers: { 'Content-Type': 'application/json', ...corsHeaders },
     });
 
-  } catch (err: any) {
+  } catch (err) {
     console.error('charge-card error:', err);
     return new Response(JSON.stringify({ error: err.message ?? 'Charge failed' }), {
       status: 500, headers: { 'Content-Type': 'application/json', ...corsHeaders },
     });
   }
-};
+}
 
-export const onRequestOptions: PagesFunction = async () => {
+export async function onRequestOptions() {
   return new Response(null, {
     headers: {
       'Access-Control-Allow-Origin': '*',
@@ -111,4 +107,4 @@ export const onRequestOptions: PagesFunction = async () => {
       'Access-Control-Allow-Headers': 'Content-Type',
     },
   });
-};
+}
