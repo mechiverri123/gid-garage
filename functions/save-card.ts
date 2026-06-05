@@ -33,7 +33,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
       body: new URLSearchParams({
         ...(name ? { name } : {}),
         ...(email ? { email } : {}),
-        metadata: JSON.stringify({ bookingId }),
+        'metadata[booking_id]': bookingId,
       }).toString(),
     });
     const customer = await customerRes.json() as any;

@@ -817,14 +817,14 @@ function CardOnFileStep({ serviceId, audioPackage, bookingId, customerName, cust
         <div className="mb-5 bg-yellow-950/30 border border-yellow-700/50 border-l-4 border-l-yellow-500 px-4 py-4">
           <p className="text-yellow-300 text-sm font-bold mb-1">Parts Need to Be Sourced</p>
           <p className="text-yellow-200/70 text-xs leading-relaxed">
-            This service requires us to order parts for your vehicle. A card on file is required to secure your appointment — <span className="text-yellow-300 font-semibold">you won't be charged until we confirm parts availability and pricing with you first.</span>
+            This service requires us to order parts for your vehicle. A card on file secures your appointment — <span className="text-yellow-300 font-semibold">you won't be charged until the job is complete.</span> We'll confirm parts availability and final pricing with you before we begin.
           </p>
         </div>
       ) : (
         <div className="mb-5 bg-gray-900/60 border border-gray-700 border-l-4 border-l-red-600 px-4 py-4">
-          <p className="text-white text-sm font-bold mb-1">No Charge Today</p>
+          <p className="text-white text-sm font-bold mb-1">No Charge Until the Job Is Done</p>
           <p className="text-gray-400 text-xs leading-relaxed">
-            We save your card so we can charge you after the job is done — no surprises. <span className="text-gray-300 font-semibold">Your card is not charged now.</span> This is just so you don't have to fumble with payment when we're done under your hood.
+            We save your card to make checkout seamless — <span className="text-gray-300 font-semibold">nothing is charged until your service is complete.</span> You'll know the final price before we ever touch your card.
           </p>
         </div>
       )}
@@ -877,8 +877,8 @@ function CardOnFileStep({ serviceId, audioPackage, bookingId, customerName, cust
             />
             <span className="text-gray-400 text-xs leading-relaxed">
               {isPartsJob
-                ? <>I authorize GID Garage to save my card and charge it for <strong className="text-white">parts costs and labor</strong> once pricing is confirmed with me. I will be contacted before any charge is made.</>
-                : <>I authorize GID Garage to charge this card for the <strong className="text-white">agreed service amount upon job completion</strong>. I will be informed of the final price before work begins.</>
+                ? <>I authorize GID Garage to save my card and charge it for the <strong className="text-white">full service amount upon job completion</strong>. I will be contacted to confirm parts availability and final pricing before any work begins.</>
+                : <>I authorize GID Garage to charge this card for the <strong className="text-white">agreed service amount upon job completion</strong>. No charge will be made until the work is done and the final price is confirmed.</>
               }
             </span>
           </label>
