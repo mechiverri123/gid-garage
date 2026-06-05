@@ -296,6 +296,7 @@ async function sendReceiptEmail(job: Job) {
 const CYA_TERMS_CORE = [
   'Price is as quoted. Any additional work discovered during service requires your explicit approval before proceeding. We will contact you before performing any work beyond the scope of this estimate.',
   'Payment is due in full at time of completion. Unpaid balances may be subject to a storage or holding fee. Returned checks or disputed charges are subject to a $35 processing fee.',
+  'If a card on file was provided at the time of booking, customer authorizes GID Garage to charge the card on file for the full agreed amount upon job completion. Customer will be informed of the final amount before the card is charged. For parts-sourced jobs, a deposit may be charged prior to service to cover parts costs, as discussed and agreed upon during confirmation.',
   'By signing this estimate, you authorize GID Garage to perform the described work, confirm you are 18 years of age or older, and agree to all terms listed herein.',
 ];
 
@@ -2095,7 +2096,7 @@ export function EstimatePage() {
                   onChange={e => setAgreed(e.target.checked)}
                   className="mt-1 accent-red-600 w-4 h-4 flex-shrink-0"
                 />
-                <span className="text-gray-300 text-sm">I have read and agree to the above terms and authorize GID Garage to perform the described service at the quoted price.</span>
+                <span className="text-gray-300 text-sm">I have read and agree to the above terms and authorize GID Garage to perform the described service at the quoted price. If a card on file was provided at booking, I authorize GID Garage to charge it upon job completion for the final agreed amount.</span>
               </label>
 
               <div>

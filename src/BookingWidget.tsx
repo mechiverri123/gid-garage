@@ -593,14 +593,14 @@ interface State {
   time: string | null; calYear: number; calMonth: number;
   suspensionPart: string | null; suspensionPosition: string | null;
   brakeService: string | null; brakePosition: string | null; brakePadType: string | null; audioPackage: string | null;
-  cardToken: string | null; cardLast4: string | null; cardSkipped: boolean;
+  cardToken: string | null; cardLast4: string | null; cardSkipped: boolean; bookingId: string | null;
 }
 const INIT_STATE: State = {
   step: 1, service: null, date: null, time: null,
   calYear: new Date().getFullYear(), calMonth: new Date().getMonth(),
   suspensionPart: null, suspensionPosition: null,
   brakeService: null, brakePosition: null, brakePadType: null, audioPackage: null,
-  cardToken: null, cardLast4: null, cardSkipped: false,
+  cardToken: null, cardLast4: null, cardSkipped: false, bookingId: null,
 };
 const INIT_FORM: FormData = { fname: '', lname: '', phone: '', email: '', vehicleYear: '', vehicleMake: '', vehicleModel: '', vehicleEngine: '', vehicleTrim: '', licensePlate: '', notes: '', serviceAddress: '' };
 
@@ -723,18 +723,22 @@ const STRIPE_PK = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY as string;
 interface CardStepProps {
   serviceId: string | null;
   audioPackage: string | null;
-  onCardSaved: (token: string, last4: string) => void;
+  bookingId: string | null;
+  customerName: string;
+  customerEmail: string;
+  onCardSaved: (customerId: string, last4: string) => void;
   onSkip: () => void;
   onSubmitWithoutCard: () => void;
 }
 
-function CardOnFileStep({ serviceId, audioPackage, onCardSaved, onSkip, onSubmitWithoutCard }: CardStepProps) {
+function CardOnFileStep({ serviceId, audioPackage, bookingId, customerName, customerEmail, onCardSaved, onSkip, onSubmitWithoutCard }: CardStepProps) {
   const mountRef = useRef<HTMLDivElement>(null);
   const [stripe, setStripe] = useState<any>(null);
   const [card, setCard] = useState<any>(null);
   const [cardError, setCardError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [cardComplete, setCardComplete] = useState(false);
+  const [consented, setConsented] = useState(false);
   const isPartsJob = requiresDeposit(serviceId, audioPackage);
 
   useEffect(() => {
@@ -780,11 +784,28 @@ function CardOnFileStep({ serviceId, audioPackage, onCardSaved, onSkip, onSubmit
     setSaving(true);
     setCardError(null);
     try {
-      const { token, error } = await stripe.createToken(card);
+      const { token, error } = await stripe.createToken(card, {
+        name: customerName || undefined,
+      });
       if (error) { setCardError(error.message); setSaving(false); return; }
-      onCardSaved(token.id, token.card?.last4 ?? '****');
-    } catch {
-      setCardError('Something went wrong. Please try again.');
+
+      // Send token to Cloudflare Worker → creates Stripe Customer + saves pm to Supabase
+      const res = await fetch('/save-card', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          token: token.id,
+          bookingId,
+          name: customerName,
+          email: customerEmail,
+        }),
+      });
+      const data = await res.json() as any;
+      if (data.error) throw new Error(data.error);
+
+      onCardSaved(data.customerId, data.last4 ?? token.card?.last4 ?? '****');
+    } catch (e: any) {
+      setCardError(e.message ?? 'Something went wrong. Please try again.');
       setSaving(false);
     }
   }
@@ -830,13 +851,30 @@ function CardOnFileStep({ serviceId, audioPackage, onCardSaved, onSkip, onSubmit
             <div ref={mountRef} className="bg-gray-900 border border-gray-700 p-3.5 focus-within:border-red-600 transition-colors" />
             {cardError && <p className="text-red-400 text-xs mt-1.5">{cardError}</p>}
           </div>
-          <p className="text-gray-600 text-[10px] mb-4 flex items-center gap-1">
+          <p className="text-gray-600 text-[10px] mb-3 flex items-center gap-1">
             <span>🔒</span> Secured by Stripe. GID Garage never stores your raw card data.
           </p>
+
+          {/* Explicit consent checkbox */}
+          <label className="flex items-start gap-3 mb-4 cursor-pointer group">
+            <input
+              type="checkbox"
+              checked={consented}
+              onChange={e => setConsented(e.target.checked)}
+              className="mt-0.5 w-4 h-4 accent-red-600 flex-shrink-0 cursor-pointer"
+            />
+            <span className="text-gray-400 text-xs leading-relaxed">
+              {isPartsJob
+                ? <>I authorize GID Garage to save my card and charge it for <strong className="text-white">parts costs and labor</strong> once pricing is confirmed with me. I will be contacted before any charge is made.</>
+                : <>I authorize GID Garage to charge this card for the <strong className="text-white">agreed service amount upon job completion</strong>. I will be informed of the final price before work begins.</>
+              }
+            </span>
+          </label>
+
           <button
             onClick={handleSaveCard}
-            disabled={saving || !cardComplete}
-            className={`btn-primary w-full py-4 text-sm mb-3 ${(saving || !cardComplete) ? 'opacity-50 cursor-not-allowed' : ''}`}
+            disabled={saving || !cardComplete || !consented}
+            className={`btn-primary w-full py-4 text-sm mb-3 ${(saving || !cardComplete || !consented) ? 'opacity-50 cursor-not-allowed' : ''}`}
           >
             {saving ? 'Saving Card...' : isPartsJob ? 'Save Card & Confirm Appointment' : 'Save Card & Submit Request'}
           </button>
@@ -949,7 +987,7 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
     if (Object.keys(errors).length > 0) { setFieldErrors(errors); return; }
     setFieldErrors({});
     setSubmitError(null);
-    setS(p => ({ ...p, step: 5 }));
+    setS(p => ({ ...p, step: 5, bookingId: p.bookingId ?? `GID-${Date.now()}` }));
   }
 
   function handleCardSaved(token: string, last4: string) {
@@ -966,7 +1004,7 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
     if (!s.service || !s.date || !s.time || !svc) return;
     setSubmitting(true);
     const booking: Booking = {
-      id: `GID-${Date.now()}`,
+      id: s.bookingId ?? `GID-${Date.now()}`,
       service: s.service, serviceIcon: svc.icon,
       date: s.date, time: s.time,
       fname: form.fname, lname: form.lname, phone: form.phone, email: form.email,
@@ -1275,6 +1313,9 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
                   <CardOnFileStep
                     serviceId={s.service}
                     audioPackage={s.audioPackage}
+                    bookingId={s.bookingId}
+                    customerName={`${form.fname} ${form.lname}`.trim()}
+                    customerEmail={form.email}
                     onCardSaved={handleCardSaved}
                     onSkip={handleSkipCard}
                     onSubmitWithoutCard={handleSkipCard}
