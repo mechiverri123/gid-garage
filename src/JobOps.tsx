@@ -121,6 +121,25 @@ function mapJob(b: any): Job {
   };
 }
 
+async function writePaymentEvent(
+  bookingId: string,
+  eventType: 'paid' | 'declined',
+  amount?: number,
+  errorMessage?: string
+) {
+  try {
+    await sbFetch('/payment_events', {
+      method: 'POST',
+      body: JSON.stringify({
+        booking_id: bookingId,
+        event_type: eventType,
+        amount: amount ?? null,
+        error_message: errorMessage ?? null,
+      }),
+    });
+  } catch { /* non-critical — don't block UI */ }
+}
+
 export async function getAllJobs(): Promise<Job[]> {
   const data = await sbFetch('/bookings?select=*&order=date.desc,time.desc');
   return (data || []).map(mapJob);
@@ -1224,9 +1243,11 @@ function PaymentPanel({ job, onUpdate, onRequote }: { job: Job; onUpdate: (j: Jo
         jobStatus: 'PAID' as JobStatus,
         status: 'completed',
       };
+      await writePaymentEvent(job.id, 'paid', finalAmount);
       await sendReceiptEmail(updated);
       onUpdate(updated);
     } catch (e: any) {
+      await writePaymentEvent(job.id, 'declined', finalAmount, e.message ?? 'Charge failed');
       setChargeError(e.message ?? 'Charge failed. Try again or use manual entry.');
     }
     setCharging(false);
@@ -1659,16 +1680,47 @@ export function JobsTab() {
   const [search, setSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState<JobStatus | 'ALL'>('ALL');
 
+  const seenEventIds = useRef<Set<string>>(new Set());
+
   useEffect(() => {
     getAllJobs().then(data => { setJobs(data); setLoading(false); });
-    // Poll every 10s — fast enough to catch SIGNED status without manual refresh
-    const interval = setInterval(() => {
-      getAllJobs().then(data => {
-        setJobs(data);
-        // Update selected job if open so status/sig reflects immediately
-        setSelected(prev => prev ? (data.find(j => j.id === prev.id) ?? prev) : null);
-      });
+
+    // Poll every 10s — catches SIGNED status, new bookings, and payment events
+    const interval = setInterval(async () => {
+      const fresh = await getAllJobs();
+      setJobs(fresh);
+      setSelected(prev => prev ? (fresh.find(j => j.id === prev.id) ?? prev) : null);
+
+      // Payment event notifications
+      if (Notification.permission !== 'granted' || !('serviceWorker' in navigator)) return;
+      try {
+        const events = await sbFetch('/payment_events?order=created_at.desc&limit=20');
+        if (!events?.length) return;
+        const reg = await navigator.serviceWorker.ready;
+        for (const ev of events) {
+          if (seenEventIds.current.has(ev.id)) continue;
+          seenEventIds.current.add(ev.id);
+          const job = fresh.find((j: Job) => j.id === ev.booking_id);
+          const name = job ? `${job.fname} ${job.lname}` : 'Unknown customer';
+          if (ev.event_type === 'paid') {
+            reg.showNotification(`💳 Payment received — ${name}`, {
+              body: `$${Number(ev.amount).toFixed(2)} collected · ${job?.vehicle ?? ''}`.trim().replace(/· $/, ''),
+              icon: '/favicon-192.png',
+              tag: `paid-${ev.id}`,
+              data: { url: '/bookings' },
+            });
+          } else if (ev.event_type === 'declined') {
+            reg.showNotification(`⚠️ Payment declined — ${name}`, {
+              body: ev.error_message ?? `$${Number(ev.amount).toFixed(2)} failed`,
+              icon: '/favicon-192.png',
+              tag: `declined-${ev.id}`,
+              data: { url: '/bookings' },
+            });
+          }
+        }
+      } catch { /* non-critical */ }
     }, 10000);
+
     return () => clearInterval(interval);
   }, []);
 
