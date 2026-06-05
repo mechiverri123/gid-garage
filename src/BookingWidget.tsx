@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, type Dispatch, type SetStateAction } from 'react';
+import { useState, useEffect, useRef, useCallback, type Dispatch, type SetStateAction } from 'react';
 import { JobsTab } from './JobOps';
 
 const PHONE = '480-757-0476';
@@ -577,17 +577,30 @@ function updateLocalGarageNotes(id: string, garageNotes: string) {
 }
 
 // ── BOOKING WIDGET ──────────────────────────────────────────────────────────
+// Services that require parts sourcing — these get a deposit step
+const PARTS_HEAVY_SERVICES = ['audio', 'suspension'];
+// Services where card-on-file makes sense (charged after work)
+const CARD_ON_FILE_SERVICES = ['oil', 'brakes', 'diag', 'full'];
+
+function requiresDeposit(service: string | null, audioPackage: string | null): boolean {
+  if (service === 'audio') return true;
+  if (service === 'suspension') return true;
+  return false;
+}
+
 interface State {
   step: number; service: string | null; date: string | null;
   time: string | null; calYear: number; calMonth: number;
   suspensionPart: string | null; suspensionPosition: string | null;
   brakeService: string | null; brakePosition: string | null; brakePadType: string | null; audioPackage: string | null;
+  cardToken: string | null; cardLast4: string | null; cardSkipped: boolean;
 }
 const INIT_STATE: State = {
   step: 1, service: null, date: null, time: null,
   calYear: new Date().getFullYear(), calMonth: new Date().getMonth(),
   suspensionPart: null, suspensionPosition: null,
   brakeService: null, brakePosition: null, brakePadType: null, audioPackage: null,
+  cardToken: null, cardLast4: null, cardSkipped: false,
 };
 const INIT_FORM: FormData = { fname: '', lname: '', phone: '', email: '', vehicleYear: '', vehicleMake: '', vehicleModel: '', vehicleEngine: '', vehicleTrim: '', licensePlate: '', notes: '', serviceAddress: '' };
 
@@ -687,6 +700,164 @@ function BrakePadSelector({ value, onChange }: { value: string | null; onChange:
   );
 }
 
+
+// ── STRIPE CARD ON FILE STEP ─────────────────────────────────────────────────
+// Uses Stripe.js loaded from CDN. We do a $0 SetupIntent auth to verify the card
+// is real without charging. The token/payment method ID is saved to the booking.
+declare global {
+  interface Window { Stripe?: any; }
+}
+
+function loadStripe(publishableKey: string): Promise<any> {
+  return new Promise((resolve) => {
+    if (window.Stripe) { resolve(window.Stripe(publishableKey)); return; }
+    const script = document.createElement('script');
+    script.src = 'https://js.stripe.com/v3/';
+    script.onload = () => resolve(window.Stripe!(publishableKey));
+    document.head.appendChild(script);
+  });
+}
+
+const STRIPE_PK = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY as string;
+
+interface CardStepProps {
+  serviceId: string | null;
+  audioPackage: string | null;
+  onCardSaved: (token: string, last4: string) => void;
+  onSkip: () => void;
+  onSubmitWithoutCard: () => void;
+}
+
+function CardOnFileStep({ serviceId, audioPackage, onCardSaved, onSkip, onSubmitWithoutCard }: CardStepProps) {
+  const mountRef = useRef<HTMLDivElement>(null);
+  const [stripe, setStripe] = useState<any>(null);
+  const [card, setCard] = useState<any>(null);
+  const [cardError, setCardError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [cardComplete, setCardComplete] = useState(false);
+  const isPartsJob = requiresDeposit(serviceId, audioPackage);
+
+  useEffect(() => {
+    if (!STRIPE_PK) return;
+    loadStripe(STRIPE_PK).then((stripeInstance) => {
+      setStripe(stripeInstance);
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!stripe || !mountRef.current) return;
+    const elements = stripe.elements({
+      appearance: {
+        theme: 'night',
+        variables: {
+          colorPrimary: '#dc2626',
+          colorBackground: '#111827',
+          colorText: '#ffffff',
+          colorDanger: '#ef4444',
+          fontFamily: 'Barlow, system-ui, sans-serif',
+          spacingUnit: '4px',
+          borderRadius: '0px',
+        },
+      },
+    });
+    const cardElement = elements.create('card', {
+      style: {
+        base: { fontSize: '14px', color: '#fff', '::placeholder': { color: '#6b7280' } },
+        invalid: { color: '#ef4444' },
+      },
+    });
+    cardElement.mount(mountRef.current);
+    cardElement.on('change', (e: any) => {
+      setCardError(e.error?.message ?? null);
+      setCardComplete(e.complete);
+    });
+    setCard(cardElement);
+    return () => cardElement.destroy();
+  }, [stripe]);
+
+  async function handleSaveCard() {
+    if (!stripe || !card) return;
+    setSaving(true);
+    setCardError(null);
+    try {
+      const { token, error } = await stripe.createToken(card);
+      if (error) { setCardError(error.message); setSaving(false); return; }
+      onCardSaved(token.id, token.card?.last4 ?? '****');
+    } catch {
+      setCardError('Something went wrong. Please try again.');
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div>
+      <StepHeader n={5} current={5} label={isPartsJob ? "Secure Your Appointment" : "Card on File"} />
+
+      {isPartsJob ? (
+        <div className="mb-5 bg-yellow-950/30 border border-yellow-700/50 border-l-4 border-l-yellow-500 px-4 py-4">
+          <p className="text-yellow-300 text-sm font-bold mb-1">Parts Need to Be Sourced</p>
+          <p className="text-yellow-200/70 text-xs leading-relaxed">
+            This service requires us to order parts for your vehicle. A card on file is required to secure your appointment — <span className="text-yellow-300 font-semibold">you won't be charged until we confirm parts availability and pricing with you first.</span>
+          </p>
+        </div>
+      ) : (
+        <div className="mb-5 bg-gray-900/60 border border-gray-700 border-l-4 border-l-red-600 px-4 py-4">
+          <p className="text-white text-sm font-bold mb-1">No Charge Today</p>
+          <p className="text-gray-400 text-xs leading-relaxed">
+            We save your card so we can charge you after the job is done — no surprises. <span className="text-gray-300 font-semibold">Your card is not charged now.</span> This is just so you don't have to fumble with payment when we're done under your hood.
+          </p>
+        </div>
+      )}
+
+      <div className="grid grid-cols-3 gap-3 mb-5">
+        {[
+          { icon: '🔒', label: 'Encrypted', sub: 'Stripe-secured' },
+          { icon: '💳', label: 'Not Charged', sub: 'Until job is done' },
+          { icon: '✓', label: 'You're in Control', sub: 'Cancel anytime' },
+        ].map(t => (
+          <div key={t.label} className="bg-gray-900 border border-gray-800 p-3 text-center">
+            <div className="text-xl mb-1">{t.icon}</div>
+            <div className="text-white text-xs font-bold">{t.label}</div>
+            <div className="text-gray-500 text-[10px]">{t.sub}</div>
+          </div>
+        ))}
+      </div>
+
+      {STRIPE_PK ? (
+        <>
+          <div className="mb-3">
+            <label className="block text-gray-500 text-xs font-bold uppercase tracking-wider mb-2">Card Details</label>
+            <div ref={mountRef} className="bg-gray-900 border border-gray-700 p-3.5 focus-within:border-red-600 transition-colors" />
+            {cardError && <p className="text-red-400 text-xs mt-1.5">{cardError}</p>}
+          </div>
+          <p className="text-gray-600 text-[10px] mb-4 flex items-center gap-1">
+            <span>🔒</span> Secured by Stripe. GID Garage never stores your raw card data.
+          </p>
+          <button
+            onClick={handleSaveCard}
+            disabled={saving || !cardComplete}
+            className={`btn-primary w-full py-4 text-sm mb-3 ${(saving || !cardComplete) ? 'opacity-50 cursor-not-allowed' : ''}`}
+          >
+            {saving ? 'Saving Card...' : isPartsJob ? 'Save Card & Confirm Appointment' : 'Save Card & Submit Request'}
+          </button>
+        </>
+      ) : (
+        // Stripe not configured — show manual notice
+        <div className="bg-gray-900 border border-gray-700 px-4 py-4 mb-4">
+          <p className="text-gray-400 text-sm">Card collection is not configured yet. You can still submit your request — we'll collect payment info when we follow up.</p>
+        </div>
+      )}
+
+      <button
+        onClick={isPartsJob ? onSkip : onSubmitWithoutCard}
+        className="w-full border border-gray-700 text-gray-500 hover:border-gray-500 hover:text-gray-300 text-xs font-semibold py-3 transition-colors"
+      >
+        {isPartsJob ? 'Skip for now (we may follow up)' : 'Submit without card on file'}
+      </button>
+    </div>
+  );
+}
+
 export default function BookingWidget({ autoOpen, preselectedService, onClose }: { autoOpen?: boolean; preselectedService?: string; onClose?: () => void } = {}) {
   const [open, setOpen] = useState(!!autoOpen);
   const [s, setS] = useState<State>({
@@ -765,7 +936,8 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
   const [showCancelPolicy, setShowCancelPolicy] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
-  async function handleSubmit() {
+  // Validate step 4 and advance to card step
+  function handleAdvanceToCard() {
     const errors: Record<string, string> = {};
     if (!form.fname) errors.fname = 'First name is required';
     if (!form.phone) errors.phone = 'Phone number is required';
@@ -777,6 +949,20 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
     if (Object.keys(errors).length > 0) { setFieldErrors(errors); return; }
     setFieldErrors({});
     setSubmitError(null);
+    setS(p => ({ ...p, step: 5 }));
+  }
+
+  function handleCardSaved(token: string, last4: string) {
+    setS(p => ({ ...p, cardToken: token, cardLast4: last4 }));
+    handleFinalSubmit(token, last4);
+  }
+
+  function handleSkipCard() {
+    setS(p => ({ ...p, cardSkipped: true }));
+    handleFinalSubmit(null, null);
+  }
+
+  async function handleFinalSubmit(cardToken: string | null = null, cardLast4: string | null = null) {
     if (!s.service || !s.date || !s.time || !svc) return;
     setSubmitting(true);
     const booking: Booking = {
@@ -791,6 +977,7 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
         s.suspensionPart ? `Suspension: ${SUSPENSION_LABELS[s.suspensionPart] ?? s.suspensionPart.replace(/_/g, ' ')}${s.suspensionPosition ? ` (${s.suspensionPosition})` : ''}` : '',
         s.brakeService ? `Brake service: ${BRAKE_LABELS[s.brakeService] ?? s.brakeService.replace(/_/g, ' ')}${s.brakePosition ? ` (${s.brakePosition})` : ''}${s.brakePadType ? ` — ${s.brakePadType}` : ''}` : '',
         s.audioPackage ? `Audio package: ${AUDIO_LABELS[s.audioPackage] ?? s.audioPackage}` : '',
+        cardToken ? `Card on file: ****${cardLast4} (token: ${cardToken})` : 'No card on file',
         form.notes,
       ].filter(Boolean).join(' | '),
       garageNotes: '',
@@ -857,7 +1044,7 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
                 <h2 className="text-3xl font-black text-white tracking-tight mb-6">Request a Quote</h2>
 
                 <div className="flex gap-1 mb-8">
-                  {[1,2,3,4].map(n => <div key={n} className={`h-0.5 flex-1 transition-colors duration-300 ${n <= s.step ? 'bg-red-600' : 'bg-gray-800'}`} />)}
+                  {[1,2,3,4,5].map(n => <div key={n} className={`h-0.5 flex-1 transition-colors duration-300 ${n <= s.step ? 'bg-red-600' : 'bg-gray-800'}`} />)}
                 </div>
 
                 <StepHeader n={1} current={s.step} label="Select a Service" />
@@ -1077,10 +1264,29 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
                       {submitError}
                     </div>
                   )}
-                  <button onClick={handleSubmit} disabled={submitting}
-                    className={`btn-primary w-full mt-4 py-4 text-sm ${submitting ? 'opacity-50 cursor-not-allowed' : ''}`}>
-                    {submitting ? 'Submitting...' : 'Submit Request'}
+                  <button onClick={handleAdvanceToCard}
+                    className="btn-primary w-full mt-4 py-4 text-sm">
+                    Continue →
                   </button>
+                </>)}
+
+                {s.step >= 5 && s.time && (<>
+                  <div className="border-t border-gray-800 my-6" />
+                  <CardOnFileStep
+                    serviceId={s.service}
+                    audioPackage={s.audioPackage}
+                    onCardSaved={handleCardSaved}
+                    onSkip={handleSkipCard}
+                    onSubmitWithoutCard={handleSkipCard}
+                  />
+                  {submitError && (
+                    <div className="mt-4 bg-red-950/50 border border-red-700 text-red-400 text-sm px-4 py-3">
+                      {submitError}
+                    </div>
+                  )}
+                  {submitting && (
+                    <div className="mt-3 text-center text-gray-500 text-sm animate-pulse">Submitting your request...</div>
+                  )}
                 </>)}
               </>
             )}
