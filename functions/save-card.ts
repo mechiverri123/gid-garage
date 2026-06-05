@@ -5,6 +5,7 @@
 interface Env {
   STRIPE_SECRET_KEY: string;
   SUPABASE_URL: string;
+  VITE_SUPABASE_URL: string;
   SUPABASE_SERVICE_KEY: string; // service role key — NOT anon key
 }
 
@@ -56,7 +57,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
 
     // 3. Save to Supabase against the booking
     const sbRes = await fetch(
-      `${env.SUPABASE_URL}/rest/v1/bookings?id=eq.${bookingId}`,
+      `${env.SUPABASE_URL ?? env.VITE_SUPABASE_URL}/rest/v1/bookings?id=eq.${bookingId}`,
       {
         method: 'PATCH',
         headers: {

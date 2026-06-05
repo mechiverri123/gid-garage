@@ -5,6 +5,7 @@
 interface Env {
   STRIPE_SECRET_KEY: string;
   SUPABASE_URL: string;
+  VITE_SUPABASE_URL: string;
   SUPABASE_SERVICE_KEY: string;
 }
 
@@ -33,7 +34,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     const idempotencyKey = `${bookingId}-${amountCents}`;
 
     // Check if already paid in Supabase before even hitting Stripe
-    const checkRes = await fetch(`${env.SUPABASE_URL}/rest/v1/bookings?id=eq.${bookingId}&select=job_status,stripe_transaction_id`, {
+    const checkRes = await fetch(`${env.SUPABASE_URL ?? env.VITE_SUPABASE_URL}/rest/v1/bookings?id=eq.${bookingId}&select=job_status,stripe_transaction_id`, {
       headers: {
         apikey: env.SUPABASE_SERVICE_KEY,
         Authorization: `Bearer ${env.SUPABASE_SERVICE_KEY}`,
@@ -68,7 +69,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     if (charge.error) throw new Error(charge.error.message);
 
     // Update Supabase — mark paid, save transaction ID
-    await fetch(`${env.SUPABASE_URL}/rest/v1/bookings?id=eq.${bookingId}`, {
+    await fetch(`${env.SUPABASE_URL ?? env.VITE_SUPABASE_URL}/rest/v1/bookings?id=eq.${bookingId}`, {
       method: 'PATCH',
       headers: {
         apikey: env.SUPABASE_SERVICE_KEY,
