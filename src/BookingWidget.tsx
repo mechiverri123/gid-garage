@@ -34,7 +34,7 @@ async function sbFetch(path: string, options: RequestInit = {}) {
 
 async function getSupabaseBookings(): Promise<Booking[]> {
   try {
-    const data = await sbFetch('/bookings?select=*&order=date.asc,time.asc');
+    const data = await sbFetch('/bookings?select=*&status=neq.pending&order=date.asc,time.asc');
     return (data || []).map((b: any) => ({
       id: b.id,
       service: b.service,
@@ -153,7 +153,7 @@ interface Booking {
   vehicle: string;
   notes: string;
   garageNotes: string;
-  status: 'confirmed' | 'completed' | 'cancelled';
+  status: 'pending' | 'confirmed' | 'completed' | 'cancelled';
   createdAt: string;
 }
 
@@ -1013,7 +1013,7 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
         form.notes,
       ].filter(Boolean).join(' | '),
       garageNotes: '',
-      status: 'pending' as any,
+      status: 'pending',
       createdAt: new Date().toISOString(),
     };
 
