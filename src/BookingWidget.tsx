@@ -50,6 +50,7 @@ async function getSupabaseBookings(): Promise<Booking[]> {
       garageNotes: b.garage_notes || '',
       status: b.status,
       createdAt: b.created_at,
+      stripeCustomerId: b.stripe_customer_id || undefined,
     }));
   } catch (e) {
     console.warn('Supabase fetch failed, falling back to localStorage', e);
@@ -108,10 +109,10 @@ function deleteLocalBooking(id: string) {
 
 async function getBookedTimesForDate(date: string): Promise<string[]> {
   try {
-    const data = await sbFetch(`/bookings?select=time&date=eq.${date}&status=neq.cancelled`);
+    const data = await sbFetch(`/bookings?select=time&date=eq.${date}&status=not.in.(cancelled,pending)`);
     return (data || []).map((b: any) => b.time);
   } catch {
-    return getLocalBookings().filter(b => b.date === date && b.status !== 'cancelled').map(b => b.time);
+    return getLocalBookings().filter(b => b.date === date && b.status !== 'cancelled' && b.status !== 'pending').map(b => b.time);
   }
 }
 
@@ -156,6 +157,7 @@ interface Booking {
   garageNotes: string;
   status: 'pending' | 'confirmed' | 'completed' | 'cancelled';
   createdAt: string;
+  stripeCustomerId?: string;
 }
 
 interface FormData {
@@ -1637,11 +1639,8 @@ export function AdminSchedule() {
     const dataInterval = setInterval(async () => {
       const fresh = await getSupabaseBookings();
       if (seenBookingIds.current) {
-        const sixMinutesAgo = Date.now() - 6 * 60 * 1000;
         const newOnes = fresh.filter(
-          b => !seenBookingIds.current!.has(b.id)
-            && b.status === 'confirmed'
-            && new Date(b.createdAt).getTime() > sixMinutesAgo
+          b => !seenBookingIds.current!.has(b.id) && !!b.stripeCustomerId
         );
         newOnes.forEach(b => seenBookingIds.current!.add(b.id));
         if (newOnes.length > 0 && Notification.permission === 'granted' && 'serviceWorker' in navigator) {
