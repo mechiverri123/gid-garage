@@ -62,6 +62,8 @@ export interface Job {
   // payment
   invoiceAmount: number | null;
   stripeTransactionId: string;
+  stripeCustomerId: string;
+  stripeLast4: string;
   paidAt: string | null;
   // photos
   jobPhotos: JobPhoto[];
@@ -112,6 +114,8 @@ function mapJob(b: any): Job {
     signedAt: b.signed_at || null,
     invoiceAmount: b.invoice_amount ?? null,
     stripeTransactionId: b.stripe_transaction_id || '',
+    stripeCustomerId: b.stripe_customer_id || '',
+    stripeLast4: b.stripe_last4 || '',
     paidAt: b.paid_at || null,
     jobPhotos: b.job_photos ? (typeof b.job_photos === 'string' ? JSON.parse(b.job_photos) : b.job_photos) : [],
   };
@@ -1179,40 +1183,77 @@ function PaymentPanel({ job, onUpdate, onRequote }: { job: Job; onUpdate: (j: Jo
   const [invoiceAmt, setInvoiceAmt] = useState(job.invoiceAmount?.toString() ?? job.estimateAmount?.toString() ?? '');
   const [stripeId, setStripeId] = useState(job.stripeTransactionId);
   const [saving, setSaving] = useState(false);
+  const [charging, setCharging] = useState(false);
+  const [chargeError, setChargeError] = useState<string | null>(null);
+  const [chargeConfirm, setChargeConfirm] = useState(false);
+
+  const hasCardOnFile = !!job.stripeCustomerId;
+  const finalAmount = parseFloat(invoiceAmt) || job.estimateAmount || 0;
+
+  async function chargeCardOnFile() {
+    if (!hasCardOnFile || !finalAmount) return;
+    setCharging(true);
+    setChargeError(null);
+    try {
+      const res = await fetch('/charge-card', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          customerId: job.stripeCustomerId,
+          amountCents: Math.round(finalAmount * 100),
+          description: `GID Garage — ${job.service} — ${job.vehicle}`,
+          bookingId: job.id,
+        }),
+      });
+      const data = await res.json() as any;
+      // already_paid = idempotent success — treat it as paid
+      if (data.error && data.error !== 'already_paid') throw new Error(data.error);
+      if (data.error === 'already_paid') {
+        onUpdate({ ...job, jobStatus: 'PAID' as JobStatus, stripeTransactionId: data.chargeId });
+        setCharging(false);
+        setChargeConfirm(false);
+        return;
+      }
+
+      // Send receipt email
+      const updated = {
+        ...job,
+        invoiceAmount: finalAmount,
+        stripeTransactionId: data.chargeId,
+        paidAt: new Date().toISOString(),
+        jobStatus: 'PAID' as JobStatus,
+        status: 'completed',
+      };
+      await sendReceiptEmail(updated);
+      onUpdate(updated);
+    } catch (e: any) {
+      setChargeError(e.message ?? 'Charge failed. Try again or use manual entry.');
+    }
+    setCharging(false);
+    setChargeConfirm(false);
+  }
 
   async function markPaid() {
     if (!stripeId) return;
     setSaving(true);
     const paidAt = new Date().toISOString();
-    const finalAmount = parseFloat(invoiceAmt) || job.estimateAmount;
-    // If not yet invoiced, send invoice email first
     if (job.jobStatus !== 'INVOICED') {
       await patchJob(job.id, { job_status: 'INVOICED', invoice_amount: finalAmount });
       await sendInvoiceEmail({ ...job, jobStatus: 'INVOICED' as JobStatus, invoiceAmount: finalAmount });
     }
-    const fields = {
+    await patchJob(job.id, {
       invoice_amount: finalAmount,
       stripe_transaction_id: stripeId,
       paid_at: paidAt,
       job_status: 'PAID',
       status: 'completed',
-    };
-    await patchJob(job.id, fields);
-    const updated = {
-      ...job,
-      invoiceAmount: finalAmount,
-      stripeTransactionId: stripeId,
-      paidAt,
-      jobStatus: 'PAID' as JobStatus,
-      status: 'completed',
-    };
-    onUpdate(updated);
+    });
+    onUpdate({ ...job, invoiceAmount: finalAmount, stripeTransactionId: stripeId, paidAt, jobStatus: 'PAID' as JobStatus, status: 'completed' });
     setSaving(false);
   }
 
   async function markInvoiced() {
     setSaving(true);
-    const finalAmount = parseFloat(invoiceAmt) || job.estimateAmount;
     await patchJob(job.id, { job_status: 'INVOICED', invoice_amount: finalAmount });
     const updated = { ...job, jobStatus: 'INVOICED' as JobStatus, invoiceAmount: finalAmount };
     await sendInvoiceEmail(updated);
@@ -1248,46 +1289,84 @@ function PaymentPanel({ job, onUpdate, onRequote }: { job: Job; onUpdate: (j: Jo
         </div>
       </div>
 
-      <div>
-        <label className="text-gray-500 text-xs font-bold uppercase tracking-widest block mb-1">Stripe Transaction ID</label>
-        <input
-          type="text"
-          value={stripeId}
-          onChange={e => setStripeId(e.target.value)}
-          placeholder="ch_xxxxxxxx or pi_xxxxxxxx"
-          className="bg-gray-800 border border-gray-700 text-white px-3 py-2 text-sm font-mono w-full focus:border-red-600 outline-none"
-        />
-        <p className="text-gray-700 text-xs mt-1">Paste from Stripe dashboard or Tap to Pay receipt</p>
-      </div>
+      {/* Card on file — primary payment method */}
+      {hasCardOnFile ? (
+        <div className="bg-gray-900 border border-gray-700 p-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-gray-400 text-xs font-bold uppercase tracking-widest mb-0.5">Card on File</p>
+              <p className="text-white text-sm font-mono">•••• •••• •••• {job.stripeLast4 || '****'}</p>
+            </div>
+            <span className="text-emerald-400 text-xs font-bold">✓ Saved</span>
+          </div>
+          {chargeError && <p className="text-red-400 text-xs">{chargeError}</p>}
+          {!chargeConfirm ? (
+            <button
+              onClick={() => setChargeConfirm(true)}
+              disabled={!finalAmount || charging}
+              className="w-full bg-emerald-700 hover:bg-emerald-600 disabled:opacity-40 text-white text-sm font-bold uppercase tracking-widest py-3 transition-colors"
+            >
+              💳 Charge ${finalAmount.toFixed(2)} to Card on File
+            </button>
+          ) : (
+            <div className="space-y-2">
+              <p className="text-yellow-400 text-xs font-bold">Confirm charge of ${finalAmount.toFixed(2)} to •••• {job.stripeLast4}?</p>
+              <div className="flex gap-2">
+                <button onClick={() => setChargeConfirm(false)} className="flex-1 border border-gray-600 text-gray-400 text-xs font-bold py-2 hover:border-white hover:text-white transition-colors">Cancel</button>
+                <button onClick={chargeCardOnFile} disabled={charging} className="flex-1 bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-bold py-2 transition-colors disabled:opacity-40">
+                  {charging ? 'Charging...' : 'Yes, Charge Now'}
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      ) : (
+        <div className="bg-gray-900/50 border border-gray-800 px-4 py-3">
+          <p className="text-gray-500 text-xs">No card on file — use manual entry below or Tap to Pay.</p>
+        </div>
+      )}
 
-      <div className="flex gap-3 flex-wrap">
+      {/* Manual fallback */}
+      <details className="group">
+        <summary className="text-gray-600 text-xs font-bold uppercase tracking-widest cursor-pointer hover:text-gray-400 transition-colors list-none">
+          ▸ Manual Entry / Tap to Pay
+        </summary>
+        <div className="mt-3 space-y-3">
+          <div>
+            <label className="text-gray-500 text-xs font-bold uppercase tracking-widest block mb-1">Stripe Transaction ID</label>
+            <input
+              type="text"
+              value={stripeId}
+              onChange={e => setStripeId(e.target.value)}
+              placeholder="ch_xxxxxxxx or pi_xxxxxxxx"
+              className="bg-gray-800 border border-gray-700 text-white px-3 py-2 text-sm font-mono w-full focus:border-red-600 outline-none"
+            />
+            <p className="text-gray-700 text-xs mt-1">Paste from Stripe dashboard or Tap to Pay receipt</p>
+          </div>
+          <div className="flex gap-3 flex-wrap">
+            <button onClick={markInvoiced} disabled={saving || job.jobStatus === 'INVOICED'}
+              className="border border-gray-600 text-gray-400 hover:border-white hover:text-white text-xs font-bold uppercase tracking-widest px-4 py-2 transition-colors disabled:opacity-40">
+              Mark Invoiced
+            </button>
+            <button onClick={markPaid} disabled={!stripeId || saving}
+              className="bg-emerald-700 hover:bg-emerald-600 disabled:opacity-40 text-white text-xs font-bold uppercase tracking-widest px-6 py-2 transition-colors">
+              {saving ? 'Saving…' : '✓ Mark Paid'}
+            </button>
+          </div>
+        </div>
+      </details>
+
+      {onRequote && (
         <button
-          onClick={markInvoiced}
-          disabled={saving || job.jobStatus === 'INVOICED'}
-          className="border border-gray-600 text-gray-400 hover:border-white hover:text-white text-xs font-bold uppercase tracking-widest px-4 py-2 transition-colors disabled:opacity-40"
+          onClick={async () => {
+            await patchJob(job.id, { customer_agreed: false, customer_signature: '', signed_at: null, job_status: 'BOOKED' });
+            onRequote();
+          }}
+          className="border border-yellow-700 text-yellow-600 hover:border-yellow-500 hover:text-yellow-400 text-xs font-bold uppercase tracking-widest px-4 py-2 transition-colors"
         >
-          Mark Invoiced
+          ✏️ Revise Quote
         </button>
-        <button
-          onClick={markPaid}
-          disabled={!stripeId || saving}
-          className="bg-emerald-700 hover:bg-emerald-600 disabled:opacity-40 text-white text-xs font-bold uppercase tracking-widest px-6 py-2 transition-colors"
-        >
-          {saving ? 'Saving…' : '✓ Mark Paid'}
-        </button>
-        {onRequote && (
-          <button
-            onClick={async () => {
-              // Reset signing state so customer can sign the new quote
-              await patchJob(job.id, { customer_agreed: false, customer_signature: '', signed_at: null, job_status: 'BOOKED' });
-              onRequote();
-            }}
-            className="border border-yellow-700 text-yellow-600 hover:border-yellow-500 hover:text-yellow-400 text-xs font-bold uppercase tracking-widest px-4 py-2 transition-colors"
-          >
-            ✏️ Revise Quote
-          </button>
-        )}
-      </div>
+      )}
     </div>
   );
 }
