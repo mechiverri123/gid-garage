@@ -727,11 +727,10 @@ interface CardStepProps {
   customerName: string;
   customerEmail: string;
   onCardSaved: (customerId: string, last4: string) => void;
-  onSkip: () => void;
-  onSubmitWithoutCard: () => void;
+
 }
 
-function CardOnFileStep({ serviceId, audioPackage, bookingId, customerName, customerEmail, onCardSaved, onSkip, onSubmitWithoutCard }: CardStepProps) {
+function CardOnFileStep({ serviceId, audioPackage, bookingId, customerName, customerEmail, onCardSaved }: CardStepProps) {
   const mountRef = useRef<HTMLDivElement>(null);
   const [stripe, setStripe] = useState<any>(null);
   const [card, setCard] = useState<any>(null);
@@ -886,12 +885,7 @@ function CardOnFileStep({ serviceId, audioPackage, bookingId, customerName, cust
         </div>
       )}
 
-      <button
-        onClick={isPartsJob ? onSkip : onSubmitWithoutCard}
-        className="w-full border border-gray-700 text-gray-500 hover:border-gray-500 hover:text-gray-300 text-xs font-semibold py-3 transition-colors"
-      >
-        {isPartsJob ? 'Skip for now (we may follow up)' : 'Submit without card on file'}
-      </button>
+
     </div>
   );
 }
@@ -993,11 +987,6 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
   function handleCardSaved(token: string, last4: string) {
     setS(p => ({ ...p, cardToken: token, cardLast4: last4 }));
     handleFinalSubmit(token, last4);
-  }
-
-  function handleSkipCard() {
-    setS(p => ({ ...p, cardSkipped: true }));
-    handleFinalSubmit(null, null);
   }
 
   async function handleFinalSubmit(cardToken: string | null = null, cardLast4: string | null = null) {
@@ -1317,8 +1306,6 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
                     customerName={`${form.fname} ${form.lname}`.trim()}
                     customerEmail={form.email}
                     onCardSaved={handleCardSaved}
-                    onSkip={handleSkipCard}
-                    onSubmitWithoutCard={handleSkipCard}
                   />
                   {submitError && (
                     <div className="mt-4 bg-red-950/50 border border-red-700 text-red-400 text-sm px-4 py-3">
