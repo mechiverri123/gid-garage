@@ -78,8 +78,14 @@ export async function onRequestPost({ request, env }) {
     });
 
   } catch (err) {
-    console.error('save-card error:', err);
-    return new Response(JSON.stringify({ error: err.message ?? 'Unknown error' }), {
+    const detail = {
+      error: err.message ?? 'Unknown error',
+      supabaseUrl: env.SUPABASE_URL ?? env.VITE_SUPABASE_URL ?? 'MISSING',
+      hasStripeKey: !!env.STRIPE_SECRET_KEY,
+      hasServiceKey: !!env.SUPABASE_SERVICE_KEY,
+    };
+    console.error('save-card error:', detail);
+    return new Response(JSON.stringify(detail), {
       status: 500, headers: { 'Content-Type': 'application/json', ...corsHeaders },
     });
   }
