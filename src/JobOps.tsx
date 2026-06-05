@@ -1327,9 +1327,9 @@ function PaymentPanel({ job, onUpdate, onRequote }: { job: Job; onUpdate: (j: Jo
       )}
 
       {/* Manual fallback */}
-      <details className="group">
+      <details className="group" open={!hasCardOnFile}>
         <summary className="text-gray-600 text-xs font-bold uppercase tracking-widest cursor-pointer hover:text-gray-400 transition-colors list-none">
-          ▸ Manual Entry / Tap to Pay
+          {hasCardOnFile ? "▸ Manual Entry / Tap to Pay" : "Manual Entry / Tap to Pay"}
         </summary>
         <div className="mt-3 space-y-3">
           <div>
@@ -1530,7 +1530,7 @@ function JobDetailPanel({ job: initialJob, onClose, onJobUpdate }: {
         </div>
 
         {/* Pipeline stepper */}
-        <div className="px-6 py-4 border-b border-gray-800 overflow-x-auto">
+        <div className="px-6 py-4 border-b border-gray-800 overflow-x-auto scrollbar-none" style={{scrollbarWidth:"none",msOverflowStyle:"none"}}>
           <div className="flex items-center gap-0 min-w-max">
             {JOB_PIPELINE.map((s, i) => {
               const cfg = STATUS_CONFIG[s];
