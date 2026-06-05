@@ -1742,11 +1742,21 @@ export function JobsTab() {
   });
   const monthRevenue = paidThisMonth.reduce((sum, j) => sum + (j.invoiceAmount || 0), 0);
 
-  const filtered = jobs.filter(j => {
-    const matchStatus = filterStatus === 'ALL' || j.jobStatus === filterStatus;
-    const matchSearch = !search || `${j.fname} ${j.lname} ${j.vehicle} ${j.phone}`.toLowerCase().includes(search.toLowerCase());
-    return matchStatus && matchSearch;
-  });
+  const JOB_STATUS_ORDER: Record<string, number> = {
+    BOOKED: 0, ESTIMATE_SENT: 1, SIGNED: 2, IN_PROGRESS: 3,
+    COMPLETED: 4, INVOICED: 5, PAID: 6, CANCELLED: 7,
+  };
+  const filtered = jobs
+    .filter(j => {
+      const matchStatus = filterStatus === 'ALL' || j.jobStatus === filterStatus;
+      const matchSearch = !search || `${j.fname} ${j.lname} ${j.vehicle} ${j.phone}`.toLowerCase().includes(search.toLowerCase());
+      return matchStatus && matchSearch;
+    })
+    .sort((a, b) => {
+      const statusDiff = (JOB_STATUS_ORDER[a.jobStatus] ?? 0) - (JOB_STATUS_ORDER[b.jobStatus] ?? 0);
+      if (statusDiff !== 0) return statusDiff;
+      return b.date.localeCompare(a.date) || b.time.localeCompare(a.time);
+    });
 
   return (
     <div>

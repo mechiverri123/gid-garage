@@ -994,6 +994,7 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
     if (!form.vehicleMake) errors.vehicleMake = 'Select a make';
     if (!form.vehicleModel) errors.vehicleModel = 'Select a model';
     if (!form.vehicleTrim) errors.vehicleTrim = 'Enter trim (e.g. LE, Sport, XLT)';
+    if (form.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) errors.email = 'Enter a valid email address';
     if (Object.keys(errors).length > 0) { setFieldErrors(errors); return; }
     setFieldErrors({});
     setSubmitError(null);
@@ -1682,8 +1683,13 @@ export function AdminSchedule() {
     setBookings(prev => prev.filter(b => b.id !== id));
   }
 
+  const STATUS_ORDER: Record<string, number> = { confirmed: 0, pending: 1, completed: 2, cancelled: 3 };
   const filtered = bookings.filter(b => filter === 'all' || b.status === filter)
-    .sort((a, b) => b.date.localeCompare(a.date) || b.time.localeCompare(a.time));
+    .sort((a, b) => {
+      const statusDiff = (STATUS_ORDER[a.status] ?? 1) - (STATUS_ORDER[b.status] ?? 1);
+      if (statusDiff !== 0) return statusDiff;
+      return b.date.localeCompare(a.date) || b.time.localeCompare(a.time);
+    });
 
   const today = new Date().toISOString().slice(0, 10);
   const upcoming = bookings.filter(b => b.date >= today && b.status === 'confirmed').length;
