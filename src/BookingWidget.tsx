@@ -612,9 +612,9 @@ export { verifyCancelToken, updateSupabaseBooking, deleteLocalBooking, sendCance
 // ── BRAKE PAD SELECTOR ──────────────────────────────────────────────────────
 const PAD_OPTIONS = [
   {
-    id: 'Duralast (Economy)',
+    id: 'Economy (Semi-Metallic)',
     label: 'Economy',
-    brand: 'Duralast',
+    brand: 'Semi-Metallic',
     price: '$',
     color: 'border-gray-600',
     activeColor: 'border-gray-400 bg-gray-800/60',
@@ -628,9 +628,9 @@ const PAD_OPTIONS = [
     },
   },
   {
-    id: 'Duralast Gold (Ceramic)',
-    label: 'Ceramic',
-    brand: 'Duralast Gold',
+    id: 'Premium (Ceramic)',
+    label: 'Premium',
+    brand: 'Ceramic',
     price: '$$',
     color: 'border-yellow-700',
     activeColor: 'border-yellow-500 bg-yellow-900/20',
@@ -1322,7 +1322,7 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
                     </div>
                     <div className="col-span-2">
                       <label className="block text-gray-500 text-xs font-bold uppercase tracking-wider mb-1.5">Notes (optional)</label>
-                      <textarea placeholder="Gate code, parking notes, specific concern..." value={form.notes}
+                      <textarea placeholder="Gate code, building/unit #, parking notes, specific concern..." value={form.notes}
                         onChange={e => setForm(p => ({ ...p, notes: e.target.value }))} rows={3}
                         className="w-full bg-gray-900 border border-gray-800 text-white text-sm px-3 py-2.5 outline-none focus:border-red-600 transition-colors resize-y" />
                     </div>
