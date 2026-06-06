@@ -9,6 +9,11 @@ const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string;
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
 const BREVO_API_KEY = import.meta.env.VITE_BREVO_API_KEY as string;
 
+// ── AZ TPT — Flagstaff combined rate (City 2.281% + State 5.6% + County 1.125% + other 0.176%)
+const TAX_RATE = 0.09182; // 9.182%
+function calcTax(subtotal: number) { return Math.round(subtotal * TAX_RATE * 100) / 100; }
+function calcTotal(subtotal: number) { return Math.round((subtotal + calcTax(subtotal)) * 100) / 100; }
+
 // ── TYPES ────────────────────────────────────────────────────────────────────
 
 export type JobStatus =
@@ -54,6 +59,7 @@ export interface Job {
   estimateAmount: number | null;
   estimateNotes: string;
   lineItems: LineItem[];
+  taxAmount: number | null;
   // signing
   preExistingDamage: string;
   customerAgreed: boolean;
@@ -108,6 +114,7 @@ function mapJob(b: any): Job {
     estimateAmount: b.estimate_amount ?? null,
     estimateNotes: b.estimate_notes || '',
     lineItems: b.line_items ? (typeof b.line_items === 'string' ? JSON.parse(b.line_items) : b.line_items) : [],
+    taxAmount: b.tax_amount ?? null,
     preExistingDamage: b.pre_existing_damage || '',
     customerAgreed: b.customer_agreed || false,
     customerSignature: b.customer_signature || '',
@@ -208,8 +215,12 @@ async function sendEstimateEmail(job: Job, shopAvg: number = 0) {
             <tr><td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#6b7280;font-size:13px;">Appointment</td>
                 <td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#fff;font-size:13px;text-align:right;">${dateStr} at ${job.time}</td></tr>
             ${lineItemsHtml}
+            <tr><td style="padding:8px 0 0;color:#6b7280;font-size:13px;">Subtotal</td>
+                <td style="padding:8px 0 0;color:#fff;font-size:13px;text-align:right;">$${job.estimateAmount?.toFixed(2)}</td></tr>
+            <tr><td style="padding:4px 0;border-bottom:1px solid #1f2937;color:#6b7280;font-size:13px;">AZ TPT Tax (9.182%)</td>
+                <td style="padding:4px 0;border-bottom:1px solid #1f2937;color:#fff;font-size:13px;text-align:right;">$${calcTax(job.estimateAmount || 0).toFixed(2)}</td></tr>
             <tr><td style="padding:10px 0 0;color:#fff;font-size:14px;font-weight:bold;">Total</td>
-                <td style="padding:10px 0 0;color:#ef4444;font-size:20px;font-weight:900;text-align:right;">$${job.estimateAmount?.toFixed(2)}</td></tr>
+                <td style="padding:10px 0 0;color:#ef4444;font-size:20px;font-weight:900;text-align:right;">$${calcTotal(job.estimateAmount || 0).toFixed(2)}</td></tr>
           </table>
 
           ${job.estimateNotes ? `<p style="color:#9ca3af;font-size:13px;margin:16px 0;padding:12px;background:#1f2937;border-left:3px solid #ef4444;">${job.estimateNotes}</p>` : ''}
@@ -262,8 +273,12 @@ async function sendInvoiceEmail(job: Job) {
             <tr><td style="padding:8px 0;border-bottom:1px solid #374151;color:#6b7280;font-size:13px;">Vehicle</td>
                 <td style="padding:8px 0;border-bottom:1px solid #374151;color:#fff;font-size:13px;text-align:right;">${job.vehicle}</td></tr>
             ${lineItemsHtml}
+            <tr><td style="padding:8px 0 0;color:#6b7280;font-size:13px;">Subtotal</td>
+                <td style="padding:8px 0 0;color:#fff;font-size:13px;text-align:right;">$${amount?.toFixed(2)}</td></tr>
+            <tr><td style="padding:4px 0;border-bottom:1px solid #374151;color:#6b7280;font-size:13px;">AZ TPT Tax (9.182%)</td>
+                <td style="padding:4px 0;border-bottom:1px solid #374151;color:#fff;font-size:13px;text-align:right;">$${calcTax(amount || 0).toFixed(2)}</td></tr>
             <tr><td style="padding:10px 0 0;color:#fff;font-size:14px;font-weight:bold;">Total Due</td>
-                <td style="padding:10px 0 0;color:#ef4444;font-size:22px;font-weight:900;text-align:right;">$${amount?.toFixed(2)}</td></tr>
+                <td style="padding:10px 0 0;color:#ef4444;font-size:22px;font-weight:900;text-align:right;">$${calcTotal(amount || 0).toFixed(2)}</td></tr>
           </table>
           <p style="color:#4b5563;font-size:12px;margin:0;">Questions? Call or text <strong style="color:#9ca3af;">480-757-0476</strong> — GID Garage, Flagstaff AZ</p>
         </div>
@@ -292,7 +307,7 @@ async function sendReceiptEmail(job: Job) {
           <img src="https://gidgarage.com/website_logo.png" alt="GID Garage" style="height:48px;margin-bottom:24px;" />
           <div style="background:#052e16;border:1px solid #166534;padding:16px;margin-bottom:24px;border-radius:4px;">
             <p style="color:#4ade80;font-size:12px;font-weight:bold;text-transform:uppercase;letter-spacing:0.1em;margin:0 0 4px;">Payment Received</p>
-            <p style="color:#fff;font-size:28px;font-weight:900;margin:0;">$${job.invoiceAmount?.toFixed(2)}</p>
+            <p style="color:#fff;font-size:28px;font-weight:900;margin:0;">$${calcTotal(job.invoiceAmount || 0).toFixed(2)}</p>
           </div>
           <table style="width:100%;border-collapse:collapse;margin-bottom:24px;">
             <tr><td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#6b7280;font-size:13px;">Service</td>
@@ -301,6 +316,12 @@ async function sendReceiptEmail(job: Job) {
                 <td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#fff;font-size:13px;">${job.vehicle}</td></tr>
             <tr><td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#6b7280;font-size:13px;">Date Paid</td>
                 <td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#fff;font-size:13px;">${paidDate}</td></tr>
+            <tr><td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#6b7280;font-size:13px;">Subtotal</td>
+                <td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#fff;font-size:13px;text-align:right;">$${(job.invoiceAmount || 0).toFixed(2)}</td></tr>
+            <tr><td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#6b7280;font-size:13px;">AZ TPT Tax (9.182%)</td>
+                <td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#fff;font-size:13px;text-align:right;">$${calcTax(job.invoiceAmount || 0).toFixed(2)}</td></tr>
+            <tr><td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#fff;font-size:14px;font-weight:bold;">Total Paid</td>
+                <td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#4ade80;font-size:14px;font-weight:bold;text-align:right;">$${calcTotal(job.invoiceAmount || 0).toFixed(2)}</td></tr>
             <tr><td style="padding:8px 0;color:#6b7280;font-size:13px;">Transaction ID</td>
                 <td style="padding:8px 0;color:#9ca3af;font-size:12px;font-family:monospace;">${job.stripeTransactionId}</td></tr>
           </table>
@@ -1101,8 +1122,9 @@ function EstimatePanel({ job, onUpdate }: { job: Job; onUpdate: (j: Job) => void
       estimate_amount: total,
       estimate_notes: notes,
       line_items: JSON.stringify(lineItems),
+      tax_amount: calcTax(total),
     });
-    onUpdate({ ...job, estimateAmount: total, estimateNotes: notes, lineItems });
+    onUpdate({ ...job, estimateAmount: total, estimateNotes: notes, lineItems, taxAmount: calcTax(total) });
     setSaving(false);
   }
 
@@ -1114,8 +1136,9 @@ function EstimatePanel({ job, onUpdate }: { job: Job; onUpdate: (j: Job) => void
       estimate_notes: notes,
       line_items: JSON.stringify(lineItems),
       job_status: 'ESTIMATE_SENT',
+      tax_amount: calcTax(total),
     });
-    const updated = { ...job, estimateAmount: total, estimateNotes: notes, lineItems, jobStatus: 'ESTIMATE_SENT' as JobStatus };
+    const updated = { ...job, estimateAmount: total, estimateNotes: notes, lineItems, jobStatus: 'ESTIMATE_SENT' as JobStatus, taxAmount: calcTax(total) };
     await sendEstimateEmail(updated, showShopComparison ? shopAvg : 0);
     onUpdate(updated);
     setSending(false);
@@ -1287,6 +1310,7 @@ function PaymentPanel({ job, onUpdate, onRequote }: { job: Job; onUpdate: (j: Jo
       const updated = {
         ...job,
         invoiceAmount: finalAmount,
+        taxAmount: calcTax(finalAmount),
         stripeTransactionId: data.chargeId,
         paidAt: new Date().toISOString(),
         jobStatus: 'PAID' as JobStatus,
@@ -1312,24 +1336,25 @@ function PaymentPanel({ job, onUpdate, onRequote }: { job: Job; onUpdate: (j: Jo
     setSaving(true);
     const paidAt = new Date().toISOString();
     if (job.jobStatus !== 'INVOICED') {
-      await patchJob(job.id, { job_status: 'INVOICED', invoice_amount: finalAmount });
-      await sendInvoiceEmail({ ...job, jobStatus: 'INVOICED' as JobStatus, invoiceAmount: finalAmount });
+      await patchJob(job.id, { job_status: 'INVOICED', invoice_amount: finalAmount, tax_amount: calcTax(finalAmount) });
+      await sendInvoiceEmail({ ...job, jobStatus: 'INVOICED' as JobStatus, invoiceAmount: finalAmount, taxAmount: calcTax(finalAmount) });
     }
     await patchJob(job.id, {
       invoice_amount: finalAmount,
+      tax_amount: calcTax(finalAmount),
       stripe_transaction_id: stripeId,
       paid_at: paidAt,
       job_status: 'PAID',
       status: 'completed',
     });
-    onUpdate({ ...job, invoiceAmount: finalAmount, stripeTransactionId: stripeId, paidAt, jobStatus: 'PAID' as JobStatus, status: 'completed' });
+    onUpdate({ ...job, invoiceAmount: finalAmount, taxAmount: calcTax(finalAmount), stripeTransactionId: stripeId, paidAt, jobStatus: 'PAID' as JobStatus, status: 'completed' });
     setSaving(false);
   }
 
   async function markInvoiced() {
     setSaving(true);
-    await patchJob(job.id, { job_status: 'INVOICED', invoice_amount: finalAmount });
-    const updated = { ...job, jobStatus: 'INVOICED' as JobStatus, invoiceAmount: finalAmount };
+    await patchJob(job.id, { job_status: 'INVOICED', invoice_amount: finalAmount, tax_amount: calcTax(finalAmount) });
+    const updated = { ...job, jobStatus: 'INVOICED' as JobStatus, invoiceAmount: finalAmount, taxAmount: calcTax(finalAmount) };
     await sendInvoiceEmail(updated);
     onUpdate(updated);
     setSaving(false);
@@ -2030,9 +2055,19 @@ export function InvoicePage() {
           )}
 
           {/* Amount row */}
-          <div className={`px-6 py-5 border-t border-white/10 flex items-center justify-between ${isPaid ? 'bg-emerald-900/10' : 'bg-red-900/10'}`}>
-            <span className="text-white font-bold uppercase tracking-wider text-sm">{isPaid ? 'Total Paid' : 'Total Due'}</span>
-            <span className={`text-2xl font-black ${isPaid ? 'text-emerald-400' : 'text-red-400'}`}>${amount?.toFixed(2)}</span>
+          <div className="border-t border-white/10">
+            <div className="flex justify-between px-6 py-3">
+              <span className="text-gray-500 text-xs font-bold uppercase tracking-wider">Subtotal</span>
+              <span className="text-white text-sm font-mono">${amount?.toFixed(2)}</span>
+            </div>
+            <div className="flex justify-between px-6 py-3 border-t border-white/5">
+              <span className="text-gray-500 text-xs font-bold uppercase tracking-wider">AZ TPT Tax (9.182%)</span>
+              <span className="text-white text-sm font-mono">${calcTax(amount || 0).toFixed(2)}</span>
+            </div>
+            <div className={`px-6 py-5 border-t border-white/10 flex items-center justify-between ${isPaid ? 'bg-emerald-900/10' : 'bg-red-900/10'}`}>
+              <span className="text-white font-bold uppercase tracking-wider text-sm">{isPaid ? 'Total Paid' : 'Total Due'}</span>
+              <span className={`text-2xl font-black ${isPaid ? 'text-emerald-400' : 'text-red-400'}`}>${calcTotal(amount || 0).toFixed(2)}</span>
+            </div>
           </div>
         </div>
 
@@ -2214,9 +2249,17 @@ export function EstimatePage() {
                   <span className="text-white text-sm font-mono">${job.estimateAmount?.toFixed(2)}</span>
                 </div>
               )}
-              <div className="flex justify-between px-4 py-4">
+              <div className="flex justify-between px-4 py-3 border-t border-white/10">
+                <span className="text-gray-500 text-xs font-bold uppercase tracking-wider">Subtotal</span>
+                <span className="text-white text-sm font-mono">${job.estimateAmount?.toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between px-4 py-3 border-t border-white/5">
+                <span className="text-gray-500 text-xs font-bold uppercase tracking-wider">AZ TPT Tax (9.182%)</span>
+                <span className="text-white text-sm font-mono">${calcTax(job.estimateAmount || 0).toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between px-4 py-4 border-t border-white/10">
                 <span className="text-gray-500 text-xs font-bold uppercase tracking-wider">Total</span>
-                <span className="text-red-400 text-2xl font-black">${job.estimateAmount?.toFixed(2)}</span>
+                <span className="text-red-400 text-2xl font-black">${calcTotal(job.estimateAmount || 0).toFixed(2)}</span>
               </div>
             </div>
 
@@ -2327,6 +2370,350 @@ export function EstimatePage() {
             <p className="text-gray-700 text-xs text-center">Questions before signing? Call or text us at <strong className="text-gray-600">480-757-0476</strong></p>
           </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+// ── BUSINESS HUB ─────────────────────────────────────────────────────────────
+
+interface HubNote {
+  id: string;
+  content: string;
+  createdAt: string;
+}
+
+interface HubCategory {
+  id: string;
+  icon: string;
+  label: string;
+  color: string; // tailwind text color
+  border: string;
+  bg: string;
+}
+
+const HUB_CATEGORIES: HubCategory[] = [
+  { id: 'taxes',    icon: '🧾', label: 'Taxes & TPT',        color: 'text-yellow-400',  border: 'border-yellow-800', bg: 'bg-yellow-900/10' },
+  { id: 'ops',      icon: '⚙️', label: 'Operations',         color: 'text-blue-400',    border: 'border-blue-800',   bg: 'bg-blue-900/10'   },
+  { id: 'legal',    icon: '⚖️', label: 'Legal & Licensing',  color: 'text-purple-400',  border: 'border-purple-800', bg: 'bg-purple-900/10' },
+  { id: 'pricing',  icon: '💲', label: 'Pricing & Labor',    color: 'text-green-400',   border: 'border-green-800',  bg: 'bg-green-900/10'  },
+  { id: 'vendors',  icon: '🔩', label: 'Vendors & Parts',    color: 'text-orange-400',  border: 'border-orange-800', bg: 'bg-orange-900/10' },
+  { id: 'banking',  icon: '🏦', label: 'Banking & Credit',   color: 'text-cyan-400',    border: 'border-cyan-800',   bg: 'bg-cyan-900/10'   },
+  { id: 'misc',     icon: '📌', label: 'Misc Notes',         color: 'text-gray-400',    border: 'border-gray-700',   bg: 'bg-gray-900/20'   },
+];
+
+const SEED_NOTES: Record<string, string[]> = {
+  taxes: [
+    'AZ TPT License #21663074 (Standard) — ACTIVE. File & pay at AZTaxes.gov by the 20th of the following month.',
+    'Flagstaff combined TPT rate: 9.182% (State 5.6% + City 2.281% + County 1.125% + other 0.176%). Applied to ALL auto repair — labor AND parts.',
+    'Every paid invoice has tax_amount stored in Supabase. Use the Tax Summary below to pull monthly totals for your TPT filing.',
+    'Zoho Books: log all business expenses there (tools, PPE, parts, fuel, insurance). These reduce your taxable NET income for federal/state income tax — not TPT.',
+    'Keep receipts for every expense ≥ $75. AutoZone Pro purchases pull statements monthly — save them.',
+    'Federal income tax: you\'re a single-member LLC taxed as sole proprietor. Pay quarterly estimated taxes (Form 1040-ES) by: Apr 15, Jun 15, Sep 15, Jan 15.',
+    'AZ state income tax: file AZ Form 140 annually. Also consider AZ estimated tax payments if you expect to owe > $1,000.',
+  ],
+  ops: [
+    'Service area: Flagstaff, AZ (relocating to Gilbert in ~1yr — update TPT location registration when you move).',
+    'Hours: Mon–Fri 1:30PM–8PM, Sat–Sun 5AM–8PM.',
+    'Mobile service fee included in all pricing. Customer must provide flat, stable surface with sufficient clearance.',
+    'Parts markup: 25% over AutoZone Pro cost. Labor: $135/hr.',
+    'Oil change: $79.99 full synthetic only. Brakes from $149.99/axle. Diagnostics $89.99. Front struts from $399.99 labor. Audio from $174.99 labor.',
+    'Cancellations: require 24hr notice. Late cancellation fee up to 50% of quoted cost.',
+  ],
+  legal: [
+    'Entity: Echiverri Holdings LLC — EIN obtained, DBA "GID Garage" filed through AZ SOS.',
+    'AZ TPT License: #21663074 — ACTIVE.',
+    'AZ ROC License: in progress.',
+    'Insurance & bonding: in progress.',
+    'All estimates require customer e-signature (UETA-compliant). Signed docs stored in Supabase with IP and timestamp.',
+    'Coconino County jurisdiction for any disputes.',
+  ],
+  pricing: [
+    'Labor rate: $135/hr.',
+    'Parts markup: 25% over AutoZone Pro invoice cost.',
+    'Oil Change: $79.99 (full synthetic, 5qt). Extra quarts: $10.99/qt.',
+    'Diagnostics: $89.99 (OBD2 scan + recommendation).',
+    'Brakes from $149.99/axle (pads only). Pads + rotors from $549.99. Full service from $649.99.',
+    'Front struts from $399.99 labor. Audio from $174.99 labor.',
+    'Flagstaff combined sales tax 9.182% added to all invoices.',
+    'Shop comparison baseline: use for estimate emails to show customer savings vs. local shops.',
+  ],
+  vendors: [
+    'AutoZone Pro commercial account under Echiverri Holdings — monthly statement pay (builds Paydex).',
+    'Quill net-30 account — paid off.',
+    'Harbor Freight: startup tools & PPE — log all receipts in Zoho Books as Equipment/Supplies expense.',
+    'Parts sourcing flow: quote customer → order from AutoZone Pro → apply 25% markup on invoice.',
+  ],
+  banking: [
+    'Primary operating account: Bluevine (Stripe integrated for deposits).',
+    'Mercury: retained for lender credibility / secondary account.',
+    'Stripe: tap-to-pay + saved cards. Integrated with charge-card.js Cloudflare Worker.',
+    'Business credit: DUNS obtained. D&B SER moved from "no data" to "moderate to high".',
+    'Amex Blue Business Cash: denied (too many inquiries + thin Bluevine history). Re-apply in ~6 months.',
+    'AutoZone Pro monthly statement pay reports to D&B — keep account current to build Paydex score.',
+  ],
+  misc: [],
+};
+
+function usePersistentNotes(categoryId: string) {
+  const [notes, setNotes] = useState<HubNote[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [seeded, setSeeded] = useState(false);
+
+  useEffect(() => {
+    sbFetch(`/hub_notes?category_id=eq.${categoryId}&order=created_at.asc`)
+      .then(async (data: any[]) => {
+        if (data && data.length > 0) {
+          setNotes(data.map((r: any) => ({ id: r.id, content: r.content, createdAt: r.created_at })));
+          setLoading(false);
+        } else if (!seeded) {
+          setSeeded(true);
+          const seeds = SEED_NOTES[categoryId] ?? [];
+          if (seeds.length === 0) { setLoading(false); return; }
+          const rows = seeds.map((content, i) => ({
+            id: `${categoryId}-seed-${i}-${Date.now()}`,
+            category_id: categoryId,
+            content,
+          }));
+          try {
+            await sbFetch('/hub_notes', { method: 'POST', body: JSON.stringify(rows) });
+            const fresh = await sbFetch(`/hub_notes?category_id=eq.${categoryId}&order=created_at.asc`);
+            setNotes((fresh || []).map((r: any) => ({ id: r.id, content: r.content, createdAt: r.created_at })));
+          } catch { /* seed failed silently */ }
+          setLoading(false);
+        } else {
+          setLoading(false);
+        }
+      })
+      .catch(() => setLoading(false));
+  }, [categoryId]);
+
+  async function addNote(content: string) {
+    const row = { id: `${categoryId}-${Date.now()}`, category_id: categoryId, content };
+    const result = await sbFetch('/hub_notes', { method: 'POST', body: JSON.stringify(row) });
+    const created = Array.isArray(result) ? result[0] : result;
+    if (created) setNotes(prev => [...prev, { id: created.id, content: created.content, createdAt: created.created_at }]);
+  }
+
+  async function deleteNote(id: string) {
+    setNotes(prev => prev.filter(n => n.id !== id));
+    await sbFetch(`/hub_notes?id=eq.${id}`, { method: 'DELETE' });
+  }
+
+  async function editNote(id: string, content: string) {
+    setNotes(prev => prev.map(n => n.id === id ? { ...n, content } : n));
+    await sbFetch(`/hub_notes?id=eq.${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ content }),
+    });
+  }
+
+  return { notes, loading, addNote, deleteNote, editNote };
+}
+
+// ── TAX SUMMARY (live from Supabase) ──────────────────────────────────────────
+function TaxSummary() {
+  const [rows, setRows] = useState<{ month: string; subtotal: number; tax: number; total: number }[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    sbFetch('/bookings?job_status=eq.PAID&select=paid_at,invoice_amount,tax_amount&order=paid_at.desc')
+      .then((data: any[]) => {
+        if (!data?.length) { setRows([]); setLoading(false); return; }
+        const byMonth: Record<string, { subtotal: number; tax: number }> = {};
+        for (const b of data) {
+          if (!b.paid_at) continue;
+          const month = b.paid_at.slice(0, 7); // YYYY-MM
+          if (!byMonth[month]) byMonth[month] = { subtotal: 0, tax: 0 };
+          byMonth[month].subtotal += Number(b.invoice_amount) || 0;
+          byMonth[month].tax += Number(b.tax_amount) || 0;
+        }
+        const sorted = Object.entries(byMonth)
+          .sort(([a], [b]) => b.localeCompare(a))
+          .map(([month, { subtotal, tax }]) => ({
+            month,
+            subtotal: Math.round(subtotal * 100) / 100,
+            tax: Math.round(tax * 100) / 100,
+            total: Math.round((subtotal + tax) * 100) / 100,
+          }));
+        setRows(sorted);
+        setLoading(false);
+      })
+      .catch(() => setLoading(false));
+  }, []);
+
+  if (loading) return <p className="text-gray-600 text-xs py-4">Loading tax data…</p>;
+  if (!rows.length) return (
+    <div className="bg-yellow-900/10 border border-yellow-800 px-4 py-3 mt-4">
+      <p className="text-yellow-400 text-xs font-bold mb-1">No paid invoices yet</p>
+      <p className="text-gray-500 text-xs">Once you mark jobs as PAID, your monthly tax summary will appear here automatically.</p>
+    </div>
+  );
+
+  return (
+    <div className="mt-4">
+      <p className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-3">📊 Monthly TPT Summary — Auto-pulled from Jobs</p>
+      <div className="border border-gray-800 overflow-hidden">
+        <div className="grid grid-cols-4 bg-gray-900 border-b border-gray-800 px-4 py-2">
+          {['Month', 'Subtotal', 'Tax (9.182%)', 'Total Collected'].map(h => (
+            <span key={h} className="text-gray-500 text-[10px] font-bold uppercase tracking-wider">{h}</span>
+          ))}
+        </div>
+        {rows.map(r => {
+          const [yr, mo] = r.month.split('-');
+          const label = new Date(Number(yr), Number(mo) - 1, 1).toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+          return (
+            <div key={r.month} className="grid grid-cols-4 px-4 py-3 border-b border-gray-800/50 hover:bg-gray-900/40 transition-colors">
+              <span className="text-white text-sm font-bold">{label}</span>
+              <span className="text-gray-300 text-sm font-mono">${r.subtotal.toFixed(2)}</span>
+              <span className="text-yellow-400 text-sm font-mono font-bold">${r.tax.toFixed(2)}</span>
+              <span className="text-white text-sm font-mono">${r.total.toFixed(2)}</span>
+            </div>
+          );
+        })}
+        <div className="grid grid-cols-4 px-4 py-3 bg-gray-900/60">
+          <span className="text-gray-500 text-xs font-bold uppercase tracking-wider">All Time</span>
+          <span className="text-gray-300 text-sm font-mono">${rows.reduce((s, r) => s + r.subtotal, 0).toFixed(2)}</span>
+          <span className="text-yellow-400 text-sm font-mono font-bold">${rows.reduce((s, r) => s + r.tax, 0).toFixed(2)}</span>
+          <span className="text-white text-sm font-mono">${rows.reduce((s, r) => s + r.total, 0).toFixed(2)}</span>
+        </div>
+      </div>
+      <p className="text-gray-700 text-[10px] mt-2">File & remit TPT at AZTaxes.gov by the 20th of the following month. Use the Tax column as your gross tax liability per period.</p>
+    </div>
+  );
+}
+
+// ── CATEGORY PANEL ────────────────────────────────────────────────────────────
+function HubCategoryPanel({ cat }: { cat: HubCategory }) {
+  const { notes, loading, addNote, deleteNote, editNote } = usePersistentNotes(cat.id);
+  const [newText, setNewText] = useState('');
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editText, setEditText] = useState('');
+
+  function handleAdd() {
+    const trimmed = newText.trim();
+    if (!trimmed) return;
+    addNote(trimmed);
+    setNewText('');
+  }
+
+  function startEdit(note: HubNote) {
+    setEditingId(note.id);
+    setEditText(note.content);
+  }
+
+  function saveEdit() {
+    if (!editingId) return;
+    editNote(editingId, editText.trim());
+    setEditingId(null);
+  }
+
+  if (loading) return <p className="text-gray-600 text-xs py-8 text-center animate-pulse">Loading…</p>;
+
+  return (
+    <div>
+      <div className="space-y-2 mb-4">
+        {notes.length === 0 && (
+          <p className="text-gray-700 text-xs italic py-4 text-center">No notes yet. Add one below.</p>
+        )}
+        {notes.map(note => (
+          <div key={note.id} className={`border ${cat.border} ${cat.bg} px-4 py-3 group`}>
+            {editingId === note.id ? (
+              <div className="space-y-2">
+                <textarea
+                  value={editText}
+                  onChange={e => setEditText(e.target.value)}
+                  rows={3}
+                  className="w-full bg-gray-950 border border-gray-700 text-white text-sm px-3 py-2 outline-none focus:border-red-600 resize-y"
+                  autoFocus
+                />
+                <div className="flex gap-2">
+                  <button onClick={saveEdit} className="text-xs font-bold uppercase tracking-wider px-3 py-1.5 bg-red-600 hover:bg-red-500 text-white transition-colors">Save</button>
+                  <button onClick={() => setEditingId(null)} className="text-xs font-bold uppercase tracking-wider px-3 py-1.5 border border-gray-700 text-gray-400 hover:text-white transition-colors">Cancel</button>
+                </div>
+              </div>
+            ) : (
+              <div className="flex items-start justify-between gap-3">
+                <p className="text-gray-200 text-sm leading-relaxed flex-1">{note.content}</p>
+                <div className="flex gap-1.5 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <button onClick={() => startEdit(note)} className="text-gray-600 hover:text-white text-[10px] font-bold uppercase tracking-wider px-2 py-1 border border-gray-800 hover:border-gray-600 transition-colors">Edit</button>
+                  <button onClick={() => { if (confirm('Delete this note?')) deleteNote(note.id); }} className="text-gray-700 hover:text-red-500 text-[10px] font-bold uppercase tracking-wider px-2 py-1 border border-gray-800 hover:border-red-800 transition-colors">✕</button>
+                </div>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+
+      {/* Tax summary auto-embedded in taxes tab */}
+      {cat.id === 'taxes' && <TaxSummary />}
+
+      {/* Add note */}
+      <div className="flex gap-2 mt-4">
+        <textarea
+          value={newText}
+          onChange={e => setNewText(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) handleAdd(); }}
+          placeholder="Add a note… (Cmd+Enter to save)"
+          rows={2}
+          className="flex-1 bg-gray-900 border border-gray-700 text-white text-sm px-3 py-2 outline-none focus:border-red-600 resize-none placeholder-gray-700 transition-colors"
+        />
+        <button
+          onClick={handleAdd}
+          disabled={!newText.trim()}
+          className="px-4 py-2 bg-red-600 hover:bg-red-500 disabled:opacity-30 text-white text-xs font-bold uppercase tracking-widest transition-colors self-stretch"
+        >
+          Add
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ── BUSINESS HUB MAIN ─────────────────────────────────────────────────────────
+export function BusinessHub() {
+  const [activeId, setActiveId] = useState<string>('taxes');
+  const activeCat = HUB_CATEGORIES.find(c => c.id === activeId)!;
+
+  return (
+    <div className="max-w-4xl mx-auto py-6 px-4">
+      {/* Header */}
+      <div className="mb-8">
+        <p className="text-red-600 text-xs font-bold uppercase tracking-[0.25em] mb-1">Admin · GID Garage</p>
+        <h2 className="text-3xl font-black text-white tracking-tight">Business Hub</h2>
+        <p className="text-gray-600 text-sm mt-1">Your operating manual. Everything you need to run GID Garage in one place.</p>
+      </div>
+
+      <div className="flex gap-6">
+        {/* Sidebar */}
+        <div className="w-48 flex-shrink-0 space-y-1">
+          {HUB_CATEGORIES.map(cat => (
+            <button
+              key={cat.id}
+              onClick={() => setActiveId(cat.id)}
+              className={`w-full text-left px-3 py-2.5 text-sm font-bold transition-colors flex items-center gap-2.5 ${
+                activeId === cat.id
+                  ? `${cat.bg} border-l-2 border-red-600 ${cat.color}`
+                  : 'text-gray-500 hover:text-gray-300 border-l-2 border-transparent'
+              }`}
+            >
+              <span>{cat.icon}</span>
+              <span className="truncate">{cat.label}</span>
+            </button>
+          ))}
+        </div>
+
+        {/* Content */}
+        <div className="flex-1 min-w-0">
+          <div className={`border ${activeCat.border} px-5 py-4 mb-4 flex items-center gap-3`}>
+            <span className="text-2xl">{activeCat.icon}</span>
+            <div>
+              <h3 className={`text-lg font-black ${activeCat.color}`}>{activeCat.label}</h3>
+              <p className="text-gray-600 text-xs">Notes persist locally. Edit or delete anytime.</p>
+            </div>
+          </div>
+          <HubCategoryPanel cat={activeCat} />
+        </div>
       </div>
     </div>
   );
