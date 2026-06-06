@@ -1194,10 +1194,20 @@ function EstimatePanel({ job, onUpdate }: { job: Job; onUpdate: (j: Job) => void
           ))}
         </div>
 
-        {/* Total */}
-        <div className="flex justify-between border-t border-gray-700 mt-3 pt-3">
-          <span className="text-gray-400 text-xs font-bold uppercase tracking-wider">Total</span>
-          <span className="text-white text-sm font-black">${total.toFixed(2)}</span>
+        {/* Subtotal + Tax + Total */}
+        <div className="border-t border-gray-700 mt-3 pt-3 space-y-1.5">
+          <div className="flex justify-between">
+            <span className="text-gray-500 text-xs uppercase tracking-wider">Subtotal</span>
+            <span className="text-gray-300 text-xs font-mono">${total.toFixed(2)}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-gray-500 text-xs uppercase tracking-wider">AZ TPT (9.182%)</span>
+            <span className="text-yellow-500 text-xs font-mono">${calcTax(total).toFixed(2)}</span>
+          </div>
+          <div className="flex justify-between border-t border-gray-700 pt-1.5">
+            <span className="text-gray-400 text-xs font-bold uppercase tracking-wider">Total</span>
+            <span className="text-white text-sm font-black">${calcTotal(total).toFixed(2)}</span>
+          </div>
         </div>
       </div>
 
@@ -1365,7 +1375,15 @@ function PaymentPanel({ job, onUpdate, onRequote }: { job: Job; onUpdate: (j: Jo
     return (
       <div className="bg-emerald-900/20 border border-emerald-800 p-5 space-y-2">
         <p className="text-emerald-400 text-sm font-bold uppercase tracking-widest">✓ Paid</p>
-        <p className="text-white text-2xl font-black">${job.invoiceAmount?.toFixed(2)}</p>
+        <p className="text-white text-2xl font-black">${calcTotal(job.invoiceAmount || 0).toFixed(2)}</p>
+        <div className="flex justify-between text-xs">
+          <span className="text-gray-600">Subtotal</span>
+          <span className="text-gray-400 font-mono">${(job.invoiceAmount || 0).toFixed(2)}</span>
+        </div>
+        <div className="flex justify-between text-xs">
+          <span className="text-gray-600">Tax (9.182%)</span>
+          <span className="text-yellow-600 font-mono">${calcTax(job.invoiceAmount || 0).toFixed(2)}</span>
+        </div>
         <p className="text-gray-500 text-xs font-mono">{job.stripeTransactionId}</p>
         <p className="text-gray-600 text-xs">{job.paidAt ? new Date(job.paidAt).toLocaleString() : ''}</p>
         <a
@@ -1395,6 +1413,18 @@ function PaymentPanel({ job, onUpdate, onRequote }: { job: Job; onUpdate: (j: Jo
           />
           {job.estimateAmount && <span className="text-gray-600 text-xs">Estimate was ${job.estimateAmount.toFixed(2)}</span>}
         </div>
+        {finalAmount > 0 && (
+          <div className="mt-2 space-y-0.5">
+            <div className="flex justify-between text-xs">
+              <span className="text-gray-600">AZ TPT (9.182%)</span>
+              <span className="text-yellow-600 font-mono">+${calcTax(finalAmount).toFixed(2)}</span>
+            </div>
+            <div className="flex justify-between text-xs border-t border-gray-800 pt-1">
+              <span className="text-gray-400 font-bold uppercase tracking-wider">Customer total</span>
+              <span className="text-white font-black font-mono">${calcTotal(finalAmount).toFixed(2)}</span>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Card on file — primary payment method */}
@@ -2458,34 +2488,34 @@ const SEED_NOTES: Record<string, string[]> = {
 function usePersistentNotes(categoryId: string) {
   const [notes, setNotes] = useState<HubNote[]>([]);
   const [loading, setLoading] = useState(true);
-  const [seeded, setSeeded] = useState(false);
 
   useEffect(() => {
-    sbFetch(`/hub_notes?category_id=eq.${categoryId}&order=created_at.asc`)
-      .then(async (data: any[]) => {
+    let cancelled = false;
+    async function load() {
+      try {
+        const data = await sbFetch(`/hub_notes?category_id=eq.${categoryId}&order=created_at.asc`);
+        if (cancelled) return;
         if (data && data.length > 0) {
           setNotes(data.map((r: any) => ({ id: r.id, content: r.content, createdAt: r.created_at })));
-          setLoading(false);
-        } else if (!seeded) {
-          setSeeded(true);
-          const seeds = SEED_NOTES[categoryId] ?? [];
-          if (seeds.length === 0) { setLoading(false); return; }
-          const rows = seeds.map((content, i) => ({
-            id: `${categoryId}-seed-${i}-${Date.now()}`,
-            category_id: categoryId,
-            content,
-          }));
-          try {
-            await sbFetch('/hub_notes', { method: 'POST', body: JSON.stringify(rows) });
-            const fresh = await sbFetch(`/hub_notes?category_id=eq.${categoryId}&order=created_at.asc`);
-            setNotes((fresh || []).map((r: any) => ({ id: r.id, content: r.content, createdAt: r.created_at })));
-          } catch { /* seed failed silently */ }
-          setLoading(false);
         } else {
-          setLoading(false);
+          // Seed this category — insert one at a time with staggered timestamps to avoid ID collision
+          const seeds = SEED_NOTES[categoryId] ?? [];
+          for (let i = 0; i < seeds.length; i++) {
+            const uid = `${categoryId}-s${i}-${Math.random().toString(36).slice(2,9)}`;
+            try {
+              await sbFetch('/hub_notes', { method: 'POST', body: JSON.stringify({ id: uid, category_id: categoryId, content: seeds[i] }) });
+            } catch { /* skip duplicate */ }
+          }
+          if (seeds.length > 0) {
+            const fresh = await sbFetch(`/hub_notes?category_id=eq.${categoryId}&order=created_at.asc`);
+            if (!cancelled) setNotes((fresh || []).map((r: any) => ({ id: r.id, content: r.content, createdAt: r.created_at })));
+          }
         }
-      })
-      .catch(() => setLoading(false));
+      } catch { /* ignore */ }
+      if (!cancelled) setLoading(false);
+    }
+    load();
+    return () => { cancelled = true; };
   }, [categoryId]);
 
   async function addNote(content: string) {
@@ -2552,33 +2582,38 @@ function TaxSummary() {
 
   return (
     <div className="mt-4">
-      <p className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-3">📊 Monthly TPT Summary — Auto-pulled from Jobs</p>
-      <div className="border border-gray-800 overflow-hidden">
-        <div className="grid grid-cols-4 bg-gray-900 border-b border-gray-800 px-4 py-2">
-          {['Month', 'Subtotal', 'Tax (9.182%)', 'Total Collected'].map(h => (
-            <span key={h} className="text-gray-500 text-[10px] font-bold uppercase tracking-wider">{h}</span>
-          ))}
-        </div>
+      <p className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-3">📊 Monthly TPT Summary</p>
+      <div className="space-y-2">
         {rows.map(r => {
           const [yr, mo] = r.month.split('-');
           const label = new Date(Number(yr), Number(mo) - 1, 1).toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
           return (
-            <div key={r.month} className="grid grid-cols-4 px-4 py-3 border-b border-gray-800/50 hover:bg-gray-900/40 transition-colors">
-              <span className="text-white text-sm font-bold">{label}</span>
-              <span className="text-gray-300 text-sm font-mono">${r.subtotal.toFixed(2)}</span>
-              <span className="text-yellow-400 text-sm font-mono font-bold">${r.tax.toFixed(2)}</span>
-              <span className="text-white text-sm font-mono">${r.total.toFixed(2)}</span>
+            <div key={r.month} className="border border-gray-800 bg-gray-900/40 px-4 py-3 space-y-1.5">
+              <p className="text-white text-sm font-black">{label}</p>
+              <div className="grid grid-cols-3 gap-2 text-center">
+                <div className="bg-gray-900 border border-gray-800 px-2 py-2">
+                  <p className="text-gray-500 text-[10px] font-bold uppercase tracking-wider mb-0.5">Subtotal</p>
+                  <p className="text-white text-sm font-mono font-bold">${r.subtotal.toFixed(2)}</p>
+                </div>
+                <div className="bg-yellow-900/20 border border-yellow-800 px-2 py-2">
+                  <p className="text-yellow-600 text-[10px] font-bold uppercase tracking-wider mb-0.5">Tax</p>
+                  <p className="text-yellow-400 text-sm font-mono font-bold">${r.tax.toFixed(2)}</p>
+                </div>
+                <div className="bg-gray-900 border border-gray-700 px-2 py-2">
+                  <p className="text-gray-500 text-[10px] font-bold uppercase tracking-wider mb-0.5">Total</p>
+                  <p className="text-white text-sm font-mono font-bold">${r.total.toFixed(2)}</p>
+                </div>
+              </div>
             </div>
           );
         })}
-        <div className="grid grid-cols-4 px-4 py-3 bg-gray-900/60">
-          <span className="text-gray-500 text-xs font-bold uppercase tracking-wider">All Time</span>
-          <span className="text-gray-300 text-sm font-mono">${rows.reduce((s, r) => s + r.subtotal, 0).toFixed(2)}</span>
-          <span className="text-yellow-400 text-sm font-mono font-bold">${rows.reduce((s, r) => s + r.tax, 0).toFixed(2)}</span>
-          <span className="text-white text-sm font-mono">${rows.reduce((s, r) => s + r.total, 0).toFixed(2)}</span>
+        <div className="border border-gray-700 bg-gray-900/60 px-4 py-3 grid grid-cols-3 gap-2 text-center">
+          <div><p className="text-gray-600 text-[10px] uppercase tracking-wider">All Time</p><p className="text-gray-300 text-sm font-mono font-bold">${rows.reduce((s, r) => s + r.subtotal, 0).toFixed(2)}</p></div>
+          <div><p className="text-yellow-700 text-[10px] uppercase tracking-wider">Tax</p><p className="text-yellow-400 text-sm font-mono font-bold">${rows.reduce((s, r) => s + r.tax, 0).toFixed(2)}</p></div>
+          <div><p className="text-gray-600 text-[10px] uppercase tracking-wider">Total</p><p className="text-white text-sm font-mono font-bold">${rows.reduce((s, r) => s + r.total, 0).toFixed(2)}</p></div>
         </div>
       </div>
-      <p className="text-gray-700 text-[10px] mt-2">File & remit TPT at AZTaxes.gov by the 20th of the following month. Use the Tax column as your gross tax liability per period.</p>
+      <p className="text-gray-700 text-[10px] mt-2">File & remit at AZTaxes.gov by the 20th of the following month.</p>
     </div>
   );
 }
@@ -2614,30 +2649,30 @@ function HubCategoryPanel({ cat }: { cat: HubCategory }) {
     <div>
       <div className="space-y-2 mb-4">
         {notes.length === 0 && (
-          <p className="text-gray-700 text-xs italic py-4 text-center">No notes yet. Add one below.</p>
+          <p className="text-gray-700 text-xs italic py-6 text-center">No notes yet. Add one below.</p>
         )}
         {notes.map(note => (
-          <div key={note.id} className={`border ${cat.border} ${cat.bg} px-4 py-3 group`}>
+          <div key={note.id} className={`border ${cat.border} ${cat.bg} px-4 py-3`}>
             {editingId === note.id ? (
               <div className="space-y-2">
                 <textarea
                   value={editText}
                   onChange={e => setEditText(e.target.value)}
-                  rows={3}
-                  className="w-full bg-gray-950 border border-gray-700 text-white text-sm px-3 py-2 outline-none focus:border-red-600 resize-y"
+                  rows={4}
+                  className="w-full bg-gray-950 border border-gray-700 text-white text-sm px-3 py-2.5 outline-none focus:border-red-600 resize-y"
                   autoFocus
                 />
                 <div className="flex gap-2">
-                  <button onClick={saveEdit} className="text-xs font-bold uppercase tracking-wider px-3 py-1.5 bg-red-600 hover:bg-red-500 text-white transition-colors">Save</button>
-                  <button onClick={() => setEditingId(null)} className="text-xs font-bold uppercase tracking-wider px-3 py-1.5 border border-gray-700 text-gray-400 hover:text-white transition-colors">Cancel</button>
+                  <button onClick={saveEdit} className="flex-1 text-xs font-bold uppercase tracking-wider px-3 py-2.5 bg-red-600 hover:bg-red-500 text-white transition-colors">Save</button>
+                  <button onClick={() => setEditingId(null)} className="flex-1 text-xs font-bold uppercase tracking-wider px-3 py-2.5 border border-gray-700 text-gray-400 hover:text-white transition-colors">Cancel</button>
                 </div>
               </div>
             ) : (
-              <div className="flex items-start justify-between gap-3">
-                <p className="text-gray-200 text-sm leading-relaxed flex-1">{note.content}</p>
-                <div className="flex gap-1.5 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <button onClick={() => startEdit(note)} className="text-gray-600 hover:text-white text-[10px] font-bold uppercase tracking-wider px-2 py-1 border border-gray-800 hover:border-gray-600 transition-colors">Edit</button>
-                  <button onClick={() => { if (confirm('Delete this note?')) deleteNote(note.id); }} className="text-gray-700 hover:text-red-500 text-[10px] font-bold uppercase tracking-wider px-2 py-1 border border-gray-800 hover:border-red-800 transition-colors">✕</button>
+              <div>
+                <p className="text-gray-200 text-sm leading-relaxed mb-3">{note.content}</p>
+                <div className="flex gap-2">
+                  <button onClick={() => startEdit(note)} className="text-[11px] font-bold uppercase tracking-wider px-3 py-1.5 border border-gray-700 text-gray-500 hover:text-white hover:border-gray-500 transition-colors active:bg-gray-800">Edit</button>
+                  <button onClick={() => { if (confirm('Delete this note?')) deleteNote(note.id); }} className="text-[11px] font-bold uppercase tracking-wider px-3 py-1.5 border border-gray-800 text-gray-600 hover:text-red-400 hover:border-red-800 transition-colors active:bg-red-950">Delete</button>
                 </div>
               </div>
             )}
@@ -2649,21 +2684,20 @@ function HubCategoryPanel({ cat }: { cat: HubCategory }) {
       {cat.id === 'taxes' && <TaxSummary />}
 
       {/* Add note */}
-      <div className="flex gap-2 mt-4">
+      <div className="mt-5 space-y-2">
         <textarea
           value={newText}
           onChange={e => setNewText(e.target.value)}
-          onKeyDown={e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) handleAdd(); }}
-          placeholder="Add a note… (Cmd+Enter to save)"
-          rows={2}
-          className="flex-1 bg-gray-900 border border-gray-700 text-white text-sm px-3 py-2 outline-none focus:border-red-600 resize-none placeholder-gray-700 transition-colors"
+          placeholder="Add a note…"
+          rows={3}
+          className="w-full bg-gray-900 border border-gray-700 text-white text-sm px-3 py-3 outline-none focus:border-red-600 resize-none placeholder-gray-700 transition-colors"
         />
         <button
           onClick={handleAdd}
           disabled={!newText.trim()}
-          className="px-4 py-2 bg-red-600 hover:bg-red-500 disabled:opacity-30 text-white text-xs font-bold uppercase tracking-widest transition-colors self-stretch"
+          className="w-full py-3 bg-red-600 hover:bg-red-500 active:bg-red-700 disabled:opacity-30 text-white text-xs font-bold uppercase tracking-widest transition-colors"
         >
-          Add
+          + Add Note
         </button>
       </div>
     </div>
@@ -2673,48 +2707,78 @@ function HubCategoryPanel({ cat }: { cat: HubCategory }) {
 // ── BUSINESS HUB MAIN ─────────────────────────────────────────────────────────
 export function BusinessHub() {
   const [activeId, setActiveId] = useState<string>('taxes');
+  const [showPicker, setShowPicker] = useState(false);
+  const [resetting, setResetting] = useState(false);
   const activeCat = HUB_CATEGORIES.find(c => c.id === activeId)!;
 
+  function selectCat(id: string) {
+    setActiveId(id);
+    setShowPicker(false);
+  }
+
+  async function resetAllNotes() {
+    if (!confirm('Delete ALL hub notes and re-seed defaults? This cannot be undone.')) return;
+    setResetting(true);
+    try {
+      // Delete all hub notes
+      await sbFetch('/hub_notes?id=neq.placeholder', { method: 'DELETE' });
+      // Re-seed every category sequentially
+      for (const cat of HUB_CATEGORIES) {
+        const seeds = SEED_NOTES[cat.id] ?? [];
+        for (let i = 0; i < seeds.length; i++) {
+          const uid = `${cat.id}-s${i}-${Math.random().toString(36).slice(2, 9)}`;
+          try { await sbFetch('/hub_notes', { method: 'POST', body: JSON.stringify({ id: uid, category_id: cat.id, content: seeds[i] }) }); } catch { /* skip */ }
+        }
+      }
+    } catch { /* ignore */ }
+    setResetting(false);
+    window.location.reload();
+  }
+
   return (
-    <div className="max-w-4xl mx-auto py-6 px-4">
+    <div className="max-w-2xl mx-auto py-4 px-3 sm:px-6">
       {/* Header */}
-      <div className="mb-8">
-        <p className="text-red-600 text-xs font-bold uppercase tracking-[0.25em] mb-1">Admin · GID Garage</p>
-        <h2 className="text-3xl font-black text-white tracking-tight">Business Hub</h2>
-        <p className="text-gray-600 text-sm mt-1">Your operating manual. Everything you need to run GID Garage in one place.</p>
+      <div className="flex items-start justify-between mb-5">
+        <div>
+          <p className="text-red-600 text-xs font-bold uppercase tracking-[0.25em] mb-1">Admin · GID Garage</p>
+          <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tight">Business Hub</h2>
+        </div>
+        <button
+          onClick={resetAllNotes}
+          disabled={resetting}
+          className="text-[10px] font-bold uppercase tracking-wider px-2.5 py-1.5 border border-gray-800 text-gray-700 hover:border-red-800 hover:text-red-600 transition-colors disabled:opacity-40 flex-shrink-0 mt-1"
+          title="Reset all notes to defaults"
+        >
+          {resetting ? 'Resetting…' : '↺ Reset'}
+        </button>
       </div>
 
-      <div className="flex gap-6">
-        {/* Sidebar */}
-        <div className="w-48 flex-shrink-0 space-y-1">
-          {HUB_CATEGORIES.map(cat => (
-            <button
-              key={cat.id}
-              onClick={() => setActiveId(cat.id)}
-              className={`w-full text-left px-3 py-2.5 text-sm font-bold transition-colors flex items-center gap-2.5 ${
-                activeId === cat.id
-                  ? `${cat.bg} border-l-2 border-red-600 ${cat.color}`
-                  : 'text-gray-500 hover:text-gray-300 border-l-2 border-transparent'
-              }`}
-            >
-              <span>{cat.icon}</span>
-              <span className="truncate">{cat.label}</span>
-            </button>
-          ))}
-        </div>
-
-        {/* Content */}
-        <div className="flex-1 min-w-0">
-          <div className={`border ${activeCat.border} px-5 py-4 mb-4 flex items-center gap-3`}>
-            <span className="text-2xl">{activeCat.icon}</span>
-            <div>
-              <h3 className={`text-lg font-black ${activeCat.color}`}>{activeCat.label}</h3>
-              <p className="text-gray-600 text-xs">Notes persist locally. Edit or delete anytime.</p>
-            </div>
-          </div>
-          <HubCategoryPanel cat={activeCat} />
-        </div>
+      {/* Mobile category picker — horizontal scroll chips */}
+      <div className="flex gap-2 overflow-x-auto pb-2 mb-4 scrollbar-none -mx-3 px-3 sm:mx-0 sm:px-0 sm:flex-wrap">
+        {HUB_CATEGORIES.map(cat => (
+          <button
+            key={cat.id}
+            onClick={() => selectCat(cat.id)}
+            className={`flex-shrink-0 flex items-center gap-1.5 px-3 py-2 text-xs font-bold uppercase tracking-wider border transition-colors whitespace-nowrap ${
+              activeId === cat.id
+                ? `${cat.bg} ${cat.border} ${cat.color}`
+                : 'border-gray-800 text-gray-500 hover:text-gray-300 hover:border-gray-600'
+            }`}
+          >
+            <span>{cat.icon}</span>
+            <span>{cat.label}</span>
+          </button>
+        ))}
       </div>
+
+      {/* Active category header */}
+      <div className={`border ${activeCat.border} ${activeCat.bg} px-4 py-3 mb-4 flex items-center gap-3`}>
+        <span className="text-xl">{activeCat.icon}</span>
+        <h3 className={`text-base font-black ${activeCat.color}`}>{activeCat.label}</h3>
+      </div>
+
+      {/* Content */}
+      <HubCategoryPanel cat={activeCat} />
     </div>
   );
 }
