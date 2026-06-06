@@ -1581,6 +1581,7 @@ export function AdminSchedule() {
       if (!vapidKey) { alert('Push setup error: VAPID key missing. Check .env file.'); return; }
 
       const existing = await reg.pushManager.getSubscription();
+      const isNew = !existing;
       const subscription = existing ?? await reg.pushManager.subscribe({
         userVisibleOnly: true,
         applicationServerKey: vapidKey,
@@ -1598,12 +1599,14 @@ export function AdminSchedule() {
         }),
       });
 
-      // Confirm with a test notification
-      reg.showNotification('GID Garage Alerts On ✓', {
-        body: "You'll get notified of new bookings even when the app is closed.",
-        icon: '/favicon-192.png',
-        tag: 'gid-notif-test',
-      });
+      // Only show confirmation notification the first time (new subscription)
+      if (isNew) {
+        reg.showNotification('GID Garage Alerts On ✓', {
+          body: "You'll get notified of new bookings even when the app is closed.",
+          icon: '/favicon-192.png',
+          tag: 'gid-notif-test',
+        });
+      }
     } catch (err: any) {
       alert('Push error: ' + (err?.message ?? String(err)));
     }

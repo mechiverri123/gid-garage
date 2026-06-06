@@ -295,6 +295,55 @@ async function sendReceiptEmail(job: Job) {
   });
 }
 
+// ── BREVO: SEND DECLINE EMAIL ─────────────────────────────────────────────────
+
+async function sendDeclineEmail(job: Job, declineReason?: string) {
+  const amount = job.invoiceAmount ?? job.estimateAmount;
+  const lineItemsHtml = job.lineItems?.length
+    ? job.lineItems.map(item => `
+        <tr>
+          <td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#9ca3af;font-size:13px;">${item.label}</td>
+          <td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#fff;font-size:13px;text-align:right;">${item.amount === 0 ? 'FREE' : '$' + item.amount.toFixed(2)}</td>
+        </tr>`).join('')
+    : `<tr><td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#9ca3af;font-size:13px;">${resolveServiceName(job.service, job.notes)}</td>
+       <td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#fff;font-size:13px;text-align:right;">$${amount?.toFixed(2)}</td></tr>`;
+
+  await fetch('https://api.brevo.com/v3/smtp/email', {
+    method: 'POST',
+    headers: { 'api-key': BREVO_API_KEY, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      sender: { name: 'GID Garage', email: 'bookings@gidgarage.com' },
+      to: [{ email: job.email, name: `${job.fname} ${job.lname}` }],
+      subject: `Payment Declined — GID Garage`,
+      htmlContent: `
+        <div style="font-family:sans-serif;max-width:560px;margin:0 auto;background:#0f0f0f;color:#fff;padding:32px;border-radius:4px;">
+          <img src="https://gidgarage.com/website_logo.png" alt="GID Garage" style="height:48px;margin-bottom:24px;" />
+          <div style="background:#3b0a0a;border:1px solid #7f1d1d;padding:16px;margin-bottom:24px;border-radius:4px;">
+            <p style="color:#f87171;font-size:12px;font-weight:bold;text-transform:uppercase;letter-spacing:0.1em;margin:0 0 4px;">Payment Declined</p>
+            <p style="color:#fff;font-size:28px;font-weight:900;margin:0;">$${amount?.toFixed(2)}</p>
+          </div>
+          <p style="color:#9ca3af;margin:0 0 16px;">Hi ${job.fname}, unfortunately your payment was declined${declineReason ? ` (${declineReason})` : ''}. Please contact us to resolve this.</p>
+          <table style="width:100%;border-collapse:collapse;margin-bottom:24px;">
+            <tr><td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#6b7280;font-size:13px;">Service</td>
+                <td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#fff;font-size:13px;">${resolveServiceName(job.service, job.notes)}</td></tr>
+            <tr><td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#6b7280;font-size:13px;">Vehicle</td>
+                <td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#fff;font-size:13px;">${job.vehicle}</td></tr>
+            ${lineItemsHtml}
+            <tr><td style="padding:10px 0 0;color:#fff;font-size:14px;font-weight:bold;">Amount Due</td>
+                <td style="padding:10px 0 0;color:#ef4444;font-size:20px;font-weight:900;text-align:right;">$${amount?.toFixed(2)}</td></tr>
+          </table>
+          <div style="background:#1f2937;border-left:3px solid #ef4444;padding:16px;margin-bottom:24px;">
+            <p style="color:#fff;font-size:13px;font-weight:bold;margin:0 0 8px;">Please reach out to resolve your balance:</p>
+            <p style="color:#9ca3af;font-size:13px;margin:0 0 4px;">📧 <a href="mailto:gidgarageaz@hotmail.com" style="color:#ef4444;text-decoration:none;">gidgarageaz@hotmail.com</a></p>
+            <p style="color:#9ca3af;font-size:13px;margin:0;">📞 <a href="tel:4807570476" style="color:#ef4444;text-decoration:none;">(480) 757-0476</a></p>
+          </div>
+          <p style="color:#4b5563;font-size:12px;margin:0;">GID Garage · Flagstaff, AZ · 480-757-0476</p>
+        </div>
+      `,
+    }),
+  });
+}
+
 // ── CYA TERMS ────────────────────────────────────────────────────────────────
 
 const CYA_TERMS_CORE = [
@@ -1228,6 +1277,10 @@ function PaymentPanel({ job, onUpdate, onRequote }: { job: Job; onUpdate: (j: Jo
       onUpdate(updated);
     } catch (e: any) {
       setChargeError(e.message ?? 'Charge failed. Try again or use manual entry.');
+      // Send decline email to customer
+      try {
+        await sendDeclineEmail({ ...job, invoiceAmount: finalAmount }, e.message);
+      } catch (_) { /* don't block UI on email failure */ }
     }
     setCharging(false);
     setChargeConfirm(false);
@@ -1262,12 +1315,21 @@ function PaymentPanel({ job, onUpdate, onRequote }: { job: Job; onUpdate: (j: Jo
   }
 
   if (job.jobStatus === 'PAID') {
+    const invoiceUrl = `${window.location.origin}/invoice?id=${job.id}`;
     return (
       <div className="bg-emerald-900/20 border border-emerald-800 p-5 space-y-2">
         <p className="text-emerald-400 text-sm font-bold uppercase tracking-widest">✓ Paid</p>
         <p className="text-white text-2xl font-black">${job.invoiceAmount?.toFixed(2)}</p>
         <p className="text-gray-500 text-xs font-mono">{job.stripeTransactionId}</p>
         <p className="text-gray-600 text-xs">{job.paidAt ? new Date(job.paidAt).toLocaleString() : ''}</p>
+        <a
+          href={invoiceUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="block w-full text-center border border-emerald-700 text-emerald-400 hover:bg-emerald-900/40 text-xs font-bold uppercase tracking-widest py-2 transition-colors mt-2"
+        >
+          🧾 View / Print Invoice
+        </a>
       </div>
     );
   }
