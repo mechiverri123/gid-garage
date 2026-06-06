@@ -34,7 +34,7 @@ async function sbFetch(path: string, options: RequestInit = {}) {
 
 async function getSupabaseBookings(): Promise<Booking[]> {
   try {
-    const data = await sbFetch('/bookings?select=*&order=date.asc,time.asc');
+    const data = await sbFetch('/bookings?select=*&status=neq.pending&order=date.asc,time.asc');
     return (data || []).map((b: any) => ({
       id: b.id,
       service: b.service,
@@ -50,6 +50,7 @@ async function getSupabaseBookings(): Promise<Booking[]> {
       garageNotes: b.garage_notes || '',
       status: b.status,
       createdAt: b.created_at,
+      stripeCustomerId: b.stripe_customer_id || undefined,
     }));
   } catch (e) {
     console.warn('Supabase fetch failed, falling back to localStorage', e);
@@ -80,9 +81,10 @@ async function insertSupabaseBooking(b: Booking): Promise<void> {
 }
 
 async function updateSupabaseBooking(id: string, status: Booking['status']): Promise<void> {
+  const extra = status === 'cancelled' ? { job_status: 'CANCELLED' } : {};
   await sbFetch(`/bookings?id=eq.${id}`, {
     method: 'PATCH',
-    body: JSON.stringify({ status }),
+    body: JSON.stringify({ status, ...extra }),
   });
 }
 
@@ -107,10 +109,10 @@ function deleteLocalBooking(id: string) {
 
 async function getBookedTimesForDate(date: string): Promise<string[]> {
   try {
-    const data = await sbFetch(`/bookings?select=time&date=eq.${date}&status=neq.cancelled`);
+    const data = await sbFetch(`/bookings?select=time&date=eq.${date}&status=not.in.(cancelled,pending)`);
     return (data || []).map((b: any) => b.time);
   } catch {
-    return getLocalBookings().filter(b => b.date === date && b.status !== 'cancelled').map(b => b.time);
+    return getLocalBookings().filter(b => b.date === date && b.status !== 'cancelled' && b.status !== 'pending').map(b => b.time);
   }
 }
 
@@ -153,7 +155,8 @@ interface Booking {
   vehicle: string;
   notes: string;
   garageNotes: string;
-  status: 'confirmed' | 'completed' | 'cancelled';
+  status: 'pending' | 'confirmed' | 'completed' | 'cancelled';
+  stripeCustomerId?: string;
   createdAt: string;
 }
 
@@ -991,6 +994,7 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
     if (!form.vehicleMake) errors.vehicleMake = 'Select a make';
     if (!form.vehicleModel) errors.vehicleModel = 'Select a model';
     if (!form.vehicleTrim) errors.vehicleTrim = 'Enter trim (e.g. LE, Sport, XLT)';
+    if (form.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) errors.email = 'Enter a valid email address';
     if (Object.keys(errors).length > 0) { setFieldErrors(errors); return; }
     setFieldErrors({});
     setSubmitError(null);
@@ -1013,7 +1017,7 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
         form.notes,
       ].filter(Boolean).join(' | '),
       garageNotes: '',
-      status: 'confirmed',
+      status: 'pending',
       createdAt: new Date().toISOString(),
     };
 
@@ -1041,7 +1045,17 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
   async function handleFinalSubmit(customerId: string | null = null, last4: string | null = null) {
     if (!s.service || !s.date || !s.time || !svc || !s.bookingId) return;
     setSubmitting(true);
-    // Booking already inserted — just send confirmation email
+    // save-card worker already set status+stripe fields server-side; this is belt-and-suspenders
+    try {
+      await sbFetch(`/bookings?id=eq.${s.bookingId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          status: 'confirmed',
+          ...(customerId ? { stripe_customer_id: customerId } : {}),
+          ...(last4 ? { stripe_last4: last4 } : {}),
+        }),
+      });
+    } catch (e) { console.warn('Status update failed', e); }
     const booking: Booking = {
       id: s.bookingId,
       service: s.service, serviceIcon: svc.icon,
@@ -1612,20 +1626,27 @@ export function AdminSchedule() {
     }
   }
 
-  useEffect(() => {
-    if (!unlocked) return;
-    setLoading(true);
-    getSupabaseBookings().then(data => { setBookings(data); setLoading(false); });
-  }, [unlocked]);
+  const seenBookingIds = useRef<Set<string> | null>(null);
 
   useEffect(() => {
     if (!unlocked) return;
-    // Only auto-refresh booking data when on schedule tab — never reload the page
+    setLoading(true);
+
+    // Seed seenBookingIds on initial load — existing bookings never trigger notifications
+    getSupabaseBookings().then(data => {
+      seenBookingIds.current = new Set(data.map(b => b.id));
+      setBookings(data);
+      setLoading(false);
+    });
+
+    // Poll every 5 min — only notify for bookings that have a card saved (stripeCustomerId)
     const dataInterval = setInterval(async () => {
       const fresh = await getSupabaseBookings();
-      setBookings(prev => {
-        const prevIds = new Set(prev.map(b => b.id));
-        const newOnes = fresh.filter(b => !prevIds.has(b.id) && b.status === 'confirmed');
+      if (seenBookingIds.current) {
+        const newOnes = fresh.filter(
+          b => !seenBookingIds.current!.has(b.id) && !!b.stripeCustomerId
+        );
+        newOnes.forEach(b => seenBookingIds.current!.add(b.id));
         if (newOnes.length > 0 && Notification.permission === 'granted' && 'serviceWorker' in navigator) {
           navigator.serviceWorker.ready.then(reg => {
             newOnes.forEach(b => {
@@ -1638,9 +1659,10 @@ export function AdminSchedule() {
             });
           });
         }
-        return fresh;
-      });
+      }
+      setBookings(fresh);
     }, 5 * 60 * 1000);
+
     return () => clearInterval(dataInterval);
   }, [unlocked]);
 
@@ -1664,8 +1686,13 @@ export function AdminSchedule() {
     setBookings(prev => prev.filter(b => b.id !== id));
   }
 
+  const STATUS_ORDER: Record<string, number> = { confirmed: 0, pending: 1, completed: 2, cancelled: 3 };
   const filtered = bookings.filter(b => filter === 'all' || b.status === filter)
-    .sort((a, b) => b.date.localeCompare(a.date) || b.time.localeCompare(a.time));
+    .sort((a, b) => {
+      const statusDiff = (STATUS_ORDER[a.status] ?? 1) - (STATUS_ORDER[b.status] ?? 1);
+      if (statusDiff !== 0) return statusDiff;
+      return b.date.localeCompare(a.date) || b.time.localeCompare(a.time);
+    });
 
   const today = new Date().toISOString().slice(0, 10);
   const upcoming = bookings.filter(b => b.date >= today && b.status === 'confirmed').length;
