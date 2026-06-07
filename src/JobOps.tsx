@@ -8,6 +8,17 @@ import { useState, useEffect, useRef } from 'react';
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string;
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
 const BREVO_API_KEY = import.meta.env.VITE_BREVO_API_KEY as string;
+const STRIPE_PK = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY as string;
+
+function loadStripe(publishableKey: string): Promise<any> {
+  return new Promise((resolve) => {
+    if ((window as any).Stripe) { resolve((window as any).Stripe(publishableKey)); return; }
+    const script = document.createElement('script');
+    script.src = 'https://js.stripe.com/v3/';
+    script.onload = () => resolve((window as any).Stripe!(publishableKey));
+    document.head.appendChild(script);
+  });
+}
 
 // ── AZ TPT — Flagstaff combined rate (City 2.281% + State 5.6% + County 1.125% + other 0.176%)
 const TAX_RATE = 0.09182; // 9.182%
@@ -348,6 +359,8 @@ async function sendDeclineEmail(job: Job, declineReason?: string) {
     : `<tr><td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#9ca3af;font-size:13px;">${resolveServiceName(job.service, job.notes)}</td>
        <td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#fff;font-size:13px;text-align:right;">$${amount?.toFixed(2)}</td></tr>`;
 
+  const payUrl = `${window.location.origin}/invoice?id=${job.id}&action=pay`;
+
   await fetch('https://api.brevo.com/v3/smtp/email', {
     method: 'POST',
     headers: { 'api-key': BREVO_API_KEY, 'Content-Type': 'application/json' },
@@ -362,7 +375,10 @@ async function sendDeclineEmail(job: Job, declineReason?: string) {
             <p style="color:#f87171;font-size:12px;font-weight:bold;text-transform:uppercase;letter-spacing:0.1em;margin:0 0 4px;">Payment Declined</p>
             <p style="color:#fff;font-size:28px;font-weight:900;margin:0;">$${calcTotal(amount || 0).toFixed(2)}</p>
           </div>
-          <p style="color:#9ca3af;margin:0 0 16px;">Hi ${job.fname}, unfortunately your payment was declined${declineReason ? ` (${declineReason})` : ''}. Please contact us to resolve this.</p>
+          <p style="color:#9ca3af;margin:0 0 24px;">Hi ${job.fname}, your payment didn't go through — no worries, it happens. You can update your card and pay securely online using the button below.</p>
+          <a href="${payUrl}" style="display:inline-block;background:#dc2626;color:#fff;text-decoration:none;font-weight:bold;font-size:13px;padding:14px 28px;letter-spacing:0.05em;text-transform:uppercase;margin-bottom:24px;">
+            Pay Now →
+          </a>
           <table style="width:100%;border-collapse:collapse;margin-bottom:24px;">
             <tr><td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#6b7280;font-size:13px;">Service</td>
                 <td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#fff;font-size:13px;">${resolveServiceName(job.service, job.notes)}</td></tr>
@@ -372,11 +388,8 @@ async function sendDeclineEmail(job: Job, declineReason?: string) {
             <tr><td style="padding:10px 0 0;color:#fff;font-size:14px;font-weight:bold;">Amount Due</td>
                 <td style="padding:10px 0 0;color:#ef4444;font-size:20px;font-weight:900;text-align:right;">$${calcTotal(amount || 0).toFixed(2)}</td></tr>
           </table>
-          <div style="background:#1f2937;border-left:3px solid #ef4444;padding:16px;margin-bottom:24px;">
-            <p style="color:#fff;font-size:13px;font-weight:bold;margin:0 0 8px;">Please reach out to resolve your balance:</p>
-            <p style="color:#9ca3af;font-size:13px;margin:0;">📞 Call or text <a href="tel:4807570476" style="color:#ef4444;text-decoration:none;">480-757-0476</a> — we'll get it sorted out.</p>
-          </div>
-          <p style="color:#4b5563;font-size:12px;margin:0;">GID Garage · Flagstaff, AZ · 480-757-0476</p>
+          <p style="color:#6b7280;font-size:12px;margin:0 0 4px;">Prefer to call? Reach us at <a href="tel:4807570476" style="color:#9ca3af;text-decoration:none;">480-757-0476</a>.</p>
+          <p style="color:#4b5563;font-size:12px;margin:0;">GID Garage · Flagstaff, AZ · gidgarage.com</p>
         </div>
       `,
     }),
@@ -1989,9 +2002,134 @@ export function JobsTab() {
 
 // ── INVOICE / RECEIPT PAGE (customer-facing) ──────────────────────────────────
 
+// ── SELF-SERVE PAYMENT FORM (invoice page, post-decline) ─────────────────────
+
+function SelfPayForm({ job, onPaid }: { job: Job; onPaid: (updated: Job) => void }) {
+  const mountRef = useRef<HTMLDivElement>(null);
+  const [stripe, setStripe] = useState<any>(null);
+  const [card, setCard] = useState<any>(null);
+  const [cardError, setCardError] = useState<string | null>(null);
+  const [cardComplete, setCardComplete] = useState(false);
+  const [paying, setPaying] = useState(false);
+  const [done, setDone] = useState(false);
+  const amount = job.invoiceAmount ?? job.estimateAmount ?? 0;
+
+  useEffect(() => {
+    if (!STRIPE_PK) return;
+    loadStripe(STRIPE_PK).then(setStripe);
+  }, []);
+
+  useEffect(() => {
+    if (!stripe || !mountRef.current) return;
+    const elements = stripe.elements({
+      appearance: {
+        theme: 'night',
+        variables: {
+          colorPrimary: '#dc2626',
+          colorBackground: '#111827',
+          colorText: '#ffffff',
+          colorDanger: '#ef4444',
+          borderRadius: '0px',
+        },
+      },
+    });
+    const cardEl = elements.create('card', {
+      style: {
+        base: { fontSize: '14px', color: '#fff', '::placeholder': { color: '#6b7280' } },
+        invalid: { color: '#ef4444' },
+      },
+    });
+    cardEl.mount(mountRef.current);
+    cardEl.on('change', (e: any) => {
+      setCardError(e.error?.message ?? null);
+      setCardComplete(e.complete);
+    });
+    setCard(cardEl);
+    return () => cardEl.destroy();
+  }, [stripe]);
+
+  async function handlePay() {
+    if (!stripe || !card || !cardComplete) return;
+    setPaying(true);
+    setCardError(null);
+    try {
+      // Tokenize new card
+      const { token, error } = await stripe.createToken(card, { name: `${job.fname} ${job.lname}` });
+      if (error) { setCardError(error.message); setPaying(false); return; }
+
+      // Save new card → creates/updates Stripe customer
+      const saveRes = await fetch('/save-card', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: token.id, bookingId: job.id, name: `${job.fname} ${job.lname}`, email: job.email }),
+      });
+      const saveData = await saveRes.json() as any;
+      if (saveData.error) throw new Error(saveData.error);
+
+      // Charge the new card
+      const chargeRes = await fetch('/charge-card', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          customerId: saveData.customerId,
+          amountCents: Math.round(amount * 100),
+          description: `GID Garage — ${job.service} — ${job.vehicle}`,
+          bookingId: job.id,
+        }),
+      });
+      const chargeData = await chargeRes.json() as any;
+      if (!chargeRes.ok && chargeData.error !== 'already_paid') throw new Error(chargeData.error ?? `HTTP ${chargeRes.status}`);
+
+      const updated: Job = {
+        ...job,
+        invoiceAmount: amount,
+        taxAmount: calcTax(amount),
+        stripeTransactionId: chargeData.chargeId,
+        paidAt: new Date().toISOString(),
+        jobStatus: 'PAID' as JobStatus,
+        status: 'completed',
+      };
+      await writePaymentEvent(job.id, 'paid', amount);
+      await sendReceiptEmail(updated);
+      setDone(true);
+      onPaid(updated);
+    } catch (e: any) {
+      setCardError(e.message ?? 'Payment failed. Please try again.');
+      await writePaymentEvent(job.id, 'declined', amount, e.message);
+    }
+    setPaying(false);
+  }
+
+  if (done) return (
+    <div className="mt-6 bg-emerald-900/20 border border-emerald-800 p-6 text-center">
+      <div className="text-3xl mb-2">✓</div>
+      <p className="text-emerald-400 font-bold text-sm uppercase tracking-widest mb-1">Payment Successful</p>
+      <p className="text-gray-400 text-sm">A receipt has been sent to {job.email}.</p>
+    </div>
+  );
+
+  return (
+    <div className="mt-6 bg-white/5 border border-white/10 p-6">
+      <p className="text-white text-sm font-bold uppercase tracking-widest mb-1">Pay with a New Card</p>
+      <p className="text-gray-500 text-xs mb-4">Enter your card details below to complete payment securely.</p>
+      <div ref={mountRef} className="bg-gray-900 border border-gray-700 px-3 py-3 mb-3" />
+      {cardError && <p className="text-red-400 text-xs mb-3">{cardError}</p>}
+      <button
+        onClick={handlePay}
+        disabled={!cardComplete || paying}
+        className="w-full bg-red-600 hover:bg-red-500 disabled:opacity-40 text-white text-sm font-bold uppercase tracking-widest py-3 transition-colors"
+      >
+        {paying ? 'Processing…' : `Pay $${calcTotal(amount).toFixed(2)}`}
+      </button>
+      <p className="text-gray-700 text-[10px] text-center mt-2">🔒 Secured by Stripe</p>
+    </div>
+  );
+}
+
 export function InvoicePage() {
   const params = new URLSearchParams(window.location.search);
   const jobId = params.get('id');
+  const showPayForm = params.get('action') === 'pay';
   const [job, setJob] = useState<Job | null>(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
@@ -2004,6 +2142,8 @@ export function InvoicePage() {
       setLoading(false);
     });
   }, [jobId]);
+
+  function handlePaid(updated: Job) { setJob(updated); }
 
   if (loading) return (
     <div className="min-h-screen bg-[#0f0f0f] flex items-center justify-center">
@@ -2151,6 +2291,11 @@ export function InvoicePage() {
               ))}
             </div>
           </div>
+        )}
+
+        {/* Self-serve payment — only shown when customer arrives from decline email */}
+        {showPayForm && job.jobStatus !== 'PAID' && (
+          <SelfPayForm job={job} onPaid={handlePaid} />
         )}
 
         {/* Download / Save button */}
