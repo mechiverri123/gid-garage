@@ -1096,8 +1096,7 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
                 <div className="text-5xl mb-4">✅</div>
                 <h2 className="text-3xl font-black text-white mb-3">Request Received!</h2>
                 <p className="text-gray-400 text-sm leading-relaxed">
-                  We've received your quote request for <span className="text-red-500 font-bold">{svc?.name}</span>.<br />We'll call you to confirm availability and pricing.<br />
-                  <span className="text-red-500 font-bold">{dateStr} at {s.time}</span>.<br /><br />
+                  We've received your quote request for <span className="text-red-500 font-bold">{svc?.name}</span> on <span className="text-red-500 font-bold">{dateStr} at {s.time}</span>. We'll call you to confirm availability and finalize pricing.<br /><br />
                   A confirmation has been sent to {form.email || 'your email'}.<br />
                   <span className="text-gray-500 text-xs">If you don't see it, check your junk or spam folder.</span>
                 </p>

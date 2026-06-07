@@ -231,7 +231,7 @@ function WhyUs() {
               desc: "Clear estimates, no hidden fees, no pressure upsells. You always know exactly what you're paying for before we turn a wrench.",
             },
             {
-              title: 'Flagstaff-Tough Service',
+              title: 'Mountain-Tough Service',
               desc: 'We know what high altitude, hard winters, and mountain roads do to your vehicle. Our work is built to last up here.',
             },
           ].map((t) => (
@@ -254,6 +254,7 @@ function WhyUs() {
             <div>
               <p className="text-white font-bold text-sm">Saturday – Sunday</p>
               <p className="text-white/60 text-sm">5:00 AM – 8:00 PM</p>
+              <p className="text-white/30 text-xs mt-0.5">By appointment only</p>
             </div>
           </div>
           <p className="text-white/40 text-xs mt-3">Appointments required. Same-day bookings subject to availability.</p>
@@ -441,8 +442,7 @@ function BookingSection({ openBooking }: { openBooking: () => void }) {
   return (
     <section id="booking" className="py-20 md:py-28 bg-dark border-t border-white/5">
       <div className="max-w-2xl mx-auto px-5 md:px-8 text-center">
-        <p className="text-red-500 text-xs font-bold uppercase tracking-[0.25em] mb-2">Get a Quote</p>
-        <div className="text-4xl md:text-5xl font-extrabold text-white tracking-tight mb-4">Request a Quote</div>
+        <div className="text-4xl md:text-5xl font-extrabold text-white tracking-tight mb-4">Get a Quote</div>
         <div className="text-white/50 text-base mb-2">
           Pick a time that works for you, or{' '}
           <a href={`tel:${PHONE}`} className="text-red-500 hover:text-red-400 font-semibold transition-colors underline underline-offset-2">call {PHONE}</a>{' '}
