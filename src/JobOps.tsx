@@ -1318,6 +1318,7 @@ function PaymentPanel({ job, onUpdate, onRequote }: { job: Job; onUpdate: (j: Jo
         body: JSON.stringify({
           customerId: job.stripeCustomerId,
           amountCents: Math.round(calcTotal(chargedAmount) * 100),
+          subtotal: chargedAmount,
           description: `GID Garage — ${job.service} — ${job.vehicle}`,
           bookingId: job.id,
         }),
@@ -2073,6 +2074,7 @@ function SelfPayForm({ job, onPaid }: { job: Job; onPaid: (updated: Job) => void
         body: JSON.stringify({
           customerId: saveData.customerId,
           amountCents: Math.round(calcTotal(amount) * 100),
+          subtotal: amount,
           description: `GID Garage — ${job.service} — ${job.vehicle}`,
           bookingId: job.id,
         }),

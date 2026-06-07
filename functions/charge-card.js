@@ -9,7 +9,7 @@ export async function onRequestPost({ request, env }) {
   };
 
   try {
-    const { customerId, amountCents, description, bookingId } = await request.json();
+    const { customerId, amountCents, subtotal, description, bookingId } = await request.json();
 
     if (!customerId || !amountCents || !bookingId) {
       return new Response(JSON.stringify({ error: 'Missing required fields' }), {
@@ -75,7 +75,7 @@ export async function onRequestPost({ request, env }) {
       },
       body: JSON.stringify({
         stripe_transaction_id: charge.id,
-        invoice_amount: amountCents / 100,
+        invoice_amount: subtotal ?? amountCents / 100,
         paid_at: new Date().toISOString(),
         job_status: 'PAID',
         status: 'completed',
