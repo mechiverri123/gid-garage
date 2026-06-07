@@ -1291,8 +1291,12 @@ function PaymentPanel({ job, onUpdate, onRequote }: { job: Job; onUpdate: (j: Jo
   const hasCardOnFile = !!job.stripeCustomerId;
   const finalAmount = parseFloat(invoiceAmt) || job.estimateAmount || 0;
 
+  const CHARGEABLE_STATUSES: JobStatus[] = ['COMPLETED', 'INVOICED', 'IN_PROGRESS', 'SIGNED'];
+
   async function chargeCardOnFile() {
     if (!hasCardOnFile || !finalAmount) return;
+    if (!CHARGEABLE_STATUSES.includes(job.jobStatus)) return;
+    const chargedAmount = finalAmount; // snapshot before any await — prevents mid-flight edits
     setCharging(true);
     setChargeError(null);
     try {
@@ -1301,40 +1305,54 @@ function PaymentPanel({ job, onUpdate, onRequote }: { job: Job; onUpdate: (j: Jo
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           customerId: job.stripeCustomerId,
-          amountCents: Math.round(finalAmount * 100),
+          amountCents: Math.round(chargedAmount * 100),
           description: `GID Garage — ${job.service} — ${job.vehicle}`,
           bookingId: job.id,
         }),
       });
-      const data = await res.json() as any;
+      const data = await res.json().catch(() => ({ error: `HTTP ${res.status}` })) as any;
       // already_paid = idempotent success — treat it as paid
-      if (data.error && data.error !== 'already_paid') throw new Error(data.error);
+      if ((!res.ok || data.error) && data.error !== 'already_paid') throw new Error(data.error ?? `HTTP ${res.status}`);
       if (data.error === 'already_paid') {
-        onUpdate({ ...job, jobStatus: 'PAID' as JobStatus, stripeTransactionId: data.chargeId });
+        const alreadyPaidAmount = data.amount ?? chargedAmount;
+        onUpdate({
+          ...job,
+          invoiceAmount: alreadyPaidAmount,
+          taxAmount: calcTax(alreadyPaidAmount),
+          stripeTransactionId: data.chargeId,
+          paidAt: job.paidAt ?? new Date().toISOString(),
+          jobStatus: 'PAID' as JobStatus,
+          status: 'completed',
+        });
         setCharging(false);
         setChargeConfirm(false);
         return;
       }
 
+      // Re-fetch from Supabase to confirm the Worker's DB write actually landed (fix #3)
+      const confirmedJob = await getJobById(job.id);
+      const paidAt = confirmedJob?.paidAt ?? new Date().toISOString();
+      const confirmedAmount = confirmedJob?.invoiceAmount ?? chargedAmount;
+
       // Send receipt email
       const updated = {
         ...job,
-        invoiceAmount: finalAmount,
-        taxAmount: calcTax(finalAmount),
+        invoiceAmount: confirmedAmount,
+        taxAmount: calcTax(confirmedAmount),
         stripeTransactionId: data.chargeId,
-        paidAt: new Date().toISOString(),
+        paidAt,
         jobStatus: 'PAID' as JobStatus,
         status: 'completed',
       };
-      await writePaymentEvent(job.id, 'paid', finalAmount);
+      await writePaymentEvent(job.id, 'paid', confirmedAmount);
       await sendReceiptEmail(updated);
       onUpdate(updated);
     } catch (e: any) {
-      await writePaymentEvent(job.id, 'declined', finalAmount, e.message ?? 'Charge failed');
+      await writePaymentEvent(job.id, 'declined', chargedAmount, e.message ?? 'Charge failed');
       setChargeError(e.message ?? 'Charge failed. Try again or use manual entry.');
       // Send decline email to customer
       try {
-        await sendDeclineEmail({ ...job, invoiceAmount: finalAmount }, e.message);
+        await sendDeclineEmail({ ...job, invoiceAmount: chargedAmount }, e.message);
       } catch (_) { /* don't block UI on email failure */ }
     }
     setCharging(false);
@@ -1441,7 +1459,7 @@ function PaymentPanel({ job, onUpdate, onRequote }: { job: Job; onUpdate: (j: Jo
           {!chargeConfirm ? (
             <button
               onClick={() => setChargeConfirm(true)}
-              disabled={!finalAmount || charging}
+              disabled={!finalAmount || charging || !CHARGEABLE_STATUSES.includes(job.jobStatus)}
               className="w-full bg-emerald-700 hover:bg-emerald-600 disabled:opacity-40 text-white text-sm font-bold uppercase tracking-widest py-3 transition-colors"
             >
               💳 Charge ${finalAmount.toFixed(2)} to Card on File
