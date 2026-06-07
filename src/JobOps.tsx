@@ -1797,7 +1797,9 @@ export function JobsTab() {
   const [search, setSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState<JobStatus | 'ALL'>('ALL');
 
-  const seenEventIds = useRef<Set<string>>(new Set());
+  const seenEventIds = useRef<Set<string>>(
+    new Set(JSON.parse(localStorage.getItem('seenPaymentEventIds') ?? '[]'))
+  );
 
   useEffect(() => {
     getAllJobs().then(data => { setJobs(data); setLoading(false); });
@@ -1816,6 +1818,7 @@ export function JobsTab() {
         for (const ev of events) {
           if (seenEventIds.current.has(ev.id)) continue;
           seenEventIds.current.add(ev.id);
+          localStorage.setItem('seenPaymentEventIds', JSON.stringify([...seenEventIds.current].slice(-100)));
           const job = fresh.find((j: Job) => j.id === ev.booking_id);
           const name = job ? `${job.fname} ${job.lname}` : 'Unknown customer';
           if (ev.event_type === 'paid') {
