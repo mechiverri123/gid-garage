@@ -44,7 +44,7 @@ export async function onRequestPost({ request, env }) {
     }
 
     // Idempotency key — same booking + amount can never double charge
-    const idempotencyKey = `${bookingId}-${amountCents}`;
+    const idempotencyKey = `${bookingId}-${amountCents}-${Date.now()}`;
 
     const chargeRes = await fetch('https://api.stripe.com/v1/charges', {
       method: 'POST',

@@ -1415,7 +1415,7 @@ function PaymentPanel({ job, onUpdate, onRequote }: { job: Job; onUpdate: (j: Jo
           <span className="text-yellow-600 font-mono">${calcTax(job.invoiceAmount || 0).toFixed(2)}</span>
         </div>
         <p className="text-gray-500 text-xs font-mono">{job.stripeTransactionId}</p>
-        <p className="text-gray-600 text-xs">{job.paidAt ? new Date(job.paidAt).toLocaleString() : ''}</p>
+        <p className="text-gray-600 text-xs">{job.paidAt ? new Date(job.paidAt).toLocaleString('en-US', { timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone }) : ''}</p>
         <a
           href={invoiceUrl}
           target="_blank"
@@ -1544,7 +1544,7 @@ function PaymentPanel({ job, onUpdate, onRequote }: { job: Job; onUpdate: (j: Jo
 function SignedDocSection({ job }: { job: Job }) {
   const [open, setOpen] = useState(false);
   const signedDate = job.signedAt
-    ? new Date(job.signedAt).toLocaleString('en-US', { month: 'long', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })
+    ? new Date(job.signedAt).toLocaleString('en-US', { month: 'long', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone })
     : 'Unknown';
   const amount = job.invoiceAmount ?? job.estimateAmount;
 
@@ -2265,7 +2265,7 @@ export function InvoicePage() {
         {job.customerAgreed && (
           <div className="mt-4 px-4 py-3 border border-white/10 bg-white/5">
             <p className="text-gray-600 text-xs">Estimate approved by <strong className="text-gray-400">{job.customerSignature}</strong>
-              {job.signedAt ? ` on ${new Date(job.signedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}` : ''}.
+              {job.signedAt ? ` on ${new Date(job.signedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone })}` : ''}.
             </p>
           </div>
         )}
