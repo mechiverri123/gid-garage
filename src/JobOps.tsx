@@ -22,8 +22,26 @@ function loadStripe(publishableKey: string): Promise<any> {
 
 // ── AZ TPT — Flagstaff combined rate (City 2.281% + State 5.6% + County 1.125% + other 0.176%)
 const TAX_RATE = 0.09182; // 9.182%
+// AZ TPT does NOT apply to labor or the mobile service/travel fee. Everything else
+// (parts, flat service charges, misc add-on lines) is taxable. calcTax(subtotal) is a
+// legacy fallback that taxes the whole amount; prefer taxFromItems() with line items.
+const TAX_EXEMPT_TYPES: LineItem['type'][] = ['labor', 'mobile'];
 function calcTax(subtotal: number) { return Math.round(subtotal * TAX_RATE * 100) / 100; }
 function calcTotal(subtotal: number) { return Math.round((subtotal + calcTax(subtotal)) * 100) / 100; }
+
+// Sum of taxable line items — everything except labor and the mobile fee.
+function taxableAmount(items?: LineItem[] | null): number {
+  if (!items || items.length === 0) return 0;
+  return items.filter(i => !TAX_EXEMPT_TYPES.includes(i.type)).reduce((s, i) => s + (i.amount || 0), 0);
+}
+// Tax computed from line items — labor and mobile fee are exempt.
+function taxFromItems(items?: LineItem[] | null): number {
+  return Math.round(taxableAmount(items) * TAX_RATE * 100) / 100;
+}
+// Total = full subtotal (all line items) + tax on the taxable portion.
+function totalFromItems(subtotal: number, items?: LineItem[] | null): number {
+  return Math.round((subtotal + taxFromItems(items)) * 100) / 100;
+}
 
 // ── TYPES ────────────────────────────────────────────────────────────────────
 
@@ -228,10 +246,10 @@ async function sendEstimateEmail(job: Job, shopAvg: number = 0) {
             ${lineItemsHtml}
             <tr><td style="padding:8px 0 0;color:#6b7280;font-size:13px;">Subtotal</td>
                 <td style="padding:8px 0 0;color:#fff;font-size:13px;text-align:right;">$${job.estimateAmount?.toFixed(2)}</td></tr>
-            <tr><td style="padding:4px 0;border-bottom:1px solid #1f2937;color:#6b7280;font-size:13px;">AZ TPT Tax (9.182%)</td>
-                <td style="padding:4px 0;border-bottom:1px solid #1f2937;color:#fff;font-size:13px;text-align:right;">$${calcTax(job.estimateAmount || 0).toFixed(2)}</td></tr>
+            <tr><td style="padding:4px 0;border-bottom:1px solid #1f2937;color:#6b7280;font-size:13px;">AZ TPT (9.182%)</td>
+                <td style="padding:4px 0;border-bottom:1px solid #1f2937;color:#fff;font-size:13px;text-align:right;">$${taxFromItems(job.lineItems).toFixed(2)}</td></tr>
             <tr><td style="padding:10px 0 0;color:#fff;font-size:14px;font-weight:bold;">Total</td>
-                <td style="padding:10px 0 0;color:#ef4444;font-size:20px;font-weight:900;text-align:right;">$${calcTotal(job.estimateAmount || 0).toFixed(2)}</td></tr>
+                <td style="padding:10px 0 0;color:#ef4444;font-size:20px;font-weight:900;text-align:right;">$${totalFromItems(job.estimateAmount || 0, job.lineItems).toFixed(2)}</td></tr>
           </table>
 
           ${job.estimateNotes ? `<p style="color:#9ca3af;font-size:13px;margin:16px 0;padding:12px;background:#1f2937;border-left:3px solid #ef4444;">${job.estimateNotes}</p>` : ''}
@@ -286,10 +304,10 @@ async function sendInvoiceEmail(job: Job) {
             ${lineItemsHtml}
             <tr><td style="padding:8px 0 0;color:#6b7280;font-size:13px;">Subtotal</td>
                 <td style="padding:8px 0 0;color:#fff;font-size:13px;text-align:right;">$${amount?.toFixed(2)}</td></tr>
-            <tr><td style="padding:4px 0;border-bottom:1px solid #374151;color:#6b7280;font-size:13px;">AZ TPT Tax (9.182%)</td>
-                <td style="padding:4px 0;border-bottom:1px solid #374151;color:#fff;font-size:13px;text-align:right;">$${calcTax(amount || 0).toFixed(2)}</td></tr>
+            <tr><td style="padding:4px 0;border-bottom:1px solid #374151;color:#6b7280;font-size:13px;">AZ TPT (9.182%)</td>
+                <td style="padding:4px 0;border-bottom:1px solid #374151;color:#fff;font-size:13px;text-align:right;">$${taxFromItems(job.lineItems).toFixed(2)}</td></tr>
             <tr><td style="padding:10px 0 0;color:#fff;font-size:14px;font-weight:bold;">Total Due</td>
-                <td style="padding:10px 0 0;color:#ef4444;font-size:22px;font-weight:900;text-align:right;">$${calcTotal(amount || 0).toFixed(2)}</td></tr>
+                <td style="padding:10px 0 0;color:#ef4444;font-size:22px;font-weight:900;text-align:right;">$${totalFromItems(amount || 0, job.lineItems).toFixed(2)}</td></tr>
           </table>
           <p style="color:#4b5563;font-size:12px;margin:0;">Questions? Call or text <strong style="color:#9ca3af;">480-757-0476</strong> — GID Garage, Flagstaff AZ</p>
         </div>
@@ -318,7 +336,7 @@ async function sendReceiptEmail(job: Job) {
           <img src="https://gidgarage.com/website_logo.png" alt="GID Garage" style="height:48px;margin-bottom:24px;" />
           <div style="background:#052e16;border:1px solid #166534;padding:16px;margin-bottom:24px;border-radius:4px;">
             <p style="color:#4ade80;font-size:12px;font-weight:bold;text-transform:uppercase;letter-spacing:0.1em;margin:0 0 4px;">Payment Received</p>
-            <p style="color:#fff;font-size:28px;font-weight:900;margin:0;">$${calcTotal(job.invoiceAmount || 0).toFixed(2)}</p>
+            <p style="color:#fff;font-size:28px;font-weight:900;margin:0;">$${totalFromItems(job.invoiceAmount || 0, job.lineItems).toFixed(2)}</p>
           </div>
           <table style="width:100%;border-collapse:collapse;margin-bottom:24px;">
             <tr><td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#6b7280;font-size:13px;">Service</td>
@@ -329,10 +347,10 @@ async function sendReceiptEmail(job: Job) {
                 <td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#fff;font-size:13px;">${paidDate}</td></tr>
             <tr><td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#6b7280;font-size:13px;">Subtotal</td>
                 <td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#fff;font-size:13px;text-align:right;">$${(job.invoiceAmount || 0).toFixed(2)}</td></tr>
-            <tr><td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#6b7280;font-size:13px;">AZ TPT Tax (9.182%)</td>
-                <td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#fff;font-size:13px;text-align:right;">$${calcTax(job.invoiceAmount || 0).toFixed(2)}</td></tr>
+            <tr><td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#6b7280;font-size:13px;">AZ TPT (9.182%)</td>
+                <td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#fff;font-size:13px;text-align:right;">$${taxFromItems(job.lineItems).toFixed(2)}</td></tr>
             <tr><td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#fff;font-size:14px;font-weight:bold;">Total Paid</td>
-                <td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#4ade80;font-size:14px;font-weight:bold;text-align:right;">$${calcTotal(job.invoiceAmount || 0).toFixed(2)}</td></tr>
+                <td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#4ade80;font-size:14px;font-weight:bold;text-align:right;">$${totalFromItems(job.invoiceAmount || 0, job.lineItems).toFixed(2)}</td></tr>
             <tr><td style="padding:8px 0;color:#6b7280;font-size:13px;">Transaction ID</td>
                 <td style="padding:8px 0;color:#9ca3af;font-size:12px;font-family:monospace;">${job.stripeTransactionId}</td></tr>
           </table>
@@ -373,7 +391,7 @@ async function sendDeclineEmail(job: Job, declineReason?: string) {
           <img src="https://gidgarage.com/website_logo.png" alt="GID Garage" style="height:48px;margin-bottom:24px;" />
           <div style="background:#3b0a0a;border:1px solid #7f1d1d;padding:16px;margin-bottom:24px;border-radius:4px;">
             <p style="color:#f87171;font-size:12px;font-weight:bold;text-transform:uppercase;letter-spacing:0.1em;margin:0 0 4px;">Payment Declined</p>
-            <p style="color:#fff;font-size:28px;font-weight:900;margin:0;">$${calcTotal(amount || 0).toFixed(2)}</p>
+            <p style="color:#fff;font-size:28px;font-weight:900;margin:0;">$${totalFromItems(amount || 0, job.lineItems).toFixed(2)}</p>
           </div>
           <p style="color:#9ca3af;margin:0 0 24px;">Hi ${job.fname}, your payment didn't go through — no worries, it happens. You can update your card and pay securely online using the button below.</p>
           <a href="${payUrl}" style="display:inline-block;background:#dc2626;color:#fff;text-decoration:none;font-weight:bold;font-size:13px;padding:14px 28px;letter-spacing:0.05em;text-transform:uppercase;margin-bottom:24px;">
@@ -386,7 +404,7 @@ async function sendDeclineEmail(job: Job, declineReason?: string) {
                 <td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#fff;font-size:13px;">${job.vehicle}</td></tr>
             ${lineItemsHtml}
             <tr><td style="padding:10px 0 0;color:#fff;font-size:14px;font-weight:bold;">Amount Due</td>
-                <td style="padding:10px 0 0;color:#ef4444;font-size:20px;font-weight:900;text-align:right;">$${calcTotal(amount || 0).toFixed(2)}</td></tr>
+                <td style="padding:10px 0 0;color:#ef4444;font-size:20px;font-weight:900;text-align:right;">$${totalFromItems(amount || 0, job.lineItems).toFixed(2)}</td></tr>
           </table>
           <p style="color:#6b7280;font-size:12px;margin:0 0 4px;">Prefer to call? Reach us at <a href="tel:4807570476" style="color:#9ca3af;text-decoration:none;">480-757-0476</a>.</p>
           <p style="color:#4b5563;font-size:12px;margin:0;">GID Garage · Flagstaff, AZ · gidgarage.com</p>
@@ -1135,9 +1153,9 @@ function EstimatePanel({ job, onUpdate }: { job: Job; onUpdate: (j: Job) => void
       estimate_amount: total,
       estimate_notes: notes,
       line_items: JSON.stringify(lineItems),
-      tax_amount: calcTax(total),
+      tax_amount: taxFromItems(lineItems),
     });
-    onUpdate({ ...job, estimateAmount: total, estimateNotes: notes, lineItems, taxAmount: calcTax(total) });
+    onUpdate({ ...job, estimateAmount: total, estimateNotes: notes, lineItems, taxAmount: taxFromItems(lineItems) });
     setSaving(false);
   }
 
@@ -1149,9 +1167,9 @@ function EstimatePanel({ job, onUpdate }: { job: Job; onUpdate: (j: Job) => void
       estimate_notes: notes,
       line_items: JSON.stringify(lineItems),
       job_status: 'ESTIMATE_SENT',
-      tax_amount: calcTax(total),
+      tax_amount: taxFromItems(lineItems),
     });
-    const updated = { ...job, estimateAmount: total, estimateNotes: notes, lineItems, jobStatus: 'ESTIMATE_SENT' as JobStatus, taxAmount: calcTax(total) };
+    const updated = { ...job, estimateAmount: total, estimateNotes: notes, lineItems, jobStatus: 'ESTIMATE_SENT' as JobStatus, taxAmount: taxFromItems(lineItems) };
     await sendEstimateEmail(updated, showShopComparison ? shopAvg : 0);
     onUpdate(updated);
     setSending(false);
@@ -1215,11 +1233,11 @@ function EstimatePanel({ job, onUpdate }: { job: Job; onUpdate: (j: Job) => void
           </div>
           <div className="flex justify-between">
             <span className="text-gray-500 text-xs uppercase tracking-wider">AZ TPT (9.182%)</span>
-            <span className="text-yellow-500 text-xs font-mono">${calcTax(total).toFixed(2)}</span>
+            <span className="text-yellow-500 text-xs font-mono">${taxFromItems(lineItems).toFixed(2)}</span>
           </div>
           <div className="flex justify-between border-t border-gray-700 pt-1.5">
             <span className="text-gray-400 text-xs font-bold uppercase tracking-wider">Total</span>
-            <span className="text-white text-sm font-black">${calcTotal(total).toFixed(2)}</span>
+            <span className="text-white text-sm font-black">${totalFromItems(total, lineItems).toFixed(2)}</span>
           </div>
         </div>
       </div>
@@ -1318,7 +1336,7 @@ function PaymentPanel({ job, onUpdate, onRequote }: { job: Job; onUpdate: (j: Jo
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           customerId: job.stripeCustomerId,
-          amountCents: Math.round(calcTotal(chargedAmount) * 100),
+          amountCents: Math.round(totalFromItems(chargedAmount, job.lineItems) * 100),
           subtotal: chargedAmount,
           description: `GID Garage — ${job.service} — ${job.vehicle}`,
           bookingId: job.id,
@@ -1332,7 +1350,7 @@ function PaymentPanel({ job, onUpdate, onRequote }: { job: Job; onUpdate: (j: Jo
         onUpdate({
           ...job,
           invoiceAmount: alreadyPaidAmount,
-          taxAmount: calcTax(alreadyPaidAmount),
+          taxAmount: taxFromItems(job.lineItems),
           stripeTransactionId: data.chargeId,
           paidAt: job.paidAt ?? new Date().toISOString(),
           jobStatus: 'PAID' as JobStatus,
@@ -1352,7 +1370,7 @@ function PaymentPanel({ job, onUpdate, onRequote }: { job: Job; onUpdate: (j: Jo
       const updated = {
         ...job,
         invoiceAmount: confirmedAmount,
-        taxAmount: calcTax(confirmedAmount),
+        taxAmount: taxFromItems(job.lineItems),
         stripeTransactionId: data.chargeId,
         paidAt,
         jobStatus: 'PAID' as JobStatus,
@@ -1378,25 +1396,25 @@ function PaymentPanel({ job, onUpdate, onRequote }: { job: Job; onUpdate: (j: Jo
     setSaving(true);
     const paidAt = new Date().toISOString();
     if (job.jobStatus !== 'INVOICED') {
-      await patchJob(job.id, { job_status: 'INVOICED', invoice_amount: finalAmount, tax_amount: calcTax(finalAmount) });
-      await sendInvoiceEmail({ ...job, jobStatus: 'INVOICED' as JobStatus, invoiceAmount: finalAmount, taxAmount: calcTax(finalAmount) });
+      await patchJob(job.id, { job_status: 'INVOICED', invoice_amount: finalAmount, tax_amount: taxFromItems(job.lineItems) });
+      await sendInvoiceEmail({ ...job, jobStatus: 'INVOICED' as JobStatus, invoiceAmount: finalAmount, taxAmount: taxFromItems(job.lineItems) });
     }
     await patchJob(job.id, {
       invoice_amount: finalAmount,
-      tax_amount: calcTax(finalAmount),
+      tax_amount: taxFromItems(job.lineItems),
       stripe_transaction_id: stripeId,
       paid_at: paidAt,
       job_status: 'PAID',
       status: 'completed',
     });
-    onUpdate({ ...job, invoiceAmount: finalAmount, taxAmount: calcTax(finalAmount), stripeTransactionId: stripeId, paidAt, jobStatus: 'PAID' as JobStatus, status: 'completed' });
+    onUpdate({ ...job, invoiceAmount: finalAmount, taxAmount: taxFromItems(job.lineItems), stripeTransactionId: stripeId, paidAt, jobStatus: 'PAID' as JobStatus, status: 'completed' });
     setSaving(false);
   }
 
   async function markInvoiced() {
     setSaving(true);
-    await patchJob(job.id, { job_status: 'INVOICED', invoice_amount: finalAmount, tax_amount: calcTax(finalAmount) });
-    const updated = { ...job, jobStatus: 'INVOICED' as JobStatus, invoiceAmount: finalAmount, taxAmount: calcTax(finalAmount) };
+    await patchJob(job.id, { job_status: 'INVOICED', invoice_amount: finalAmount, tax_amount: taxFromItems(job.lineItems) });
+    const updated = { ...job, jobStatus: 'INVOICED' as JobStatus, invoiceAmount: finalAmount, taxAmount: taxFromItems(job.lineItems) };
     await sendInvoiceEmail(updated);
     onUpdate(updated);
     setSaving(false);
@@ -1407,14 +1425,14 @@ function PaymentPanel({ job, onUpdate, onRequote }: { job: Job; onUpdate: (j: Jo
     return (
       <div className="bg-emerald-900/20 border border-emerald-800 p-5 space-y-2">
         <p className="text-emerald-400 text-sm font-bold uppercase tracking-widest">✓ Paid</p>
-        <p className="text-white text-2xl font-black">${calcTotal(job.invoiceAmount || 0).toFixed(2)}</p>
+        <p className="text-white text-2xl font-black">${totalFromItems(job.invoiceAmount || 0, job.lineItems).toFixed(2)}</p>
         <div className="flex justify-between text-xs">
           <span className="text-gray-600">Subtotal</span>
           <span className="text-gray-400 font-mono">${(job.invoiceAmount || 0).toFixed(2)}</span>
         </div>
         <div className="flex justify-between text-xs">
-          <span className="text-gray-600">Tax (9.182%)</span>
-          <span className="text-yellow-600 font-mono">${calcTax(job.invoiceAmount || 0).toFixed(2)}</span>
+          <span className="text-gray-600">AZ TPT (9.182%)</span>
+          <span className="text-yellow-600 font-mono">${taxFromItems(job.lineItems).toFixed(2)}</span>
         </div>
         <p className="text-gray-500 text-xs font-mono">{job.stripeTransactionId}</p>
         <p className="text-gray-600 text-xs">{job.paidAt ? new Date(job.paidAt).toLocaleString('en-US', { timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone }) : ''}</p>
@@ -1449,11 +1467,11 @@ function PaymentPanel({ job, onUpdate, onRequote }: { job: Job; onUpdate: (j: Jo
           <div className="mt-2 space-y-0.5">
             <div className="flex justify-between text-xs">
               <span className="text-gray-600">AZ TPT (9.182%)</span>
-              <span className="text-yellow-600 font-mono">+${calcTax(finalAmount).toFixed(2)}</span>
+              <span className="text-yellow-600 font-mono">+${taxFromItems(job.lineItems).toFixed(2)}</span>
             </div>
             <div className="flex justify-between text-xs border-t border-gray-800 pt-1">
               <span className="text-gray-400 font-bold uppercase tracking-wider">Customer total</span>
-              <span className="text-white font-black font-mono">${calcTotal(finalAmount).toFixed(2)}</span>
+              <span className="text-white font-black font-mono">${totalFromItems(finalAmount, job.lineItems).toFixed(2)}</span>
             </div>
           </div>
         )}
@@ -2264,7 +2282,7 @@ function SelfPayForm({ job, onPaid }: { job: Job; onPaid: (updated: Job) => void
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           customerId: saveData.customerId,
-          amountCents: Math.round(calcTotal(amount) * 100),
+          amountCents: Math.round(totalFromItems(amount, job.lineItems) * 100),
           subtotal: amount,
           description: `GID Garage — ${job.service} — ${job.vehicle}`,
           bookingId: job.id,
@@ -2276,7 +2294,7 @@ function SelfPayForm({ job, onPaid }: { job: Job; onPaid: (updated: Job) => void
       const updated: Job = {
         ...job,
         invoiceAmount: amount,
-        taxAmount: calcTax(amount),
+        taxAmount: taxFromItems(job.lineItems),
         stripeTransactionId: chargeData.chargeId,
         paidAt: new Date().toISOString(),
         jobStatus: 'PAID' as JobStatus,
@@ -2312,7 +2330,7 @@ function SelfPayForm({ job, onPaid }: { job: Job; onPaid: (updated: Job) => void
         disabled={!cardComplete || paying}
         className="w-full bg-red-600 hover:bg-red-500 disabled:opacity-40 text-white text-sm font-bold uppercase tracking-widest py-3 transition-colors"
       >
-        {paying ? 'Processing…' : `Pay $${calcTotal(amount).toFixed(2)}`}
+        {paying ? 'Processing…' : `Pay $${totalFromItems(amount, job.lineItems).toFixed(2)}`}
       </button>
       <p className="text-gray-700 text-[10px] text-center mt-2">🔒 Secured by Stripe</p>
     </div>
@@ -2444,12 +2462,12 @@ export function InvoicePage() {
               <span className="text-white text-sm font-mono">${amount?.toFixed(2)}</span>
             </div>
             <div className="flex justify-between px-6 py-3 border-t border-white/5">
-              <span className="text-gray-500 text-xs font-bold uppercase tracking-wider">AZ TPT Tax (9.182%)</span>
-              <span className="text-white text-sm font-mono">${calcTax(amount || 0).toFixed(2)}</span>
+              <span className="text-gray-500 text-xs font-bold uppercase tracking-wider">AZ TPT (9.182%)</span>
+              <span className="text-white text-sm font-mono">${taxFromItems(job.lineItems).toFixed(2)}</span>
             </div>
             <div className={`px-6 py-5 border-t border-white/10 flex items-center justify-between ${isPaid ? 'bg-emerald-900/10' : 'bg-red-900/10'}`}>
               <span className="text-white font-bold uppercase tracking-wider text-sm">{isPaid ? 'Total Paid' : 'Total Due'}</span>
-              <span className={`text-2xl font-black ${isPaid ? 'text-emerald-400' : 'text-red-400'}`}>${calcTotal(amount || 0).toFixed(2)}</span>
+              <span className={`text-2xl font-black ${isPaid ? 'text-emerald-400' : 'text-red-400'}`}>${totalFromItems(amount || 0, job.lineItems).toFixed(2)}</span>
             </div>
           </div>
         </div>
@@ -2642,12 +2660,12 @@ export function EstimatePage() {
                 <span className="text-white text-sm font-mono">${job.estimateAmount?.toFixed(2)}</span>
               </div>
               <div className="flex justify-between px-4 py-3 border-t border-white/5">
-                <span className="text-gray-500 text-xs font-bold uppercase tracking-wider">AZ TPT Tax (9.182%)</span>
-                <span className="text-white text-sm font-mono">${calcTax(job.estimateAmount || 0).toFixed(2)}</span>
+                <span className="text-gray-500 text-xs font-bold uppercase tracking-wider">AZ TPT (9.182%)</span>
+                <span className="text-white text-sm font-mono">${taxFromItems(job.lineItems).toFixed(2)}</span>
               </div>
               <div className="flex justify-between px-4 py-4 border-t border-white/10">
                 <span className="text-gray-500 text-xs font-bold uppercase tracking-wider">Total</span>
-                <span className="text-red-400 text-2xl font-black">${calcTotal(job.estimateAmount || 0).toFixed(2)}</span>
+                <span className="text-red-400 text-2xl font-black">${totalFromItems(job.estimateAmount || 0, job.lineItems).toFixed(2)}</span>
               </div>
             </div>
 
