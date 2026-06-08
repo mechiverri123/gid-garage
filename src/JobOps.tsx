@@ -1329,6 +1329,21 @@ function PaymentPanel({ job, onUpdate, onRequote }: { job: Job; onUpdate: (j: Jo
   const hasCardOnFile = !!job.stripeCustomerId;
   const finalAmount = parseFloat(invoiceAmt) || job.estimateAmount || 0;
 
+  // When the amount is overridden, tax must reflect the override — not the
+  // original line items. Compute tax as the same taxable proportion applied
+  // to the new amount. Falls back to calcTax(amount) if no line items exist.
+  function taxForAmount(amount: number): number {
+    const originalSubtotal = job.estimateAmount || 0;
+    if (originalSubtotal > 0 && job.lineItems?.length) {
+      const taxRatio = taxFromItems(job.lineItems) / originalSubtotal;
+      return Math.round(amount * taxRatio * 100) / 100;
+    }
+    return calcTax(amount);
+  }
+  function totalForAmount(amount: number): number {
+    return Math.round((amount + taxForAmount(amount)) * 100) / 100;
+  }
+
   const CHARGEABLE_STATUSES: JobStatus[] = ['COMPLETED', 'INVOICED', 'IN_PROGRESS', 'SIGNED'];
 
   async function chargeCardOnFile() {
@@ -1343,7 +1358,7 @@ function PaymentPanel({ job, onUpdate, onRequote }: { job: Job; onUpdate: (j: Jo
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           customerId: job.stripeCustomerId,
-          amountCents: Math.round(totalFromItems(chargedAmount, job.lineItems) * 100),
+          amountCents: Math.round(totalForAmount(chargedAmount) * 100),
           subtotal: chargedAmount,
           description: `GID Garage — ${job.service} — ${job.vehicle}`,
           bookingId: job.id,
@@ -1357,7 +1372,7 @@ function PaymentPanel({ job, onUpdate, onRequote }: { job: Job; onUpdate: (j: Jo
         onUpdate({
           ...job,
           invoiceAmount: alreadyPaidAmount,
-          taxAmount: taxFromItems(job.lineItems),
+          taxAmount: taxForAmount(chargedAmount),
           stripeTransactionId: data.chargeId,
           paidAt: job.paidAt ?? new Date().toISOString(),
           jobStatus: 'PAID' as JobStatus,
@@ -1377,7 +1392,7 @@ function PaymentPanel({ job, onUpdate, onRequote }: { job: Job; onUpdate: (j: Jo
       const updated = {
         ...job,
         invoiceAmount: confirmedAmount,
-        taxAmount: taxFromItems(job.lineItems),
+        taxAmount: taxForAmount(chargedAmount),
         stripeTransactionId: data.chargeId,
         paidAt,
         jobStatus: 'PAID' as JobStatus,
@@ -1403,25 +1418,25 @@ function PaymentPanel({ job, onUpdate, onRequote }: { job: Job; onUpdate: (j: Jo
     setSaving(true);
     const paidAt = new Date().toISOString();
     if (job.jobStatus !== 'INVOICED') {
-      await patchJob(job.id, { job_status: 'INVOICED', invoice_amount: finalAmount, tax_amount: taxFromItems(job.lineItems) });
-      await sendInvoiceEmail({ ...job, jobStatus: 'INVOICED' as JobStatus, invoiceAmount: finalAmount, taxAmount: taxFromItems(job.lineItems) });
+      await patchJob(job.id, { job_status: 'INVOICED', invoice_amount: finalAmount, tax_amount: taxForAmount(finalAmount) });
+      await sendInvoiceEmail({ ...job, jobStatus: 'INVOICED' as JobStatus, invoiceAmount: finalAmount, taxAmount: taxForAmount(finalAmount) });
     }
     await patchJob(job.id, {
       invoice_amount: finalAmount,
-      tax_amount: taxFromItems(job.lineItems),
+      tax_amount: taxForAmount(finalAmount),
       stripe_transaction_id: stripeId,
       paid_at: paidAt,
       job_status: 'PAID',
       status: 'completed',
     });
-    onUpdate({ ...job, invoiceAmount: finalAmount, taxAmount: taxFromItems(job.lineItems), stripeTransactionId: stripeId, paidAt, jobStatus: 'PAID' as JobStatus, status: 'completed' });
+    onUpdate({ ...job, invoiceAmount: finalAmount, taxAmount: taxForAmount(finalAmount), stripeTransactionId: stripeId, paidAt, jobStatus: 'PAID' as JobStatus, status: 'completed' });
     setSaving(false);
   }
 
   async function markInvoiced() {
     setSaving(true);
-    await patchJob(job.id, { job_status: 'INVOICED', invoice_amount: finalAmount, tax_amount: taxFromItems(job.lineItems) });
-    const updated = { ...job, jobStatus: 'INVOICED' as JobStatus, invoiceAmount: finalAmount, taxAmount: taxFromItems(job.lineItems) };
+    await patchJob(job.id, { job_status: 'INVOICED', invoice_amount: finalAmount, tax_amount: taxForAmount(finalAmount) });
+    const updated = { ...job, jobStatus: 'INVOICED' as JobStatus, invoiceAmount: finalAmount, taxAmount: taxForAmount(finalAmount) };
     await sendInvoiceEmail(updated);
     onUpdate(updated);
     setSaving(false);
@@ -1439,7 +1454,7 @@ function PaymentPanel({ job, onUpdate, onRequote }: { job: Job; onUpdate: (j: Jo
         </div>
         <div className="flex justify-between text-xs">
           <span className="text-gray-600">AZ TPT (9.182%)</span>
-          <span className="text-yellow-600 font-mono">${taxFromItems(job.lineItems).toFixed(2)}</span>
+          <span className="text-yellow-600 font-mono">${taxForAmount(finalAmount).toFixed(2)}</span>
         </div>
         <p className="text-gray-500 text-xs font-mono">{job.stripeTransactionId}</p>
         <p className="text-gray-600 text-xs">{job.paidAt ? new Date(job.paidAt).toLocaleString('en-US', { timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone }) : ''}</p>
