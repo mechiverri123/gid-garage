@@ -705,6 +705,134 @@ function BrakePadSelector({ value, onChange }: { value: string | null; onChange:
 }
 
 
+// ── RETURNING CUSTOMER BANNER ────────────────────────────────────────────────
+function ReturningCustomerBanner({
+  fname, returningCustomer, onCardUpdated, customerName,
+}: {
+  fname: string;
+  returningCustomer: { stripeCustomerId: string; last4?: string };
+  onCardUpdated: (last4: string) => void;
+  customerName: string;
+}) {
+  const [showUpdate, setShowUpdate] = useState(false);
+  const [stripe, setStripe] = useState<any>(null);
+  const [card, setCard] = useState<any>(null);
+  const [cardComplete, setCardComplete] = useState(false);
+  const [cardError, setCardError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  const mountRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!showUpdate || !STRIPE_PK) return;
+    loadStripe(STRIPE_PK).then(setStripe);
+  }, [showUpdate]);
+
+  useEffect(() => {
+    if (!stripe || !mountRef.current || !showUpdate) return;
+    const elements = stripe.elements({
+      appearance: {
+        theme: 'night',
+        variables: {
+          colorPrimary: '#dc2626', colorBackground: '#111827',
+          colorText: '#ffffff', colorDanger: '#ef4444',
+          fontFamily: 'Barlow, system-ui, sans-serif',
+          spacingUnit: '4px', borderRadius: '0px',
+        },
+      },
+    });
+    const el = elements.create('card', {
+      style: { base: { fontSize: '14px', color: '#fff', '::placeholder': { color: '#6b7280' } }, invalid: { color: '#ef4444' } },
+    });
+    el.mount(mountRef.current);
+    el.on('change', (e: any) => { setCardError(e.error?.message ?? null); setCardComplete(e.complete); });
+    setCard(el);
+    return () => el.destroy();
+  }, [stripe, showUpdate]);
+
+  async function handleUpdateCard() {
+    if (!stripe || !card) return;
+    setSaving(true);
+    setCardError(null);
+    try {
+      const { token, error } = await stripe.createToken(card, { name: customerName || undefined });
+      if (error) { setCardError(error.message); setSaving(false); return; }
+
+      // Call update-card worker — attaches new source to existing Stripe Customer
+      const res = await fetch('/update-card', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          token: token.id,
+          customerId: returningCustomer.stripeCustomerId,
+        }),
+      });
+      const data = await res.json() as any;
+      if (data.error) throw new Error(data.error);
+
+      const newLast4: string = data.last4 ?? token.card?.last4 ?? '????';
+
+      // Patch stripe_last4 on all this customer's bookings in Supabase so admin sees the newest
+      try {
+        await sbFetch(
+          `/bookings?stripe_customer_id=eq.${encodeURIComponent(returningCustomer.stripeCustomerId)}`,
+          { method: 'PATCH', body: JSON.stringify({ stripe_last4: newLast4 }) }
+        );
+      } catch { /* non-critical — worker already patched the current booking */ }
+
+      onCardUpdated(newLast4);
+      setShowUpdate(false);
+    } catch (e: any) {
+      setCardError(e.message ?? 'Something went wrong. Please try again.');
+    }
+    setSaving(false);
+  }
+
+  return (
+    <div className="col-span-2 bg-gradient-to-r from-red-950/60 to-gray-900/60 border border-red-700/60 border-l-4 border-l-red-500 px-4 py-3.5 mb-1">
+      <div className="flex items-start gap-3">
+        <span className="text-2xl flex-shrink-0">👋</span>
+        <div className="flex-1 min-w-0">
+          <p className="text-white text-sm font-black mb-0.5">Welcome back, {fname}!</p>
+          <p className="text-gray-400 text-xs leading-relaxed">
+            We found your account. Your card on file ending in{' '}
+            <span className="text-white font-bold">
+              {returningCustomer.last4 ? `••••${returningCustomer.last4}` : '••••'}
+            </span>{' '}
+            will be used for this appointment — no need to re-enter it.
+          </p>
+          <button
+            type="button"
+            onClick={() => { setShowUpdate(p => !p); setCardError(null); setCardComplete(false); }}
+            className="text-red-400 hover:text-red-300 text-[11px] font-bold underline underline-offset-2 transition-colors mt-1.5 inline-block"
+          >
+            {showUpdate ? 'Cancel' : 'Update card on file →'}
+          </button>
+        </div>
+      </div>
+
+      {showUpdate && (
+        <div className="mt-3 pt-3 border-t border-red-900/50 space-y-3">
+          <p className="text-gray-400 text-xs">Enter your new card — it will be added to your account. Your previous card stays on file and I can charge either from my end.</p>
+          <div>
+            <label className="block text-gray-500 text-xs font-bold uppercase tracking-wider mb-2">New Card Details</label>
+            <div ref={mountRef} className="bg-gray-900 border border-gray-700 p-3.5 focus-within:border-red-600 transition-colors" />
+            {cardError && <p className="text-red-400 text-[11px] mt-1">{cardError}</p>}
+          </div>
+          <button
+            type="button"
+            onClick={handleUpdateCard}
+            disabled={saving || !cardComplete}
+            className={`w-full bg-red-600 hover:bg-red-500 text-white text-xs font-bold uppercase tracking-widest py-3 transition-colors ${(saving || !cardComplete) ? 'opacity-50 cursor-not-allowed' : ''}`}
+          >
+            {saving ? 'Saving...' : 'Save New Card'}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── STRIPE CARD ON FILE STEP ─────────────────────────────────────────────────
 // Uses Stripe.js loaded from CDN. We do a $0 SetupIntent auth to verify the card
 // is real without charging. The token/payment method ID is saved to the booking.
@@ -1494,15 +1622,12 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
                     </div>
                   )}
                   {!lookingUpCustomer && returningCustomer && (
-                    <div className="col-span-2 bg-gradient-to-r from-red-950/60 to-gray-900/60 border border-red-700/60 border-l-4 border-l-red-500 px-4 py-3.5 mb-1 flex items-start gap-3">
-                      <span className="text-2xl flex-shrink-0">👋</span>
-                      <div>
-                        <p className="text-white text-sm font-black mb-0.5">Welcome back, {form.fname}!</p>
-                        <p className="text-gray-400 text-xs leading-relaxed">
-                          We found your account. Your card on file ending in <span className="text-white font-bold">{returningCustomer.last4 ? `••••${returningCustomer.last4}` : '••••'}</span> will be used for this appointment — no need to re-enter it.
-                        </p>
-                      </div>
-                    </div>
+                    <ReturningCustomerBanner
+                      fname={form.fname}
+                      returningCustomer={returningCustomer}
+                      onCardUpdated={(last4) => setReturningCustomer(p => p ? { ...p, last4 } : p)}
+                      customerName={`${form.fname} ${form.lname}`.trim()}
+                    />
                   )}
 
                   <div className="grid grid-cols-2 gap-3">
