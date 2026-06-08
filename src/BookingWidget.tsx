@@ -96,10 +96,17 @@ async function updateSupabaseGarageNotes(id: string, garageNotes: string): Promi
 }
 
 async function deleteSupabaseBooking(id: string): Promise<void> {
-  await sbFetch(`/bookings?id=eq.${id}`, {
-    method: 'DELETE',
-    headers: { 'Prefer': 'return=minimal' },
+  // Goes through the server-side /delete-booking Worker (uses the Supabase service key).
+  // This keeps the admin delete button working after the public DELETE policy is removed.
+  const res = await fetch('/delete-booking', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id }),
   });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error((data as any).error ?? `Delete failed (${res.status})`);
+  }
 }
 
 function deleteLocalBooking(id: string) {
