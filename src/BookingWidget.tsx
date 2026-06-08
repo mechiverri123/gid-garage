@@ -813,7 +813,7 @@ function ReturningCustomerBanner({
 
       {showUpdate && (
         <div className="mt-3 pt-3 border-t border-red-900/50 space-y-3">
-          <p className="text-gray-400 text-xs">Enter your new card — it will be added to your account. Your previous card stays on file and I can charge either from my end.</p>
+          <p className="text-gray-400 text-xs">Enter your updated card details below and we'll have it on file for your appointment.</p>
           <div>
             <label className="block text-gray-500 text-xs font-bold uppercase tracking-wider mb-2">New Card Details</label>
             <div ref={mountRef} className="bg-gray-900 border border-gray-700 p-3.5 focus-within:border-red-600 transition-colors" />
