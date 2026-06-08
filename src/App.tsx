@@ -5,7 +5,7 @@ import { EstimatePage, InvoicePage } from './JobOps';
 
 // Cancel flow now validates server-side (secret lives in the worker, not here).
 async function apiPost(action: string, args: Record<string, any> = {}) {
-  const res = await fetch('/api/customer', {
+  const res = await fetch('/api-customer', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ action, ...args }),

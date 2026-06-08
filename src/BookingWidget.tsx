@@ -37,7 +37,7 @@ async function sbFetch(path: string, options: RequestInit = {}) {
 // Access). Customer reads go through /api/customer (service key, self-validating).
 // The public anon key can no longer read the bookings table at all.
 async function adminPost(action: string, args: Record<string, any> = {}) {
-  const res = await fetch('/admin-api/data', {
+  const res = await fetch('/admin-api-data', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ action, ...args }),
@@ -48,7 +48,7 @@ async function adminPost(action: string, args: Record<string, any> = {}) {
 }
 
 async function apiPost(action: string, args: Record<string, any> = {}) {
-  const res = await fetch('/api/customer', {
+  const res = await fetch('/api-customer', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ action, ...args }),
@@ -406,8 +406,13 @@ const SUSPENSION_LABELS: Record<string, string> = {
 // Cancel-link tokens are now HMACs minted server-side (secret lives only in the
 // worker env, never in this bundle). generateCancelToken asks the worker for one.
 async function generateCancelToken(bookingId: string): Promise<string> {
-  const data = await apiPost('cancel-token', { id: bookingId });
-  return data?.token ?? '';
+  try {
+    const data = await apiPost('cancel-token', { id: bookingId });
+    return data?.token ?? '';
+  } catch {
+    // Never let a token failure block the confirmation email from sending.
+    return '';
+  }
 }
 
 // Verification also happens server-side. Returns the booking row when valid.
@@ -505,8 +510,13 @@ async function sendEmail(booking: Booking) {
   }
 
   const customerName = `${booking.fname} ${booking.lname}`;
-  const cancelToken = await generateCancelToken(booking.id);
-  const cancelUrl = `${window.location.origin}/?cancel=${booking.id}&token=${cancelToken}`;
+  // The cancel link is optional. Generating it must NEVER block the confirmation
+  // email — if the token service is unreachable, send the email without the link.
+  let cancelUrl = '';
+  try {
+    const cancelToken = await generateCancelToken(booking.id);
+    if (cancelToken) cancelUrl = `${window.location.origin}/?cancel=${booking.id}&token=${cancelToken}`;
+  } catch { /* token service down — send email without a cancel link */ }
 
   const emailBody = `
     <div style="font-family:sans-serif;max-width:600px;margin:0 auto;color:#222;">
@@ -549,44 +559,51 @@ async function sendEmail(booking: Booking) {
     </div>
   `;
 
-  // Send to customer via Brevo template
-  await fetch('https://api.brevo.com/v3/smtp/email', {
-    method: 'POST',
-    headers: {
-      'api-key': BREVO_API_KEY,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      sender: { name: 'GID Garage', email: 'bookings@gidgarage.com' },
-      to: [{ email: booking.email, name: customerName }],
-      templateId: 1,
-      params: {
-        to_name: booking.fname,
-        service_name: serviceName,
-        appointment_date: dateStr,
-        appointment_time: booking.time,
-        vehicle: booking.vehicle,
-        notes: booking.notes || 'None',
-        booking_id: booking.id,
-        cancel_url: cancelUrl,
+  // Send to customer via Brevo template — isolated so an owner-send failure
+  // (or vice versa) can't block this, and the actual API error is logged.
+  try {
+    const r = await fetch('https://api.brevo.com/v3/smtp/email', {
+      method: 'POST',
+      headers: {
+        'api-key': BREVO_API_KEY,
+        'Content-Type': 'application/json',
       },
-    }),
-  });
+      body: JSON.stringify({
+        sender: { name: 'GID Garage', email: 'bookings@gidgarage.com' },
+        to: [{ email: booking.email, name: customerName }],
+        templateId: 1,
+        params: {
+          to_name: booking.fname,
+          service_name: serviceName,
+          appointment_date: dateStr,
+          appointment_time: booking.time,
+          vehicle: booking.vehicle,
+          notes: booking.notes || 'None',
+          booking_id: booking.id,
+          cancel_url: cancelUrl,
+        },
+      }),
+    });
+    if (!r.ok) console.error('Brevo customer email failed:', r.status, await r.text());
+  } catch (e) { console.error('Brevo customer email error:', e); }
 
   // Send to owner (plain HTML — template is customer-facing)
-  await fetch('https://api.brevo.com/v3/smtp/email', {
-    method: 'POST',
-    headers: {
-      'api-key': BREVO_API_KEY,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      sender: { name: 'GID Garage Bookings', email: 'bookings@gidgarage.com' },
-      to: [{ email: 'gidgarageaz@hotmail.com', name: 'GID Garage' }],
-      subject: `New Quote Request: ${customerName} — ${serviceName} on ${dateStr}`,
-      htmlContent: ownerBody,
-    }),
-  });
+  try {
+    const r = await fetch('https://api.brevo.com/v3/smtp/email', {
+      method: 'POST',
+      headers: {
+        'api-key': BREVO_API_KEY,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        sender: { name: 'GID Garage Bookings', email: 'bookings@gidgarage.com' },
+        to: [{ email: 'gidgarageaz@hotmail.com', name: 'GID Garage' }],
+        subject: `New Quote Request: ${customerName} — ${serviceName} on ${dateStr}`,
+        htmlContent: ownerBody,
+      }),
+    });
+    if (!r.ok) console.error('Brevo owner email failed:', r.status, await r.text());
+  } catch (e) { console.error('Brevo owner email error:', e); }
 }
 
 function getLocalBookings(): Booking[] {

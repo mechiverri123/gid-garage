@@ -109,7 +109,7 @@ export interface Job {
 // Admin ops -> /admin-api/data (service key, behind Cloudflare Access).
 // Customer ops (estimate/invoice view + e-sign) -> /api/customer (self-validating).
 async function adminPost(action: string, args: Record<string, any> = {}) {
-  const res = await fetch('/admin-api/data', {
+  const res = await fetch('/admin-api-data', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ action, ...args }),
@@ -120,7 +120,7 @@ async function adminPost(action: string, args: Record<string, any> = {}) {
 }
 
 async function apiPost(action: string, args: Record<string, any> = {}) {
-  const res = await fetch('/api/customer', {
+  const res = await fetch('/api-customer', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ action, ...args }),
@@ -2024,6 +2024,7 @@ function AddJobModal({ onClose, onAdded }: { onClose: () => void; onAdded: (job:
 export function JobsTab() {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [selected, setSelected] = useState<Job | null>(null);
   const [search, setSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState<JobStatus | 'ALL'>('ALL');
@@ -2034,10 +2035,23 @@ export function JobsTab() {
   );
 
   useEffect(() => {
-    getAllJobs().then(data => { setJobs(data); setLoading(false); });
+    getAllJobs()
+      .then(data => { setJobs(data); setLoadError(null); setLoading(false); })
+      .catch(err => {
+        console.error('Failed to load jobs:', err);
+        setLoadError('Could not load jobs. The admin data service (/admin-api) may be unreachable — check Cloudflare Access covers /admin-api and SUPABASE_SERVICE_KEY is set.');
+        setLoading(false);
+      });
 
     const interval = setInterval(async () => {
-      const fresh = await getAllJobs();
+      let fresh: Job[];
+      try {
+        fresh = await getAllJobs();
+        setLoadError(null);
+      } catch (err) {
+        console.error('Job refresh failed:', err);
+        return; // keep showing existing jobs; don't crash the interval
+      }
       setJobs(fresh);
       setSelected(prev => prev ? (fresh.find(j => j.id === prev.id) ?? prev) : null);
 
@@ -2156,7 +2170,11 @@ export function JobsTab() {
 
       {loading && <div className="text-center py-16 text-gray-600 font-bold uppercase tracking-wider text-sm">Loading jobs…</div>}
 
-      {!loading && filtered.length === 0 && (
+      {!loading && loadError && (
+        <div className="text-center py-16 px-6 text-red-400 text-sm">{loadError}</div>
+      )}
+
+      {!loading && !loadError && filtered.length === 0 && (
         <div className="text-center py-16 text-gray-700 font-bold uppercase tracking-wider text-sm">No jobs found</div>
       )}
 
