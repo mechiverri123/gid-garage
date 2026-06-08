@@ -32,9 +32,35 @@ async function sbFetch(path: string, options: RequestInit = {}) {
   return text ? JSON.parse(text) : null;
 }
 
+// ── SECURE WORKER HELPERS ────────────────────────────────────────────────────
+// Admin reads/writes go through /admin-api/data (service key, behind Cloudflare
+// Access). Customer reads go through /api/customer (service key, self-validating).
+// The public anon key can no longer read the bookings table at all.
+async function adminPost(action: string, args: Record<string, any> = {}) {
+  const res = await fetch('/admin-api/data', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action, ...args }),
+  });
+  if (!res.ok) { const e = await res.text(); throw new Error(e); }
+  const text = await res.text();
+  return text ? JSON.parse(text) : null;
+}
+
+async function apiPost(action: string, args: Record<string, any> = {}) {
+  const res = await fetch('/api/customer', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action, ...args }),
+  });
+  if (!res.ok) { const e = await res.text(); throw new Error(e); }
+  const text = await res.text();
+  return text ? JSON.parse(text) : null;
+}
+
 async function getSupabaseBookings(): Promise<Booking[]> {
   try {
-    const data = await sbFetch('/bookings?select=*&status=neq.pending&order=date.asc,time.asc');
+    const data = (await adminPost('list-bookings') || []).filter((b: any) => b.status !== 'pending');
     return (data || []).map((b: any) => ({
       id: b.id,
       service: b.service,
@@ -61,6 +87,7 @@ async function getSupabaseBookings(): Promise<Booking[]> {
 async function insertSupabaseBooking(b: Booking): Promise<void> {
   await sbFetch('/bookings', {
     method: 'POST',
+    headers: { 'Prefer': 'return=minimal' },
     body: JSON.stringify({
       id: b.id,
       service: b.service,
@@ -82,17 +109,11 @@ async function insertSupabaseBooking(b: Booking): Promise<void> {
 
 async function updateSupabaseBooking(id: string, status: Booking['status']): Promise<void> {
   const extra = status === 'cancelled' ? { job_status: 'CANCELLED' } : {};
-  await sbFetch(`/bookings?id=eq.${id}`, {
-    method: 'PATCH',
-    body: JSON.stringify({ status, ...extra }),
-  });
+  await adminPost('patch-booking', { id, fields: { status, ...extra } });
 }
 
 async function updateSupabaseGarageNotes(id: string, garageNotes: string): Promise<void> {
-  await sbFetch(`/bookings?id=eq.${id}`, {
-    method: 'PATCH',
-    body: JSON.stringify({ garage_notes: garageNotes }),
-  });
+  await adminPost('patch-booking', { id, fields: { garage_notes: garageNotes } });
 }
 
 async function deleteSupabaseBooking(id: string): Promise<void> {
@@ -116,8 +137,8 @@ function deleteLocalBooking(id: string) {
 
 async function getBookedTimesForDate(date: string): Promise<string[]> {
   try {
-    const data = await sbFetch(`/bookings?select=time&date=eq.${date}&status=not.in.(cancelled,pending)`);
-    return (data || []).map((b: any) => b.time);
+    const data = await apiPost('booked-slots', { date });
+    return (data || []) as string[];
   } catch {
     return getLocalBookings().filter(b => b.date === date && b.status !== 'cancelled' && b.status !== 'pending').map(b => b.time);
   }
@@ -382,19 +403,16 @@ const SUSPENSION_LABELS: Record<string, string> = {
 };
 
 // ── CANCEL TOKEN ────────────────────────────────────────────────────────────
-// Simple hash so customers can't guess/forge cancel links
+// Cancel-link tokens are now HMACs minted server-side (secret lives only in the
+// worker env, never in this bundle). generateCancelToken asks the worker for one.
 async function generateCancelToken(bookingId: string): Promise<string> {
-  const secret = 'gid-garage-cancel-secret-2024';
-  const data = bookingId + secret;
-  const encoder = new TextEncoder();
-  const hashBuffer = await crypto.subtle.digest('SHA-256', encoder.encode(data));
-  const hashArray = Array.from(new Uint8Array(hashBuffer));
-  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('').slice(0, 32);
+  const data = await apiPost('cancel-token', { id: bookingId });
+  return data?.token ?? '';
 }
 
-async function verifyCancelToken(bookingId: string, token: string): Promise<boolean> {
-  const expected = await generateCancelToken(bookingId);
-  return expected === token;
+// Verification also happens server-side. Returns the booking row when valid.
+async function verifyCancelToken(bookingId: string, token: string): Promise<{ valid: boolean; booking?: any }> {
+  return await apiPost('cancel-verify', { id: bookingId, token });
 }
 
 async function sendCancellationNotification(booking: Booking) {
@@ -779,13 +797,8 @@ function ReturningCustomerBanner({
 
       const newLast4: string = data.last4 ?? token.card?.last4 ?? '????';
 
-      // Patch stripe_last4 on all this customer's bookings in Supabase so admin sees the newest
-      try {
-        await sbFetch(
-          `/bookings?stripe_customer_id=eq.${encodeURIComponent(returningCustomer.stripeCustomerId)}`,
-          { method: 'PATCH', body: JSON.stringify({ stripe_last4: newLast4 }) }
-        );
-      } catch { /* non-critical — worker already patched the current booking */ }
+      // The update-card worker patches stripe_last4 on the customer's bookings
+      // server-side (anon can no longer UPDATE), so nothing to do here.
 
       onCardUpdated(newLast4);
       setShowUpdate(false);
@@ -1122,9 +1135,6 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
   const [returningCustomer, setReturningCustomer] = useState<{ stripeCustomerId: string; last4?: string } | null>(null);
   const [lookingUpCustomer, setLookingUpCustomer] = useState(false);
 
-  // Normalize phone to digits only — handles "480-599-0118" and "4805990118" identically
-  function normalizePhone(raw: string): string { return raw.replace(/\D/g, ''); }
-
   // Debounced returning-customer lookup: fires when fname+lname+email+phone are all filled
   const lookupTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
@@ -1134,15 +1144,9 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
     lookupTimerRef.current = setTimeout(async () => {
       setLookingUpCustomer(true);
       try {
-        const digits = normalizePhone(phone);
-        // Match both raw digits and hyphenated format stored in DB
-        const dash = digits.replace(/^(\d{3})(\d{3})(\d{4})$/, '$1-$2-$3');
-        // Note: or() filter values must NOT be double-encoded — encodeURIComponent only on the individual name/email values
-        const data = await sbFetch(
-          `/bookings?select=stripe_customer_id,stripe_last4&fname=ilike.${encodeURIComponent(fname)}&lname=ilike.${encodeURIComponent(lname)}&email=ilike.${encodeURIComponent(email)}&or=(phone.eq.${digits},phone.eq.${dash})&stripe_customer_id=not.is.null&order=created_at.desc&limit=1`
-        );
-        if (data && data.length > 0 && data[0].stripe_customer_id) {
-          setReturningCustomer({ stripeCustomerId: data[0].stripe_customer_id, last4: data[0].stripe_last4 ?? undefined });
+        const data = await apiPost('returning-customer', { fname, lname, email, phone });
+        if (data && data.stripeCustomerId) {
+          setReturningCustomer({ stripeCustomerId: data.stripeCustomerId, last4: data.last4 ?? undefined });
         } else {
           setReturningCustomer(null);
         }
@@ -1220,17 +1224,8 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
     const resolvedBookingId = bookingIdOverride ?? s.bookingId;
     if (!s.service || !s.date || !s.time || !svc || !resolvedBookingId) return;
     setSubmitting(true);
-    // save-card worker already set status+stripe fields server-side; this is belt-and-suspenders
-    try {
-      await sbFetch(`/bookings?id=eq.${resolvedBookingId}`, {
-        method: 'PATCH',
-        body: JSON.stringify({
-          status: 'confirmed',
-          ...(customerId ? { stripe_customer_id: customerId } : {}),
-          ...(last4 ? { stripe_last4: last4 } : {}),
-        }),
-      });
-    } catch (e) { console.warn('Status update failed', e); }
+    // The save-card worker already set status='confirmed' + stripe fields server-side
+    // using the service key, so no client-side PATCH is needed (anon can't UPDATE anymore).
     const booking: Booking = {
       id: resolvedBookingId,
       service: s.service, serviceIcon: svc.icon,
@@ -1278,7 +1273,7 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
       created_at: new Date().toISOString(),
     };
     try {
-      await sbFetch('/bookings', { method: 'POST', body: JSON.stringify(inquiry) });
+      await sbFetch('/bookings', { method: 'POST', headers: { 'Prefer': 'return=minimal' }, body: JSON.stringify(inquiry) });
     } catch (e: any) {
       setSubmitError('Something went wrong. Please try again or call us directly.');
       setSubmitting(false);

@@ -1,7 +1,19 @@
 import { useEffect, useState, useRef } from 'react';
 import { Phone, Mail, Menu, X } from 'lucide-react';
-import BookingWidget, { AdminSchedule, verifyCancelToken, updateSupabaseBooking, deleteLocalBooking, sendCancellationNotification, getSupabaseBookings } from './BookingWidget';
+import BookingWidget, { AdminSchedule, verifyCancelToken, deleteLocalBooking, sendCancellationNotification } from './BookingWidget';
 import { EstimatePage, InvoicePage } from './JobOps';
+
+// Cancel flow now validates server-side (secret lives in the worker, not here).
+async function apiPost(action: string, args: Record<string, any> = {}) {
+  const res = await fetch('/api/customer', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action, ...args }),
+  });
+  if (!res.ok) throw new Error(await res.text());
+  const text = await res.text();
+  return text ? JSON.parse(text) : null;
+}
 
 const PHONE = '480-757-0476';
 const EMAIL = 'gidgarageaz@hotmail.com';
@@ -520,15 +532,11 @@ function CancelPage({ bookingId, token }: { bookingId: string; token: string }) 
 
   useEffect(() => {
     async function verify() {
-      const valid = await verifyCancelToken(bookingId, token);
-      if (!valid) { setState('invalid'); return; }
-      // Fetch the booking details
       try {
-        const all = await getSupabaseBookings();
-        const found = all.find((b: any) => b.id === bookingId);
-        if (!found) { setState('invalid'); return; }
-        if (found.status === 'cancelled') { setState('done'); return; }
-        setBooking(found);
+        const result = await verifyCancelToken(bookingId, token);
+        if (!result || !result.valid || !result.booking) { setState('invalid'); return; }
+        if (result.booking.status === 'cancelled') { setState('done'); return; }
+        setBooking(result.booking);
         setState('ready');
       } catch {
         setState('invalid');
@@ -541,8 +549,9 @@ function CancelPage({ bookingId, token }: { bookingId: string; token: string }) 
     setState('cancelling');
     try {
       deleteLocalBooking(bookingId);
-      await updateSupabaseBooking(bookingId, 'cancelled');
-      if (booking) await sendCancellationNotification(booking);
+      const result = await apiPost('cancel', { id: bookingId, token });
+      const cancelled = result?.booking ?? booking;
+      if (cancelled) await sendCancellationNotification(cancelled);
       setState('done');
     } catch {
       setState('error');

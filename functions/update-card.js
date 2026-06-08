@@ -54,6 +54,30 @@ export async function onRequestPost({ request, env }) {
       console.warn('Failed to set default source:', defaultData.error.message);
     }
 
+    // 3. Patch stripe_last4 on all this customer's bookings using the SERVICE key
+    //    (the public anon key can no longer UPDATE the bookings table).
+    const supabaseUrl = env.SUPABASE_URL ?? env.VITE_SUPABASE_URL;
+    const serviceKey = env.SUPABASE_SERVICE_KEY;
+    if (supabaseUrl && serviceKey) {
+      try {
+        await fetch(
+          `${supabaseUrl}/rest/v1/bookings?stripe_customer_id=eq.${encodeURIComponent(customerId)}`,
+          {
+            method: 'PATCH',
+            headers: {
+              apikey: serviceKey,
+              Authorization: `Bearer ${serviceKey}`,
+              'Content-Type': 'application/json',
+              Prefer: 'return=minimal',
+            },
+            body: JSON.stringify({ stripe_last4: last4 }),
+          }
+        );
+      } catch (e) {
+        console.warn('Failed to patch stripe_last4 in Supabase:', e.message);
+      }
+    }
+
     return new Response(JSON.stringify({ last4, sourceId: source.id }), {
       status: 200,
       headers: { 'Content-Type': 'application/json', ...corsHeaders },

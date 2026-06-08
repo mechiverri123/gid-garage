@@ -5,8 +5,6 @@
 
 import { useState, useEffect, useRef } from 'react';
 
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string;
-const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
 const BREVO_API_KEY = import.meta.env.VITE_BREVO_API_KEY as string;
 const STRIPE_PK = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY as string;
 
@@ -106,22 +104,30 @@ export interface Job {
 
 // ── SUPABASE HELPERS ─────────────────────────────────────────────────────────
 
-async function sbFetch(path: string, options: RequestInit = {}) {
-  const isPatch = options.method === 'PATCH' || options.method === 'DELETE';
-  const res = await fetch(`${SUPABASE_URL}/rest/v1${path}`, {
-    ...options,
-    headers: {
-      'apikey': SUPABASE_ANON_KEY,
-      'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-      'Content-Type': 'application/json',
-      'Prefer': isPatch ? 'return=minimal' : 'return=representation',
-      ...(options.headers || {}),
-    },
+
+// ── SECURE WORKER HELPERS ────────────────────────────────────────────────────
+// Admin ops -> /admin-api/data (service key, behind Cloudflare Access).
+// Customer ops (estimate/invoice view + e-sign) -> /api/customer (self-validating).
+async function adminPost(action: string, args: Record<string, any> = {}) {
+  const res = await fetch('/admin-api/data', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action, ...args }),
   });
-  if (!res.ok) { const err = await res.text(); throw new Error(err); }
-  if (isPatch) return null;
-  const text = await res.text();
-  return text ? JSON.parse(text) : null;
+  if (!res.ok) { const e = await res.text(); throw new Error(e); }
+  const txt = await res.text();
+  return txt ? JSON.parse(txt) : null;
+}
+
+async function apiPost(action: string, args: Record<string, any> = {}) {
+  const res = await fetch('/api/customer', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action, ...args }),
+  });
+  if (!res.ok) { const e = await res.text(); throw new Error(e); }
+  const txt = await res.text();
+  return txt ? JSON.parse(txt) : null;
 }
 
 function mapJob(b: any): Job {
@@ -164,34 +170,35 @@ async function writePaymentEvent(
   errorMessage?: string
 ) {
   try {
-    await sbFetch('/payment_events', {
-      method: 'POST',
-      body: JSON.stringify({
-        booking_id: bookingId,
-        event_type: eventType,
-        amount: amount ?? null,
-        error_message: errorMessage ?? null,
-      }),
+    await adminPost('write-payment-event', {
+      booking_id: bookingId,
+      event_type: eventType,
+      amount: amount ?? null,
+      error_message: errorMessage ?? null,
     });
   } catch { /* non-critical */ }
 }
 
 export async function getAllJobs(): Promise<Job[]> {
-  const data = await sbFetch('/bookings?select=*&status=not.in.(pending,cancelled)&order=date.desc,time.desc');
-  return (data || []).map(mapJob);
+  const data = (await adminPost('list-bookings') || []).filter((b: any) => b.status !== 'pending' && b.status !== 'cancelled');
+  return data.map(mapJob);
 }
 
+// ADMIN read (behind Cloudflare Access)
 export async function getJobById(id: string): Promise<Job | null> {
-  const data = await sbFetch(`/bookings?id=eq.${id}&select=*`);
-  if (!data || data.length === 0) return null;
-  return mapJob(data[0]);
+  const row = await adminPost('get-booking', { id });
+  return row ? mapJob(row) : null;
 }
 
+// PUBLIC read for the customer-facing estimate / invoice pages
+export async function getJobByIdPublic(id: string): Promise<Job | null> {
+  const row = await apiPost('get-job', { id });
+  return row ? mapJob(row) : null;
+}
+
+// ADMIN mutations (behind Cloudflare Access)
 async function patchJob(id: string, fields: Record<string, any>) {
-  await sbFetch(`/bookings?id=eq.${id}`, {
-    method: 'PATCH',
-    body: JSON.stringify(fields),
-  });
+  await adminPost('patch-booking', { id, fields });
 }
 
 // ── BREVO: SEND ESTIMATE EMAIL ────────────────────────────────────────────────
@@ -1909,8 +1916,7 @@ function AddJobModal({ onClose, onAdded }: { onClose: () => void; onAdded: (job:
       created_at: new Date().toISOString(),
     };
     try {
-      const data = await sbFetch('/bookings', { method: 'POST', body: JSON.stringify(row) });
-      const inserted = Array.isArray(data) ? data[0] : data;
+      const inserted = await adminPost('insert-booking', { row });
       onAdded(mapJob(inserted ?? row));
       onClose();
     } catch (e: any) {
@@ -2038,7 +2044,7 @@ export function JobsTab() {
       // Payment event notifications
       if (Notification.permission !== 'granted' || !('serviceWorker' in navigator)) return;
       try {
-        const events = await sbFetch('/payment_events?order=created_at.desc&limit=20');
+        const events = await adminPost('list-payment-events', { limit: 20 });
         if (!events?.length) return;
         const reg = await navigator.serviceWorker.ready;
         for (const ev of events) {
@@ -2347,7 +2353,7 @@ export function InvoicePage() {
 
   useEffect(() => {
     if (!jobId) { setNotFound(true); setLoading(false); return; }
-    getJobById(jobId).then(j => {
+    getJobByIdPublic(jobId).then(j => {
       if (!j) setNotFound(true);
       else setJob(j);
       setLoading(false);
@@ -2542,7 +2548,7 @@ export function EstimatePage() {
 
   useEffect(() => {
     if (!jobId) { setNotFound(true); setLoading(false); return; }
-    getJobById(jobId).then(j => {
+    getJobByIdPublic(jobId).then(j => {
       if (!j) { setNotFound(true); }
       else if (j.customerAgreed) { setAlreadySigned(true); setJob(j); }
       else { setJob(j); }
@@ -2561,13 +2567,7 @@ export function EstimatePage() {
       signerIp = data.ip || '';
     } catch { /* non-critical */ }
     try {
-      await patchJob(job.id, {
-        pre_existing_damage: damage,
-        customer_agreed: true,
-        customer_signature: signature.trim(),
-        signed_at: new Date().toISOString(),
-        job_status: 'SIGNED',
-      });
+      await apiPost('sign', { id: job.id, signature: signature.trim(), damage });
       setDone(true);
     } catch (err) {
       console.error('Sign failed', err);
@@ -2869,7 +2869,7 @@ function usePersistentNotes(categoryId: string) {
     let cancelled = false;
     async function load() {
       try {
-        const data = await sbFetch(`/hub_notes?category_id=eq.${categoryId}&order=created_at.asc`);
+        const data = await adminPost('list-notes', { categoryId });
         if (cancelled) return;
         if (data && data.length > 0) {
           setNotes(data.map((r: any) => ({ id: r.id, content: r.content, createdAt: r.created_at })));
@@ -2879,11 +2879,11 @@ function usePersistentNotes(categoryId: string) {
           for (let i = 0; i < seeds.length; i++) {
             const uid = `${categoryId}-s${i}-${Math.random().toString(36).slice(2,9)}`;
             try {
-              await sbFetch('/hub_notes', { method: 'POST', body: JSON.stringify({ id: uid, category_id: categoryId, content: seeds[i] }) });
+              await adminPost('add-note', { id: uid, categoryId, content: seeds[i] });
             } catch { /* skip duplicate */ }
           }
           if (seeds.length > 0) {
-            const fresh = await sbFetch(`/hub_notes?category_id=eq.${categoryId}&order=created_at.asc`);
+            const fresh = await adminPost('list-notes', { categoryId });
             if (!cancelled) setNotes((fresh || []).map((r: any) => ({ id: r.id, content: r.content, createdAt: r.created_at })));
           }
         }
@@ -2895,23 +2895,19 @@ function usePersistentNotes(categoryId: string) {
   }, [categoryId]);
 
   async function addNote(content: string) {
-    const row = { id: `${categoryId}-${Date.now()}`, category_id: categoryId, content };
-    const result = await sbFetch('/hub_notes', { method: 'POST', body: JSON.stringify(row) });
-    const created = Array.isArray(result) ? result[0] : result;
+    const noteId = `${categoryId}-${Date.now()}`;
+    const created = await adminPost('add-note', { id: noteId, categoryId, content });
     if (created) setNotes(prev => [...prev, { id: created.id, content: created.content, createdAt: created.created_at }]);
   }
 
   async function deleteNote(id: string) {
     setNotes(prev => prev.filter(n => n.id !== id));
-    await sbFetch(`/hub_notes?id=eq.${id}`, { method: 'DELETE' });
+    await adminPost('delete-note', { id });
   }
 
   async function editNote(id: string, content: string) {
     setNotes(prev => prev.map(n => n.id === id ? { ...n, content } : n));
-    await sbFetch(`/hub_notes?id=eq.${id}`, {
-      method: 'PATCH',
-      body: JSON.stringify({ content }),
-    });
+    await adminPost('update-note', { id, content });
   }
 
   return { notes, loading, addNote, deleteNote, editNote };
@@ -2923,7 +2919,7 @@ function TaxSummary() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    sbFetch('/bookings?job_status=eq.PAID&select=paid_at,invoice_amount,tax_amount&order=paid_at.desc')
+    adminPost('paid-bookings')
       .then((data: any[]) => {
         if (!data?.length) { setRows([]); setLoading(false); return; }
         const byMonth: Record<string, { subtotal: number; tax: number }> = {};
@@ -3097,13 +3093,13 @@ export function BusinessHub() {
     setResetting(true);
     try {
       // Delete all hub notes
-      await sbFetch('/hub_notes?id=neq.placeholder', { method: 'DELETE' });
+      await adminPost('clear-notes');
       // Re-seed every category sequentially
       for (const cat of HUB_CATEGORIES) {
         const seeds = SEED_NOTES[cat.id] ?? [];
         for (let i = 0; i < seeds.length; i++) {
           const uid = `${cat.id}-s${i}-${Math.random().toString(36).slice(2, 9)}`;
-          try { await sbFetch('/hub_notes', { method: 'POST', body: JSON.stringify({ id: uid, category_id: cat.id, content: seeds[i] }) }); } catch { /* skip */ }
+          try { await adminPost('add-note', { id: uid, categoryId: cat.id, content: seeds[i] }); } catch { /* skip */ }
         }
       }
     } catch { /* ignore */ }
