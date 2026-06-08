@@ -431,6 +431,7 @@ const SERVICE_NAMES: Record<string, string> = {
   suspension: 'Suspension',
   audio:      'Car Audio',
   full:       'Full Service',
+  other:      'General Inquiry',
 };
 
 const BRAKE_LABELS: Record<string, string> = {
@@ -1821,12 +1822,188 @@ function JobDetailPanel({ job: initialJob, onClose, onJobUpdate }: {
 
 // ── JOBS TAB (pipeline board) ─────────────────────────────────────────────────
 
+
+// ── ADD JOB MODAL ────────────────────────────────────────────────────────────
+const ADD_JOB_SERVICES = [
+  { id: 'oil',        label: 'Oil Change' },
+  { id: 'brakes',     label: 'Brakes' },
+  { id: 'diag',       label: 'Diagnostics' },
+  { id: 'suspension', label: 'Suspension' },
+  { id: 'audio',      label: 'Car Audio' },
+  { id: 'full',       label: 'Full Service' },
+  { id: 'other',      label: 'Other / Custom' },
+];
+const SERVICE_ICONS: Record<string, string> = {
+  oil: '🛢️', brakes: '🔧', diag: '💻', suspension: '🚗',
+  audio: '🔊', full: '✅', other: '💬',
+};
+
+function AddJobModal({ onClose, onAdded }: { onClose: () => void; onAdded: (job: Job) => void }) {
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const [fieldErr, setFieldErr] = useState<Record<string, string>>({});
+  const [f, setF] = useState({
+    fname: '', lname: '', phone: '', email: '',
+    vehicle: '', service: 'other', date: '', time: '', notes: '',
+  });
+
+  function set(k: string, v: string) { setF(p => ({ ...p, [k]: v })); setFieldErr(p => ({ ...p, [k]: '' })); }
+
+  // Convert "14:30" → "2:30 PM" to match booking time slot format
+  function to12h(t: string): string {
+    const [hStr, mStr] = t.split(':');
+    const h = parseInt(hStr, 10);
+    const m = mStr ?? '00';
+    const period = h >= 12 ? 'PM' : 'AM';
+    const h12 = h % 12 === 0 ? 12 : h % 12;
+    return `${h12}:${m} ${period}`;
+  }
+
+  async function handleSave() {
+    const errs: Record<string, string> = {};
+    if (!f.fname)    errs.fname   = 'Required';
+    if (!f.phone)    errs.phone   = 'Required';
+    if (!f.vehicle)  errs.vehicle = 'Required';
+    if (!f.service)  errs.service = 'Required';
+    if (!f.date)     errs.date    = 'Required';
+    if (!f.time)     errs.time    = 'Required';
+    if (Object.keys(errs).length) { setFieldErr(errs); return; }
+
+    setSaving(true);
+    setErr(null);
+    const id = `GID-${Date.now()}`;
+    const formattedTime = to12h(f.time);
+    const row = {
+      id,
+      service: f.service,
+      service_icon: SERVICE_ICONS[f.service] ?? '🔧',
+      date: f.date,
+      time: formattedTime,
+      fname: f.fname,
+      lname: f.lname,
+      phone: f.phone,
+      email: f.email,
+      vehicle: f.vehicle,
+      notes: f.notes,
+      garage_notes: '',
+      status: 'confirmed',
+      job_status: 'BOOKED',
+      created_at: new Date().toISOString(),
+    };
+    try {
+      const data = await sbFetch('/bookings', { method: 'POST', body: JSON.stringify(row) });
+      const inserted = Array.isArray(data) ? data[0] : data;
+      onAdded(mapJob(inserted ?? row));
+      onClose();
+    } catch (e: any) {
+      setErr(e.message ?? 'Save failed. Try again.');
+      setSaving(false);
+    }
+  }
+
+  const inp = (k: string, label: string, type = 'text', placeholder = '') => (
+    <div>
+      <label className={`block text-xs font-bold uppercase tracking-wider mb-1 ${fieldErr[k] ? 'text-red-500' : 'text-gray-500'}`}>{label}</label>
+      <input
+        type={type}
+        placeholder={placeholder}
+        value={(f as any)[k]}
+        onChange={e => set(k, e.target.value)}
+        className={`w-full bg-gray-900 text-white text-sm px-3 py-2.5 outline-none border transition-colors ${fieldErr[k] ? 'border-red-500' : 'border-gray-700 focus:border-red-600'}`}
+      />
+      {fieldErr[k] && <p className="text-red-500 text-[10px] mt-0.5">{fieldErr[k]}</p>}
+    </div>
+  );
+
+  return (
+    <div className="fixed inset-0 z-[9999] bg-black/80 flex items-center justify-center p-4" onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="bg-[#0f0f0f] border border-gray-800 w-full max-w-lg p-7 relative overflow-y-auto max-h-[90vh]">
+        <button onClick={onClose} className="absolute top-4 right-4 w-8 h-8 border border-gray-700 text-gray-500 hover:border-red-600 hover:text-white flex items-center justify-center transition-colors">✕</button>
+        <div className="w-8 h-1 bg-red-600 mb-4" />
+        <h2 className="text-xl font-black text-white mb-5">Add Job to Calendar</h2>
+
+        <div className="space-y-3">
+          <div className="grid grid-cols-2 gap-3">
+            {inp('fname', 'First Name *', 'text', 'John')}
+            {inp('lname', 'Last Name', 'text', 'Smith')}
+            {inp('phone', 'Phone *', 'tel', '480-555-0100')}
+            {inp('email', 'Email', 'email', 'customer@email.com')}
+          </div>
+
+          {inp('vehicle', 'Vehicle * (Year Make Model Trim)', 'text', '2019 Toyota Camry LE')}
+
+          <div>
+            <label className={`block text-xs font-bold uppercase tracking-wider mb-1 ${fieldErr.service ? 'text-red-500' : 'text-gray-500'}`}>Service *</label>
+            <select
+              value={f.service}
+              onChange={e => set('service', e.target.value)}
+              className={`w-full bg-gray-900 text-white text-sm px-3 py-2.5 outline-none border transition-colors ${fieldErr.service ? 'border-red-500' : 'border-gray-700 focus:border-red-600'}`}
+            >
+              {ADD_JOB_SERVICES.map(sv => (
+                <option key={sv.id} value={sv.id}>{sv.label}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className={`block text-xs font-bold uppercase tracking-wider mb-1 ${fieldErr.date ? 'text-red-500' : 'text-gray-500'}`}>Date *</label>
+              <input
+                type="date"
+                value={f.date}
+                onChange={e => set('date', e.target.value)}
+                className={`w-full bg-gray-900 text-white text-sm px-3 py-2.5 outline-none border transition-colors ${fieldErr.date ? 'border-red-500' : 'border-gray-700 focus:border-red-600'}`}
+              />
+              {fieldErr.date && <p className="text-red-500 text-[10px] mt-0.5">{fieldErr.date}</p>}
+            </div>
+            <div>
+              <label className={`block text-xs font-bold uppercase tracking-wider mb-1 ${fieldErr.time ? 'text-red-500' : 'text-gray-500'}`}>Time *</label>
+              <input
+                type="time"
+                value={f.time}
+                onChange={e => set('time', e.target.value)}
+                className={`w-full bg-gray-900 text-white text-sm px-3 py-2.5 outline-none border transition-colors ${fieldErr.time ? 'border-red-500' : 'border-gray-700 focus:border-red-600'}`}
+              />
+              {fieldErr.time && <p className="text-red-500 text-[10px] mt-0.5">{fieldErr.time}</p>}
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-gray-500 text-xs font-bold uppercase tracking-wider mb-1">Notes / Problem Description</label>
+            <textarea
+              value={f.notes}
+              onChange={e => set('notes', e.target.value)}
+              rows={3}
+              placeholder="Customer complaint, symptoms, special instructions..."
+              className="w-full bg-gray-900 border border-gray-700 text-white text-sm px-3 py-2.5 outline-none focus:border-red-600 transition-colors resize-y"
+            />
+          </div>
+
+          {err && <div className="bg-red-950/50 border border-red-700 text-red-400 text-sm px-4 py-3">{err}</div>}
+
+          <div className="flex gap-3 pt-2">
+            <button onClick={onClose} className="flex-1 border border-gray-700 text-gray-400 hover:border-gray-500 text-xs font-bold uppercase tracking-widest py-3 transition-colors">Cancel</button>
+            <button
+              onClick={handleSave}
+              disabled={saving}
+              className={`flex-1 bg-red-600 hover:bg-red-500 text-white text-xs font-bold uppercase tracking-widest py-3 transition-colors ${saving ? 'opacity-50 cursor-not-allowed' : ''}`}
+            >
+              {saving ? 'Saving…' : 'Add Job'}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function JobsTab() {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<Job | null>(null);
   const [search, setSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState<JobStatus | 'ALL'>('ALL');
+  const [showAddJob, setShowAddJob] = useState(false);
 
   const seenEventIds = useRef<Set<string>>(
     new Set(JSON.parse(localStorage.getItem('seenPaymentEventIds') ?? '[]'))
@@ -1926,7 +2103,7 @@ export function JobsTab() {
         ))}
       </div>
 
-      {/* Filters */}
+      {/* Filters + Add Job */}
       <div className="flex flex-wrap gap-3 mb-6">
         <input
           type="text"
@@ -1935,6 +2112,12 @@ export function JobsTab() {
           placeholder="Search customer, vehicle, phone…"
           className="bg-gray-900 border border-gray-700 text-white px-3 py-2 text-sm focus:border-red-600 outline-none flex-1 min-w-48"
         />
+        <button
+          onClick={() => setShowAddJob(true)}
+          className="bg-red-600 hover:bg-red-500 text-white text-xs font-bold uppercase tracking-widest px-4 py-2 transition-colors flex items-center gap-1.5 flex-shrink-0"
+        >
+          <span className="text-base leading-none">+</span> Add Job
+        </button>
         <div className="flex flex-wrap gap-1.5">
           {(['ALL', ...JOB_PIPELINE] as const).map(s => (
             <button key={s} onClick={() => setFilterStatus(s)}
@@ -1982,6 +2165,7 @@ export function JobsTab() {
                 )}
               </div>
               <div className="flex items-center gap-2 flex-shrink-0">
+                {job.service === 'other' && <span className="text-purple-400 text-[10px] font-bold uppercase bg-purple-900/30 px-2 py-0.5">Inquiry</span>}
                 {isOverdue && <span className="text-yellow-600 text-[10px] font-bold uppercase">Overdue</span>}
                 <StatusBadge status={job.jobStatus} />
               </div>
@@ -1995,6 +2179,13 @@ export function JobsTab() {
           job={selected}
           onClose={() => setSelected(null)}
           onJobUpdate={handleJobUpdate}
+        />
+      )}
+
+      {showAddJob && (
+        <AddJobModal
+          onClose={() => setShowAddJob(false)}
+          onAdded={job => { setJobs(prev => [job, ...prev]); setSelected(job); }}
         />
       )}
     </div>

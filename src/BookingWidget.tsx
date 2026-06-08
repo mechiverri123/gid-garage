@@ -124,6 +124,7 @@ const SERVICES = [
   { id: 'suspension', icon: '🚗', name: 'Suspension',    desc: 'Shocks, struts, control arms & more',                      duration: '2–3 hrs',  startingAt: null },
   { id: 'audio',      icon: '🔊', name: 'Car Audio',     desc: 'Head units, speakers, amps & full system installs',        duration: 'Varies',   startingAt: null, depositNote: true },
   { id: 'full',       icon: '✅', name: 'Full Service',  desc: 'Multi-point inspection',                                   duration: '1.5 hrs',  startingAt: null },
+  { id: 'other',      icon: '💬', name: 'Something Else', desc: "Don't see your problem listed? Tell us what's going on.", duration: '',         startingAt: null, isOther: true },
 ];
 
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
@@ -974,7 +975,7 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
     });
   }, [s.calYear, s.calMonth]);
 
-  function selectService(id: string) { setS(p => ({ ...p, service: id, step: Math.max(p.step, 2) })); }
+  function selectService(id: string) { setS(p => ({ ...p, service: id, step: id === 'other' ? 1 : Math.max(p.step, 2) })); }
   function selectDate(k: string) { setS(p => ({ ...p, date: k, time: null, step: Math.max(p.step, 3) })); }
   function selectTime(t: string) { setS(p => ({ ...p, time: t, step: Math.max(p.step, 4) })); }
   function prevMonth() { setS(p => p.calMonth === 0 ? { ...p, calMonth: 11, calYear: p.calYear - 1 } : { ...p, calMonth: p.calMonth - 1 }); }
@@ -983,6 +984,38 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [showCancelPolicy, setShowCancelPolicy] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [returningCustomer, setReturningCustomer] = useState<{ stripeCustomerId: string; last4?: string } | null>(null);
+  const [lookingUpCustomer, setLookingUpCustomer] = useState(false);
+
+  // Normalize phone to digits only — handles "480-599-0118" and "4805990118" identically
+  function normalizePhone(raw: string): string { return raw.replace(/\D/g, ''); }
+
+  // Debounced returning-customer lookup: fires when fname+lname+email+phone are all filled
+  const lookupTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    const { fname, lname, email, phone } = form;
+    if (!fname || !lname || !email || !phone) { setReturningCustomer(null); return; }
+    if (lookupTimerRef.current) clearTimeout(lookupTimerRef.current);
+    lookupTimerRef.current = setTimeout(async () => {
+      setLookingUpCustomer(true);
+      try {
+        const digits = normalizePhone(phone);
+        // Match both raw digits and hyphenated format stored in DB
+        const dash = digits.replace(/^(\d{3})(\d{3})(\d{4})$/, '$1-$2-$3');
+        // Note: or() filter values must NOT be double-encoded — encodeURIComponent only on the individual name/email values
+        const data = await sbFetch(
+          `/bookings?select=stripe_customer_id,stripe_last4&fname=ilike.${encodeURIComponent(fname)}&lname=ilike.${encodeURIComponent(lname)}&email=ilike.${encodeURIComponent(email)}&or=(phone.eq.${digits},phone.eq.${dash})&stripe_customer_id=not.is.null&order=created_at.desc&limit=1`
+        );
+        if (data && data.length > 0 && data[0].stripe_customer_id) {
+          setReturningCustomer({ stripeCustomerId: data[0].stripe_customer_id, last4: data[0].stripe_last4 ?? undefined });
+        } else {
+          setReturningCustomer(null);
+        }
+      } catch { setReturningCustomer(null); }
+      setLookingUpCustomer(false);
+    }, 800);
+    return () => { if (lookupTimerRef.current) clearTimeout(lookupTimerRef.current); };
+  }, [form.fname, form.lname, form.email, form.phone]);
 
   // Validate step 4 and advance to card step
   async function handleAdvanceToCard() {
@@ -1034,6 +1067,12 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
       return;
     }
 
+    // If returning customer with card on file, skip card step and submit directly
+    if (returningCustomer) {
+      setS(p => ({ ...p, step: 5, bookingId }));
+      await handleFinalSubmit(returningCustomer.stripeCustomerId, returningCustomer.last4 ?? null, bookingId);
+      return;
+    }
     setS(p => ({ ...p, step: 5, bookingId }));
   }
 
@@ -1042,12 +1081,13 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
     handleFinalSubmit(customerId, last4);
   }
 
-  async function handleFinalSubmit(customerId: string | null = null, last4: string | null = null) {
-    if (!s.service || !s.date || !s.time || !svc || !s.bookingId) return;
+  async function handleFinalSubmit(customerId: string | null = null, last4: string | null = null, bookingIdOverride?: string) {
+    const resolvedBookingId = bookingIdOverride ?? s.bookingId;
+    if (!s.service || !s.date || !s.time || !svc || !resolvedBookingId) return;
     setSubmitting(true);
     // save-card worker already set status+stripe fields server-side; this is belt-and-suspenders
     try {
-      await sbFetch(`/bookings?id=eq.${s.bookingId}`, {
+      await sbFetch(`/bookings?id=eq.${resolvedBookingId}`, {
         method: 'PATCH',
         body: JSON.stringify({
           status: 'confirmed',
@@ -1057,7 +1097,7 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
       });
     } catch (e) { console.warn('Status update failed', e); }
     const booking: Booking = {
-      id: s.bookingId,
+      id: resolvedBookingId,
       service: s.service, serviceIcon: svc.icon,
       date: s.date, time: s.time,
       fname: form.fname, lname: form.lname, phone: form.phone, email: form.email,
@@ -1072,7 +1112,78 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
     setSubmitted(true);
   }
 
-  function reset() { setS(INIT_STATE); setForm(INIT_FORM); setSubmitted(false); }
+  async function handleOtherSubmit() {
+    const errors: Record<string, string> = {};
+    if (!form.fname)  errors.fname = 'First name is required';
+    if (!form.phone)  errors.phone = 'Phone number is required';
+    if (!form.notes || form.notes.trim().length < 10) errors.notes = 'Please describe your problem (at least a few words)';
+    if (form.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) errors.email = 'Enter a valid email address';
+    if (Object.keys(errors).length > 0) { setFieldErrors(errors); return; }
+    setFieldErrors({});
+    setSubmitting(true);
+    setSubmitError(null);
+    const bookingId = `GID-${Date.now()}`;
+    const today = new Date().toISOString().slice(0, 10);
+    const nowTime = new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+    const inquiry = {
+      id: bookingId,
+      service: 'other',
+      service_icon: '💬',
+      date: today,
+      time: nowTime,
+      fname: form.fname,
+      lname: form.lname,
+      phone: form.phone,
+      email: form.email || '',
+      vehicle: vehicleString(form) || 'Not specified',
+      notes: form.notes,
+      garage_notes: '',
+      status: 'confirmed',
+      job_status: 'BOOKED',
+      created_at: new Date().toISOString(),
+    };
+    try {
+      await sbFetch('/bookings', { method: 'POST', body: JSON.stringify(inquiry) });
+    } catch (e: any) {
+      setSubmitError('Something went wrong. Please try again or call us directly.');
+      setSubmitting(false);
+      return;
+    }
+    // Notify GID Garage via Brevo
+    if (BREVO_API_KEY) {
+      try {
+        const esc = (s: string) => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+        const veh = vehicleString(form);
+        await fetch('https://api.brevo.com/v3/smtp/email', {
+          method: 'POST',
+          headers: { 'api-key': BREVO_API_KEY, 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            sender: { name: 'GID Garage Bookings', email: 'bookings@gidgarage.com' },
+            to: [{ email: 'gidgarageaz@hotmail.com', name: 'GID Garage' }],
+            subject: `💬 New Inquiry: ${form.fname} ${form.lname}`,
+            htmlContent: `<div style="font-family:sans-serif;max-width:520px;margin:0 auto;background:#0f0f0f;color:#fff;padding:32px;border-top:4px solid #dc2626;">
+              <h2 style="margin:0 0 20px;font-size:22px;font-weight:900;">New Customer Inquiry</h2>
+              <table style="width:100%;border-collapse:collapse;font-size:13px;">
+                <tr><td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#9ca3af;width:35%;">Name</td><td style="padding:8px 0;border-bottom:1px solid #1f2937;font-weight:600;">${esc(form.fname)} ${esc(form.lname)}</td></tr>
+                <tr><td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#9ca3af;">Phone</td><td style="padding:8px 0;border-bottom:1px solid #1f2937;">${esc(form.phone)}</td></tr>
+                ${form.email ? `<tr><td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#9ca3af;">Email</td><td style="padding:8px 0;border-bottom:1px solid #1f2937;">${esc(form.email)}</td></tr>` : ''}
+                ${veh ? `<tr><td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#9ca3af;">Vehicle</td><td style="padding:8px 0;border-bottom:1px solid #1f2937;">${esc(veh)}</td></tr>` : ''}
+              </table>
+              <div style="margin-top:20px;background:#1a1a1a;border-left:3px solid #dc2626;padding:14px 16px;">
+                <p style="color:#9ca3af;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;margin:0 0 8px;">Problem Description</p>
+                <p style="margin:0;font-size:14px;line-height:1.6;color:#e5e7eb;">${esc(form.notes)}</p>
+              </div>
+              <p style="margin-top:20px;font-size:12px;color:#6b7280;">Job ID: ${bookingId} · Submitted ${new Date().toLocaleString()}</p>
+            </div>`,
+          }),
+        });
+      } catch { /* non-critical */ }
+    }
+    setSubmitting(false);
+    setSubmitted(true);
+  }
+
+  function reset() { setS(INIT_STATE); setForm(INIT_FORM); setSubmitted(false); setReturningCustomer(null); setSubmitError(null); }
   function closeModal() { setOpen(false); onClose?.(); }
 
   const firstDay = new Date(s.calYear, s.calMonth, 1).getDay();
@@ -1093,13 +1204,20 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
 
             {submitted ? (
               <div className="text-center py-10">
-                <div className="text-5xl mb-4">✅</div>
-                <h2 className="text-3xl font-black text-white mb-3">Request Received!</h2>
-                <p className="text-gray-400 text-sm leading-relaxed">
-                  We've received your quote request for <span className="text-red-500 font-bold">{svc?.name}</span> on <span className="text-red-500 font-bold">{dateStr} at {s.time}</span>. We'll call you to confirm availability and finalize pricing.<br /><br />
-                  A confirmation has been sent to {form.email || 'your email'}.<br />
-                  <span className="text-gray-500 text-xs">If you don't see it, check your junk or spam folder.</span>
-                </p>
+                <div className="text-5xl mb-4">{s.service === 'other' ? '💬' : '✅'}</div>
+                <h2 className="text-3xl font-black text-white mb-3">{s.service === 'other' ? 'Message Sent!' : 'Request Received!'}</h2>
+                {s.service === 'other' ? (
+                  <p className="text-gray-400 text-sm leading-relaxed max-w-sm mx-auto">
+                    Got it, {form.fname}! We've received your message and will reach out shortly — usually same day — with a quote and next steps.<br /><br />
+                    In the meantime, feel free to call or text us at <a href={`tel:${PHONE.replace(/-/g,'')}`} className="text-red-500 font-bold">{PHONE}</a>.
+                  </p>
+                ) : (
+                  <p className="text-gray-400 text-sm leading-relaxed">
+                    We've received your quote request for <span className="text-red-500 font-bold">{svc?.name}</span> on <span className="text-red-500 font-bold">{dateStr} at {s.time}</span>. We'll call you to confirm availability and finalize pricing.<br /><br />
+                    A confirmation has been sent to {form.email || 'your email'}.<br />
+                    <span className="text-gray-500 text-xs">If you don't see it, check your junk or spam folder.</span>
+                  </p>
+                )}
                 {s.service === 'audio' && (
                   <p className="text-yellow-500/80 text-xs mt-4 max-w-xs mx-auto">Note: If parts need to be sourced, we'll reach out to confirm a deposit and lead time before your appointment.</p>
                 )}
@@ -1111,13 +1229,16 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
                 <p className="text-red-600 text-xs font-bold uppercase tracking-[0.25em] mb-1">Get a Quote</p>
                 <h2 className="text-3xl font-black text-white tracking-tight mb-6">Request a Quote</h2>
 
-                <div className="flex gap-1 mb-8">
-                  {[1,2,3,4,5].map(n => <div key={n} className={`h-0.5 flex-1 transition-colors duration-300 ${n <= s.step ? 'bg-red-600' : 'bg-gray-800'}`} />)}
-                </div>
+                {s.service !== 'other' && (
+                  <div className="flex gap-1 mb-8">
+                    {[1,2,3,4,5].map(n => <div key={n} className={`h-0.5 flex-1 transition-colors duration-300 ${n <= s.step ? 'bg-red-600' : 'bg-gray-800'}`} />)}
+                  </div>
+                )}
+                {s.service === 'other' && <div className="h-0.5 bg-red-600 mb-8" />}
 
                 <StepHeader n={1} current={s.step} label="Select a Service" />
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 mb-2">
-                  {SERVICES.map(sv => (
+                  {SERVICES.filter(sv => !sv.isOther).map(sv => (
                     <button key={sv.id} onClick={() => selectService(sv.id)}
                       className={`text-left p-3.5 border transition-all ${s.service === sv.id ? 'border-l-4 border-red-600 bg-red-950/30' : 'border-gray-800 bg-gray-900 hover:border-red-600'}`}>
                       <div className="text-xl mb-2">{sv.icon}</div>
@@ -1127,6 +1248,86 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
                     </button>
                   ))}
                 </div>
+
+                {/* ── OTHER / Something Else card ── */}
+                <button onClick={() => selectService('other')}
+                  className={`w-full text-left border-2 transition-all mt-1 mb-2 ${s.service === 'other' ? 'border-red-600 bg-red-950/20' : 'border-dashed border-gray-700 bg-gray-900/50 hover:border-red-600'}`}>
+                  <div className="flex items-start gap-4 p-4">
+                    <div className="text-3xl flex-shrink-0 mt-0.5">💬</div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-white text-sm font-black tracking-tight">Don't See Your Problem Listed?</span>
+                        {s.service === 'other' && <span className="text-[10px] font-bold uppercase tracking-widest text-red-500 bg-red-950/60 px-2 py-0.5">Selected</span>}
+                      </div>
+                      <p className="text-gray-400 text-xs leading-relaxed">No worries — we handle all kinds of jobs. Tell us what's going on and we'll point you in the right direction with a custom quote.</p>
+                      <div className="flex items-center gap-4 mt-2.5">
+                        <a href={`tel:${PHONE.replace(/-/g,'')}`} onClick={e => e.stopPropagation()} className="flex items-center gap-1.5 text-red-500 hover:text-red-400 text-xs font-bold transition-colors">
+                          <span>📞</span> {PHONE}
+                        </a>
+                        <a href="mailto:gidgarageaz@hotmail.com" onClick={e => e.stopPropagation()} className="flex items-center gap-1.5 text-gray-400 hover:text-gray-300 text-xs font-bold transition-colors">
+                          <span>✉️</span> gidgarageaz@hotmail.com
+                        </a>
+                      </div>
+                    </div>
+                  </div>
+                </button>
+
+                {/* ── Other: describe your problem ── */}
+                {s.service === 'other' && (
+                  <div className="mt-3 space-y-4">
+                    <div className="bg-gray-900/80 border border-gray-800 border-l-4 border-l-red-600 px-4 py-3">
+                      <p className="text-gray-300 text-xs leading-relaxed">We'll review your message and get back to you with a quote — usually same day. You can also call or text us directly at <a href={`tel:${PHONE.replace(/-/g,'')}`} className="text-red-500 font-bold">{PHONE}</a> or email <a href="mailto:gidgarageaz@hotmail.com" className="text-red-500 font-bold">gidgarageaz@hotmail.com</a>.</p>
+                    </div>
+
+                    {/* Contact fields */}
+                    <div className="grid grid-cols-2 gap-3">
+                      {[
+                        { id: 'fname', label: 'First Name *', placeholder: 'John', type: 'text' },
+                        { id: 'lname', label: 'Last Name', placeholder: 'Smith', type: 'text' },
+                        { id: 'phone', label: 'Phone *', placeholder: '928-555-0100', type: 'tel' },
+                        { id: 'email', label: 'Email', placeholder: 'you@email.com', type: 'email' },
+                      ].map(f => (
+                        <div key={f.id}>
+                          <label className={`block text-xs font-bold uppercase tracking-wider mb-1.5 ${fieldErrors[f.id] ? 'text-red-500' : 'text-gray-500'}`}>{f.label}</label>
+                          <input type={f.type} placeholder={f.placeholder}
+                            value={form[f.id as keyof FormData] as string}
+                            onChange={e => { setForm(p => ({ ...p, [f.id]: e.target.value })); setFieldErrors(p => ({ ...p, [f.id]: '' })); }}
+                            className={`w-full bg-gray-900 text-white text-sm px-3 py-2.5 outline-none transition-colors border ${fieldErrors[f.id] ? 'border-red-500 focus:border-red-400' : 'border-gray-800 focus:border-red-600'}`} />
+                          {fieldErrors[f.id] && <p className="text-red-500 text-xs mt-1">{fieldErrors[f.id]}</p>}
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Vehicle (optional for inquiries) */}
+                    <VehicleSelector form={form} setForm={setForm} errors={fieldErrors} clearError={k => setFieldErrors(p => ({ ...p, [k]: '' }))} />
+
+                    {/* Problem description */}
+                    <div>
+                      <label className={`block text-xs font-bold uppercase tracking-wider mb-1.5 ${fieldErrors.notes ? 'text-red-500' : 'text-gray-500'}`}>
+                        Describe Your Problem <span className="text-red-500">*</span>
+                      </label>
+                      <textarea
+                        placeholder="Example: My car makes a grinding noise when I brake, mostly at highway speeds. Started about a week ago and seems to be getting worse..."
+                        value={form.notes}
+                        onChange={e => { setForm(p => ({ ...p, notes: e.target.value })); setFieldErrors(p => ({ ...p, notes: '' })); }}
+                        rows={5}
+                        className={`w-full bg-gray-900 text-white text-sm px-3 py-2.5 outline-none transition-colors resize-y placeholder:text-gray-600 leading-relaxed border ${fieldErrors.notes ? 'border-red-500 focus:border-red-400' : 'border-gray-800 focus:border-red-600'}`}
+                      />
+                      {fieldErrors.notes && <p className="text-red-500 text-xs mt-1">{fieldErrors.notes}</p>}
+                      <p className="text-gray-600 text-[10px] mt-1">Be as specific as you can — sounds, when it happens, how long it's been going on. The more detail, the faster we can help.</p>
+                    </div>
+
+                    {submitError && <div className="bg-red-950/50 border border-red-700 text-red-400 text-sm px-4 py-3">{submitError}</div>}
+
+                    <button
+                      onClick={handleOtherSubmit}
+                      disabled={submitting}
+                      className={`btn-primary w-full py-4 text-sm ${submitting ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    >
+                      {submitting ? 'Sending...' : 'Send Inquiry & Request a Quote →'}
+                    </button>
+                  </div>
+                )}
 
                 {s.service === 'suspension' && (
                   <div className="mt-3 space-y-3">
@@ -1227,7 +1428,7 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
                   <p className="text-gray-600 text-xs mt-2">*Mobile service fee included. Price may vary by vehicle. Full synthetic only.</p>
                 )}
 
-                {s.step >= 2 && (<>
+                {s.step >= 2 && s.service !== 'other' && (<>
                   <div className="border-t border-gray-800 my-6" />
                   <StepHeader n={2} current={s.step} label="Choose a Date" />
                   <div className="flex items-center justify-between mb-4">
@@ -1285,6 +1486,25 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
                       </div>
                     ))}
                   </div>
+                  {/* Returning customer banner */}
+                  {lookingUpCustomer && (
+                    <div className="col-span-2 flex items-center gap-2 text-gray-500 text-xs animate-pulse mb-1">
+                      <span className="inline-block w-3 h-3 border-2 border-gray-500 border-t-transparent rounded-full animate-spin" />
+                      Checking for your account...
+                    </div>
+                  )}
+                  {!lookingUpCustomer && returningCustomer && (
+                    <div className="col-span-2 bg-gradient-to-r from-red-950/60 to-gray-900/60 border border-red-700/60 border-l-4 border-l-red-500 px-4 py-3.5 mb-1 flex items-start gap-3">
+                      <span className="text-2xl flex-shrink-0">👋</span>
+                      <div>
+                        <p className="text-white text-sm font-black mb-0.5">Welcome back, {form.fname}!</p>
+                        <p className="text-gray-400 text-xs leading-relaxed">
+                          We found your account. Your card on file ending in <span className="text-white font-bold">{returningCustomer.last4 ? `••••${returningCustomer.last4}` : '••••'}</span> will be used for this appointment — no need to re-enter it.
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
                   <div className="grid grid-cols-2 gap-3">
                     {[
                       { id: 'fname', label: 'First Name *', placeholder: 'John', type: 'text' },
@@ -1338,7 +1558,7 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
                   </button>
                 </>)}
 
-                {s.step >= 5 && s.time && (<>
+                {s.step >= 5 && s.time && !returningCustomer && (<>
                   <div className="border-t border-gray-800 my-6" />
                   <CardOnFileStep
                     serviceId={s.service}
