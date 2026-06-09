@@ -1256,14 +1256,15 @@ function PaymentPanel({ job, onUpdate, onRequote }: { job: Job; onUpdate: (j: Jo
     return (
       <div className="bg-emerald-900/20 border border-emerald-800 p-5 space-y-2">
         <p className="text-emerald-400 text-sm font-bold uppercase tracking-widest">✓ Paid</p>
-        <p className="text-white text-2xl font-black">${totalFromItems(job.invoiceAmount || 0, job.lineItems).toFixed(2)}</p>
-        <div className="flex justify-between text-xs">
+        <p className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-1">Total Charged</p>
+        <p className="text-white text-3xl font-black">${((job.invoiceAmount || 0) + (job.taxAmount || 0)).toFixed(2)}</p>
+        <div className="flex justify-between text-xs mt-3">
           <span className="text-gray-600">Subtotal</span>
           <span className="text-gray-400 font-mono">${(job.invoiceAmount || 0).toFixed(2)}</span>
         </div>
         <div className="flex justify-between text-xs">
           <span className="text-gray-600">AZ TPT (9.182%)</span>
-          <span className="text-yellow-600 font-mono">${taxForAmount(finalAmount).toFixed(2)}</span>
+          <span className="text-yellow-600 font-mono">${(job.taxAmount || 0).toFixed(2)}</span>
         </div>
         <p className="text-gray-500 text-xs font-mono">{job.stripeTransactionId}</p>
         <p className="text-gray-600 text-xs">{job.paidAt ? new Date(job.paidAt).toLocaleString('en-US', { timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone }) : ''}</p>
@@ -2130,7 +2131,7 @@ function SelfPayForm({ job, onPaid }: { job: Job; onPaid: (updated: Job) => void
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           customerId: saveData.customerId,
-          amountCents: Math.round(totalFromItems(amount, job.lineItems) * 100),
+          amountCents: Math.round(calcTotal(amount) * 100),
           subtotal: amount,
           description: `GID Garage — ${job.service} — ${job.vehicle}`,
           bookingId: job.id,
@@ -2142,7 +2143,7 @@ function SelfPayForm({ job, onPaid }: { job: Job; onPaid: (updated: Job) => void
       const updated: Job = {
         ...job,
         invoiceAmount: amount,
-        taxAmount: taxFromItems(job.lineItems),
+        taxAmount: calcTax(amount),
         stripeTransactionId: chargeData.chargeId,
         paidAt: new Date().toISOString(),
         jobStatus: 'PAID' as JobStatus,
@@ -2178,7 +2179,7 @@ function SelfPayForm({ job, onPaid }: { job: Job; onPaid: (updated: Job) => void
         disabled={!cardComplete || paying}
         className="w-full bg-red-600 hover:bg-red-500 disabled:opacity-40 text-white text-sm font-bold uppercase tracking-widest py-3 transition-colors"
       >
-        {paying ? 'Processing…' : `Pay $${totalFromItems(amount, job.lineItems).toFixed(2)}`}
+        {paying ? 'Processing…' : `Pay $${calcTotal(amount).toFixed(2)}`}
       </button>
       <p className="text-gray-700 text-[10px] text-center mt-2">🔒 Secured by Stripe</p>
     </div>
@@ -2258,7 +2259,9 @@ export function InvoicePage() {
               <p className="text-white font-mono text-sm">{invoiceNumber}</p>
             </div>
             <div className="text-right">
-              <p className={`text-3xl font-black ${isPaid ? 'text-emerald-400' : 'text-red-400'}`}>${amount?.toFixed(2)}</p>
+              <p className={`text-3xl font-black ${isPaid ? 'text-emerald-400' : 'text-red-400'}`}>
+                ${isPaid ? ((job.invoiceAmount || 0) + (job.taxAmount || 0)).toFixed(2) : amount?.toFixed(2)}
+              </p>
             </div>
           </div>
 
@@ -2311,11 +2314,13 @@ export function InvoicePage() {
             </div>
             <div className="flex justify-between px-6 py-3 border-t border-white/5">
               <span className="text-gray-500 text-xs font-bold uppercase tracking-wider">AZ TPT (9.182%)</span>
-              <span className="text-white text-sm font-mono">${taxFromItems(job.lineItems).toFixed(2)}</span>
+              <span className="text-white text-sm font-mono">${(job.taxAmount || 0).toFixed(2)}</span>
             </div>
-            <div className={`px-6 py-5 border-t border-white/10 flex items-center justify-between ${isPaid ? 'bg-emerald-900/10' : 'bg-red-900/10'}`}>
+            <div className={`px-6 py-6 border-t border-white/10 flex items-center justify-between ${isPaid ? 'bg-emerald-900/10' : 'bg-red-900/10'}`}>
               <span className="text-white font-bold uppercase tracking-wider text-sm">{isPaid ? 'Total Paid' : 'Total Due'}</span>
-              <span className={`text-2xl font-black ${isPaid ? 'text-emerald-400' : 'text-red-400'}`}>${totalFromItems(amount || 0, job.lineItems).toFixed(2)}</span>
+              <span className={`text-3xl font-black ${isPaid ? 'text-emerald-400' : 'text-red-400'}`}>
+                ${isPaid ? ((job.invoiceAmount || 0) + (job.taxAmount || 0)).toFixed(2) : (amount ? ((amount) + (job.taxAmount || 0)).toFixed(2) : '0.00')}
+              </span>
             </div>
           </div>
         </div>

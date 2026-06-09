@@ -84,6 +84,7 @@ export async function onRequestPost({ request, env }) {
       body: JSON.stringify({
         stripe_transaction_id: charge.id,
         invoice_amount: subtotal ?? amountCents / 100,
+        tax_amount: (amountCents / 100) - (subtotal ?? amountCents / 100),
         paid_at: new Date().toISOString(),
         job_status: 'PAID',
         status: 'completed',

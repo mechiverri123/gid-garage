@@ -236,7 +236,7 @@ export async function onRequestPost({ request, env }) {
           sender: { name: 'GID Garage', email: 'bookings@gidgarage.com' },
           to: [{ email: job.email, name: `${job.fname} ${job.lname}` }],
           subject: `Your GID Garage Estimate — ${job.vehicle}`,
-          htmlContent: `<div style="font-family:sans-serif;max-width:560px;margin:0 auto;background:#0f0f0f;color:#fff;padding:32px;border-radius:4px;"><img src="https://gidgarage.com/website_logo.png" alt="GID Garage" style="height:48px;margin-bottom:24px;"/><h2 style="color:#fff;font-size:22px;margin:0 0 8px;">Your Estimate is Ready</h2><p style="color:#9ca3af;margin:0 0 16px;">Hi ${job.fname}, here's your quote for the upcoming appointment.</p>${savingsHtml}<table style="width:100%;border-collapse:collapse;margin-bottom:8px;">${lineItemsHtml}</table><div style="border-top:1px solid #374151;padding-top:12px;margin-bottom:4px;"><div style="display:flex;justify-content:space-between;margin-bottom:4px;"><span style="color:#9ca3af;font-size:13px;">Subtotal</span><span style="color:#fff;font-size:13px;">$${Number(job.estimateAmount||0).toFixed(2)}</span></div></div><p style="margin:16px 0;"><a href="${estimateUrl}" style="display:inline-block;background:#dc2626;color:#fff;text-decoration:none;font-weight:bold;font-size:13px;padding:14px 28px;letter-spacing:0.05em;text-transform:uppercase;">REVIEW &amp; APPROVE ESTIMATE →</a></p><p style="color:#4b5563;font-size:11px;margin-top:24px;">Questions? Call or text <strong style="color:#9ca3af;">480-757-0476</strong> — GID Garage, Flagstaff AZ</p></div>`,
+          htmlContent: `<div style="font-family:sans-serif;max-width:560px;margin:0 auto;background:#0f0f0f;color:#fff;padding:32px;border-radius:4px;"><img src="https://gidgarage.com/website_logo.png" alt="GID Garage" style="height:48px;margin-bottom:24px;"/><h2 style="color:#fff;font-size:22px;margin:0 0 8px;">Your Estimate is Ready</h2><p style="color:#9ca3af;margin:0 0 16px;">Hi ${job.fname}, here's your quote for the upcoming appointment.</p>${savingsHtml}<table style="width:100%;border-collapse:collapse;margin-bottom:8px;">${lineItemsHtml}</table><table style="width:100%;border-collapse:collapse;"><tr style="border-top:2px solid #374151;"><td style="padding:12px 0 4px;color:#9ca3af;font-size:13px;">Subtotal</td><td style="padding:12px 0 4px;color:#fff;font-size:13px;text-align:right;">$${Number(job.estimateAmount||0).toFixed(2)}</td></tr></table><p style="margin:16px 0;"><a href="${estimateUrl}" style="display:inline-block;background:#dc2626;color:#fff;text-decoration:none;font-weight:bold;font-size:13px;padding:14px 28px;letter-spacing:0.05em;text-transform:uppercase;">REVIEW &amp; APPROVE ESTIMATE →</a></p><p style="color:#4b5563;font-size:11px;margin-top:24px;">Questions? Call or text <strong style="color:#9ca3af;">480-757-0476</strong> — GID Garage, Flagstaff AZ</p></div>`,
         });
         return json({ ok: true });
       }
@@ -262,6 +262,10 @@ export async function onRequestPost({ request, env }) {
       case 'send-receipt': {
         const { job } = payload;
         if (!job) return json({ error: 'Missing job' }, 400);
+        const invoiceUrl = `https://gidgarage.com/invoice?id=${job.id}`;
+        const subtotal = Number(job.invoiceAmount || 0);
+        const tax = Number(job.taxAmount || 0);
+        const total = subtotal + tax;
         const lineItemsHtml = job.lineItems?.length
           ? job.lineItems.map(i => `<tr><td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#9ca3af;font-size:13px;">${i.label}</td><td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#fff;font-size:13px;text-align:right;">${i.amount === 0 ? 'FREE' : '$' + Number(i.amount).toFixed(2)}</td></tr>`).join('')
           : '';
@@ -269,7 +273,18 @@ export async function onRequestPost({ request, env }) {
           sender: { name: 'GID Garage', email: 'bookings@gidgarage.com' },
           to: [{ email: job.email, name: `${job.fname} ${job.lname}` }],
           subject: 'Payment Receipt — GID Garage',
-          htmlContent: `<div style="font-family:sans-serif;max-width:560px;margin:0 auto;background:#0f0f0f;color:#fff;padding:32px;border-radius:4px;"><img src="https://gidgarage.com/website_logo.png" alt="GID Garage" style="height:48px;margin-bottom:24px;"/><h2 style="color:#fff;font-size:22px;margin:0 0 8px;">✅ Payment Received</h2><p style="color:#9ca3af;margin:0 0 16px;">Hi ${job.fname}, thanks for your business. Here's your receipt.</p><table style="width:100%;border-collapse:collapse;margin-bottom:8px;">${lineItemsHtml}<tr><td style="padding:8px 0;border-bottom:1px solid #374151;color:#9ca3af;font-size:13px;">Subtotal</td><td style="padding:8px 0;border-bottom:1px solid #374151;color:#fff;font-size:13px;text-align:right;">$${Number(job.invoiceAmount||0).toFixed(2)}</td></tr><tr><td style="padding:8px 0;color:#9ca3af;font-size:13px;">AZ TPT</td><td style="padding:8px 0;color:#fff;font-size:13px;text-align:right;">$${Number(job.taxAmount||0).toFixed(2)}</td></tr></table><div style="border-top:2px solid #374151;padding-top:12px;"><div style="display:flex;justify-content:space-between;"><span style="color:#fff;font-weight:700;font-size:16px;">Total Paid</span><span style="color:#4ade80;font-weight:900;font-size:20px;">$${(Number(job.invoiceAmount||0)+Number(job.taxAmount||0)).toFixed(2)}</span></div></div><p style="color:#4b5563;font-size:11px;margin-top:24px;">Transaction ID: ${job.stripeTransactionId||'—'} · GID Garage, Flagstaff AZ</p></div>`,
+          htmlContent: `<div style="font-family:sans-serif;max-width:560px;margin:0 auto;background:#0f0f0f;color:#fff;padding:32px;border-radius:4px;">
+            <img src="https://gidgarage.com/website_logo.png" alt="GID Garage" style="height:48px;margin-bottom:24px;"/>
+            <h2 style="color:#fff;font-size:22px;margin:0 0 4px;">✅ Payment Received</h2>
+            <p style="color:#9ca3af;margin:0 0 24px;">Hi ${job.fname}, thanks for your business. Here's your receipt.</p>
+            <table style="width:100%;border-collapse:collapse;margin-bottom:0;">${lineItemsHtml}
+              <tr><td style="padding:8px 0;border-top:1px solid #374151;border-bottom:1px solid #1f2937;color:#9ca3af;font-size:13px;">Subtotal</td><td style="padding:8px 0;border-top:1px solid #374151;border-bottom:1px solid #1f2937;color:#fff;font-size:13px;text-align:right;">$${subtotal.toFixed(2)}</td></tr>
+              <tr><td style="padding:8px 0;border-bottom:1px solid #374151;color:#9ca3af;font-size:13px;">AZ TPT (9.182%)</td><td style="padding:8px 0;border-bottom:1px solid #374151;color:#fff;font-size:13px;text-align:right;">$${tax.toFixed(2)}</td></tr>
+              <tr style="background:#052e16;"><td style="padding:16px 0 16px 8px;color:#fff;font-size:15px;font-weight:700;">Total Paid</td><td style="padding:16px 8px 16px 0;color:#4ade80;font-size:22px;font-weight:900;text-align:right;">$${total.toFixed(2)}</td></tr>
+            </table>
+            <p style="margin:24px 0 8px;"><a href="${invoiceUrl}" style="display:inline-block;background:#1f2937;color:#fff;text-decoration:none;font-weight:bold;font-size:12px;padding:12px 24px;letter-spacing:0.05em;text-transform:uppercase;border:1px solid #374151;">🧾 VIEW / SAVE RECEIPT →</a></p>
+            <p style="color:#4b5563;font-size:11px;margin-top:16px;">Transaction: ${job.stripeTransactionId||'—'} · GID Garage, Flagstaff AZ · 480-757-0476</p>
+          </div>`,
         });
         return json({ ok: true });
       }
