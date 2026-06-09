@@ -18,6 +18,7 @@ export async function onRequestPost({ request, env }) {
 
   try {
     const { customerId, amountCents, subtotal, description, bookingId } = await request.json();
+    console.log('admin-charge:', { bookingId, amountCents, subtotal });
 
     if (!customerId || !amountCents || !bookingId) {
       return new Response(JSON.stringify({ error: 'Missing required fields' }), {
