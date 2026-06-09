@@ -1,3 +1,4 @@
+// fixed
 // Cloudflare Pages Function — POST /api/customer
 // PUBLIC customer operations that legitimately need DB access, now that the
 // anon key can no longer read the bookings table. Each action validates itself

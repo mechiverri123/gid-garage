@@ -1,3 +1,4 @@
+// fixed
 // Cloudflare Pages Function — POST /admin-api/data
 // All ADMIN reads/writes go through here using the Supabase SERVICE key.
 // The public anon key can no longer read the bookings table at all.
