@@ -5,7 +5,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 
-const BREVO_API_KEY = import.meta.env.VITE_BREVO_API_KEY as string;
+// Emails now sent server-side — BREVO_API_KEY removed from client bundle
 const STRIPE_PK = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY as string;
 
 function loadStripe(publishableKey: string): Promise<any> {
@@ -204,221 +204,30 @@ async function patchJob(id: string, fields: Record<string, any>) {
 // ── BREVO: SEND ESTIMATE EMAIL ────────────────────────────────────────────────
 
 async function sendEstimateEmail(job: Job, shopAvg: number = 0) {
-  const estimateUrl = `${window.location.origin}/estimate?id=${job.id}`;
-  const dateStr = new Date(job.date + 'T12:00:00').toLocaleDateString('en-US', {
-    weekday: 'long', month: 'long', day: 'numeric', year: 'numeric',
-  });
-  const savings = shopAvg > 0 ? shopAvg - (job.estimateAmount || 0) : 0;
-
-  const lineItemsHtml = job.lineItems?.length
-    ? job.lineItems.map(item => `
-        <tr>
-          <td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#9ca3af;font-size:13px;">${item.label}</td>
-          <td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#fff;font-size:13px;text-align:right;">${item.amount === 0 ? 'FREE' : '$' + item.amount.toFixed(2)}</td>
-        </tr>`).join('')
-    : `<tr><td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#9ca3af;font-size:13px;">${resolveServiceName(job.service, job.notes)}</td>
-       <td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#fff;font-size:13px;text-align:right;">$${job.estimateAmount?.toFixed(2)}</td></tr>`;
-
-  const savingsHtml = savings > 10 ? `
-    <table style="width:100%;background:#052e16;border:1px solid #166534;border-radius:4px;margin-bottom:24px;border-collapse:collapse;">
-      <tr>
-        <td style="padding:16px;">
-          <p style="color:#4ade80;font-size:11px;font-weight:bold;text-transform:uppercase;letter-spacing:0.1em;margin:0 0 2px;">vs. Flagstaff Shops</p>
-          <p style="color:#6b7280;font-size:12px;margin:0;">They'd charge ~$${shopAvg.toFixed(2)}</p>
-        </td>
-        <td style="padding:16px;text-align:right;white-space:nowrap;">
-          <p style="color:#4ade80;font-size:24px;font-weight:900;margin:0;">Save $${savings.toFixed(2)}</p>
-        </td>
-      </tr>
-    </table>` : '';
-
-  await fetch('https://api.brevo.com/v3/smtp/email', {
-    method: 'POST',
-    headers: { 'api-key': BREVO_API_KEY, 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      sender: { name: 'GID Garage', email: 'bookings@gidgarage.com' },
-      to: [{ email: job.email, name: `${job.fname} ${job.lname}` }],
-      subject: `Your GID Garage Estimate — ${job.vehicle}`,
-      htmlContent: `
-        <div style="font-family:sans-serif;max-width:560px;margin:0 auto;background:#0f0f0f;color:#fff;padding:32px;border-radius:4px;">
-          <img src="https://gidgarage.com/website_logo.png" alt="GID Garage" style="height:48px;margin-bottom:24px;" />
-          <h2 style="color:#fff;font-size:22px;margin:0 0 8px;">Your Estimate is Ready</h2>
-          <p style="color:#9ca3af;margin:0 0 16px;">Hi ${job.fname}, here's your quote for the upcoming appointment.</p>
-
-          <table style="width:100%;border-collapse:collapse;margin-bottom:8px;">
-            <tr><td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#6b7280;font-size:13px;">Vehicle</td>
-                <td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#fff;font-size:13px;text-align:right;">${job.vehicle}</td></tr>
-            <tr><td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#6b7280;font-size:13px;">Appointment</td>
-                <td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#fff;font-size:13px;text-align:right;">${dateStr} at ${job.time}</td></tr>
-            ${lineItemsHtml}
-            <tr><td style="padding:8px 0 0;color:#6b7280;font-size:13px;">Subtotal</td>
-                <td style="padding:8px 0 0;color:#fff;font-size:13px;text-align:right;">$${job.estimateAmount?.toFixed(2)}</td></tr>
-            <tr><td style="padding:4px 0;border-bottom:1px solid #1f2937;color:#6b7280;font-size:13px;">AZ TPT (9.182%)</td>
-                <td style="padding:4px 0;border-bottom:1px solid #1f2937;color:#fff;font-size:13px;text-align:right;">$${taxFromItems(job.lineItems).toFixed(2)}</td></tr>
-            <tr><td style="padding:10px 0 0;color:#fff;font-size:14px;font-weight:bold;">Total</td>
-                <td style="padding:10px 0 0;color:#ef4444;font-size:20px;font-weight:900;text-align:right;">$${totalFromItems(job.estimateAmount || 0, job.lineItems).toFixed(2)}</td></tr>
-          </table>
-
-          ${job.estimateNotes ? `<p style="color:#9ca3af;font-size:13px;margin:16px 0;padding:12px;background:#1f2937;border-left:3px solid #ef4444;">${job.estimateNotes}</p>` : ''}
-
-          <a href="${estimateUrl}" style="display:inline-block;background:#dc2626;color:#fff;text-decoration:none;font-weight:bold;font-size:13px;padding:14px 28px;letter-spacing:0.05em;text-transform:uppercase;margin:16px 0 24px;">
-            Review &amp; Approve Estimate &rarr;
-          </a>
-
-          ${savingsHtml}
-
-          <p style="color:#4b5563;font-size:12px;margin:0;">Questions? Call or text <strong style="color:#9ca3af;">480-757-0476</strong> — GID Garage, Flagstaff AZ</p>
-        </div>
-      `,
-    }),
-  });
+  try { await adminPost('send-estimate', { job, shopAvg }); }
+  catch (e) { console.error('Estimate email failed:', e); }
 }
 
 
 // ── BREVO: SEND INVOICE EMAIL ─────────────────────────────────────────────────
 
 async function sendInvoiceEmail(job: Job) {
-  const invoiceUrl = `${window.location.origin}/invoice?id=${job.id}`;
-  const amount = job.invoiceAmount ?? job.estimateAmount;
-
-  const lineItemsHtml = job.lineItems?.length
-    ? job.lineItems.map(item => `
-        <tr>
-          <td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#9ca3af;font-size:13px;">${item.label}</td>
-          <td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#fff;font-size:13px;text-align:right;">${item.amount === 0 ? 'FREE' : '$' + item.amount.toFixed(2)}</td>
-        </tr>`).join('')
-    : `<tr><td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#9ca3af;font-size:13px;">${resolveServiceName(job.service, job.notes)}</td>
-       <td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#fff;font-size:13px;text-align:right;">$${amount?.toFixed(2)}</td></tr>`;
-
-  await fetch('https://api.brevo.com/v3/smtp/email', {
-    method: 'POST',
-    headers: { 'api-key': BREVO_API_KEY, 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      sender: { name: 'GID Garage', email: 'bookings@gidgarage.com' },
-      to: [{ email: job.email, name: `${job.fname} ${job.lname}` }],
-      subject: `Your GID Garage Invoice — ${job.vehicle}`,
-      htmlContent: `
-        <div style="font-family:sans-serif;max-width:560px;margin:0 auto;background:#0f0f0f;color:#fff;padding:32px;border-radius:4px;">
-          <img src="https://gidgarage.com/website_logo.png" alt="GID Garage" style="height:48px;margin-bottom:24px;" />
-          <h2 style="color:#fff;font-size:22px;margin:0 0 8px;">Your Invoice is Ready</h2>
-          <p style="color:#9ca3af;margin:0 0 16px;">Hi ${job.fname}, your service is coming up and your invoice is attached below. Payment will be collected upon completion — no surprises.</p>
-          <a href="${invoiceUrl}" style="display:inline-block;background:#dc2626;color:#fff;text-decoration:none;font-weight:bold;font-size:13px;padding:14px 28px;letter-spacing:0.05em;text-transform:uppercase;margin-bottom:24px;">
-            View Invoice
-          </a>
-          <table style="width:100%;border-collapse:collapse;margin-bottom:24px;">
-            <tr><td style="padding:8px 0;border-bottom:1px solid #374151;color:#6b7280;font-size:13px;">Vehicle</td>
-                <td style="padding:8px 0;border-bottom:1px solid #374151;color:#fff;font-size:13px;text-align:right;">${job.vehicle}</td></tr>
-            ${lineItemsHtml}
-            <tr><td style="padding:8px 0 0;color:#6b7280;font-size:13px;">Subtotal</td>
-                <td style="padding:8px 0 0;color:#fff;font-size:13px;text-align:right;">$${amount?.toFixed(2)}</td></tr>
-            <tr><td style="padding:4px 0;border-bottom:1px solid #374151;color:#6b7280;font-size:13px;">AZ TPT (9.182%)</td>
-                <td style="padding:4px 0;border-bottom:1px solid #374151;color:#fff;font-size:13px;text-align:right;">$${taxFromItems(job.lineItems).toFixed(2)}</td></tr>
-            <tr><td style="padding:10px 0 0;color:#fff;font-size:14px;font-weight:bold;">Total Due</td>
-                <td style="padding:10px 0 0;color:#ef4444;font-size:22px;font-weight:900;text-align:right;">$${totalFromItems(amount || 0, job.lineItems).toFixed(2)}</td></tr>
-          </table>
-          <p style="color:#4b5563;font-size:12px;margin:0;">Questions? Call or text <strong style="color:#9ca3af;">480-757-0476</strong> — GID Garage, Flagstaff AZ</p>
-        </div>
-      `,
-    }),
-  });
+  try { await adminPost('send-invoice', { job }); }
+  catch (e) { console.error('Invoice email failed:', e); }
 }
 
 // ── BREVO: SEND RECEIPT EMAIL ─────────────────────────────────────────────────
 
 async function sendReceiptEmail(job: Job) {
-  const invoiceUrl = `${window.location.origin}/invoice?id=${job.id}`;
-  const paidDate = job.paidAt
-    ? new Date(job.paidAt).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })
-    : new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
-
-  await fetch('https://api.brevo.com/v3/smtp/email', {
-    method: 'POST',
-    headers: { 'api-key': BREVO_API_KEY, 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      sender: { name: 'GID Garage', email: 'bookings@gidgarage.com' },
-      to: [{ email: job.email, name: `${job.fname} ${job.lname}` }],
-      subject: `Payment Receipt — GID Garage`,
-      htmlContent: `
-        <div style="font-family:sans-serif;max-width:560px;margin:0 auto;background:#0f0f0f;color:#fff;padding:32px;border-radius:4px;">
-          <img src="https://gidgarage.com/website_logo.png" alt="GID Garage" style="height:48px;margin-bottom:24px;" />
-          <div style="background:#052e16;border:1px solid #166534;padding:16px;margin-bottom:24px;border-radius:4px;">
-            <p style="color:#4ade80;font-size:12px;font-weight:bold;text-transform:uppercase;letter-spacing:0.1em;margin:0 0 4px;">Payment Received</p>
-            <p style="color:#fff;font-size:28px;font-weight:900;margin:0;">$${totalFromItems(job.invoiceAmount || 0, job.lineItems).toFixed(2)}</p>
-          </div>
-          <table style="width:100%;border-collapse:collapse;margin-bottom:24px;">
-            <tr><td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#6b7280;font-size:13px;">Service</td>
-                <td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#fff;font-size:13px;">${resolveServiceName(job.service, job.notes)}</td></tr>
-            <tr><td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#6b7280;font-size:13px;">Vehicle</td>
-                <td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#fff;font-size:13px;">${job.vehicle}</td></tr>
-            <tr><td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#6b7280;font-size:13px;">Date Paid</td>
-                <td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#fff;font-size:13px;">${paidDate}</td></tr>
-            <tr><td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#6b7280;font-size:13px;">Subtotal</td>
-                <td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#fff;font-size:13px;text-align:right;">$${(job.invoiceAmount || 0).toFixed(2)}</td></tr>
-            <tr><td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#6b7280;font-size:13px;">AZ TPT (9.182%)</td>
-                <td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#fff;font-size:13px;text-align:right;">$${taxFromItems(job.lineItems).toFixed(2)}</td></tr>
-            <tr><td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#fff;font-size:14px;font-weight:bold;">Total Paid</td>
-                <td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#4ade80;font-size:14px;font-weight:bold;text-align:right;">$${totalFromItems(job.invoiceAmount || 0, job.lineItems).toFixed(2)}</td></tr>
-            <tr><td style="padding:8px 0;color:#6b7280;font-size:13px;">Transaction ID</td>
-                <td style="padding:8px 0;color:#9ca3af;font-size:12px;font-family:monospace;">${job.stripeTransactionId}</td></tr>
-          </table>
-          <a href="${invoiceUrl}" style="display:inline-block;background:#166534;color:#fff;text-decoration:none;font-weight:bold;font-size:13px;padding:14px 28px;letter-spacing:0.05em;text-transform:uppercase;margin-bottom:24px;">
-            View Receipt
-          </a>
-          <p style="color:#4b5563;font-size:12px;margin:0;">Thank you for your business! — GID Garage &middot; 480-757-0476</p>
-        </div>
-      `,
-    }),
-  });
+  try { await adminPost('send-receipt', { job }); }
+  catch (e) { console.error('Receipt email failed:', e); }
 }
 
 // ── BREVO: SEND DECLINE EMAIL ─────────────────────────────────────────────────
 
 async function sendDeclineEmail(job: Job, declineReason?: string) {
-  const amount = job.invoiceAmount ?? job.estimateAmount;
-  const lineItemsHtml = job.lineItems?.length
-    ? job.lineItems.map(item => `
-        <tr>
-          <td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#9ca3af;font-size:13px;">${item.label}</td>
-          <td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#fff;font-size:13px;text-align:right;">${item.amount === 0 ? 'FREE' : '$' + item.amount.toFixed(2)}</td>
-        </tr>`).join('')
-    : `<tr><td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#9ca3af;font-size:13px;">${resolveServiceName(job.service, job.notes)}</td>
-       <td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#fff;font-size:13px;text-align:right;">$${amount?.toFixed(2)}</td></tr>`;
-
-  const payUrl = `${window.location.origin}/invoice?id=${job.id}&action=pay`;
-
-  await fetch('https://api.brevo.com/v3/smtp/email', {
-    method: 'POST',
-    headers: { 'api-key': BREVO_API_KEY, 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      sender: { name: 'GID Garage', email: 'bookings@gidgarage.com' },
-      to: [{ email: job.email, name: `${job.fname} ${job.lname}` }],
-      subject: `Payment Declined — GID Garage`,
-      htmlContent: `
-        <div style="font-family:sans-serif;max-width:560px;margin:0 auto;background:#0f0f0f;color:#fff;padding:32px;border-radius:4px;">
-          <img src="https://gidgarage.com/website_logo.png" alt="GID Garage" style="height:48px;margin-bottom:24px;" />
-          <div style="background:#3b0a0a;border:1px solid #7f1d1d;padding:16px;margin-bottom:24px;border-radius:4px;">
-            <p style="color:#f87171;font-size:12px;font-weight:bold;text-transform:uppercase;letter-spacing:0.1em;margin:0 0 4px;">Payment Declined</p>
-            <p style="color:#fff;font-size:28px;font-weight:900;margin:0;">$${totalFromItems(amount || 0, job.lineItems).toFixed(2)}</p>
-          </div>
-          <p style="color:#9ca3af;margin:0 0 24px;">Hi ${job.fname}, your payment didn't go through — no worries, it happens. You can update your card and pay securely online using the button below.</p>
-          <a href="${payUrl}" style="display:inline-block;background:#dc2626;color:#fff;text-decoration:none;font-weight:bold;font-size:13px;padding:14px 28px;letter-spacing:0.05em;text-transform:uppercase;margin-bottom:24px;">
-            Pay Now →
-          </a>
-          <table style="width:100%;border-collapse:collapse;margin-bottom:24px;">
-            <tr><td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#6b7280;font-size:13px;">Service</td>
-                <td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#fff;font-size:13px;">${resolveServiceName(job.service, job.notes)}</td></tr>
-            <tr><td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#6b7280;font-size:13px;">Vehicle</td>
-                <td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#fff;font-size:13px;">${job.vehicle}</td></tr>
-            ${lineItemsHtml}
-            <tr><td style="padding:10px 0 0;color:#fff;font-size:14px;font-weight:bold;">Amount Due</td>
-                <td style="padding:10px 0 0;color:#ef4444;font-size:20px;font-weight:900;text-align:right;">$${totalFromItems(amount || 0, job.lineItems).toFixed(2)}</td></tr>
-          </table>
-          <p style="color:#6b7280;font-size:12px;margin:0 0 4px;">Prefer to call? Reach us at <a href="tel:4807570476" style="color:#9ca3af;text-decoration:none;">480-757-0476</a>.</p>
-          <p style="color:#4b5563;font-size:12px;margin:0;">GID Garage · Flagstaff, AZ · gidgarage.com</p>
-        </div>
-      `,
-    }),
-  });
+  try { await adminPost('send-decline', { job, reason: declineReason }); }
+  catch (e) { console.error('Decline email failed:', e); }
 }
 
 // ── CYA TERMS ────────────────────────────────────────────────────────────────
@@ -1353,7 +1162,7 @@ function PaymentPanel({ job, onUpdate, onRequote }: { job: Job; onUpdate: (j: Jo
     setCharging(true);
     setChargeError(null);
     try {
-      const res = await fetch('/charge-card', {
+      const res = await fetch('/admin-charge', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -2316,7 +2125,7 @@ function SelfPayForm({ job, onPaid }: { job: Job; onPaid: (updated: Job) => void
       if (saveData.error) throw new Error(saveData.error);
 
       // Charge the new card
-      const chargeRes = await fetch('/charge-card', {
+      const chargeRes = await fetch('/admin-charge', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

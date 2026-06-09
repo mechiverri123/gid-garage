@@ -6,7 +6,7 @@ const PHONE = '480-757-0476';
 // ── CONFIG ─────────────────────────────────────────────────────────────────
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string;
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
-const BREVO_API_KEY = import.meta.env.VITE_BREVO_API_KEY as string;
+// Emails sent server-side via workers — BREVO_API_KEY removed from client bundle
 const ADMIN_PASSWORD = '0000';
 // ───────────────────────────────────────────────────────────────────────────
 
@@ -119,7 +119,7 @@ async function updateSupabaseGarageNotes(id: string, garageNotes: string): Promi
 async function deleteSupabaseBooking(id: string): Promise<void> {
   // Goes through the server-side /delete-booking Worker (uses the Supabase service key).
   // This keeps the admin delete button working after the public DELETE policy is removed.
-  const res = await fetch('/delete-booking', {
+  const res = await fetch('/admin-delete', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ id }),
@@ -421,189 +421,28 @@ async function verifyCancelToken(bookingId: string, token: string): Promise<{ va
 }
 
 async function sendCancellationNotification(booking: Booking) {
-  const svc = SERVICES.find(s => s.id === booking.service);
-  const dateStr = new Date(booking.date + 'T12:00:00').toLocaleDateString('en-US', {
-    weekday: 'long', month: 'long', day: 'numeric', year: 'numeric'
-  });
-  const customerName = `${booking.fname} ${booking.lname}`;
-
-  // Notify owner
-  await fetch('https://api.brevo.com/v3/smtp/email', {
-    method: 'POST',
-    headers: { 'api-key': BREVO_API_KEY, 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      sender: { name: 'GID Garage Bookings', email: 'bookings@gidgarage.com' },
-      to: [{ email: 'gidgarageaz@hotmail.com', name: 'GID Garage' }],
-      subject: `❌ Cancellation: ${customerName} — ${svc?.name} on ${dateStr}`,
-      htmlContent: `
-        <div style="font-family:sans-serif;max-width:600px;margin:0 auto;color:#222;">
-          <h2 style="background:#991b1b;color:#fff;padding:16px 20px;margin:0;">Appointment Cancelled — GID Garage</h2>
-          <div style="padding:24px 20px;border:1px solid #e5e7eb;">
-            <p>The following appointment was cancelled by the customer:</p>
-            <table style="width:100%;border-collapse:collapse;margin:16px 0;">
-              <tr><td style="padding:8px;border-bottom:1px solid #f3f4f6;color:#6b7280;width:40%;">Customer</td><td style="padding:8px;border-bottom:1px solid #f3f4f6;font-weight:600;">${customerName}</td></tr>
-              <tr><td style="padding:8px;border-bottom:1px solid #f3f4f6;color:#6b7280;">Phone</td><td style="padding:8px;border-bottom:1px solid #f3f4f6;">${booking.phone}</td></tr>
-              <tr><td style="padding:8px;border-bottom:1px solid #f3f4f6;color:#6b7280;">Service</td><td style="padding:8px;border-bottom:1px solid #f3f4f6;font-weight:600;">${svc?.name ?? booking.service}</td></tr>
-              <tr><td style="padding:8px;border-bottom:1px solid #f3f4f6;color:#6b7280;">Date</td><td style="padding:8px;border-bottom:1px solid #f3f4f6;font-weight:600;">${dateStr}</td></tr>
-              <tr><td style="padding:8px;color:#6b7280;">Time</td><td style="padding:8px;font-weight:600;">${booking.time}</td></tr>
-            </table>
-            <p style="color:#6b7280;font-size:13px;">This slot is now open again.</p>
-          </div>
-        </div>
-      `,
-    }),
-  });
-
-  // Confirm to customer
-  if (booking.email) {
-    await fetch('https://api.brevo.com/v3/smtp/email', {
-      method: 'POST',
-      headers: { 'api-key': BREVO_API_KEY, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        sender: { name: 'GID Garage', email: 'bookings@gidgarage.com' },
-        to: [{ email: booking.email, name: customerName }],
-        subject: 'Your GID Garage appointment has been cancelled',
-        htmlContent: `
-          <div style="font-family:sans-serif;max-width:600px;margin:0 auto;color:#222;">
-            <h2 style="background:#991b1b;color:#fff;padding:16px 20px;margin:0;">Appointment Cancelled</h2>
-            <div style="padding:24px 20px;border:1px solid #e5e7eb;">
-              <p>Hi ${booking.fname},</p>
-              <p>Your appointment for <strong>${svc?.name ?? booking.service}</strong> on <strong>${dateStr} at ${booking.time}</strong> has been cancelled.</p>
-              <p>If you'd like to reschedule, just visit our site or give us a call.</p>
-              <p style="margin-top:24px;">Questions? Call or email us:<br><strong>480-757-0476</strong> &nbsp;|&nbsp; <a href="mailto:gidgarageaz@hotmail.com" style="color:#ef4444;">gidgarageaz@hotmail.com</a></p>
-              <p style="color:#6b7280;font-size:13px;">— GID Garage</p>
-            </div>
-          </div>
-        `,
-      }),
-    });
-  }
+  try { await apiPost('send-cancellation', { booking }); }
+  catch (e) { console.error('Cancellation email failed:', e); }
 }
 
 async function sendEmail(booking: Booking) {
   const svc = SERVICES.find(s => s.id === booking.service);
-  const dateStr = new Date(booking.date + 'T12:00:00').toLocaleDateString('en-US', {
-    weekday: 'long', month: 'long', day: 'numeric', year: 'numeric'
-  });
-
-  // Build a detailed service name that includes the selected sub-option
-  let serviceName = svc?.name ?? booking.service;
+  let serviceName = svc?.name ?? booking.service ?? 'Service';
   const notes = booking.notes || '';
-  if (booking.service === 'brakes') {
-    const match = notes.match(/Brake service: ([^|]+)/);
-    if (match) {
-      const slug = match[1].trim();
-      serviceName = `Brakes — ${BRAKE_LABELS[slug] ?? slug}`;
-    }
-  } else if (booking.service === 'suspension') {
-    const match = notes.match(/Suspension: ([^|]+)/);
-    if (match) {
-      const slug = match[1].trim();
-      serviceName = `Suspension — ${slug}`;
-    }
-  } else if (booking.service === 'audio') {
+  if (booking.service === 'audio') {
     const match = notes.match(/Audio package: ([^|]+)/);
-    if (match) {
-      const slug = match[1].trim();
-      serviceName = `Car Audio — ${AUDIO_LABELS[slug] ?? slug}`;
-    }
+    if (match) serviceName = `Car Audio — ${match[1].trim()}`;
   }
-
-  const customerName = `${booking.fname} ${booking.lname}`;
-  // The cancel link is optional. Generating it must NEVER block the confirmation
-  // email — if the token service is unreachable, send the email without the link.
+  const dateStr = booking.date
+    ? new Date(booking.date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })
+    : booking.date;
   let cancelUrl = '';
   try {
-    const cancelToken = await generateCancelToken(booking.id);
-    if (cancelToken) cancelUrl = `${window.location.origin}/?cancel=${booking.id}&token=${cancelToken}`;
-  } catch { /* token service down — send email without a cancel link */ }
-
-  const emailBody = `
-    <div style="font-family:sans-serif;max-width:600px;margin:0 auto;color:#222;">
-      <h2 style="background:#b91c1c;color:#fff;padding:16px 20px;margin:0;">GID Garage — Quote Request Received</h2>
-      <div style="padding:24px 20px;border:1px solid #e5e7eb;">
-        <p>Hi ${booking.fname},</p>
-        <p>We received your request for a quote. We look forward to servicing your vehicle.</p>
-        <table style="width:100%;border-collapse:collapse;margin:16px 0;">
-          <tr><td style="padding:8px;border-bottom:1px solid #f3f4f6;color:#6b7280;width:40%;">Service</td><td style="padding:8px;border-bottom:1px solid #f3f4f6;font-weight:600;">${serviceName}</td></tr>
-          <tr><td style="padding:8px;border-bottom:1px solid #f3f4f6;color:#6b7280;">Requested Date</td><td style="padding:8px;border-bottom:1px solid #f3f4f6;font-weight:600;">${dateStr}</td></tr>
-          <tr><td style="padding:8px;border-bottom:1px solid #f3f4f6;color:#6b7280;">Requested Time</td><td style="padding:8px;border-bottom:1px solid #f3f4f6;font-weight:600;">${booking.time}</td></tr>
-          <tr><td style="padding:8px;border-bottom:1px solid #f3f4f6;color:#6b7280;">Vehicle</td><td style="padding:8px;border-bottom:1px solid #f3f4f6;font-weight:600;">${booking.vehicle}</td></tr>
-          <tr><td style="padding:8px;border-bottom:1px solid #f3f4f6;color:#6b7280;">Notes</td><td style="padding:8px;border-bottom:1px solid #f3f4f6;">${booking.notes || 'None'}</td></tr>
-          <tr><td style="padding:8px;color:#6b7280;">Request ID</td><td style="padding:8px;font-family:monospace;font-size:12px;">${booking.id}</td></tr>
-        </table>
-        <p style="margin-top:24px;">Questions? Call us at <strong>480-757-0476</strong></p>
-        <hr style="border:none;border-top:1px solid #e5e7eb;margin:24px 0;" />
-        <p style="font-size:13px;color:#6b7280;">Need to cancel? Please do so at least 24 hours in advance.</p>
-        <a href="${cancelUrl}" style="display:inline-block;margin-top:8px;padding:10px 20px;background:#111;color:#ef4444;border:1px solid #ef4444;font-size:13px;font-weight:600;text-decoration:none;">Cancel My Request</a>
-        <p style="color:#6b7280;font-size:13px;margin-top:24px;">— GID Garage</p>
-      </div>
-    </div>
-  `;
-
-  const ownerBody = `
-    <div style="font-family:sans-serif;max-width:600px;margin:0 auto;color:#222;">
-      <h2 style="background:#b91c1c;color:#fff;padding:16px 20px;margin:0;">New Quote Request — GID Garage</h2>
-      <div style="padding:24px 20px;border:1px solid #e5e7eb;">
-        <table style="width:100%;border-collapse:collapse;">
-          <tr><td style="padding:8px;border-bottom:1px solid #f3f4f6;color:#6b7280;width:40%;">Customer</td><td style="padding:8px;border-bottom:1px solid #f3f4f6;font-weight:600;">${customerName}</td></tr>
-          <tr><td style="padding:8px;border-bottom:1px solid #f3f4f6;color:#6b7280;">Phone</td><td style="padding:8px;border-bottom:1px solid #f3f4f6;">${booking.phone}</td></tr>
-          <tr><td style="padding:8px;border-bottom:1px solid #f3f4f6;color:#6b7280;">Email</td><td style="padding:8px;border-bottom:1px solid #f3f4f6;">${booking.email}</td></tr>
-          <tr><td style="padding:8px;border-bottom:1px solid #f3f4f6;color:#6b7280;">Service</td><td style="padding:8px;border-bottom:1px solid #f3f4f6;font-weight:600;">${serviceName}</td></tr>
-          <tr><td style="padding:8px;border-bottom:1px solid #f3f4f6;color:#6b7280;">Date</td><td style="padding:8px;border-bottom:1px solid #f3f4f6;font-weight:600;">${dateStr}</td></tr>
-          <tr><td style="padding:8px;border-bottom:1px solid #f3f4f6;color:#6b7280;">Time</td><td style="padding:8px;border-bottom:1px solid #f3f4f6;font-weight:600;">${booking.time}</td></tr>
-          <tr><td style="padding:8px;border-bottom:1px solid #f3f4f6;color:#6b7280;">Vehicle</td><td style="padding:8px;border-bottom:1px solid #f3f4f6;">${booking.vehicle}</td></tr>
-          <tr><td style="padding:8px;color:#6b7280;">Notes</td><td style="padding:8px;">${booking.notes || 'None'}</td></tr>
-        </table>
-      </div>
-    </div>
-  `;
-
-  // Send to customer via Brevo template — isolated so an owner-send failure
-  // (or vice versa) can't block this, and the actual API error is logged.
-  try {
-    const r = await fetch('https://api.brevo.com/v3/smtp/email', {
-      method: 'POST',
-      headers: {
-        'api-key': BREVO_API_KEY,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        sender: { name: 'GID Garage', email: 'bookings@gidgarage.com' },
-        to: [{ email: booking.email, name: customerName }],
-        templateId: 1,
-        params: {
-          to_name: booking.fname,
-          service_name: serviceName,
-          appointment_date: dateStr,
-          appointment_time: booking.time,
-          vehicle: booking.vehicle,
-          notes: booking.notes || 'None',
-          booking_id: booking.id,
-          cancel_url: cancelUrl,
-        },
-      }),
-    });
-    if (!r.ok) console.error('Brevo customer email failed:', r.status, await r.text());
-  } catch (e) { console.error('Brevo customer email error:', e); }
-
-  // Send to owner (plain HTML — template is customer-facing)
-  try {
-    const r = await fetch('https://api.brevo.com/v3/smtp/email', {
-      method: 'POST',
-      headers: {
-        'api-key': BREVO_API_KEY,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        sender: { name: 'GID Garage Bookings', email: 'bookings@gidgarage.com' },
-        to: [{ email: 'gidgarageaz@hotmail.com', name: 'GID Garage' }],
-        subject: `New Quote Request: ${customerName} — ${serviceName} on ${dateStr}`,
-        htmlContent: ownerBody,
-      }),
-    });
-    if (!r.ok) console.error('Brevo owner email failed:', r.status, await r.text());
-  } catch (e) { console.error('Brevo owner email error:', e); }
+    const t = await generateCancelToken(booking.id);
+    if (t) cancelUrl = `${window.location.origin}/?cancel=${booking.id}&token=${t}`;
+  } catch { /* non-fatal — email still sends without cancel link */ }
+  try { await apiPost('send-confirmation', { booking, cancelUrl, serviceName, dateStr }); }
+  catch (e) { console.error('Confirmation email failed:', e); }
 }
 
 function getLocalBookings(): Booking[] {
@@ -801,7 +640,7 @@ function ReturningCustomerBanner({
       if (error) { setCardError(error.message); setSaving(false); return; }
 
       // Call update-card worker — attaches new source to existing Stripe Customer
-      const res = await fetch('/update-card', {
+      const res = await fetch('/admin-update', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -1296,36 +1135,14 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
       setSubmitting(false);
       return;
     }
-    // Notify GID Garage via Brevo
-    if (BREVO_API_KEY) {
-      try {
-        const esc = (s: string) => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-        const veh = vehicleString(form);
-        await fetch('https://api.brevo.com/v3/smtp/email', {
-          method: 'POST',
-          headers: { 'api-key': BREVO_API_KEY, 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            sender: { name: 'GID Garage Bookings', email: 'bookings@gidgarage.com' },
-            to: [{ email: 'gidgarageaz@hotmail.com', name: 'GID Garage' }],
-            subject: `💬 New Inquiry: ${form.fname} ${form.lname}`,
-            htmlContent: `<div style="font-family:sans-serif;max-width:520px;margin:0 auto;background:#0f0f0f;color:#fff;padding:32px;border-top:4px solid #dc2626;">
-              <h2 style="margin:0 0 20px;font-size:22px;font-weight:900;">New Customer Inquiry</h2>
-              <table style="width:100%;border-collapse:collapse;font-size:13px;">
-                <tr><td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#9ca3af;width:35%;">Name</td><td style="padding:8px 0;border-bottom:1px solid #1f2937;font-weight:600;">${esc(form.fname)} ${esc(form.lname)}</td></tr>
-                <tr><td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#9ca3af;">Phone</td><td style="padding:8px 0;border-bottom:1px solid #1f2937;">${esc(form.phone)}</td></tr>
-                ${form.email ? `<tr><td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#9ca3af;">Email</td><td style="padding:8px 0;border-bottom:1px solid #1f2937;">${esc(form.email)}</td></tr>` : ''}
-                ${veh ? `<tr><td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#9ca3af;">Vehicle</td><td style="padding:8px 0;border-bottom:1px solid #1f2937;">${esc(veh)}</td></tr>` : ''}
-              </table>
-              <div style="margin-top:20px;background:#1a1a1a;border-left:3px solid #dc2626;padding:14px 16px;">
-                <p style="color:#9ca3af;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;margin:0 0 8px;">Problem Description</p>
-                <p style="margin:0;font-size:14px;line-height:1.6;color:#e5e7eb;">${esc(form.notes)}</p>
-              </div>
-              <p style="margin-top:20px;font-size:12px;color:#6b7280;">Job ID: ${bookingId} · Submitted ${new Date().toLocaleString()}</p>
-            </div>`,
-          }),
-        });
-      } catch { /* non-critical */ }
-    }
+    // Notify GID Garage via worker (BREVO_API_KEY no longer in client bundle)
+    try {
+      await apiPost('send-inquiry', {
+        fname: form.fname, lname: form.lname, phone: form.phone,
+        email: form.email || '', vehicle: vehicleString(form),
+        notes: form.notes, bookingId,
+      });
+    } catch { /* non-critical */ }
     setSubmitting(false);
     setSubmitted(true);
   }

@@ -9,7 +9,13 @@ export async function onRequestPost({ request, env }) {
     'Access-Control-Allow-Headers': 'Content-Type',
   };
 
-  try {
+  if (!request.headers.get('Cf-Access-Jwt-Assertion')) {
+    return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+      status: 401, headers: { 'Content-Type': 'application/json', ...corsHeaders },
+    });
+  }
+
+    try {
     const { token, customerId } = await request.json();
 
     if (!token || !customerId) {

@@ -48,8 +48,19 @@ export async function onRequestPost({ request, env }) {
   const supabaseUrl = env.SUPABASE_URL ?? env.VITE_SUPABASE_URL;
   const serviceKey = env.SUPABASE_SERVICE_KEY;
   const cancelSecret = env.CANCEL_TOKEN_SECRET;
+  const brevoKey = env.BREVO_API_KEY;
   if (!supabaseUrl || !serviceKey) {
     return json({ error: 'Server not configured' }, 500);
+  }
+
+  async function brevoSend(payload) {
+    if (!brevoKey) { console.warn('BREVO_API_KEY not set'); return; }
+    const r = await fetch('https://api.brevo.com/v3/smtp/email', {
+      method: 'POST',
+      headers: { 'api-key': brevoKey, 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    if (!r.ok) console.error('Brevo send failed:', r.status, await r.text());
   }
 
   const base = `${supabaseUrl}/rest/v1`;
@@ -213,6 +224,84 @@ export async function onRequestPost({ request, env }) {
           return json({ stripeCustomerId: rows[0].stripe_customer_id, last4: rows[0].stripe_last4 ?? null });
         }
         return json(null);
+      }
+
+      // ---- Booking confirmation email (customer + owner) ----------------
+      case 'send-confirmation': {
+        const { booking, cancelUrl, serviceName, dateStr } = payload;
+        if (!booking) return json({ error: 'Missing booking' }, 400);
+        const customerName = `${booking.fname} ${booking.lname}`;
+        // Customer via Brevo template
+        try {
+          await brevoSend({
+            sender: { name: 'GID Garage', email: 'bookings@gidgarage.com' },
+            to: [{ email: booking.email, name: customerName }],
+            templateId: 1,
+            params: {
+              to_name: booking.fname,
+              service_name: serviceName,
+              appointment_date: dateStr,
+              appointment_time: booking.time,
+              vehicle: booking.vehicle,
+              notes: booking.notes || 'None',
+              booking_id: booking.id,
+              cancel_url: cancelUrl || '',
+            },
+          });
+        } catch (e) { console.error('Customer confirmation email failed:', e.message); }
+        // Owner notification
+        try {
+          await brevoSend({
+            sender: { name: 'GID Garage Bookings', email: 'bookings@gidgarage.com' },
+            to: [{ email: 'gidgarageaz@hotmail.com', name: 'GID Garage' }],
+            subject: `New Booking: ${customerName} — ${serviceName} on ${dateStr}`,
+            htmlContent: `<div style="font-family:sans-serif;padding:24px;background:#0f0f0f;color:#fff;"><h2 style="color:#ef4444;">New Booking</h2><p><strong>${customerName}</strong><br>${booking.phone}<br>${booking.email}</p><p><strong>${serviceName}</strong><br>${dateStr} at ${booking.time}<br>${booking.vehicle}</p>${booking.notes ? `<p>Notes: ${booking.notes}</p>` : ''}</div>`,
+          });
+        } catch (e) { console.error('Owner notification email failed:', e.message); }
+        return json({ ok: true });
+      }
+
+      // ---- Cancellation notification (customer + owner) ------------------
+      case 'send-cancellation': {
+        const { booking } = payload;
+        if (!booking) return json({ error: 'Missing booking' }, 400);
+        const customerName = `${booking.fname} ${booking.lname}`;
+        const svcName = booking.service || 'your appointment';
+        const dateStr = booking.date || '';
+        // Owner
+        try {
+          await brevoSend({
+            sender: { name: 'GID Garage Bookings', email: 'bookings@gidgarage.com' },
+            to: [{ email: 'gidgarageaz@hotmail.com', name: 'GID Garage' }],
+            subject: `Cancellation: ${customerName} — ${svcName} on ${dateStr}`,
+            htmlContent: `<div style="font-family:sans-serif;padding:24px;background:#0f0f0f;color:#fff;"><h2 style="color:#ef4444;">❌ Booking Cancelled</h2><p><strong>${customerName}</strong><br>${booking.phone}<br>${booking.email}</p><p>${svcName} on ${dateStr} at ${booking.time}<br>${booking.vehicle}</p></div>`,
+          });
+        } catch (e) { console.error('Owner cancellation email failed:', e.message); }
+        // Customer
+        try {
+          await brevoSend({
+            sender: { name: 'GID Garage', email: 'bookings@gidgarage.com' },
+            to: [{ email: booking.email, name: customerName }],
+            subject: 'Your GID Garage appointment has been cancelled',
+            htmlContent: `<div style="font-family:sans-serif;max-width:560px;margin:0 auto;background:#0f0f0f;color:#fff;padding:32px;border-radius:4px;"><img src="https://gidgarage.com/website_logo.png" alt="GID Garage" style="height:48px;margin-bottom:24px;"/><h2 style="color:#ef4444;font-size:22px;margin:0 0 16px;">Appointment Cancelled</h2><p style="color:#9ca3af;">Hi ${booking.fname}, your ${svcName} appointment on ${dateStr} has been cancelled.</p><p style="margin-top:24px;color:#6b7280;font-size:13px;">Questions? Call or text <strong style="color:#9ca3af;">480-757-0476</strong></p></div>`,
+          });
+        } catch (e) { console.error('Customer cancellation email failed:', e.message); }
+        return json({ ok: true });
+      }
+
+      // ---- Inquiry / quote-request notification (owner only) -----------
+      case 'send-inquiry': {
+        const { fname, lname, phone, email, vehicle, notes, bookingId } = payload;
+        const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+        try {
+          await brevoSend({
+            sender: { name: 'GID Garage Bookings', email: 'bookings@gidgarage.com' },
+            to: [{ email: 'gidgarageaz@hotmail.com', name: 'GID Garage' }],
+            subject: `💬 New Inquiry: ${esc(fname)} ${esc(lname)}`,
+            htmlContent: `<div style="font-family:sans-serif;max-width:520px;margin:0 auto;background:#0f0f0f;color:#fff;padding:32px;border-top:4px solid #dc2626;"><h2 style="margin:0 0 20px;font-size:22px;font-weight:900;">New Customer Inquiry</h2><table style="width:100%;border-collapse:collapse;font-size:13px;"><tr><td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#9ca3af;width:35%;">Name</td><td style="padding:8px 0;border-bottom:1px solid #1f2937;font-weight:600;">${esc(fname)} ${esc(lname)}</td></tr><tr><td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#9ca3af;">Phone</td><td style="padding:8px 0;border-bottom:1px solid #1f2937;">${esc(phone)}</td></tr>${email ? `<tr><td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#9ca3af;">Email</td><td style="padding:8px 0;border-bottom:1px solid #1f2937;">${esc(email)}</td></tr>` : ''}${vehicle ? `<tr><td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#9ca3af;">Vehicle</td><td style="padding:8px 0;border-bottom:1px solid #1f2937;">${esc(vehicle)}</td></tr>` : ''}</table><div style="margin-top:20px;background:#1a1a1a;border-left:3px solid #dc2626;padding:14px 16px;"><p style="color:#9ca3af;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;margin:0 0 8px;">Problem Description</p><p style="margin:0;font-size:14px;line-height:1.6;color:#e5e7eb;">${esc(notes)}</p></div><p style="margin-top:20px;font-size:12px;color:#6b7280;">Job ID: ${esc(bookingId)} · Submitted ${new Date().toLocaleString()}</p></div>`,
+          });
+        } catch (e) { console.error('Inquiry email failed:', e.message); }
+        return json({ ok: true });
       }
 
       default:

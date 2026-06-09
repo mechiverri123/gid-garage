@@ -8,6 +8,14 @@ export async function onRequestPost({ request, env }) {
     'Access-Control-Allow-Headers': 'Content-Type',
   };
 
+  // Only the authenticated admin can charge cards. Access injects this header
+  // on every request that passes through the Access application.
+  if (!request.headers.get('Cf-Access-Jwt-Assertion')) {
+    return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+      status: 401, headers: { 'Content-Type': 'application/json', ...corsHeaders },
+    });
+  }
+
   try {
     const { customerId, amountCents, subtotal, description, bookingId } = await request.json();
 
@@ -44,7 +52,7 @@ export async function onRequestPost({ request, env }) {
     }
 
     // Idempotency key — same booking + amount can never double charge
-    const idempotencyKey = `${bookingId}-${amountCents}-${Date.now()}`;
+    const idempotencyKey = `${bookingId}-${amountCents}`; // stable — prevents double-charging
 
     const chargeRes = await fetch('https://api.stripe.com/v1/charges', {
       method: 'POST',
