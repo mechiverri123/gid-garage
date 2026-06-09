@@ -218,8 +218,8 @@ async function sendInvoiceEmail(job: Job) {
 
 // ── BREVO: SEND RECEIPT EMAIL ─────────────────────────────────────────────────
 
-async function sendReceiptEmail(job: Job) {
-  try { await adminPost('send-receipt', { job }); }
+async function sendReceiptEmail(job: Job, adjustmentReason?: string, adjustmentAmount?: number) {
+  try { await adminPost('send-receipt', { job, adjustmentReason, adjustmentAmount }); }
   catch (e) { console.error('Receipt email failed:', e); }
 }
 
@@ -1134,6 +1134,7 @@ function PaymentPanel({ job, onUpdate, onRequote }: { job: Job; onUpdate: (j: Jo
   const [charging, setCharging] = useState(false);
   const [chargeError, setChargeError] = useState<string | null>(null);
   const [chargeConfirm, setChargeConfirm] = useState(false);
+  const [adjustmentReason, setAdjustmentReason] = useState('');
 
   const hasCardOnFile = !!job.stripeCustomerId;
   const finalAmount = parseFloat(invoiceAmt) || job.estimateAmount || 0;
@@ -1208,7 +1209,8 @@ function PaymentPanel({ job, onUpdate, onRequote }: { job: Job; onUpdate: (j: Jo
         status: 'completed',
       };
       await writePaymentEvent(job.id, 'paid', confirmedAmount);
-      await sendReceiptEmail(updated);
+      const adjustmentAmt = job.estimateAmount ? (chargedAmount - job.estimateAmount) : 0;
+      await sendReceiptEmail(updated, adjustmentReason || undefined, Math.abs(adjustmentAmt) > 0.01 ? adjustmentAmt : undefined);
       onUpdate(updated);
     } catch (e: any) {
       await writePaymentEvent(job.id, 'declined', chargedAmount, e.message ?? 'Charge failed');
@@ -1297,17 +1299,38 @@ function PaymentPanel({ job, onUpdate, onRequote }: { job: Job; onUpdate: (j: Jo
         </div>
         {finalAmount > 0 && (
           <div className="mt-2 space-y-0.5">
+            {job.estimateAmount && Math.abs(finalAmount - job.estimateAmount) > 0.01 && (
+              <div className="flex justify-between text-xs text-indigo-400">
+                <span>Price adjustment</span>
+                <span className="font-mono">{finalAmount < job.estimateAmount ? '-' : '+'}${Math.abs(finalAmount - job.estimateAmount).toFixed(2)}</span>
+              </div>
+            )}
             <div className="flex justify-between text-xs">
               <span className="text-gray-600">AZ TPT (9.182%)</span>
-              <span className="text-yellow-600 font-mono">+${taxFromItems(job.lineItems).toFixed(2)}</span>
+              <span className="text-yellow-600 font-mono">+${taxForAmount(finalAmount).toFixed(2)}</span>
             </div>
             <div className="flex justify-between text-xs border-t border-gray-800 pt-1">
               <span className="text-gray-400 font-bold uppercase tracking-wider">Customer total</span>
-              <span className="text-white font-black font-mono">${totalFromItems(finalAmount, job.lineItems).toFixed(2)}</span>
+              <span className="text-white font-black font-mono">${totalForAmount(finalAmount).toFixed(2)}</span>
             </div>
           </div>
         )}
       </div>
+
+      {/* Adjustment reason — shown when amount differs from estimate */}
+      {job.estimateAmount && Math.abs(finalAmount - (job.estimateAmount || 0)) > 0.01 && (
+        <div>
+          <label className="text-gray-500 text-xs font-bold uppercase tracking-widest block mb-1">Adjustment Reason</label>
+          <input
+            type="text"
+            value={adjustmentReason}
+            onChange={e => setAdjustmentReason(e.target.value)}
+            placeholder="e.g. Waived mobile fee, Reduced labor, Loyalty discount"
+            className="bg-gray-800 border border-gray-700 text-white px-3 py-2 text-sm w-full focus:border-indigo-500 outline-none"
+          />
+          <p className="text-gray-700 text-xs mt-1">Shown on the customer receipt as a line item</p>
+        </div>
+      )}
 
       {/* Card on file — primary payment method */}
       {hasCardOnFile ? (
