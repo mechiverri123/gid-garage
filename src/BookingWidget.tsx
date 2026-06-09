@@ -1080,8 +1080,17 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
     const resolvedBookingId = bookingIdOverride ?? s.bookingId;
     if (!s.service || !s.date || !s.time || !svc || !resolvedBookingId) return;
     setSubmitting(true);
-    // The save-card worker already set status='confirmed' + stripe fields server-side
-    // using the service key, so no client-side PATCH is needed (anon can't UPDATE anymore).
+    // For new cards: save-card worker already patched status='confirmed' server-side.
+    // For returning customers: save-card is bypassed, so we must confirm here via the worker.
+    if (customerId) {
+      try {
+        await apiPost('confirm-booking', {
+          id: resolvedBookingId,
+          stripeCustomerId: customerId,
+          stripeLast4: last4,
+        });
+      } catch (e) { console.warn('Status confirm failed:', e); }
+    }
     const booking: Booking = {
       id: resolvedBookingId,
       service: s.service, serviceIcon: svc.icon,

@@ -290,6 +290,26 @@ export async function onRequestPost({ request, env }) {
         return json({ ok: true });
       }
 
+      // ---- Confirm booking for returning customers (bypass save-card) ----
+      case 'confirm-booking': {
+        const { id, stripeCustomerId, stripeLast4 } = payload;
+        if (!id) return json({ error: 'Missing id' }, 400);
+        const res = await fetch(
+          `${base}/bookings?id=eq.${encodeURIComponent(id)}`,
+          {
+            method: 'PATCH',
+            headers: { ...headers, Prefer: 'return=minimal' },
+            body: JSON.stringify({
+              status: 'confirmed',
+              ...(stripeCustomerId ? { stripe_customer_id: stripeCustomerId } : {}),
+              ...(stripeLast4 ? { stripe_last4: stripeLast4 } : {}),
+            }),
+          }
+        );
+        if (!res.ok) return json({ error: await res.text() }, 502);
+        return json({ ok: true });
+      }
+
       // ---- Inquiry / quote-request notification (owner only) -----------
       case 'send-inquiry': {
         const { fname, lname, phone, email, vehicle, notes, bookingId } = payload;
