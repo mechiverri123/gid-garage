@@ -266,6 +266,35 @@ async function fetchModels(year: string, make: string): Promise<string[]> {
   });
 }
 
+// CarQuery: returns trims with engine details for a given year/make/model
+interface CarQueryTrim {
+  model_trim: string;
+  model_engine_cc: string;
+  model_engine_cyl: string;
+  model_engine_type: string;
+  model_engine_fuel: string;
+}
+
+async function fetchTrims(year: string, make: string, model: string): Promise<CarQueryTrim[]> {
+  return cachedFetch(`trims-${year}-${make}-${model}`, async () => {
+    const url = `https://www.carqueryapi.com/api/0.3/?cmd=getTrims&year=${year}&make=${encodeURIComponent(make)}&model=${encodeURIComponent(model)}`;
+    const res = await fetch(url);
+    const data = await res.json();
+    return (data.Trims || []) as CarQueryTrim[];
+  }).catch(() => []);
+}
+
+function formatTrimLabel(t: CarQueryTrim): string {
+  const cc = parseFloat(t.model_engine_cc);
+  const liters = cc > 0 ? (cc / 1000).toFixed(1) + 'L' : '';
+  const cyls = t.model_engine_cyl ? t.model_engine_cyl + '-cyl' : '';
+  const fuel = t.model_engine_fuel?.toLowerCase();
+  const fuelTag = fuel?.includes('diesel') ? ' Diesel' : fuel?.includes('electric') ? ' Electric' : fuel?.includes('hybrid') ? ' Hybrid' : '';
+  const engine = [liters, cyls].filter(Boolean).join(' ') + fuelTag;
+  const trim = t.model_trim || '';
+  return [trim, engine].filter(Boolean).join(' — ');
+}
+
 // ── VEHICLE SELECTOR ─────────────────────────────────────────────────────────
 function VehicleSelector({ form, setForm, errors, clearError }: {
   form: FormData;
@@ -277,8 +306,10 @@ function VehicleSelector({ form, setForm, errors, clearError }: {
   const years = Array.from({ length: currentYear - 1980 + 1 }, (_, i) => currentYear - i);
   const [makes, setMakes] = useState<string[]>([]);
   const [models, setModels] = useState<string[]>([]);
+  const [trims, setTrims] = useState<CarQueryTrim[]>([]);
   const [loadingMakes, setLoadingMakes] = useState(false);
   const [loadingModels, setLoadingModels] = useState(false);
+  const [loadingTrims, setLoadingTrims] = useState(false);
 
   useEffect(() => {
     if (!form.vehicleYear) { setMakes([]); return; }
@@ -291,6 +322,14 @@ function VehicleSelector({ form, setForm, errors, clearError }: {
     setLoadingModels(true);
     fetchModels(form.vehicleYear, form.vehicleMake).then(setModels).finally(() => setLoadingModels(false));
   }, [form.vehicleYear, form.vehicleMake]);
+
+  useEffect(() => {
+    if (!form.vehicleYear || !form.vehicleMake || !form.vehicleModel) { setTrims([]); return; }
+    setLoadingTrims(true);
+    fetchTrims(form.vehicleYear, form.vehicleMake, form.vehicleModel)
+      .then(setTrims)
+      .finally(() => setLoadingTrims(false));
+  }, [form.vehicleYear, form.vehicleMake, form.vehicleModel]);
 
   const baseSelect = 'w-full bg-gray-900 text-white text-sm px-3 py-2.5 outline-none transition-colors disabled:text-gray-600 disabled:cursor-not-allowed appearance-none border';
   const sc = (field: string) => baseSelect + (errors[field] ? ' border-red-500 focus:border-red-400' : ' border-gray-800 focus:border-red-600');
@@ -320,59 +359,58 @@ function VehicleSelector({ form, setForm, errors, clearError }: {
         <div>
           {errors.vehicleModel && <p className="text-red-500 text-xs mb-1">{errors.vehicleModel}</p>}
           <select className={sc('vehicleModel')} value={form.vehicleModel} disabled={!form.vehicleMake || loadingModels}
-            onChange={e => { setForm(p => ({ ...p, vehicleModel: e.target.value, vehicleTrim: '' })); clearError('vehicleModel'); }}>
+            onChange={e => { setForm(p => ({ ...p, vehicleModel: e.target.value, vehicleEngine: '', vehicleTrim: '' })); clearError('vehicleModel'); }}>
             <option value="">{loadingModels ? 'Loading…' : 'Model'}</option>
             {models.map(m => <option key={m} value={m}>{m}</option>)}
           </select>
         </div>
-        <div>
-          <select className={sc('vehicleEngine')} value={form.vehicleEngine}
-            disabled={!form.vehicleModel}
-            onChange={e => { setForm(p => ({ ...p, vehicleEngine: e.target.value })); clearError('vehicleEngine'); }}>
-            <option value="">Engine *</option>
-            <option value="3cyl">3-Cyl</option>
-            <option value="4cyl_1.0">1.0L 4-Cyl</option>
-            <option value="4cyl_1.4">1.4L 4-Cyl</option>
-            <option value="4cyl_1.5">1.5L 4-Cyl</option>
-            <option value="4cyl_1.6">1.6L 4-Cyl</option>
-            <option value="4cyl_1.8">1.8L 4-Cyl</option>
-            <option value="4cyl_2.0">2.0L 4-Cyl</option>
-            <option value="4cyl_2.4">2.4L 4-Cyl</option>
-            <option value="4cyl_2.5">2.5L 4-Cyl</option>
-            <option value="6cyl_2.7">2.7L V6</option>
-            <option value="6cyl_3.0">3.0L V6</option>
-            <option value="6cyl_3.5">3.5L V6</option>
-            <option value="6cyl_3.6">3.6L V6</option>
-            <option value="6cyl_4.0">4.0L V6</option>
-            <option value="8cyl_4.6">4.6L V8</option>
-            <option value="8cyl_5.0">5.0L V8</option>
-            <option value="8cyl_5.3">5.3L V8</option>
-            <option value="8cyl_5.7">5.7L V8 (Hemi)</option>
-            <option value="8cyl_6.1">6.1L V8 (Hemi SRT)</option>
-            <option value="8cyl_6.2">6.2L V8</option>
-            <option value="8cyl_6.4">6.4L V8 (Hemi 392)</option>
-            <option value="10cyl_6.8">6.8L V10</option>
-            <option value="diesel_3.0">3.0L Diesel (V6)</option>
-            <option value="diesel_5.0">5.0L Diesel (V8)</option>
-            <option value="diesel_6.6">6.6L Duramax Diesel</option>
-            <option value="diesel_6.7_powerstroke">6.7L Powerstroke Diesel</option>
-            <option value="diesel_6.7_cummins">6.7L Cummins Diesel</option>
-            <option value="diesel_7.3">7.3L Diesel (Godzilla/IDI)</option>
-            <option value="hybrid">Hybrid</option>
-            <option value="electric">Electric</option>
-            <option value="other">Other</option>
-          </select>
-        </div>
-        <div>
-          <input
-            type="text"
-            placeholder="Trim *"
-            value={form.vehicleTrim}
-            disabled={!form.vehicleModel}
-            onChange={e => { setForm(p => ({ ...p, vehicleTrim: e.target.value })); clearError('vehicleTrim'); }}
-            className={`w-full bg-gray-900 text-white text-sm px-3 py-2.5 outline-none transition-colors disabled:text-gray-600 disabled:cursor-not-allowed placeholder-gray-600 border ${errors.vehicleTrim ? 'border-red-500 focus:border-red-400' : 'border-gray-800 focus:border-red-600'}`}
-          />
-          {errors.vehicleTrim && <p className="text-red-500 text-xs mt-1">{errors.vehicleTrim}</p>}
+        {/* Trim + Engine — CarQuery autopopulated, falls back to manual if no data */}
+        <div className="col-span-2 sm:col-span-2">
+          {errors.vehicleTrim && <p className="text-red-500 text-xs mb-1">{errors.vehicleTrim}</p>}
+          {(loadingTrims || trims.length > 0) ? (
+            <select
+              className={sc('vehicleTrim')}
+              value={form.vehicleTrim}
+              disabled={!form.vehicleModel || loadingTrims}
+              onChange={e => {
+                const t = trims.find(tr => formatTrimLabel(tr) === e.target.value);
+                const cc = t ? parseFloat(t.model_engine_cc) : 0;
+                const liters = cc > 0 ? (cc / 1000).toFixed(1) : '';
+                const cyls = t?.model_engine_cyl || '';
+                const fuel = t?.model_engine_fuel?.toLowerCase() || '';
+                const engineVal = fuel.includes('diesel') ? `diesel_${liters}` : fuel.includes('electric') ? 'electric' : fuel.includes('hybrid') ? 'hybrid' : cyls ? `${cyls}cyl_${liters}` : liters;
+                setForm(p => ({ ...p, vehicleTrim: e.target.value, vehicleEngine: engineVal }));
+                clearError('vehicleTrim');
+                clearError('vehicleEngine');
+              }}
+            >
+              <option value="">{loadingTrims ? 'Loading trims…' : 'Select Trim / Engine *'}</option>
+              {trims.map((t, i) => {
+                const label = formatTrimLabel(t);
+                return <option key={i} value={label}>{label}</option>;
+              })}
+              <option value="Not Listed">My trim isn't listed</option>
+            </select>
+          ) : (
+            <div className="grid grid-cols-2 gap-2">
+              <input
+                type="text"
+                placeholder="Trim (e.g. LE, Sport, XLT)"
+                value={form.vehicleTrim}
+                disabled={!form.vehicleModel}
+                onChange={e => { setForm(p => ({ ...p, vehicleTrim: e.target.value })); clearError('vehicleTrim'); }}
+                className={ic('vehicleTrim')}
+              />
+              <input
+                type="text"
+                placeholder="Engine (e.g. 2.4L 4-cyl)"
+                value={form.vehicleEngine}
+                disabled={!form.vehicleModel}
+                onChange={e => { setForm(p => ({ ...p, vehicleEngine: e.target.value })); clearError('vehicleEngine'); }}
+                className={ic('vehicleEngine')}
+              />
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -1332,6 +1370,13 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
                         <div className="mt-2 bg-blue-950/40 border border-blue-800/40 px-3 py-2 text-blue-300/80 text-xs leading-relaxed">
                           💡 We recommend replacing in pairs (both fronts or both rears) for optimal performance and even wear.
                         </div>
+                      </div>
+                    )}
+                    {/* Alignment disclaimer for parts that affect alignment */}
+                    {s.suspensionPart && ['struts', 'control_arms', 'tie_rods'].includes(s.suspensionPart) && (
+                      <div className="bg-yellow-950/40 border border-yellow-800/50 px-3 py-2.5 text-xs leading-relaxed space-y-1">
+                        <p className="text-yellow-400 font-bold">⚠️ Alignment Recommended After This Service</p>
+                        <p className="text-yellow-200/70">Replacing {s.suspensionPart === 'struts' ? 'struts' : s.suspensionPart === 'control_arms' ? 'control arms' : 'tie rods'} affects your vehicle's alignment. We do not perform alignments — you'll need to visit an alignment shop after this service to ensure proper tire wear and handling.</p>
                       </div>
                     )}
                     <p className="text-gray-600 text-xs">Pricing varies per vehicle — get a free estimate when you book!</p>

@@ -1105,14 +1105,31 @@ function EstimatePanel({ job, onUpdate }: { job: Job; onUpdate: (j: Job) => void
         </div>
       )}
 
+      {/* Alignment clause — shown for suspension jobs */}
+      {(job.service === 'suspension' || job.notes?.toLowerCase().includes('strut') || job.notes?.toLowerCase().includes('tie rod') || job.notes?.toLowerCase().includes('control arm')) && (
+        <div className="bg-yellow-950/30 border border-yellow-800/50 px-3 py-3">
+          <label className="flex items-start gap-2.5 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={notes.includes('GID Garage does not perform alignments')}
+              onChange={e => {
+                const clause = 'Note: GID Garage does not perform alignments. After this suspension service, an alignment is recommended to ensure proper tire wear and vehicle handling. Please plan to visit an alignment shop following your appointment.';
+                setNotes(prev => e.target.checked
+                  ? (prev ? prev + '\n\n' + clause : clause)
+                  : prev.replace(/\n\nNote: GID Garage does not perform alignments.*$/s, '').replace(/^Note: GID Garage does not perform alignments.*$/s, '').trim()
+                );
+              }}
+              className="accent-yellow-500 mt-0.5 flex-shrink-0"
+            />
+            <div>
+              <p className="text-yellow-400 text-xs font-bold">⚠️ Add Alignment Disclaimer</p>
+              <p className="text-yellow-200/60 text-xs mt-0.5">Adds to scope notes that you don't do alignments and one is recommended after this service.</p>
+            </div>
+          </label>
+        </div>
+      )}
+
       {/* Scope notes */}
-      <div>
-        <label className="text-gray-500 text-xs font-bold uppercase tracking-widest block mb-1">Scope Notes <span className="text-gray-700 normal-case font-normal">(shown to customer)</span></label>
-        <textarea
-          value={notes}
-          onChange={e => setNotes(e.target.value)}
-          rows={2}
-          placeholder="e.g. Full synthetic oil change, inspect brakes while on site…"
           className="bg-gray-800 border border-gray-700 text-white px-3 py-2 text-sm w-full focus:border-red-600 outline-none resize-none"
         />
       </div>
