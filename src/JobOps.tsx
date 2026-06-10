@@ -954,8 +954,20 @@ function EstimatePanel({ job, onUpdate }: { job: Job; onUpdate: (j: Job) => void
     setShowCalc(false);
   }
 
-  function updateLineItem(id: string, field: 'label' | 'amount', value: string) {
-    setLineItems(prev => prev.map(i => i.id === id ? { ...i, [field]: field === 'amount' ? parseFloat(value) || 0 : value } : i));
+  function updateLineItem(id: string, field: 'label' | 'amount' | 'taxable', value: string | boolean) {
+    setLineItems(prev => prev.map(i => {
+      if (i.id !== id) return i;
+      if (field === 'amount') return { ...i, amount: parseFloat(value as string) || 0 };
+      if (field === 'taxable') {
+        // Toggle type between taxable (parts/other/fixed) and exempt (labor/mobile)
+        const taxable = value as boolean;
+        const newType = taxable
+          ? (i.type === 'labor' || i.type === 'mobile' ? 'parts' : i.type)
+          : (i.id === 'mobile' ? 'mobile' : 'labor');
+        return { ...i, type: newType };
+      }
+      return { ...i, [field]: value };
+    }));
   }
 
   function removeLineItem(id: string) {
@@ -1018,31 +1030,45 @@ function EstimatePanel({ job, onUpdate }: { job: Job; onUpdate: (j: Job) => void
           <button onClick={addLineItem} className="text-xs text-gray-500 hover:text-white transition-colors">+ Add Line</button>
         </div>
         <div className="space-y-1.5">
-          {lineItems.map(item => (
-            <div key={item.id} className="flex items-center gap-2">
-              <input
-                type="text"
-                value={item.label}
-                onChange={e => updateLineItem(item.id, 'label', e.target.value)}
-                placeholder="Description"
-                disabled={item.id === 'mobile'}
-                className="flex-1 bg-gray-800 border border-gray-700 text-white px-2 py-1.5 text-xs focus:border-red-600 outline-none disabled:opacity-50"
-              />
-              <div className="flex items-center gap-1 flex-shrink-0">
-                <span className="text-gray-600 text-xs">$</span>
+          {lineItems.map(item => {
+            const isTaxable = !['labor', 'mobile'].includes(item.type);
+            return (
+              <div key={item.id} className="flex items-center gap-2">
                 <input
-                  type="number"
-                  value={item.amount}
-                  onChange={e => updateLineItem(item.id, 'amount', e.target.value)}
+                  type="text"
+                  value={item.label}
+                  onChange={e => updateLineItem(item.id, 'label', e.target.value)}
+                  placeholder="Description"
                   disabled={item.id === 'mobile'}
-                  className="w-20 bg-gray-800 border border-gray-700 text-white px-2 py-1.5 text-xs font-mono focus:border-red-600 outline-none disabled:opacity-50"
+                  className="flex-1 bg-gray-800 border border-gray-700 text-white px-2 py-1.5 text-xs focus:border-red-600 outline-none disabled:opacity-50"
                 />
+                <div className="flex items-center gap-1 flex-shrink-0">
+                  <span className="text-gray-600 text-xs">$</span>
+                  <input
+                    type="number"
+                    value={item.amount}
+                    onChange={e => updateLineItem(item.id, 'amount', e.target.value)}
+                    disabled={item.id === 'mobile'}
+                    className="w-20 bg-gray-800 border border-gray-700 text-white px-2 py-1.5 text-xs font-mono focus:border-red-600 outline-none disabled:opacity-50"
+                  />
+                </div>
+                {/* Taxable checkbox — mobile always exempt, others toggleable */}
+                <label className="flex items-center gap-1 flex-shrink-0 cursor-pointer" title={isTaxable ? 'Taxable' : 'Tax exempt'}>
+                  <input
+                    type="checkbox"
+                    checked={isTaxable}
+                    disabled={item.id === 'mobile'}
+                    onChange={e => updateLineItem(item.id, 'taxable', e.target.checked)}
+                    className="accent-yellow-500 w-3 h-3 disabled:opacity-30"
+                  />
+                  <span className={`text-[10px] font-bold ${isTaxable ? 'text-yellow-600' : 'text-gray-700'}`}>Tax</span>
+                </label>
+                {item.id !== 'mobile' && (
+                  <button onClick={() => removeLineItem(item.id)} className="text-gray-700 hover:text-red-500 text-sm transition-colors w-5">×</button>
+                )}
               </div>
-              {item.id !== 'mobile' && (
-                <button onClick={() => removeLineItem(item.id)} className="text-gray-700 hover:text-red-500 text-sm transition-colors w-5">×</button>
-              )}
-            </div>
-          ))}
+            );
+          })}
         </div>
 
         {/* Subtotal + Tax + Total */}
@@ -1143,19 +1169,14 @@ function PaymentPanel({ job, onUpdate, onRequote }: { job: Job; onUpdate: (j: Jo
   const hasCardOnFile = !!job.stripeCustomerId;
   const finalAmount = parseFloat(invoiceAmt) || job.estimateAmount || 0;
 
-  // When the amount is overridden, tax must reflect the override — not the
-  // original line items. Compute tax as the same taxable proportion applied
-  // to the new amount. Falls back to calcTax(amount) if no line items exist.
-  function taxForAmount(amount: number): number {
-    const originalSubtotal = job.estimateAmount || 0;
-    if (originalSubtotal > 0 && job.lineItems?.length) {
-      const taxRatio = taxFromItems(job.lineItems) / originalSubtotal;
-      return Math.round(amount * taxRatio * 100) / 100;
-    }
-    return calcTax(amount);
+  // Tax is always the original tax from line items — price adjustments are
+  // pre-tax discounts, they do NOT change what tax was calculated on.
+  const originalTax = job.taxAmount ?? (job.lineItems?.length ? taxFromItems(job.lineItems) : calcTax(job.estimateAmount || 0));
+  function taxForAmount(_amount: number): number {
+    return originalTax;
   }
   function totalForAmount(amount: number): number {
-    return Math.round((amount + taxForAmount(amount)) * 100) / 100;
+    return Math.round((amount + originalTax) * 100) / 100;
   }
 
   const CHARGEABLE_STATUSES: JobStatus[] = ['COMPLETED', 'INVOICED', 'IN_PROGRESS', 'SIGNED'];
@@ -1572,7 +1593,7 @@ function JobDetailPanel({ job: initialJob, onClose, onJobUpdate }: {
   const statusIdx = JOB_PIPELINE.indexOf(job.jobStatus);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-end" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-start justify-end" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <div
         className="relative h-full w-full max-w-xl bg-gray-950 border-l border-gray-800 overflow-y-auto"
         onClick={e => e.stopPropagation()}
@@ -1582,7 +1603,8 @@ function JobDetailPanel({ job: initialJob, onClose, onJobUpdate }: {
           <div>
             <p className="text-red-500 text-xs font-bold uppercase tracking-widest mb-0.5">Job Detail</p>
             <h2 className="text-white font-black text-lg">{job.fname} {job.lname}</h2>
-            <p className="text-gray-500 text-sm">{job.vehicle} · {dateStr}</p>
+            <p className="text-gray-500 text-sm">{resolveServiceName(job.service, job.notes)} · {job.vehicle}</p>
+            <p className="text-gray-600 text-xs mt-0.5">{dateStr} at {job.time}</p>
           </div>
           <button onClick={onClose} className="text-gray-600 hover:text-white text-2xl leading-none mt-1 transition-colors">×</button>
         </div>
@@ -1689,12 +1711,26 @@ function JobDetailPanel({ job: initialJob, onClose, onJobUpdate }: {
                       → Log Payment
                     </button>
                   )}
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* ESTIMATE TAB */}
+              {/* Delete job */}
+              <button
+                onClick={async () => {
+                  if (!confirm(`Delete this job for ${job.fname} ${job.lname}? This cannot be undone.`)) return;
+                  const res = await fetch('/admin-delete', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id: job.id }),
+                  });
+                  if (res.ok) {
+                    onJobUpdate({ ...job, status: 'deleted' } as any);
+                    onClose();
+                  } else {
+                    alert('Delete failed. Try again.');
+                  }
+                }}
+                className="border border-red-900 text-red-700 hover:border-red-600 hover:text-red-400 text-xs font-bold uppercase tracking-wider px-3 py-2 transition-colors"
+              >
+                🗑 Delete Job
+              </button>
           {tab === 'estimate' && <EstimatePanel job={job} onUpdate={handleUpdate} />}
 
           {/* PAYMENT TAB */}
@@ -1953,6 +1989,11 @@ export function JobsTab() {
   }, []);
 
   function handleJobUpdate(updated: Job) {
+    if ((updated as any).status === 'deleted') {
+      setJobs(prev => prev.filter(j => j.id !== updated.id));
+      setSelected(null);
+      return;
+    }
     setJobs(prev => prev.map(j => j.id === updated.id ? updated : j));
     setSelected(updated);
   }
@@ -1995,7 +2036,7 @@ export function JobsTab() {
           ['Unpaid / Due', unpaid, 'text-yellow-400'],
           ['Awaiting Signature', awaitingSign, 'text-purple-400'],
           ['Jobs This Month', paidThisMonth.length, 'text-green-400'],
-          ['Revenue This Month', `$${monthRevenue.toFixed(0)}`, 'text-emerald-400'],
+          ['Revenue This Month', `$${monthRevenue.toFixed(2)}`, 'text-emerald-400'],
         ].map(([label, val, cls]) => (
           <div key={label as string} className="bg-gray-900 border border-gray-800 p-5">
             <div className={`text-2xl font-black ${cls} mb-1`}>{val}</div>
@@ -2272,6 +2313,13 @@ export function InvoicePage() {
 
   return (
     <div className="min-h-screen bg-[#0f0f0f] py-12 px-4">
+      <style>{`
+        @media print {
+          @page { margin: 0; size: A4; }
+          body { background: #0f0f0f !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+          .no-print { display: none !important; }
+        }
+      `}</style>
       <div className="max-w-lg mx-auto">
 
         {/* Header */}
@@ -2412,7 +2460,7 @@ export function InvoicePage() {
         )}
 
         {/* Download / Save button */}
-        <div className="mt-6 flex justify-center">
+        <div className="mt-6 flex justify-center no-print">
           <button
             onClick={() => window.print()}
             className="border border-white/20 text-gray-400 hover:border-white hover:text-white text-xs font-bold uppercase tracking-widest px-8 py-3 transition-colors"
@@ -2422,8 +2470,8 @@ export function InvoicePage() {
         </div>
 
         {/* Review CTA — only shown on paid receipts */}
-        {isPaid && (
-          <div className="mt-8 border border-white/10 bg-white/5 px-6 py-5 text-center">
+        {isPaid && !false && (
+          <div className="mt-8 border border-white/10 bg-white/5 px-6 py-5 text-center no-print">
             <p className="text-gray-400 text-sm font-bold mb-1">How'd we do?</p>
             <p className="text-gray-600 text-xs mb-4">Your review helps other Flagstaff drivers find a shop they can trust.</p>
             <a
