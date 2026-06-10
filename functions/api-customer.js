@@ -267,24 +267,72 @@ export async function onRequestPost({ request, env }) {
         const { booking } = payload;
         if (!booking) return json({ error: 'Missing booking' }, 400);
         const customerName = `${booking.fname} ${booking.lname}`;
-        const svcName = booking.service || 'your appointment';
-        const dateStr = booking.date || '';
+
+        // Pretty service name map — mirrors SERVICES in BookingWidget.tsx
+        const SERVICE_NAMES = {
+          oil: 'Oil Change',
+          brakes: 'Brake Service',
+          diag: 'Diagnostics',
+          suspension: 'Suspension Service',
+          audio: 'Car Audio Install',
+          full: 'Full Service Inspection',
+          other: 'Custom Service',
+        };
+        const svcName = SERVICE_NAMES[booking.service] || booking.service || 'Appointment';
+
+        // Format date in Flagstaff local time (America/Phoenix — no DST)
+        const dateStr = booking.date
+          ? new Date(booking.date + 'T12:00:00').toLocaleDateString('en-US', {
+              weekday: 'long', month: 'long', day: 'numeric', year: 'numeric',
+              timeZone: 'America/Phoenix',
+            })
+          : booking.date || '';
+
+        const timeStr = booking.time || '';
+        const apptLine = timeStr ? `${dateStr} at ${timeStr} (MST)` : dateStr;
+
         // Owner
         try {
           await brevoSend({
             sender: { name: 'GID Garage Bookings', email: 'bookings@gidgarage.com' },
             to: [{ email: 'gidgarageaz@hotmail.com', name: 'GID Garage' }],
-            subject: `Cancellation: ${customerName} — ${svcName} on ${dateStr}`,
-            htmlContent: `<div style="font-family:sans-serif;padding:24px;background:#0f0f0f;color:#fff;"><h2 style="color:#ef4444;">❌ Booking Cancelled</h2><p><strong>${customerName}</strong><br>${booking.phone}<br>${booking.email}</p><p>${svcName} on ${dateStr} at ${booking.time}<br>${booking.vehicle}</p></div>`,
+            subject: `❌ Cancellation: ${customerName} — ${svcName} on ${dateStr}`,
+            htmlContent: `<div style="font-family:sans-serif;padding:24px;background:#0f0f0f;color:#fff;"><h2 style="color:#ef4444;">❌ Booking Cancelled</h2><p><strong>${customerName}</strong><br>${booking.phone}<br>${booking.email}</p><p>${svcName}<br>${apptLine}<br>${booking.vehicle}</p></div>`,
           });
         } catch (e) { console.error('Owner cancellation email failed:', e.message); }
+
         // Customer
         try {
           await brevoSend({
             sender: { name: 'GID Garage', email: 'bookings@gidgarage.com' },
             to: [{ email: booking.email, name: customerName }],
-            subject: 'Your GID Garage appointment has been cancelled',
-            htmlContent: `<div style="font-family:sans-serif;max-width:560px;margin:0 auto;background:#0f0f0f;color:#fff;padding:32px;border-radius:4px;"><img src="https://gidgarage.com/website_logo.png" alt="GID Garage" style="height:48px;margin-bottom:24px;"/><h2 style="color:#ef4444;font-size:22px;margin:0 0 16px;">Appointment Cancelled</h2><p style="color:#9ca3af;">Hi ${booking.fname}, your ${svcName} appointment on ${dateStr} has been cancelled.</p><p style="margin-top:24px;color:#6b7280;font-size:13px;">Questions? Call or text <strong style="color:#9ca3af;">480-757-0476</strong></p></div>`,
+            subject: `Your ${svcName} appointment has been cancelled — GID Garage`,
+            htmlContent: `
+<div style="font-family:sans-serif;max-width:560px;margin:0 auto;background:#0f0f0f;color:#fff;padding:32px;">
+  <img src="https://gidgarage.com/website_logo.png" alt="GID Garage" style="height:48px;margin-bottom:28px;"/>
+  <h2 style="color:#ef4444;font-size:22px;font-weight:900;margin:0 0 8px;">Appointment Cancelled</h2>
+  <p style="color:#6b7280;font-size:13px;margin:0 0 28px;">We've received your cancellation request.</p>
+  <table style="width:100%;border-collapse:collapse;background:#111827;border:1px solid #1f2937;margin-bottom:24px;">
+    <tr><td style="padding:14px 16px;border-bottom:1px solid #1f2937;">
+      <p style="color:#6b7280;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;margin:0 0 3px;">Service</p>
+      <p style="color:#fff;font-size:15px;font-weight:700;margin:0;">${svcName}</p>
+    </td></tr>
+    <tr><td style="padding:14px 16px;border-bottom:1px solid #1f2937;">
+      <p style="color:#6b7280;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;margin:0 0 3px;">Scheduled For</p>
+      <p style="color:#fff;font-size:15px;font-weight:700;margin:0;">${apptLine}</p>
+    </td></tr>
+    <tr><td style="padding:14px 16px;">
+      <p style="color:#6b7280;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;margin:0 0 3px;">Vehicle</p>
+      <p style="color:#fff;font-size:15px;font-weight:700;margin:0;">${booking.vehicle || '—'}</p>
+    </td></tr>
+  </table>
+  <div style="background:#1c1917;border-left:3px solid #f59e0b;padding:14px 16px;margin-bottom:28px;">
+    <p style="color:#fcd34d;font-size:13px;font-weight:700;margin:0 0 4px;">Was this a mistake?</p>
+    <p style="color:#9ca3af;font-size:13px;margin:0;">No worries — rebooking takes less than a minute. Just pick a new time and we'll get you back on the schedule.</p>
+  </div>
+  <a href="https://gidgarage.com/bookings" style="display:inline-block;background:#dc2626;color:#fff;text-decoration:none;font-weight:900;font-size:13px;padding:14px 32px;letter-spacing:0.08em;text-transform:uppercase;margin-bottom:28px;">BOOK A NEW APPOINTMENT →</a>
+  <p style="color:#4b5563;font-size:11px;margin:0;">Questions? Call or text <strong style="color:#9ca3af;">480-757-0476</strong> — GID Garage, Flagstaff AZ</p>
+</div>`,
           });
         } catch (e) { console.error('Customer cancellation email failed:', e.message); }
         return json({ ok: true });

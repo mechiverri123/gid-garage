@@ -98,6 +98,8 @@ export interface Job {
   stripeCustomerId: string;
   stripeLast4: string;
   paidAt: string | null;
+  adjustmentReason: string;
+  adjustmentAmount: number | null;
   // photos
   jobPhotos: JobPhoto[];
 }
@@ -159,6 +161,8 @@ function mapJob(b: any): Job {
     stripeCustomerId: b.stripe_customer_id || '',
     stripeLast4: b.stripe_last4 || '',
     paidAt: b.paid_at || null,
+    adjustmentReason: b.adjustment_reason || '',
+    adjustmentAmount: b.adjustment_amount ?? null,
     jobPhotos: b.job_photos ? (typeof b.job_photos === 'string' ? JSON.parse(b.job_photos) : b.job_photos) : [],
   };
 }
@@ -1199,6 +1203,8 @@ function PaymentPanel({ job, onUpdate, onRequote }: { job: Job; onUpdate: (j: Jo
       const confirmedAmount = confirmedJob?.invoiceAmount ?? chargedAmount;
 
       // Send receipt email
+      const adjustmentAmt = job.estimateAmount ? (chargedAmount - job.estimateAmount) : 0;
+      const hasAdjustment = Math.abs(adjustmentAmt) > 0.01;
       const updated = {
         ...job,
         invoiceAmount: confirmedAmount,
@@ -1207,10 +1213,18 @@ function PaymentPanel({ job, onUpdate, onRequote }: { job: Job; onUpdate: (j: Jo
         paidAt,
         jobStatus: 'PAID' as JobStatus,
         status: 'completed',
+        adjustmentReason: hasAdjustment && adjustmentReason ? adjustmentReason : '',
+        adjustmentAmount: hasAdjustment ? adjustmentAmt : null,
       };
+      // Persist adjustment to Supabase so InvoicePage can show it
+      if (hasAdjustment) {
+        await adminPost('patch-booking', { id: job.id, fields: {
+          adjustment_reason: adjustmentReason || '',
+          adjustment_amount: adjustmentAmt,
+        }});
+      }
       await writePaymentEvent(job.id, 'paid', confirmedAmount);
-      const adjustmentAmt = job.estimateAmount ? (chargedAmount - job.estimateAmount) : 0;
-      await sendReceiptEmail(updated, adjustmentReason || undefined, Math.abs(adjustmentAmt) > 0.01 ? adjustmentAmt : undefined);
+      await sendReceiptEmail(updated, adjustmentReason || undefined, hasAdjustment ? adjustmentAmt : undefined);
       onUpdate(updated);
     } catch (e: any) {
       await writePaymentEvent(job.id, 'declined', chargedAmount, e.message ?? 'Charge failed');
@@ -1295,7 +1309,7 @@ function PaymentPanel({ job, onUpdate, onRequote }: { job: Job; onUpdate: (j: Jo
             placeholder={job.estimateAmount?.toString() ?? '0.00'}
             className="bg-gray-800 border border-gray-700 text-white px-3 py-2 text-sm font-mono w-36 focus:border-red-600 outline-none"
           />
-          {job.estimateAmount && <span className="text-gray-600 text-xs">Estimate was ${job.estimateAmount.toFixed(2)}</span>}
+          {job.estimateAmount && <span className="text-gray-600 text-xs">Estimate was ${job.estimateAmount.toFixed(2)} + tax (${totalForAmount(job.estimateAmount).toFixed(2)} total)</span>}
         </div>
         {finalAmount > 0 && (
           <div className="mt-2 space-y-0.5">
@@ -1349,11 +1363,12 @@ function PaymentPanel({ job, onUpdate, onRequote }: { job: Job; onUpdate: (j: Jo
               disabled={!finalAmount || charging || !CHARGEABLE_STATUSES.includes(job.jobStatus)}
               className="w-full bg-emerald-700 hover:bg-emerald-600 disabled:opacity-40 text-white text-sm font-bold uppercase tracking-widest py-3 transition-colors"
             >
-              💳 Charge ${finalAmount.toFixed(2)} to Card on File
+              💳 Charge ${totalForAmount(finalAmount).toFixed(2)} to Card on File
             </button>
           ) : (
             <div className="space-y-2">
-              <p className="text-yellow-400 text-xs font-bold">Confirm charge of ${finalAmount.toFixed(2)} to •••• {job.stripeLast4}?</p>
+              <p className="text-yellow-400 text-xs font-bold">Confirm charge of ${totalForAmount(finalAmount).toFixed(2)} to •••• {job.stripeLast4}?</p>
+              <p className="text-gray-600 text-xs">${finalAmount.toFixed(2)} subtotal + ${taxForAmount(finalAmount).toFixed(2)} tax</p>
               <div className="flex gap-2">
                 <button onClick={() => setChargeConfirm(false)} className="flex-1 border border-gray-600 text-gray-400 text-xs font-bold py-2 hover:border-white hover:text-white transition-colors">Cancel</button>
                 <button onClick={chargeCardOnFile} disabled={charging} className="flex-1 bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-bold py-2 transition-colors disabled:opacity-40">
@@ -2317,6 +2332,17 @@ export function InvoicePage() {
                     </span>
                   </div>
                 ))}
+                {/* Price adjustment line — only shown on paid receipts when present */}
+                {isPaid && job.adjustmentAmount != null && Math.abs(job.adjustmentAmount) > 0.01 && (
+                  <div className="flex justify-between px-6 py-2.5 bg-indigo-900/20">
+                    <span className="text-indigo-300 text-sm italic">
+                      Price Adjustment{job.adjustmentReason ? ` — ${job.adjustmentReason}` : ''}
+                    </span>
+                    <span className="text-indigo-300 text-sm font-mono font-bold">
+                      {job.adjustmentAmount < 0 ? '-' : '+'}${Math.abs(job.adjustmentAmount).toFixed(2)}
+                    </span>
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -2394,6 +2420,22 @@ export function InvoicePage() {
             🖨 Save / Print Receipt
           </button>
         </div>
+
+        {/* Review CTA — only shown on paid receipts */}
+        {isPaid && (
+          <div className="mt-8 border border-white/10 bg-white/5 px-6 py-5 text-center">
+            <p className="text-gray-400 text-sm font-bold mb-1">How'd we do?</p>
+            <p className="text-gray-600 text-xs mb-4">Your review helps other Flagstaff drivers find a shop they can trust.</p>
+            <a
+              href="https://maps.app.goo.gl/3bTXcrWaoc3PB1UKA"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-block border border-white/20 text-gray-300 hover:border-white hover:text-white text-xs font-bold uppercase tracking-widest px-6 py-3 transition-colors"
+            >
+              ⭐ Leave a Google Review
+            </a>
+          </div>
+        )}
 
         <p className="text-gray-700 text-xs text-center mt-8">GID Garage · Flagstaff, AZ · 480-757-0476 · gidgarage.com</p>
       </div>
