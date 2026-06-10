@@ -1434,7 +1434,7 @@ function PaymentPanel({ job, onUpdate, onRequote }: { job: Job; onUpdate: (j: Jo
 function SignedDocSection({ job }: { job: Job }) {
   const [open, setOpen] = useState(false);
   const signedDate = job.signedAt
-    ? new Date(job.signedAt).toLocaleString('en-US', { month: 'long', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone })
+    ? new Date(job.signedAt).toLocaleString('en-US', { month: 'long', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: 'America/Phoenix' })
     : 'Unknown';
   const amount = job.invoiceAmount ?? job.estimateAmount;
 
@@ -1656,7 +1656,7 @@ function JobDetailPanel({ job: initialJob, onClose, onJobUpdate }: {
               {job.jobStatus === 'PAID' && (
                 <div className="bg-emerald-900/20 border border-emerald-800 p-4 space-y-1">
                   <p className="text-emerald-400 text-xs font-bold uppercase tracking-widest">✓ Paid</p>
-                  <p className="text-white text-2xl font-black">${job.invoiceAmount?.toFixed(2)}</p>
+                  <p className="text-white text-2xl font-black">${((job.invoiceAmount || 0) + (job.taxAmount || 0)).toFixed(2)}</p>
                   <p className="text-gray-500 text-xs font-mono">{job.stripeTransactionId}</p>
                 </div>
               )}
@@ -1957,7 +1957,7 @@ export function JobsTab() {
     setSelected(updated);
   }
 
-  const today = new Date().toISOString().slice(0, 10);
+  const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Phoenix' });
 
   // Stats
   const unpaid = jobs.filter(j => j.jobStatus === 'COMPLETED' || j.jobStatus === 'INVOICED').length;
@@ -2427,7 +2427,7 @@ export function InvoicePage() {
             <p className="text-gray-400 text-sm font-bold mb-1">How'd we do?</p>
             <p className="text-gray-600 text-xs mb-4">Your review helps other Flagstaff drivers find a shop they can trust.</p>
             <a
-              href="https://maps.app.goo.gl/3bTXcrWaoc3PB1UKA"
+              href="https://g.page/r/CdERSypGqVdlEAI/review"
               target="_blank"
               rel="noopener noreferrer"
               className="inline-block border border-white/20 text-gray-300 hover:border-white hover:text-white text-xs font-bold uppercase tracking-widest px-6 py-3 transition-colors"
