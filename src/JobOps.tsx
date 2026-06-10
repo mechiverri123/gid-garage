@@ -1731,6 +1731,12 @@ function JobDetailPanel({ job: initialJob, onClose, onJobUpdate }: {
               >
                 🗑 Delete Job
               </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ESTIMATE TAB */}
           {tab === 'estimate' && <EstimatePanel job={job} onUpdate={handleUpdate} />}
 
           {/* PAYMENT TAB */}
