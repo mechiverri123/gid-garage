@@ -1130,6 +1130,13 @@ function EstimatePanel({ job, onUpdate }: { job: Job; onUpdate: (j: Job) => void
       )}
 
       {/* Scope notes */}
+      <div>
+        <label className="text-gray-500 text-xs font-bold uppercase tracking-widest block mb-1">Scope Notes <span className="text-gray-700 normal-case font-normal">(shown to customer)</span></label>
+        <textarea
+          value={notes}
+          onChange={e => setNotes(e.target.value)}
+          rows={2}
+          placeholder="e.g. Full synthetic oil change, inspect brakes while on site…"
           className="bg-gray-800 border border-gray-700 text-white px-3 py-2 text-sm w-full focus:border-red-600 outline-none resize-none"
         />
       </div>
