@@ -39,8 +39,10 @@ export async function onRequestGet({ request }) {
 
   try {
     if (cmd === 'getMakes') {
-      // Returns all makes CarQuery knows about
-      const res = await fetch(`${CARQUERY_BASE}?cmd=getMakes&format=json`, {
+      // Pass year so CarQuery returns only makes that had vehicles in that year
+      let cqUrl = `${CARQUERY_BASE}?cmd=getMakes&format=json`;
+      if (year) cqUrl += `&year=${year}`;
+      const res = await fetch(cqUrl, {
         headers: { 'User-Agent': 'GIDGarage/1.0' },
       });
       const text = await res.text();
@@ -54,8 +56,10 @@ export async function onRequestGet({ request }) {
 
     if (cmd === 'getModels') {
       if (!make) return err('make required');
-      const res = await fetch(
-        `${CARQUERY_BASE}?cmd=getModels&make=${encodeURIComponent(make)}&format=json`,
+      // Pass year so CarQuery returns only models for that make+year
+      let cqUrl = `${CARQUERY_BASE}?cmd=getModels&make=${encodeURIComponent(make)}&format=json`;
+      if (year) cqUrl += `&year=${year}`;
+      const res = await fetch(cqUrl,
         { headers: { 'User-Agent': 'GIDGarage/1.0' } }
       );
       const text = await res.text();

@@ -207,7 +207,8 @@ const _cache: Record<string, any> = {};
 async function cachedFetch<T>(key: string, fetcher: () => Promise<T>): Promise<T> {
   if (_cache[key] !== undefined) return _cache[key];
   const result = await fetcher();
-  _cache[key] = result;
+  // Don't cache empty arrays — allow retry on next render
+  if (!Array.isArray(result) || result.length > 0) _cache[key] = result;
   return result;
 }
 
@@ -220,17 +221,18 @@ async function vehicleApi(params: Record<string, string>): Promise<any> {
 
 async function fetchMakes(year: string): Promise<string[]> {
   return cachedFetch(`makes-${year}`, async () => {
+    const STATIC_MAKES = ['Acura','Audi','BMW','Buick','Cadillac','Chevrolet','Chrysler',
+      'Dodge','Ford','Genesis','GMC','Honda','Hyundai','Infiniti','Jaguar',
+      'Jeep','Kia','Lexus','Lincoln','Lucid','Mazda','Mercedes-Benz','MINI',
+      'Mitsubishi','Mercury','Nissan','Oldsmobile','Polestar','Pontiac',
+      'Porsche','RAM','Rivian','Saturn','Scout','Subaru','Tesla','Toyota',
+      'Volkswagen','Volvo'].sort();
     try {
-      const data = await vehicleApi({ cmd: 'getMakes' });
-      return (data.makes || []) as string[];
+      const data = await vehicleApi({ cmd: 'getMakes', ...(year ? { year } : {}) });
+      const makes = (data.makes || []) as string[];
+      return makes.length > 0 ? makes : STATIC_MAKES;
     } catch {
-      // Fallback to static list if worker unavailable
-      return ['Acura','Audi','BMW','Buick','Cadillac','Chevrolet','Chrysler',
-        'Dodge','Ford','Genesis','GMC','Honda','Hyundai','Infiniti','Jaguar',
-        'Jeep','Kia','Lexus','Lincoln','Lucid','Mazda','Mercedes-Benz','MINI',
-        'Mitsubishi','Mercury','Nissan','Oldsmobile','Polestar','Pontiac',
-        'Porsche','RAM','Rivian','Saturn','Scout','Subaru','Tesla','Toyota',
-        'Volkswagen','Volvo'].sort();
+      return STATIC_MAKES;
     }
   });
 }
