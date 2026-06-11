@@ -201,16 +201,26 @@ function vehicleString(f: FormData): string {
 
 // ── VEHICLE API ─────────────────────────────────────────────────────────────────
 // ── VEHICLE DATA (fully static — no API calls) ───────────────────────────────
-import { MAKES, VEHICLE_MODELS, VEHICLE_TRIMS } from './vehicleData';
+import { MAKES, VEHICLE_MODELS } from './vehicleData';
+import { TRIM_DATA } from './trimData';
 import { ENGINE_DATA } from './engineData';
 
 function getModelsForMake(make: string): string[] {
   return VEHICLE_MODELS[make] || [];
 }
 
-function getTrimsForModel(make: string, model: string): string[] {
+function getTrimsForModel(make: string, model: string, year: string): string[] {
   const key = `${make.toUpperCase()}|${model.toUpperCase()}`;
-  return VEHICLE_TRIMS[key] || [];
+  const entries = TRIM_DATA[key];
+  if (!entries) return [];
+  const y = parseInt(year, 10);
+  if (!y) {
+    const all = new Set<string>();
+    entries.forEach(e => e.trims.forEach(t => all.add(t)));
+    return Array.from(all);
+  }
+  const match = entries.find(e => y >= e.from && y <= e.to);
+  return match ? match.trims : [];
 }
 
 function getEngineOptions(make: string, model: string, year: string): string[] {
@@ -240,7 +250,7 @@ function VehicleSelector({ form, setForm, errors, clearError }: {
   // All vehicle data is fully static — instant, no network calls, no loading state
   const makes: string[] = MAKES;
   const models: string[] = form.vehicleMake ? getModelsForMake(form.vehicleMake) : [];
-  const trimOptions: string[] = form.vehicleMake && form.vehicleModel ? getTrimsForModel(form.vehicleMake, form.vehicleModel) : [];
+  const trimOptions: string[] = form.vehicleMake && form.vehicleModel ? getTrimsForModel(form.vehicleMake, form.vehicleModel, form.vehicleYear) : [];
   const engineOptions: string[] = form.vehicleMake && form.vehicleModel ? getEngineOptions(form.vehicleMake, form.vehicleModel, form.vehicleYear) : [];
 
   const [engineOther, setEngineOther] = useState(false);
