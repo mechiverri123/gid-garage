@@ -102,6 +102,22 @@ export interface Job {
   adjustmentAmount: number | null;
   // photos
   jobPhotos: JobPhoto[];
+  // inspection
+  inspectionData: InspectionData | null;
+}
+
+interface TireReading {
+  fl: string; fr: string; rl: string; rr: string;
+}
+interface DtcCode {
+  id: string;
+  code: string;
+  plan: string;
+}
+interface InspectionData {
+  tirePressure: TireReading;
+  tireTread: TireReading;
+  dtcCodes: DtcCode[];
 }
 
 // ── SUPABASE HELPERS ─────────────────────────────────────────────────────────
@@ -164,6 +180,7 @@ function mapJob(b: any): Job {
     adjustmentReason: b.adjustment_reason || '',
     adjustmentAmount: b.adjustment_amount ?? null,
     jobPhotos: b.job_photos ? (typeof b.job_photos === 'string' ? JSON.parse(b.job_photos) : b.job_photos) : [],
+    inspectionData: b.inspection_data ? (typeof b.inspection_data === 'string' ? JSON.parse(b.inspection_data) : b.inspection_data) : null,
   };
 }
 
@@ -931,6 +948,124 @@ function PhotoPanel({ job, onUpdate }: { job: Job; onUpdate: (j: Job) => void })
   );
 }
 
+// ── INSPECTION PANEL (admin — tire pressure, tread, DTC codes) ───────────────
+
+const EMPTY_TIRES: TireReading = { fl: '', fr: '', rl: '', rr: '' };
+const TIRE_POSITIONS = [
+  { key: 'fl', label: 'FL' },
+  { key: 'fr', label: 'FR' },
+  { key: 'rl', label: 'RL' },
+  { key: 'rr', label: 'RR' },
+] as const;
+
+function InspectionPanel({ job, onUpdate }: { job: Job; onUpdate: (j: Job) => void }) {
+  const init = job.inspectionData ?? { tirePressure: { ...EMPTY_TIRES }, tireTread: { ...EMPTY_TIRES }, dtcCodes: [] };
+  const [pressure, setPressure] = useState<TireReading>({ ...init.tirePressure });
+  const [tread, setTread] = useState<TireReading>({ ...init.tireTread });
+  const [codes, setCodes] = useState<DtcCode[]>(init.dtcCodes.length ? init.dtcCodes : []);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(true);
+
+  function markDirty() { setSaved(false); }
+
+  function addCode() {
+    setCodes(prev => [...prev, { id: Math.random().toString(36).slice(2), code: '', plan: '' }]);
+    markDirty();
+  }
+  function removeCode(id: string) { setCodes(prev => prev.filter(c => c.id !== id)); markDirty(); }
+  function updateCode(id: string, field: 'code' | 'plan', val: string) {
+    setCodes(prev => prev.map(c => c.id === id ? { ...c, [field]: val } : c));
+    markDirty();
+  }
+
+  async function save() {
+    setSaving(true);
+    const inspectionData: InspectionData = { tirePressure: pressure, tireTread: tread, dtcCodes: codes };
+    await patchJob(job.id, { inspection_data: JSON.stringify(inspectionData) });
+    onUpdate({ ...job, inspectionData });
+    setSaving(false);
+    setSaved(true);
+  }
+
+  const TireGrid = ({ label, values, onChange }: { label: string; values: TireReading; onChange: (k: keyof TireReading, v: string) => void }) => (
+    <div>
+      <p className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-2">{label}</p>
+      <div className="grid grid-cols-2 gap-2">
+        {TIRE_POSITIONS.map(({ key, label: pos }) => (
+          <div key={key} className="flex items-center gap-2 bg-gray-900 border border-gray-800 px-3 py-2">
+            <span className="text-gray-600 text-xs font-bold w-6 flex-shrink-0">{pos}</span>
+            <input
+              type="text"
+              inputMode="decimal"
+              value={values[key]}
+              onChange={e => { onChange(key, e.target.value); markDirty(); }}
+              placeholder="—"
+              className="flex-1 bg-transparent text-white text-sm font-mono outline-none min-w-0"
+            />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="space-y-6">
+      <TireGrid
+        label="Tire Pressure (PSI)"
+        values={pressure}
+        onChange={(k, v) => setPressure(prev => ({ ...prev, [k]: v }))}
+      />
+      <TireGrid
+        label="Tire Tread Depth (32nds)"
+        values={tread}
+        onChange={(k, v) => setTread(prev => ({ ...prev, [k]: v }))}
+      />
+
+      {/* DTC Codes */}
+      <div>
+        <div className="flex items-center justify-between mb-2">
+          <p className="text-gray-500 text-xs font-bold uppercase tracking-widest">Diagnostic Codes (DTC)</p>
+          <button onClick={addCode} className="text-xs font-bold text-red-500 hover:text-red-400 uppercase tracking-widest">+ Add Code</button>
+        </div>
+        {codes.length === 0 && (
+          <p className="text-gray-700 text-xs italic py-3 text-center">No codes — tap + Add Code to log one</p>
+        )}
+        <div className="space-y-3">
+          {codes.map(c => (
+            <div key={c.id} className="bg-gray-900 border border-gray-800 p-3 space-y-2">
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  value={c.code}
+                  onChange={e => updateCode(c.id, 'code', e.target.value.toUpperCase())}
+                  placeholder="e.g. P0420"
+                  className="bg-gray-800 border border-gray-700 text-white text-sm font-mono px-3 py-1.5 w-32 outline-none focus:border-red-600"
+                />
+                <button onClick={() => removeCode(c.id)} className="ml-auto text-gray-700 hover:text-red-500 text-lg leading-none transition-colors">×</button>
+              </div>
+              <textarea
+                value={c.plan}
+                onChange={e => updateCode(c.id, 'plan', e.target.value)}
+                placeholder="Plan to fix / replace — explain what this code means and how you'll address it…"
+                rows={3}
+                className="w-full bg-gray-800 border border-gray-700 text-white text-sm px-3 py-2 outline-none focus:border-red-600 resize-none"
+              />
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <button
+        onClick={save}
+        disabled={saving || saved}
+        className="w-full bg-gray-700 hover:bg-gray-600 disabled:opacity-40 text-white text-xs font-bold uppercase tracking-widest py-3 transition-colors"
+      >
+        {saving ? 'Saving…' : saved ? '✓ Saved' : 'Save Inspection Data'}
+      </button>
+    </div>
+  );
+}
+
 // ── ESTIMATE PANEL (inside admin job detail) ──────────────────────────────────
 
 function EstimatePanel({ job, onUpdate }: { job: Job; onUpdate: (j: Job) => void }) {
@@ -1299,7 +1434,10 @@ function PaymentPanel({ job, onUpdate, onRequote }: { job: Job; onUpdate: (j: Jo
       job_status: 'PAID',
       status: 'completed',
     });
-    onUpdate({ ...job, invoiceAmount: finalAmount, taxAmount: taxForAmount(finalAmount), stripeTransactionId: stripeId, paidAt, jobStatus: 'PAID' as JobStatus, status: 'completed' });
+    const paidJob = { ...job, invoiceAmount: finalAmount, taxAmount: taxForAmount(finalAmount), stripeTransactionId: stripeId, paidAt, jobStatus: 'PAID' as JobStatus, status: 'completed' };
+    onUpdate(paidJob);
+    // Send receipt email so customer gets confirmation even when paid manually
+    await sendReceiptEmail(paidJob);
     setSaving(false);
   }
 
@@ -1598,7 +1736,7 @@ function JobDetailPanel({ job: initialJob, onClose, onJobUpdate }: {
   onJobUpdate: (j: Job) => void;
 }) {
   const [job, setJob] = useState(initialJob);
-  const [tab, setTab] = useState<'overview' | 'estimate' | 'payment' | 'photos'>('overview');
+  const [tab, setTab] = useState<'overview' | 'estimate' | 'payment' | 'photos' | 'inspection'>('overview');
 
   function handleUpdate(updated: Job) {
     setJob(updated);
@@ -1661,12 +1799,12 @@ function JobDetailPanel({ job: initialJob, onClose, onJobUpdate }: {
 
         {/* Tabs */}
         <div className="flex border-b border-gray-800">
-          {(['overview', 'estimate', 'payment', 'photos'] as const).map(t => (
+          {(['overview', 'estimate', 'payment', 'photos', 'inspection'] as const).map(t => (
             <button key={t} onClick={() => setTab(t)}
               className={`text-xs font-bold uppercase tracking-widest px-5 py-3 transition-colors border-b-2 -mb-px ${
                 tab === t ? 'border-red-600 text-white' : 'border-transparent text-gray-600 hover:text-gray-300'
               }`}>
-              {t === 'overview' ? '📋 Overview' : t === 'estimate' ? '📝 Estimate' : t === 'payment' ? '💳 Payment' : `📷 Photos${job.jobPhotos?.length ? ` (${job.jobPhotos.length})` : ''}`}
+              {t === 'overview' ? '📋 Overview' : t === 'estimate' ? '📝 Estimate' : t === 'payment' ? '💳 Payment' : t === 'inspection' ? `🔍 Inspection` : `📷 Photos${job.jobPhotos?.length ? ` (${job.jobPhotos.length})` : ''}`}
             </button>
           ))}
         </div>
@@ -1768,6 +1906,9 @@ function JobDetailPanel({ job: initialJob, onClose, onJobUpdate }: {
 
           {/* PHOTOS TAB */}
           {tab === 'photos' && <PhotoPanel job={job} onUpdate={handleUpdate} />}
+
+          {/* INSPECTION TAB */}
+          {tab === 'inspection' && <InspectionPanel job={job} onUpdate={handleUpdate} />}
         </div>
       </div>
     </div>
@@ -2376,7 +2517,7 @@ export function InvoicePage() {
             </div>
             <div className="text-right">
               <p className={`text-3xl font-black ${isPaid ? 'text-emerald-400' : 'text-red-400'}`}>
-                ${isPaid ? ((job.invoiceAmount || 0) + (job.taxAmount || 0)).toFixed(2) : amount?.toFixed(2)}
+                ${((amount || 0) + (job.taxAmount || 0)).toFixed(2)}
               </p>
             </div>
           </div>
@@ -2500,7 +2641,7 @@ export function InvoicePage() {
         </div>
 
         {/* Review CTA — only shown on paid receipts */}
-        {isPaid && !false && (
+        {isPaid && (
           <div className="mt-8 border border-white/10 bg-white/5 px-6 py-5 text-center no-print">
             <p className="text-gray-400 text-sm font-bold mb-1">How'd we do?</p>
             <p className="text-gray-600 text-xs mb-4">Your review helps other Flagstaff drivers find a shop they can trust.</p>
@@ -2514,6 +2655,84 @@ export function InvoicePage() {
             </a>
           </div>
         )}
+
+        {/* Inspection Report — tire pressure, tread, DTC codes */}
+        {job.inspectionData && (() => {
+          const { tirePressure: tp, tireTread: tt, dtcCodes } = job.inspectionData!;
+          const hasPressure = Object.values(tp).some(v => v);
+          const hasTread = Object.values(tt).some(v => v);
+          const hasCodes = dtcCodes.length > 0;
+          if (!hasPressure && !hasTread && !hasCodes) return null;
+
+          const TireDisplay = ({ label, values, unit }: { label: string; values: TireReading; unit: string }) => (
+            <div>
+              <p className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-3">{label}</p>
+              {/* Car outline graphic */}
+              <div className="relative mx-auto mb-3" style={{ width: 200, height: 110 }}>
+                <svg viewBox="0 0 200 110" width="200" height="110">
+                  {/* Car body */}
+                  <rect x="30" y="40" width="140" height="40" rx="6" fill="#1f2937" stroke="#374151" strokeWidth="1.5"/>
+                  <rect x="55" y="20" width="90" height="25" rx="5" fill="#1f2937" stroke="#374151" strokeWidth="1.5"/>
+                  {/* Wheels */}
+                  <circle cx="58" cy="82" r="14" fill="#111" stroke="#4b5563" strokeWidth="2"/>
+                  <circle cx="58" cy="82" r="7" fill="#1f2937"/>
+                  <circle cx="142" cy="82" r="14" fill="#111" stroke="#4b5563" strokeWidth="2"/>
+                  <circle cx="142" cy="82" r="7" fill="#1f2937"/>
+                  {/* Windshield tint */}
+                  <rect x="60" y="23" width="80" height="19" rx="3" fill="#1e3a5f" opacity="0.6"/>
+                  {/* Arrow: Front label */}
+                  <text x="100" y="13" textAnchor="middle" fill="#6b7280" fontSize="8" fontWeight="bold">FRONT</text>
+                </svg>
+                {/* FL */}
+                <div className="absolute text-center" style={{ top: 48, left: 2 }}>
+                  <div className="text-[9px] text-gray-600 font-bold">FL</div>
+                  <div className="text-xs font-mono font-bold text-white">{values.fl || '—'}</div>
+                </div>
+                {/* FR */}
+                <div className="absolute text-center" style={{ top: 48, right: 2 }}>
+                  <div className="text-[9px] text-gray-600 font-bold">FR</div>
+                  <div className="text-xs font-mono font-bold text-white">{values.fr || '—'}</div>
+                </div>
+                {/* RL */}
+                <div className="absolute text-center" style={{ bottom: 0, left: 2 }}>
+                  <div className="text-[9px] text-gray-600 font-bold">RL</div>
+                  <div className="text-xs font-mono font-bold text-white">{values.rl || '—'}</div>
+                </div>
+                {/* RR */}
+                <div className="absolute text-center" style={{ bottom: 0, right: 2 }}>
+                  <div className="text-[9px] text-gray-600 font-bold">RR</div>
+                  <div className="text-xs font-mono font-bold text-white">{values.rr || '—'}</div>
+                </div>
+              </div>
+              <p className="text-gray-700 text-[10px] text-center">{unit}</p>
+            </div>
+          );
+
+          return (
+            <div className="mt-6 border border-white/10 bg-white/5">
+              <div className="px-6 py-4 border-b border-white/10">
+                <p className="text-gray-400 text-xs font-bold uppercase tracking-widest">🔍 Vehicle Inspection Report</p>
+              </div>
+              <div className="px-6 py-5 space-y-8">
+                {hasPressure && <TireDisplay label="Tire Pressure" values={tp} unit="PSI" />}
+                {hasTread && <TireDisplay label="Tire Tread Depth" values={tt} unit="32nds of an inch · 2/32\" = replace, 4/32\" = caution" />}
+                {hasCodes && (
+                  <div>
+                    <p className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-3">Diagnostic Codes (DTC)</p>
+                    <div className="space-y-4">
+                      {dtcCodes.map(c => (
+                        <div key={c.id} className="border border-white/10 bg-white/5 p-4">
+                          <p className="text-red-400 text-sm font-mono font-bold mb-1">{c.code}</p>
+                          {c.plan && <p className="text-gray-300 text-sm leading-relaxed">{c.plan}</p>}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        })()}
 
         <p className="text-gray-700 text-xs text-center mt-8">GID Garage · Flagstaff, AZ · 480-757-0476 · gidgarage.com</p>
       </div>

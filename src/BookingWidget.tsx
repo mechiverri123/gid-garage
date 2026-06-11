@@ -365,9 +365,9 @@ function VehicleSelector({ form, setForm, errors, clearError }: {
           </select>
         </div>
         {/* Trim + Engine — CarQuery autopopulated, falls back to manual if no data */}
-        <div className="col-span-2 sm:col-span-2">
+        <div className="col-span-2 sm:col-span-2 space-y-2">
           {errors.vehicleTrim && <p className="text-red-500 text-xs mb-1">{errors.vehicleTrim}</p>}
-          {(loadingTrims || trims.length > 0) ? (
+          {(loadingTrims || trims.length > 0) && (
             <select
               className={sc('vehicleTrim')}
               value={form.vehicleTrim}
@@ -379,7 +379,7 @@ function VehicleSelector({ form, setForm, errors, clearError }: {
                 const cyls = t?.model_engine_cyl || '';
                 const fuel = t?.model_engine_fuel?.toLowerCase() || '';
                 const engineVal = fuel.includes('diesel') ? `diesel_${liters}` : fuel.includes('electric') ? 'electric' : fuel.includes('hybrid') ? 'hybrid' : cyls ? `${cyls}cyl_${liters}` : liters;
-                setForm(p => ({ ...p, vehicleTrim: e.target.value, vehicleEngine: engineVal }));
+                setForm(p => ({ ...p, vehicleTrim: e.target.value === 'Not Listed' ? '' : e.target.value, vehicleEngine: e.target.value === 'Not Listed' ? '' : engineVal }));
                 clearError('vehicleTrim');
                 clearError('vehicleEngine');
               }}
@@ -389,9 +389,11 @@ function VehicleSelector({ form, setForm, errors, clearError }: {
                 const label = formatTrimLabel(t);
                 return <option key={i} value={label}>{label}</option>;
               })}
-              <option value="Not Listed">My trim isn't listed</option>
+              <option value="Not Listed">My trim isn't listed — I'll type it below</option>
             </select>
-          ) : (
+          )}
+          {/* Always show manual fields when no trims found OR "Not Listed" chosen */}
+          {(!loadingTrims) && (trims.length === 0 || form.vehicleTrim === '' && trims.length > 0) && (
             <div className="grid grid-cols-2 gap-2">
               <input
                 type="text"
@@ -1052,6 +1054,7 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
 
   // Validate step 4 and advance to card step
   async function handleAdvanceToCard() {
+    if (submitting) return; // prevent double-tap
     const errors: Record<string, string> = {};
     if (!form.fname) errors.fname = 'First name is required';
     if (!form.phone) errors.phone = 'Phone number is required';
@@ -1088,10 +1091,12 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
     };
 
     saveLocalBooking(booking);
+    setSubmitting(true);
     try {
       await insertSupabaseBooking(booking);
     } catch (e: any) {
       deleteLocalBooking(bookingId);
+      setSubmitting(false);
       if (e?.message?.includes('unique') || e?.message?.includes('duplicate') || e?.message?.includes('23505')) {
         setSubmitError('Sorry, that time slot was just booked by someone else. Please go back and choose a different time.');
       } else {
@@ -1271,11 +1276,11 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
                         {s.service === 'other' && <span className="text-[10px] font-bold uppercase tracking-widest text-red-500 bg-red-950/60 px-2 py-0.5">Selected</span>}
                       </div>
                       <p className="text-gray-400 text-xs leading-relaxed">No worries — we handle all kinds of jobs. Tell us what's going on and we'll point you in the right direction with a custom quote.</p>
-                      <div className="flex items-center gap-4 mt-2.5">
-                        <a href={`tel:${PHONE.replace(/-/g,'')}`} onClick={e => e.stopPropagation()} className="flex items-center gap-1.5 text-red-500 hover:text-red-400 text-xs font-bold transition-colors">
+                      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mt-2.5">
+                        <a href={`tel:${PHONE.replace(/-/g,'')}`} onClick={e => e.stopPropagation()} className="flex items-center gap-1.5 text-red-500 hover:text-red-400 text-xs font-bold transition-colors whitespace-nowrap">
                           <span>📞</span> {PHONE}
                         </a>
-                        <a href="mailto:gidgarageaz@hotmail.com" onClick={e => e.stopPropagation()} className="flex items-center gap-1.5 text-gray-400 hover:text-gray-300 text-xs font-bold transition-colors">
+                        <a href="mailto:gidgarageaz@hotmail.com" onClick={e => e.stopPropagation()} className="flex items-center gap-1.5 text-gray-400 hover:text-gray-300 text-xs font-bold transition-colors whitespace-nowrap">
                           <span>✉️</span> gidgarageaz@hotmail.com
                         </a>
                       </div>
@@ -1556,9 +1561,10 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
                     </div>
                     <div className="col-span-2">
                       <label className="block text-gray-500 text-xs font-bold uppercase tracking-wider mb-1.5">Notes (optional)</label>
-                      <textarea placeholder="Gate code, building/unit #, parking notes, specific concern..." value={form.notes}
+                      <textarea placeholder="Gate code, building/unit #, parking notes, preferred date/time, specific concern..." value={form.notes}
                         onChange={e => setForm(p => ({ ...p, notes: e.target.value }))} rows={3}
                         className="w-full bg-gray-900 border border-gray-800 text-white text-sm px-3 py-2.5 outline-none focus:border-red-600 transition-colors resize-y" />
+                      <p className="text-gray-600 text-xs mt-1">💡 Include a preferred date &amp; time — we'll confirm availability. Note: we may need to assess your vehicle first before finalizing the scope of work.</p>
                     </div>
                   </div>
                   <p className="text-gray-600 text-xs mt-3">By booking, you agree to our <button type="button" onClick={() => setShowCancelPolicy(true)} className="text-red-500 hover:text-red-400 underline underline-offset-2 transition-colors">cancellation policy</button>. Please cancel at least 24 hours in advance to avoid a cancellation fee.</p>
@@ -1568,8 +1574,9 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
                     </div>
                   )}
                   <button onClick={handleAdvanceToCard}
-                    className="btn-primary w-full mt-4 py-4 text-sm">
-                    Continue →
+                    disabled={submitting}
+                    className={`btn-primary w-full mt-4 py-4 text-sm ${submitting ? 'opacity-50 cursor-not-allowed' : ''}`}>
+                    {submitting ? 'Please wait…' : 'Continue →'}
                   </button>
                 </>)}
 
@@ -1981,15 +1988,15 @@ export function AdminSchedule() {
   }
 
   return (
-    <div className="min-h-screen bg-dark py-12 px-4 md:px-8">
-      <div className="max-w-6xl mx-auto">
+    <div className="min-h-screen bg-dark py-12 px-4 md:px-8 overflow-x-hidden">
+      <div className="max-w-6xl mx-auto w-full">
         {/* Header */}
-        <div className="flex items-center justify-between mb-8">
+        <div className="flex flex-wrap items-center gap-2 mb-8 justify-between">
           <div>
             <p className="text-red-600 text-xs font-bold uppercase tracking-[0.25em] mb-1">Admin · GID Garage</p>
             <h1 className="text-4xl font-black text-white tracking-tight">Schedule</h1>
           </div>
-          <div className="flex gap-3 items-center">
+          <div className="flex flex-wrap gap-2 items-center">
             {notifPerm !== 'unsupported' && notifPerm !== 'granted' && (
               <button onClick={requestNotifications}
                 className="border border-yellow-700 text-yellow-600 hover:border-yellow-500 hover:text-yellow-400 text-xs font-bold uppercase tracking-widest px-4 py-2 transition-colors">🔔 Enable Alerts</button>

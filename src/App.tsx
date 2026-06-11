@@ -110,8 +110,8 @@ function Hero({ openBooking }: { openBooking: () => void }) {
         <div className="absolute inset-0 bg-dark/75" />
         <div className="absolute bottom-0 left-0 right-0 h-48" style={{ background: 'linear-gradient(to bottom, transparent, #0f0f0f)' }} />
       </div>
-      <div className="relative z-10 max-w-5xl mx-auto px-5 md:px-8 text-center">
-        <div className="mb-4 w-full">
+      <div className="relative z-10 w-full text-center">
+        <div className="mb-4 w-full max-w-4xl mx-auto px-4">
           <img
             src="/banner.PNG"
             alt="GID Garage"
@@ -119,12 +119,14 @@ function Hero({ openBooking }: { openBooking: () => void }) {
             style={{ maxHeight: '500px' }}
           />
         </div>
-        <p className="text-red-400 text-xs font-bold uppercase tracking-[0.25em] mb-6">Get It Done Garage · Flagstaff, AZ</p>
-        <div className="text-5xl sm:text-6xl md:text-7xl font-extrabold text-white leading-tight tracking-tight mb-6" role="heading" aria-level="1">Mobile Car Care<br />at 7,000 Feet</div>
-        <div className="text-white/80 text-lg md:text-xl max-w-2xl mx-auto mb-10 leading-relaxed font-light">We come to you — Flagstaff, Bellemont, Kachina, Fort Valley &amp; beyond. Honest pricing, expert work, no shop wait.</div>
-        <div className="flex flex-col sm:flex-row gap-4 justify-center">
-          <button onClick={openBooking} className="btn-primary text-sm px-8 py-4">Get a Quote</button>
-          <a href={`tel:${PHONE}`} className="btn-outline text-sm px-8 py-4"><Phone className="w-4 h-4" />Call Now</a>
+        <div className="max-w-5xl mx-auto px-5 md:px-8">
+          <p className="text-red-400 text-xs font-bold uppercase tracking-[0.25em] mb-6">Get It Done Garage · Flagstaff, AZ</p>
+          <div className="text-5xl sm:text-6xl md:text-7xl font-extrabold text-white leading-tight tracking-tight mb-6" role="heading" aria-level="1">Mobile Car Care<br />at 7,000 Feet</div>
+          <div className="text-white/80 text-lg md:text-xl max-w-2xl mx-auto mb-10 leading-relaxed font-light">We come to you — Flagstaff, Bellemont, Kachina, Fort Valley &amp; beyond. Honest pricing, expert work, no shop wait.</div>
+          <div className="flex flex-col sm:flex-row gap-4 justify-center">
+            <button onClick={openBooking} className="btn-primary text-sm px-8 py-4">Get a Quote</button>
+            <a href={`tel:${PHONE}`} className="btn-outline text-sm px-8 py-4"><Phone className="w-4 h-4" />Call Now</a>
+          </div>
         </div>
       </div>
     </section>
