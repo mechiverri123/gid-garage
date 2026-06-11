@@ -199,17 +199,30 @@ function vehicleString(f: FormData): string {
   return parts.join(' ');
 }
 
-// ── VEHICLE API ─────────────────────────────────────────────────────────────────
-// ── VEHICLE DATA (fully static — generated from EPA fuel economy database) ────
-import { MAKES, getModels } from './vehicleData';
-import { getEngines } from './engineData';
+// ── VEHICLE API (NHTSA) ──────────────────────────────────────────────────────
+// Uses the free NHTSA vPIC API — no key required, real data, updated regularly.
+// Falls back to empty arrays on network failure so the form stays usable.
 
-function getModelsForMake(make: string, year: number): string[] {
-  return getModels(make, year);
+async function nhtsaGetMakes(): Promise<string[]> {
+  try {
+    const r = await fetch('https://vpic.nhtsa.dot.gov/api/vehicles/GetMakesForVehicleType/car?format=json');
+    const d = await r.json();
+    const makes: string[] = (d.Results || []).map((m: any) => m.MakeName as string).sort();
+    // Also include trucks/SUVs
+    const r2 = await fetch('https://vpic.nhtsa.dot.gov/api/vehicles/GetMakesForVehicleType/truck?format=json');
+    const d2 = await r2.json();
+    const truckMakes: string[] = (d2.Results || []).map((m: any) => m.MakeName as string);
+    const all = Array.from(new Set([...makes, ...truckMakes])).sort();
+    return all;
+  } catch { return []; }
 }
 
-function getEngineOptions(make: string, model: string, year: number): string[] {
-  return getEngines(make, model, year);
+async function nhtsaGetModels(make: string, year: number): Promise<string[]> {
+  try {
+    const r = await fetch(`https://vpic.nhtsa.dot.gov/api/vehicles/GetModelsForMakeYear/make/${encodeURIComponent(make)}/modelyear/${year}?format=json`);
+    const d = await r.json();
+    return (d.Results || []).map((m: any) => m.Model_Name as string).sort();
+  } catch { return []; }
 }
 
 // ── VEHICLE SELECTOR ─────────────────────────────────────────────────────────
@@ -222,15 +235,25 @@ function VehicleSelector({ form, setForm, errors, clearError }: {
   const currentYear = new Date().getFullYear();
   const years = Array.from({ length: currentYear - 1980 + 1 }, (_, i) => currentYear - i);
 
-  // All vehicle data is fully static — generated from EPA database
-  // In the EPA data, "model" already encodes the trim (e.g. "RAV4 4WD", "Camry XLE")
-  // so there is no separate trim dropdown — Year → Make → Model → Engine
-  const y = parseInt(form.vehicleYear, 10);
-  const makes: string[] = MAKES;
-  const models: string[] = (form.vehicleMake && y) ? getModelsForMake(form.vehicleMake, y) : [];
-  const engineOptions: string[] = (form.vehicleMake && form.vehicleModel && y) ? getEngineOptions(form.vehicleMake, form.vehicleModel, y) : [];
-
+  const [makes, setMakes] = useState<string[]>([]);
+  const [models, setModels] = useState<string[]>([]);
+  const [loadingMakes, setLoadingMakes] = useState(false);
+  const [loadingModels, setLoadingModels] = useState(false);
   const [engineOther, setEngineOther] = useState(false);
+
+  // Load makes on mount
+  useEffect(() => {
+    setLoadingMakes(true);
+    nhtsaGetMakes().then(m => { setMakes(m); setLoadingMakes(false); });
+  }, []);
+
+  // Load models when make+year change
+  useEffect(() => {
+    if (!form.vehicleMake || !form.vehicleYear) { setModels([]); return; }
+    const y = parseInt(form.vehicleYear, 10);
+    setLoadingModels(true);
+    nhtsaGetModels(form.vehicleMake, y).then(m => { setModels(m); setLoadingModels(false); });
+  }, [form.vehicleMake, form.vehicleYear]);
 
   const baseSelect = 'w-full bg-gray-900 text-white text-sm px-3 py-2.5 outline-none transition-colors disabled:text-gray-600 disabled:cursor-not-allowed appearance-none border';
   const sc = (field: string) => baseSelect + (errors[field] ? ' border-red-500 focus:border-red-400' : ' border-gray-800 focus:border-red-600');
@@ -244,73 +267,51 @@ function VehicleSelector({ form, setForm, errors, clearError }: {
         <div>
           {errors.vehicleYear && <p className="text-red-500 text-xs mb-1">{errors.vehicleYear}</p>}
           <select className={sc('vehicleYear')} value={form.vehicleYear}
-            onChange={e => { setForm(p => ({ ...p, vehicleYear: e.target.value, vehicleMake: '', vehicleModel: '', vehicleEngine: '', vehicleTrim: '' })); setEngineOther(false); clearError('vehicleYear'); clearError('vehicleMake'); clearError('vehicleModel'); }}>
+            onChange={e => { setForm(p => ({ ...p, vehicleYear: e.target.value, vehicleMake: '', vehicleModel: '', vehicleEngine: '', vehicleTrim: '' })); setModels([]); setEngineOther(false); clearError('vehicleYear'); clearError('vehicleMake'); clearError('vehicleModel'); }}>
             <option value="">Year</option>
             {years.map(y => <option key={y} value={String(y)}>{y}</option>)}
           </select>
         </div>
         <div>
           {errors.vehicleMake && <p className="text-red-500 text-xs mb-1">{errors.vehicleMake}</p>}
-          <select className={sc('vehicleMake')} value={form.vehicleMake} disabled={!form.vehicleYear}
-            onChange={e => { setForm(p => ({ ...p, vehicleMake: e.target.value, vehicleModel: '', vehicleEngine: '', vehicleTrim: '' })); setEngineOther(false); clearError('vehicleMake'); clearError('vehicleModel'); }}>
-            <option value="">Make</option>
+          <select className={sc('vehicleMake')} value={form.vehicleMake} disabled={!form.vehicleYear || loadingMakes}
+            onChange={e => { setForm(p => ({ ...p, vehicleMake: e.target.value, vehicleModel: '', vehicleEngine: '', vehicleTrim: '' })); setModels([]); setEngineOther(false); clearError('vehicleMake'); clearError('vehicleModel'); }}>
+            <option value="">{loadingMakes ? 'Loading…' : 'Make'}</option>
             {makes.map(m => <option key={m} value={m}>{m}</option>)}
           </select>
         </div>
         <div className="col-span-2 sm:col-span-1">
           {errors.vehicleModel && <p className="text-red-500 text-xs mb-1">{errors.vehicleModel}</p>}
-          <select className={sc('vehicleModel')} value={form.vehicleModel} disabled={!form.vehicleMake}
+          <select className={sc('vehicleModel')} value={form.vehicleModel} disabled={!form.vehicleMake || loadingModels}
             onChange={e => { setForm(p => ({ ...p, vehicleModel: e.target.value, vehicleEngine: '', vehicleTrim: '' })); setEngineOther(false); clearError('vehicleModel'); }}>
-            <option value="">Model</option>
+            <option value="">{loadingModels ? 'Loading…' : 'Model'}</option>
             {models.map(m => <option key={m} value={m}>{m}</option>)}
           </select>
         </div>
       </div>
-      {/* Engine — dropdown when known, free text fallback */}
+      {/* Trim + Engine — free text since NHTSA doesn't provide these reliably */}
       <div className="grid grid-cols-2 gap-2">
         <div>
+          {errors.vehicleTrim && <p className="text-red-500 text-xs mb-1">{errors.vehicleTrim}</p>}
+          <input
+            type="text"
+            placeholder="Trim (e.g. LE, XLT, Sport)"
+            value={form.vehicleTrim}
+            disabled={!form.vehicleModel}
+            onChange={e => { setForm(p => ({ ...p, vehicleTrim: e.target.value })); clearError('vehicleTrim'); }}
+            className={ic('vehicleTrim')}
+          />
+        </div>
+        <div>
           {errors.vehicleEngine && <p className="text-red-500 text-xs mb-1">{errors.vehicleEngine}</p>}
-          {engineOptions.length > 0 ? (
-            <select
-              className={sc('vehicleEngine')}
-              value={engineOther ? '__other' : form.vehicleEngine}
-              disabled={!form.vehicleModel}
-              onChange={e => {
-                if (e.target.value === '__other') {
-                  setEngineOther(true);
-                  setForm(p => ({ ...p, vehicleEngine: '' }));
-                } else {
-                  setEngineOther(false);
-                  setForm(p => ({ ...p, vehicleEngine: e.target.value }));
-                }
-                clearError('vehicleEngine');
-              }}
-            >
-              <option value="">Engine</option>
-              {engineOptions.map(opt => <option key={opt} value={opt}>{opt}</option>)}
-              <option value="__other">Other / not listed</option>
-            </select>
-          ) : (
-            <input
-              type="text"
-              placeholder="Engine (e.g. 2.4L 4-cyl)"
-              value={form.vehicleEngine}
-              disabled={!form.vehicleModel}
-              onChange={e => { setForm(p => ({ ...p, vehicleEngine: e.target.value })); clearError('vehicleEngine'); }}
-              className={ic('vehicleEngine')}
-            />
-          )}
-          {/* Show free-text input when "Other" selected */}
-          {engineOther && (
-            <input
-              type="text"
-              placeholder="Describe your engine (e.g. 2.4L 4-cyl)"
-              value={form.vehicleEngine}
-              autoFocus
-              onChange={e => { setForm(p => ({ ...p, vehicleEngine: e.target.value })); clearError('vehicleEngine'); }}
-              className={ic('vehicleEngine') + ' mt-2'}
-            />
-          )}
+          <input
+            type="text"
+            placeholder="Engine (e.g. 2.4L 4-cyl)"
+            value={form.vehicleEngine}
+            disabled={!form.vehicleModel}
+            onChange={e => { setForm(p => ({ ...p, vehicleEngine: e.target.value })); clearError('vehicleEngine'); }}
+            className={ic('vehicleEngine')}
+          />
         </div>
       </div>
     </div>
@@ -1351,7 +1352,11 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
 
                 {s.step >= 2 && s.service !== 'other' && (<>
                   <div className="border-t border-gray-800 my-6" />
-                  <StepHeader n={2} current={s.step} label="Choose a Date" />
+                  <StepHeader n={2} current={s.step} label="Choose a Preferred Date" />
+                  <div className="bg-gray-900/60 border border-gray-700 border-l-4 border-l-yellow-600 px-4 py-2.5 mb-4 flex items-center gap-2">
+                    <span className="text-yellow-500 text-sm">📅</span>
+                    <p className="text-yellow-400/90 text-xs font-semibold">Preferred date &amp; time — we'll confirm availability when we follow up.</p>
+                  </div>
                   <div className="flex items-center justify-between mb-4">
                     <button onClick={prevMonth} className="w-7 h-7 border border-gray-700 text-gray-500 hover:border-red-600 hover:text-white flex items-center justify-center transition-colors">‹</button>
                     <span className="text-white text-sm font-black uppercase tracking-wider">{MONTHS[s.calMonth]} {s.calYear}</span>
@@ -1587,45 +1592,204 @@ function AdminPasswordGate({ onUnlock }: { onUnlock: () => void }) {
 }
 
 // ── BOOKING DETAIL MODAL ────────────────────────────────────────────────────
-function BookingDetailModal({ booking, onClose, onUpdate }: { booking: Booking; onClose: () => void; onUpdate: (id: string, status: Booking['status']) => void }) {
+function BookingDetailModal({ booking, onClose, onUpdate, onBookingPatched }: {
+  booking: Booking;
+  onClose: () => void;
+  onUpdate: (id: string, status: Booking['status']) => void;
+  onBookingPatched?: (updated: Partial<Booking> & { id: string }) => void;
+}) {
   const svcInfo = SERVICES.find(s => s.id === booking.service);
   const dateStr = new Date(booking.date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+
+  const [editMode, setEditMode] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+
+  const [editDate, setEditDate] = useState(booking.date);
+  const [editTime, setEditTime] = useState(booking.time);
+  const [editPhone, setEditPhone] = useState(booking.phone);
+  const [editEmail, setEditEmail] = useState(booking.email || '');
+  const [editVehicle, setEditVehicle] = useState(booking.vehicle || '');
+  const [editNotes, setEditNotes] = useState(booking.notes || '');
+
+  // Photo upload state
+  const [photos, setPhotos] = useState<{ key: string; url: string; name: string }[]>([]);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [photoError, setPhotoError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  async function handleSave() {
+    setSaving(true);
+    setSaveError(null);
+    try {
+      const fields: Record<string, string> = {
+        date: editDate,
+        time: editTime,
+        phone: editPhone,
+        email: editEmail,
+        vehicle: editVehicle,
+        notes: editNotes,
+      };
+      await adminPost('patch-booking', { id: booking.id, fields });
+      onBookingPatched?.({ id: booking.id, date: editDate, time: editTime, phone: editPhone, email: editEmail, vehicle: editVehicle, notes: editNotes });
+      setEditMode(false);
+    } catch (e: any) {
+      setSaveError(e.message ?? 'Save failed');
+    }
+    setSaving(false);
+  }
+
+  async function handlePhotoUpload(file: File) {
+    setUploadingPhoto(true);
+    setPhotoError(null);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('bookingId', booking.id);
+      const res = await fetch('/admin-upload-photo', { method: 'POST', body: formData });
+      if (!res.ok) throw new Error(await res.text());
+      const data = await res.json() as any;
+      setPhotos(p => [...p, { key: data.key, url: data.url, name: file.name }]);
+    } catch (e: any) {
+      setPhotoError(e.message ?? 'Upload failed');
+    }
+    setUploadingPhoto(false);
+  }
+
+  const timeSlots = getSlotsForDate(editDate);
+
+  const inputCls = 'w-full bg-gray-900 text-white text-sm px-3 py-2 outline-none border border-gray-700 focus:border-red-600 transition-colors';
+  const labelCls = 'block text-gray-500 text-[10px] font-bold uppercase tracking-wider mb-1';
+
   return (
-    <div className="fixed inset-0 z-[9999] bg-black/80 flex items-center justify-center p-4" onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
-      <div className="bg-[#0f0f0f] border border-gray-800 w-full max-w-md p-7 relative">
+    <div className="fixed inset-0 z-[9999] bg-black/80 flex items-start justify-center p-4 overflow-y-auto" onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="bg-[#0f0f0f] border border-gray-800 w-full max-w-lg p-7 relative my-4">
         <button onClick={onClose} className="absolute top-4 right-4 w-8 h-8 border border-gray-700 text-gray-500 hover:border-red-600 hover:text-white flex items-center justify-center transition-colors">✕</button>
         <p className="text-red-600 text-xs font-bold uppercase tracking-[0.25em] mb-1">Appointment</p>
-        <h2 className="text-2xl font-black text-white mb-5">{booking.fname} {booking.lname}</h2>
-        <div className="space-y-3 mb-6">
-          {[
-            ['Service', `${svcInfo?.icon ?? '🔧'} ${svcInfo?.name ?? booking.service}`],
-            ['Date', dateStr],
-            ['Time', booking.time],
-            ['Vehicle', booking.vehicle || '—'],
-            ['Phone', booking.phone],
-            ['Email', booking.email || '—'],
-            ['Booking ID', booking.id],
-          ].map(([k, v]) => (
-            <div key={k} className="flex justify-between border-b border-gray-900 pb-2">
-              <span className="text-gray-500 text-xs font-bold uppercase tracking-wider">{k}</span>
-              <span className="text-white text-sm font-medium text-right max-w-[60%]">{v}</span>
+        <h2 className="text-2xl font-black text-white mb-1">{booking.fname} {booking.lname}</h2>
+        <p className="text-gray-500 text-xs mb-5 font-mono">{booking.id}</p>
+
+        {!editMode ? (
+          <>
+            <div className="space-y-2.5 mb-5">
+              {[
+                ['Service', `${svcInfo?.icon ?? '🔧'} ${svcInfo?.name ?? booking.service}`],
+                ['Date', dateStr],
+                ['Time', booking.time],
+                ['Vehicle', booking.vehicle || '—'],
+                ['Phone', booking.phone],
+                ['Email', booking.email || '—'],
+              ].map(([k, v]) => (
+                <div key={k} className="flex justify-between border-b border-gray-900 pb-2">
+                  <span className="text-gray-500 text-xs font-bold uppercase tracking-wider">{k}</span>
+                  <span className="text-white text-sm font-medium text-right max-w-[60%]">{v}</span>
+                </div>
+              ))}
+              {booking.notes && (
+                <div className="border-b border-gray-900 pb-2">
+                  <span className="text-gray-500 text-xs font-bold uppercase tracking-wider block mb-1">Notes</span>
+                  <span className="text-white/70 text-sm italic">"{booking.notes}"</span>
+                </div>
+              )}
             </div>
-          ))}
-          {booking.notes && (
-            <div className="border-b border-gray-900 pb-2">
-              <span className="text-gray-500 text-xs font-bold uppercase tracking-wider block mb-1">Notes</span>
-              <span className="text-white/70 text-sm italic">"{booking.notes}"</span>
+
+            <button onClick={() => setEditMode(true)}
+              className="w-full border border-gray-700 text-gray-400 hover:border-red-600 hover:text-white text-xs font-bold uppercase tracking-wider py-2.5 mb-4 transition-colors">
+              ✏️ Edit Appointment
+            </button>
+
+            <div className="flex gap-2 mb-4">
+              {booking.status === 'confirmed' && (
+                <button onClick={() => { onUpdate(booking.id, 'completed'); onClose(); }}
+                  className="flex-1 text-xs font-bold uppercase tracking-wider py-2.5 border border-green-800 text-green-600 hover:bg-green-900/30 transition-colors">✓ Mark Done</button>
+              )}
+              {booking.status !== 'cancelled' && (
+                <button onClick={() => { if (confirm('Cancel this appointment?')) { onUpdate(booking.id, 'cancelled'); onClose(); } }}
+                  className="flex-1 text-xs font-bold uppercase tracking-wider py-2.5 border border-gray-700 text-gray-500 hover:border-red-700 hover:text-red-500 transition-colors">✕ Cancel</button>
+              )}
             </div>
-          )}
-        </div>
-        <div className="flex gap-2">
-          {booking.status === 'confirmed' && (
-            <button onClick={() => { onUpdate(booking.id, 'completed'); onClose(); }}
-              className="flex-1 text-xs font-bold uppercase tracking-wider py-2.5 border border-green-800 text-green-600 hover:bg-green-900/30 transition-colors">✓ Mark Done</button>
-          )}
-          {booking.status !== 'cancelled' && (
-            <button onClick={() => { if (confirm('Cancel this appointment?')) { onUpdate(booking.id, 'cancelled'); onClose(); } }}
-              className="flex-1 text-xs font-bold uppercase tracking-wider py-2.5 border border-gray-700 text-gray-500 hover:border-red-700 hover:text-red-500 transition-colors">✕ Cancel</button>
+          </>
+        ) : (
+          <>
+            <div className="space-y-3 mb-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className={labelCls}>Date</label>
+                  <input type="date" value={editDate} onChange={e => setEditDate(e.target.value)} className={inputCls} />
+                </div>
+                <div>
+                  <label className={labelCls}>Time</label>
+                  <select value={editTime} onChange={e => setEditTime(e.target.value)} className={inputCls}>
+                    {(getSlotsForDate(editDate).length > 0 ? getSlotsForDate(editDate) : timeSlots).map(t => (
+                      <option key={t} value={t}>{t}</option>
+                    ))}
+                    {!timeSlots.includes(editTime) && <option value={editTime}>{editTime} (current)</option>}
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label className={labelCls}>Vehicle</label>
+                <input type="text" value={editVehicle} onChange={e => setEditVehicle(e.target.value)} className={inputCls} placeholder="Year Make Model Trim Engine" />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className={labelCls}>Phone</label>
+                  <input type="tel" value={editPhone} onChange={e => setEditPhone(e.target.value)} className={inputCls} />
+                </div>
+                <div>
+                  <label className={labelCls}>Email</label>
+                  <input type="email" value={editEmail} onChange={e => setEditEmail(e.target.value)} className={inputCls} />
+                </div>
+              </div>
+              <div>
+                <label className={labelCls}>Notes</label>
+                <textarea value={editNotes} onChange={e => setEditNotes(e.target.value)} rows={3} className={inputCls + ' resize-none'} />
+              </div>
+            </div>
+            {saveError && <p className="text-red-400 text-xs mb-3">{saveError}</p>}
+            <div className="flex gap-2 mb-4">
+              <button onClick={handleSave} disabled={saving}
+                className={`flex-1 bg-red-600 hover:bg-red-500 text-white text-xs font-bold uppercase tracking-wider py-2.5 transition-colors ${saving ? 'opacity-50' : ''}`}>
+                {saving ? 'Saving…' : '✓ Save Changes'}
+              </button>
+              <button onClick={() => { setEditMode(false); setSaveError(null); }}
+                className="flex-1 border border-gray-700 text-gray-400 text-xs font-bold uppercase tracking-wider py-2.5 hover:border-gray-500 transition-colors">
+                Cancel
+              </button>
+            </div>
+            <p className="text-yellow-600/70 text-[10px] mb-4">⚠️ Changing date/time frees the old slot and blocks the new one — customer will not be auto-notified. Call or text them manually.</p>
+          </>
+        )}
+
+        {/* ── Admin-only photo uploads ── */}
+        <div className="border-t border-gray-800 pt-4 mt-2">
+          <p className="text-yellow-600 text-xs font-bold uppercase tracking-widest mb-2">🔒 Admin Photos (not visible to customer)</p>
+          <p className="text-gray-600 text-[10px] mb-3">Upload damage photos, license plate, VIN plate, or any internal documentation.</p>
+
+          <input ref={fileInputRef} type="file" accept="image/*" multiple className="hidden"
+            onChange={async e => {
+              const files = Array.from(e.target.files || []);
+              for (const f of files) await handlePhotoUpload(f);
+              e.target.value = '';
+            }}
+          />
+          <button onClick={() => fileInputRef.current?.click()} disabled={uploadingPhoto}
+            className={`w-full border border-dashed border-gray-700 text-gray-500 hover:border-yellow-700 hover:text-yellow-600 text-xs font-bold uppercase tracking-wider py-3 transition-colors mb-3 ${uploadingPhoto ? 'opacity-50 cursor-not-allowed' : ''}`}>
+            {uploadingPhoto ? 'Uploading…' : '+ Upload Photos'}
+          </button>
+          {photoError && <p className="text-red-400 text-xs mb-2">{photoError}</p>}
+          <p className="text-gray-700 text-[10px]">
+            ⚠️ R2 upload worker (<code>/admin-upload-photo</code>) needs to be deployed separately. See setup instructions.
+          </p>
+          {photos.length > 0 && (
+            <div className="grid grid-cols-3 gap-2 mt-3">
+              {photos.map(p => (
+                <a key={p.key} href={p.url} target="_blank" rel="noopener noreferrer"
+                  className="block aspect-square bg-gray-900 border border-gray-700 overflow-hidden hover:border-yellow-600 transition-colors">
+                  <img src={p.url} alt={p.name} className="w-full h-full object-cover" />
+                </a>
+              ))}
+            </div>
           )}
         </div>
       </div>
@@ -1778,14 +1942,17 @@ export function AdminSchedule() {
       setLoading(false);
     });
 
-    // Poll every 5 min — only notify for bookings that have a card saved (stripeCustomerId)
     const dataInterval = setInterval(async () => {
       const fresh = await getSupabaseBookings();
       if (seenBookingIds.current) {
+        const tenMinutesAgo = Date.now() - 10 * 60 * 1000;
         const newOnes = fresh.filter(
-          b => !seenBookingIds.current!.has(b.id) && !!b.stripeCustomerId
+          b => !seenBookingIds.current!.has(b.id) &&
+               !!b.stripeCustomerId &&
+               new Date(b.createdAt).getTime() > tenMinutesAgo
         );
-        newOnes.forEach(b => seenBookingIds.current!.add(b.id));
+        // Always add all fresh IDs to seen so we don't re-notify on next poll
+        fresh.forEach(b => seenBookingIds.current!.add(b.id));
         if (newOnes.length > 0 && Notification.permission === 'granted' && 'serviceWorker' in navigator) {
           navigator.serviceWorker.ready.then(reg => {
             newOnes.forEach(b => {
@@ -2191,6 +2358,10 @@ export function AdminSchedule() {
           booking={selectedBooking}
           onClose={() => setSelectedBooking(null)}
           onUpdate={updateStatus}
+          onBookingPatched={(updated) => {
+            setBookings(prev => prev.map(b => b.id === updated.id ? { ...b, ...updated } : b));
+            setSelectedBooking(prev => prev ? { ...prev, ...updated } : prev);
+          }}
         />
       )}
 

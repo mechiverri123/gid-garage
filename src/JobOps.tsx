@@ -18,8 +18,8 @@ function loadStripe(publishableKey: string): Promise<any> {
   });
 }
 
-// ── AZ TPT — Flagstaff combined rate (City 2.281% + State 5.6% + County 1.125% + other 0.176%)
-const TAX_RATE = 0.09182; // 9.182%
+// ── AZ TPT — Flagstaff combined rate (updated July 2025 to 9.386%)
+const TAX_RATE = 0.09386; // 9.386%
 // AZ TPT does NOT apply to labor or the mobile service/travel fee. Everything else
 // (parts, flat service charges, misc add-on lines) is taxable. calcTax(subtotal) is a
 // legacy fallback that taxes the whole amount; prefer taxFromItems() with line items.
@@ -787,6 +787,7 @@ function QuoteCalculator({ job, onApply }: { job: Job; onApply: (items: LineItem
                 <div>
                   <p className="text-emerald-400 text-xs font-bold uppercase tracking-widest">vs. Flagstaff Shops</p>
                   <p className="text-gray-400 text-xs mt-0.5">They'd charge ~${effectiveShopTotal.toFixed(2)}</p>
+                  <p className="text-emerald-500 text-xs mt-0.5 font-semibold">and we come to you!</p>
                 </div>
                 <div className="text-right">
                   <p className="text-emerald-400 text-2xl font-black">-${effectiveSavings.toFixed(2)}</p>
@@ -1213,7 +1214,7 @@ function EstimatePanel({ job, onUpdate }: { job: Job; onUpdate: (j: Job) => void
             <span className="text-gray-300 text-xs font-mono">${total.toFixed(2)}</span>
           </div>
           <div className="flex justify-between">
-            <span className="text-gray-500 text-xs uppercase tracking-wider">AZ TPT (9.182%)</span>
+            <span className="text-gray-500 text-xs uppercase tracking-wider">AZ TPT (9.386%)</span>
             <span className="text-yellow-500 text-xs font-mono">${taxFromItems(lineItems).toFixed(2)}</span>
           </div>
           <div className="flex justify-between border-t border-gray-700 pt-1.5">
@@ -1227,7 +1228,10 @@ function EstimatePanel({ job, onUpdate }: { job: Job; onUpdate: (j: Job) => void
       {savings > 0 && (
         <div className="space-y-1">
           <div className="bg-emerald-900/20 border border-emerald-700 px-4 py-3 flex items-center justify-between">
-            <p className="text-emerald-400 text-xs font-bold uppercase tracking-widest">Customer saves vs shops</p>
+            <div>
+              <p className="text-emerald-400 text-xs font-bold uppercase tracking-widest">Customer saves vs shops</p>
+              <p className="text-emerald-500 text-xs mt-0.5 font-semibold">and we come to you!</p>
+            </div>
             <div className="flex items-center gap-3">
               <p className="text-emerald-400 font-black text-lg">-${savings.toFixed(2)}</p>
               <label className="flex items-center gap-1.5 cursor-pointer">
@@ -1462,7 +1466,7 @@ function PaymentPanel({ job, onUpdate, onRequote }: { job: Job; onUpdate: (j: Jo
           <span className="text-gray-400 font-mono">${(job.invoiceAmount || 0).toFixed(2)}</span>
         </div>
         <div className="flex justify-between text-xs">
-          <span className="text-gray-600">AZ TPT (9.182%)</span>
+          <span className="text-gray-600">AZ TPT (9.386%)</span>
           <span className="text-yellow-600 font-mono">${(job.taxAmount || 0).toFixed(2)}</span>
         </div>
         <p className="text-gray-500 text-xs font-mono">{job.stripeTransactionId}</p>
@@ -1503,7 +1507,7 @@ function PaymentPanel({ job, onUpdate, onRequote }: { job: Job; onUpdate: (j: Jo
               </div>
             )}
             <div className="flex justify-between text-xs">
-              <span className="text-gray-600">AZ TPT (9.182%)</span>
+              <span className="text-gray-600">AZ TPT (9.386%)</span>
               <span className="text-yellow-600 font-mono">+${taxForAmount(finalAmount).toFixed(2)}</span>
             </div>
             <div className="flex justify-between text-xs border-t border-gray-800 pt-1">
@@ -2581,7 +2585,7 @@ export function InvoicePage() {
               <span className="text-white text-sm font-mono">${amount?.toFixed(2)}</span>
             </div>
             <div className="flex justify-between px-6 py-3 border-t border-white/5">
-              <span className="text-gray-500 text-xs font-bold uppercase tracking-wider">AZ TPT (9.182%)</span>
+              <span className="text-gray-500 text-xs font-bold uppercase tracking-wider">AZ TPT (9.386%)</span>
               <span className="text-white text-sm font-mono">${(job.taxAmount || 0).toFixed(2)}</span>
             </div>
             <div className={`px-6 py-6 border-t border-white/10 flex items-center justify-between ${isPaid ? 'bg-emerald-900/10' : 'bg-red-900/10'}`}>
@@ -2869,7 +2873,7 @@ export function EstimatePage() {
                 <span className="text-white text-sm font-mono">${job.estimateAmount?.toFixed(2)}</span>
               </div>
               <div className="flex justify-between px-4 py-3 border-t border-white/5">
-                <span className="text-gray-500 text-xs font-bold uppercase tracking-wider">AZ TPT (9.182%)</span>
+                <span className="text-gray-500 text-xs font-bold uppercase tracking-wider">AZ TPT (9.386%)</span>
                 <span className="text-white text-sm font-mono">${taxFromItems(job.lineItems).toFixed(2)}</span>
               </div>
               <div className="flex justify-between px-4 py-4 border-t border-white/10">
@@ -3020,7 +3024,7 @@ const HUB_CATEGORIES: HubCategory[] = [
 const SEED_NOTES: Record<string, string[]> = {
   taxes: [
     'AZ TPT License #21663074 (Standard) — ACTIVE. File & pay at AZTaxes.gov by the 20th of the following month.',
-    'Flagstaff combined TPT rate: 9.182% (State 5.6% + City 2.281% + County 1.125% + other 0.176%). Applied to ALL auto repair — labor AND parts.',
+    'Flagstaff combined TPT rate: 9.386% (State 5.6% + City 2.281% + County 1.125% + other 0.176%). Applied to ALL auto repair — labor AND parts.',
     'Every paid invoice has tax_amount stored in Supabase. Use the Tax Summary below to pull monthly totals for your TPT filing.',
     'Zoho Books: log all business expenses there (tools, PPE, parts, fuel, insurance). These reduce your taxable NET income for federal/state income tax — not TPT.',
     'Keep receipts for every expense ≥ $75. AutoZone Pro purchases pull statements monthly — save them.',
@@ -3050,7 +3054,7 @@ const SEED_NOTES: Record<string, string[]> = {
     'Diagnostics: $89.99 (OBD2 scan + recommendation).',
     'Brakes from $149.99/axle (pads only). Pads + rotors from $549.99. Full service from $649.99.',
     'Front struts from $399.99 labor. Audio from $174.99 labor.',
-    'Flagstaff combined sales tax 9.182% added to all invoices.',
+    'Flagstaff combined sales tax 9.386% added to all invoices.',
     'Shop comparison baseline: use for estimate emails to show customer savings vs. local shops.',
   ],
   vendors: [
