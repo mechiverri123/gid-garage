@@ -1,12 +1,5 @@
-// vehicleData.ts — Generated from EPA fuel economy database
-// Year/Make/Model data for 1984-2026, US market
-
-export interface ModelEntry {
-  from: number;
-  to: number;
-}
-
-// MODEL_YEARS[make][model] = { from, to }
+// vehicleData.ts — EPA fuel economy database + EV additions (63 makes, ~4,700 models)
+export interface ModelEntry { from: number; to: number; }
 export const MODEL_YEARS: Record<string, Record<string, ModelEntry>> = {
   'Acura': {
     '2.2CL/3.0CL': { from: 1997, to: 1997 },
@@ -1218,6 +1211,16 @@ export const MODEL_YEARS: Record<string, Record<string, ModelEntry>> = {
     'Voyager': { from: 2020, to: 2026 },
     'Voyager/Town and Country 2WD': { from: 2005, to: 2005 },
   },
+  'Daewoo': {
+    'Kalos': { from: 2004, to: 2004 },
+    'Lacetti': { from: 2004, to: 2004 },
+    'Lanos': { from: 1998, to: 2003 },
+    'Leganza': { from: 1998, to: 2002 },
+    'Magnus': { from: 2004, to: 2004 },
+    'Nubira': { from: 1998, to: 2003 },
+    'Nubira Station Wagon': { from: 1999, to: 2003 },
+    'Nubira Wagon': { from: 1998, to: 1998 },
+  },
   'Dodge': {
     '600': { from: 1984, to: 1989 },
     '600 Convertible': { from: 1984, to: 1986 },
@@ -1346,6 +1349,18 @@ export const MODEL_YEARS: Record<string, Record<string, ModelEntry>> = {
     'W100/W150 Pickup 4WD': { from: 1984, to: 1993 },
     'W250 Pickup 4WD': { from: 1984, to: 1993 },
   },
+  'Eagle': {
+    'Medallion Sedan': { from: 1989, to: 1989 },
+    'Medallion Wagon': { from: 1989, to: 1989 },
+    'Premier': { from: 1988, to: 1992 },
+    'Renault Medallion Sedan': { from: 1988, to: 1988 },
+    'Renault Medallion Wagon': { from: 1988, to: 1988 },
+    'Summit': { from: 1989, to: 1996 },
+    'Summit Wagon': { from: 1992, to: 1996 },
+    'Talon': { from: 1990, to: 1998 },
+    'Vision': { from: 1993, to: 1997 },
+    'Wagon 4WD': { from: 1988, to: 1988 },
+  },
   'Ferrari': {
     '12Cilindri': { from: 2026, to: 2026 },
     '12Cilindri Spider': { from: 2026, to: 2026 },
@@ -1448,6 +1463,9 @@ export const MODEL_YEARS: Record<string, Record<string, ModelEntry>> = {
     '500 X': { from: 2016, to: 2018 },
     '500 X AWD': { from: 2016, to: 2018 },
     '500X AWD': { from: 2019, to: 2023 },
+  },
+  'Fisker': {
+    'Karma': { from: 2012, to: 2012 },
   },
   'Ford': {
     'Aerostar Van': { from: 1986, to: 1997 },
@@ -1900,6 +1918,23 @@ export const MODEL_YEARS: Record<string, Record<string, ModelEntry>> = {
     'GV80 AWD': { from: 2021, to: 2026 },
     'GV80 MHEV': { from: 2025, to: 2026 },
     'GV80 RWD': { from: 2021, to: 2026 },
+  },
+  'Geo': {
+    'Metro': { from: 1989, to: 1997 },
+    'Metro LSI': { from: 1989, to: 1993 },
+    'Metro LSI Convertible': { from: 1990, to: 1993 },
+    'Metro XFI': { from: 1990, to: 1994 },
+    'Prizm': { from: 1989, to: 1997 },
+    'Spectrum': { from: 1989, to: 1989 },
+    'Storm': { from: 1990, to: 1993 },
+    'Tracker 4WD': { from: 1990, to: 1991 },
+    'Tracker Convertible 2WD': { from: 1991, to: 1997 },
+    'Tracker Convertible 4WD': { from: 1989, to: 1994 },
+    'Tracker Convertible 4x4': { from: 1996, to: 1997 },
+    'Tracker Hardtop 4WD': { from: 1989, to: 1989 },
+    'Tracker Van 2WD': { from: 1996, to: 1997 },
+    'Tracker Van 4WD': { from: 1992, to: 1994 },
+    'Tracker Van 4x4': { from: 1996, to: 1997 },
   },
   'Honda': {
     'Accord': { from: 1984, to: 2026 },
@@ -2402,6 +2437,12 @@ export const MODEL_YEARS: Record<string, Record<string, ModelEntry>> = {
     'Wrangler Unlimited 4WD': { from: 2012, to: 2020 },
     'Wrangler/TJ 4WD': { from: 2003, to: 2006 },
   },
+  'Karma': {
+    'GS-6 (21-inch wheels)': { from: 2021, to: 2021 },
+    'GS-6 (22-inch wheels)': { from: 2021, to: 2021 },
+    'Revero': { from: 2018, to: 2019 },
+    'Revero GT (21-inch wheels)': { from: 2020, to: 2020 },
+  },
   'Kia': {
     'Amanti': { from: 2004, to: 2009 },
     'Borrego 2WD': { from: 2009, to: 2011 },
@@ -2776,6 +2817,10 @@ export const MODEL_YEARS: Record<string, Record<string, ModelEntry>> = {
     'Evora': { from: 2010, to: 2020 },
     'Evora GT': { from: 2020, to: 2021 },
   },
+  'Lucid': {
+    'Air': { from: 2022, to: 2026 },
+    'Gravity': { from: 2025, to: 2026 },
+  },
   'MINI': {
     'Clubman': { from: 2008, to: 2011 },
     'Clubman S': { from: 2008, to: 2010 },
@@ -2906,6 +2951,14 @@ export const MODEL_YEARS: Record<string, Record<string, ModelEntry>> = {
     'Spyder': { from: 1989, to: 1991 },
     'Spyder Cambiocorsa/GT/90 ANV': { from: 2005, to: 2005 },
   },
+  'Maybach': {
+    '57': { from: 2004, to: 2012 },
+    '57 Zeppelin': { from: 2010, to: 2010 },
+    '57S': { from: 2006, to: 2012 },
+    '62': { from: 2004, to: 2012 },
+    '62S': { from: 2007, to: 2012 },
+    'Landaulet': { from: 2012, to: 2012 },
+  },
   'Mazda': {
     '2': { from: 2011, to: 2021 },
     '2500 2WD': { from: 2000, to: 2000 },
@@ -2995,6 +3048,35 @@ export const MODEL_YEARS: Record<string, Record<string, ModelEntry>> = {
     'Tribute FWD FFV': { from: 2010, to: 2011 },
     'Tribute Hybrid 2WD': { from: 2008, to: 2011 },
     'Tribute Hybrid 4WD': { from: 2006, to: 2011 },
+  },
+  'McLaren Automotive': {
+    '540C Coupe': { from: 2018, to: 2018 },
+    '570GT': { from: 2017, to: 2019 },
+    '570S Coupe': { from: 2016, to: 2020 },
+    '570S Spider': { from: 2018, to: 2020 },
+    '600LT Coupe': { from: 2019, to: 2019 },
+    '600LT Spider': { from: 2020, to: 2020 },
+    '620R Coupe': { from: 2020, to: 2020 },
+    '650S Can-Am': { from: 2016, to: 2016 },
+    '650S Coupe': { from: 2015, to: 2016 },
+    '650S Spider': { from: 2015, to: 2016 },
+    '675LT Coupe': { from: 2016, to: 2016 },
+    '675LT Spider': { from: 2016, to: 2016 },
+    '720S Coupe': { from: 2018, to: 2022 },
+    '720S Coupe LM': { from: 2021, to: 2021 },
+    '720S Spider': { from: 2019, to: 2022 },
+    '765LT Coupe': { from: 2021, to: 2021 },
+    '765LT Spider': { from: 2022, to: 2022 },
+    'Artura': { from: 2023, to: 2023 },
+    'Elva': { from: 2021, to: 2021 },
+    'GT': { from: 2020, to: 2022 },
+    'MP4-12C Coupe': { from: 2012, to: 2014 },
+    'MP4-12C Spider': { from: 2014, to: 2014 },
+    'MSO HS': { from: 2016, to: 2016 },
+    'P1': { from: 2014, to: 2015 },
+    'Sabre': { from: 2020, to: 2020 },
+    'Senna': { from: 2019, to: 2019 },
+    'Speedtail': { from: 2020, to: 2020 },
   },
   'Mercedes-Benz': {
     '190': { from: 1985, to: 1986 },
@@ -3740,6 +3822,9 @@ export const MODEL_YEARS: Record<string, Record<string, ModelEntry>> = {
   },
   'Polestar': {
     '1': { from: 2020, to: 2021 },
+    'Polestar 2': { from: 2021, to: 2026 },
+    'Polestar 3': { from: 2024, to: 2026 },
+    'Polestar 4': { from: 2025, to: 2026 },
   },
   'Pontiac': {
     '1000': { from: 1984, to: 1987 },
@@ -4003,6 +4088,11 @@ export const MODEL_YEARS: Record<string, Record<string, ModelEntry>> = {
     'C/V Tradesman': { from: 2015, to: 2015 },
     'Promaster City': { from: 2015, to: 2022 },
   },
+  'Rivian': {
+    'R1S': { from: 2022, to: 2026 },
+    'R1T': { from: 2022, to: 2026 },
+    'R2': { from: 2026, to: 2026 },
+  },
   'Rolls-Royce': {
     'Azure': { from: 1996, to: 1997 },
     'Brooklands': { from: 1997, to: 1997 },
@@ -4058,6 +4148,9 @@ export const MODEL_YEARS: Record<string, Record<string, ModelEntry>> = {
     'Turbo R/Turbo Rl': { from: 1994, to: 1996 },
     'Wraith': { from: 2014, to: 2021 },
     'Wraith Black Badge': { from: 2020, to: 2021 },
+  },
+  'SRT': {
+    'Viper': { from: 2013, to: 2014 },
   },
   'Saab': {
     '9-2x Wagon AWD': { from: 2005, to: 2006 },
@@ -4280,6 +4373,14 @@ export const MODEL_YEARS: Record<string, Record<string, ModelEntry>> = {
     'X-90 RWD': { from: 1998, to: 1998 },
     'XL7 AWD': { from: 2007, to: 2009 },
     'XL7 FWD': { from: 2007, to: 2009 },
+  },
+  'Tesla': {
+    'Cybertruck': { from: 2024, to: 2026 },
+    'Model 3': { from: 2017, to: 2026 },
+    'Model S': { from: 2012, to: 2026 },
+    'Model X': { from: 2015, to: 2026 },
+    'Model Y': { from: 2020, to: 2026 },
+    'Roadster': { from: 2008, to: 2012 },
   },
   'Toyota': {
     '1-Ton Truck 2WD': { from: 1985, to: 1992 },
@@ -4687,15 +4788,15 @@ export const MODEL_YEARS: Record<string, Record<string, ModelEntry>> = {
     'XC90 T8 AWD Recharge': { from: 2022, to: 2024 },
     'XC90 T8 AWD Recharge ext. Range': { from: 2022, to: 2022 },
   },
+  'smart': {
+    'fortwo cabriolet': { from: 2010, to: 2017 },
+    'fortwo convertible': { from: 2008, to: 2009 },
+    'fortwo coupe': { from: 2008, to: 2017 },
+  },
 };
-
 export const MAKES: string[] = Object.keys(MODEL_YEARS).sort();
-
 export function getModels(make: string, year: number): string[] {
   const m = MODEL_YEARS[make];
   if (!m) return [];
-  return Object.entries(m)
-    .filter(([, e]) => year >= e.from && year <= e.to)
-    .map(([name]) => name)
-    .sort();
+  return Object.entries(m).filter(([,e]) => year >= e.from && year <= e.to).map(([n]) => n).sort();
 }
