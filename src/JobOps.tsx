@@ -2715,7 +2715,7 @@ export function InvoicePage() {
               </div>
               <div className="px-6 py-5 space-y-8">
                 {hasPressure && <TireDisplay label="Tire Pressure" values={tp} unit="PSI" />}
-                {hasTread && <TireDisplay label="Tire Tread Depth" values={tt} unit="32nds of an inch · 2/32\" = replace, 4/32\" = caution" />}
+                {hasTread && <TireDisplay label="Tire Tread Depth" values={tt} unit={'32nds of an inch · 2/32" = replace, 4/32" = caution'} />}
                 {hasCodes && (
                   <div>
                     <p className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-3">Diagnostic Codes (DTC)</p>
