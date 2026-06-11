@@ -18,6 +18,10 @@ async function apiPost(action: string, args: Record<string, any> = {}) {
 const PHONE = '480-757-0476';
 const EMAIL = 'gidgarageaz@hotmail.com';
 
+// R2 public image URL — falls back to local /public in dev
+const R2 = (import.meta.env.VITE_R2_PUBLIC_URL as string | undefined)?.replace(/\/$/, '') ?? '';
+function img(filename: string) { return R2 ? `${R2}/public/${filename}` : `/${filename}`; }
+
 const services = [
   {
     id: 'oil',
@@ -78,7 +82,7 @@ function Nav({ openBooking }: { openBooking: () => void }) {
     <header className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${scrolled ? 'bg-[#0f0f0f] shadow-lg shadow-black/50' : 'bg-transparent'}`}>
       <div className="max-w-7xl mx-auto px-5 md:px-8 flex items-center justify-between h-16 md:h-20">
         <a href="#hero" className="flex-shrink-0">
-          <img src="/website_logo.png" alt="GID Garage" className="h-12 md:h-14 w-auto" />
+          <img src={img('website_logo.png')} alt="GID Garage" className="h-12 md:h-14 w-auto" />
         </a>
         <nav className="hidden md:flex items-center gap-8">
           {links.map((l) => (
@@ -113,7 +117,7 @@ function Hero({ openBooking }: { openBooking: () => void }) {
       <div className="relative z-10 w-full text-center">
         <div className="mb-4 w-full px-4 md:px-0 md:max-w-6xl lg:max-w-7xl mx-auto">
           <img
-            src="/banner.PNG"
+            src={img('banner.PNG')}
             alt="GID Garage"
             className="w-full object-contain drop-shadow-2xl"
             style={{ maxHeight: '560px' }}
@@ -378,13 +382,13 @@ function ServiceMap() {
 function PhotoGallery() {
   const photos = [
     { src: 'https://images.unsplash.com/photo-1486262715619-67b85e0b08d3?w=800&q=80&auto=format&fit=crop', alt: 'Mechanic at work' },
-    { src: '/photo-audio.jpg', alt: 'Car audio installation' },
-    { src: '/photo-brakes.jpg', alt: 'Brake service' },
-    { src: '/magnaride.jpg', alt: 'Magnaride suspension work' },
-    { src: '/rav4shocks.jpg', alt: 'RAV4 shock replacement' },
-    { src: '/rotor_before.jpg', alt: 'Rotor before service' },
-    { src: '/rotor_after.jpg', alt: 'Rotor after service' },
-    { src: '/afba.jpg', alt: 'GID Garage work' },
+    { src: img('photo-audio.jpg'), alt: 'Car audio installation' },
+    { src: img('photo-brakes.jpg'), alt: 'Brake service' },
+    { src: img('magnaride.jpg'), alt: 'Magnaride suspension work' },
+    { src: img('rav4shocks.jpg'), alt: 'RAV4 shock replacement' },
+    { src: img('rotor_before.jpg'), alt: 'Rotor before service' },
+    { src: img('rotor_after.jpg'), alt: 'Rotor after service' },
+    { src: img('afba.jpg'), alt: 'GID Garage work' },
   ];
 
   const [current, setCurrent] = useState(0);
@@ -492,7 +496,7 @@ function Footer() {
       <div className="max-w-7xl mx-auto px-5 md:px-8">
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-8 mb-8">
           <div>
-            <img src="/website_logo.png" alt="GID Garage" className="h-16 w-auto mb-4" />
+            <img src={img('website_logo.png')} alt="GID Garage" className="h-16 w-auto mb-4" />
             <p className="text-white/70 text-sm max-w-xs leading-relaxed">Mobile automotive repair and car audio in Flagstaff, AZ. Honest work. Fair prices. We come to you.</p>
             <p className="text-white/50 text-xs mt-2 leading-relaxed">Based in Flagstaff, AZ · Serving Bellemont, Kachina Village, Fort Valley, Doney Park, Winona &amp; Mountainaire</p>
           </div>
@@ -568,7 +572,7 @@ function CancelPage({ bookingId, token }: { bookingId: string; token: string }) 
     <div className="min-h-screen bg-dark flex items-center justify-center px-4">
       <div className="w-full max-w-md text-center">
         <a href="/" className="flex justify-center mb-8">
-          <img src="/website_logo.png" alt="GID Garage" className="h-14 w-auto" />
+          <img src={img('website_logo.png')} alt="GID Garage" className="h-14 w-auto" />
         </a>
 
         {state === 'verifying' && (

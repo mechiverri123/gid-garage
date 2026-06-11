@@ -8,6 +8,9 @@ import { useState, useEffect, useRef } from 'react';
 // Emails now sent server-side — BREVO_API_KEY removed from client bundle
 const STRIPE_PK = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY as string;
 
+const R2 = (import.meta.env.VITE_R2_PUBLIC_URL as string | undefined)?.replace(/\/$/, '') ?? '';
+function img(filename: string) { return R2 ? `${R2}/public/${filename}` : `/${filename}`; }
+
 function loadStripe(publishableKey: string): Promise<any> {
   return new Promise((resolve) => {
     if ((window as any).Stripe) { resolve((window as any).Stripe(publishableKey)); return; }
@@ -597,7 +600,7 @@ function QuoteCalculator({ job, onApply }: { job: Job; onApply: (items: LineItem
     items.push({ id: 'mobile', label: 'Mobile Service Fee', amount: MOBILE_FEE, type: 'mobile' });
 
     if (isOil) {
-      items.push({ id: 'oil_labor', label: `Oil Change — Full Synthetic (5qt)`, amount: 79.99, type: 'fixed' });
+      items.push({ id: 'oil_labor', label: `Oil Change — Full Synthetic (up to 5qt)`, amount: 79.99, type: 'fixed' });
       if (extraQuarts > 0) {
         items.push({ id: 'oil_extra', label: `Extra Oil (${extraQuarts}qt @ $10.99/qt)`, amount: extraQuarts * 10.99, type: 'other' });
       }
@@ -1083,6 +1086,7 @@ function EstimatePanel({ job, onUpdate }: { job: Job; onUpdate: (j: Job) => void
   const [showShopComparison, setShowShopComparison] = useState(true);
 
   const total = lineItems.reduce((s, i) => s + i.amount, 0);
+  const [rawAmounts, setRawAmounts] = useState<Record<string, string>>({});
 
   function handleApplyCalc(items: LineItem[], calcTotal: number, calcShopAvg: number) {
     setLineItems(items);
@@ -1182,8 +1186,17 @@ function EstimatePanel({ job, onUpdate }: { job: Job; onUpdate: (j: Job) => void
                   <span className="text-gray-600 text-xs">$</span>
                   <input
                     type="number"
-                    value={item.amount}
-                    onChange={e => updateLineItem(item.id, 'amount', e.target.value)}
+                    value={rawAmounts[item.id] ?? item.amount}
+                    onChange={e => {
+                      setRawAmounts(prev => ({ ...prev, [item.id]: e.target.value }));
+                      const n = parseFloat(e.target.value);
+                      if (!isNaN(n)) updateLineItem(item.id, 'amount', e.target.value);
+                    }}
+                    onBlur={e => {
+                      const n = parseFloat(e.target.value) || 0;
+                      updateLineItem(item.id, 'amount', String(n));
+                      setRawAmounts(prev => { const next = { ...prev }; delete next[item.id]; return next; });
+                    }}
                     disabled={item.id === 'mobile'}
                     className="w-20 bg-gray-800 border border-gray-700 text-white px-2 py-1.5 text-xs font-mono focus:border-red-600 outline-none disabled:opacity-50"
                   />
@@ -2500,7 +2513,7 @@ export function InvoicePage() {
         {/* Header */}
         <div className="flex items-start justify-between mb-8">
           <a href="/">
-            <img src="/website_logo.png" alt="GID Garage" className="h-10 w-auto" />
+            <img src={img('website_logo.png')} alt="GID Garage" className="h-10 w-auto" />
           </a>
           <div className="text-right">
             {isPaid
@@ -2798,7 +2811,7 @@ export function EstimatePage() {
     <div className="min-h-screen bg-[#0f0f0f] flex items-start justify-center px-4 py-12" style={{ WebkitOverflowScrolling: 'touch' }}>
       <div className="w-full max-w-lg">
         <a href="/" className="flex justify-center mb-8">
-          <img src="/website_logo.png" alt="GID Garage" className="h-12 w-auto" />
+          <img src={img('website_logo.png')} alt="GID Garage" className="h-12 w-auto" />
         </a>
 
         {loading && (
