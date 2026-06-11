@@ -56,9 +56,8 @@ export async function onRequestGet({ request }) {
 
     if (cmd === 'getModels') {
       if (!make) return err('make required');
-      // Pass year so CarQuery returns only models for that make+year
-      let cqUrl = `${CARQUERY_BASE}?cmd=getModels&make=${encodeURIComponent(make)}&format=json`;
-      if (year) cqUrl += `&year=${year}`;
+      // CarQuery getModels does not support year filtering — returns all models for the make
+      const cqUrl = `${CARQUERY_BASE}?cmd=getModels&make=${encodeURIComponent(make)}&format=json`;
       const res = await fetch(cqUrl,
         { headers: { 'User-Agent': 'GIDGarage/1.0' } }
       );

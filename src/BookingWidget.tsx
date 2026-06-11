@@ -303,43 +303,21 @@ function VehicleSelector({ form, setForm, errors, clearError }: {
   const [loadingMakes, setLoadingMakes] = useState(false);
   const [loadingModels, setLoadingModels] = useState(false);
 
-  // Engine options — lazy-load engineData.ts on first model selection
-  // CarQuery trims from Worker (primary source)
-  const [workerTrims, setWorkerTrims] = useState<{ label: string; engine: string }[]>([]);
-  const [loadingTrims, setLoadingTrims] = useState(false);
-  // Static engineData fallback (for 2024+ or when Worker returns nothing)
+  // Engine options — load engineData.ts on first model selection
   const [engineMapLoaded, setEngineMapLoaded] = useState(!!_engineData);
   const [engineOther, setEngineOther] = useState(false);
+  const [loadingTrims] = useState(false); // kept for disabled prop compat
 
-  // Load static engineData lazily
   useEffect(() => {
     if (!form.vehicleModel) return;
     if (_engineData) { setEngineMapLoaded(true); return; }
     loadEngineMap().then(() => setEngineMapLoaded(true));
   }, [form.vehicleModel]);
 
-  // Fetch CarQuery trims via Worker whenever year+make+model are set
-  useEffect(() => {
-    if (!form.vehicleYear || !form.vehicleMake || !form.vehicleModel) {
-      setWorkerTrims([]);
-      return;
-    }
-    setLoadingTrims(true);
-    fetchTrimsFromWorker(form.vehicleYear, form.vehicleMake, form.vehicleModel)
-      .then(setWorkerTrims)
-      .catch(() => setWorkerTrims([]))
-      .finally(() => setLoadingTrims(false));
-  }, [form.vehicleYear, form.vehicleMake, form.vehicleModel]);
-
-  // Static fallback engines (used when Worker returns 0 results)
-  const staticEngines = engineMapLoaded && form.vehicleMake && form.vehicleModel
+  // Engine options from static engineData (reliable, no network call)
+  const engineOptions: string[] = engineMapLoaded && form.vehicleMake && form.vehicleModel
     ? getEngineOptions(form.vehicleMake, form.vehicleModel, form.vehicleYear)
     : [];
-
-  // Final engine options: Worker results take priority, static is fallback
-  const engineOptions: string[] = workerTrims.length > 0
-    ? workerTrims.map(t => t.label)
-    : staticEngines;
 
   useEffect(() => {
     if (!form.vehicleYear) { setMakes([]); return; }
