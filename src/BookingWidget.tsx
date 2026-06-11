@@ -200,6 +200,8 @@ function vehicleString(f: FormData): string {
 }
 
 // ── VEHICLE API ─────────────────────────────────────────────────────────────────
+// All vehicle data routes through /vehicle-data (Cloudflare Worker) which
+// proxies CarQuery server-side — no CORS issues, full coverage back to 1941.
 const _cache: Record<string, any> = {};
 
 async function cachedFetch<T>(key: string, fetcher: () => Promise<T>): Promise<T> {
@@ -209,60 +211,51 @@ async function cachedFetch<T>(key: string, fetcher: () => Promise<T>): Promise<T
   return result;
 }
 
-const US_MAKES: { name: string; from: number; to: number }[] = [
-  { name: 'Acura',         from: 1986, to: 9999 },
-  { name: 'Audi',          from: 1981, to: 9999 },
-  { name: 'BMW',           from: 1981, to: 9999 },
-  { name: 'Buick',         from: 1981, to: 9999 },
-  { name: 'Cadillac',      from: 1981, to: 9999 },
-  { name: 'Chevrolet',     from: 1981, to: 9999 },
-  { name: 'Chrysler',      from: 1981, to: 9999 },
-  { name: 'Dodge',         from: 1981, to: 9999 },
-  { name: 'Ford',          from: 1981, to: 9999 },
-  { name: 'Genesis',       from: 2016, to: 9999 },
-  { name: 'GMC',           from: 1981, to: 9999 },
-  { name: 'Honda',         from: 1981, to: 9999 },
-  { name: 'Hyundai',       from: 1986, to: 9999 },
-  { name: 'Infiniti',      from: 1989, to: 9999 },
-  { name: 'Jaguar',        from: 1981, to: 9999 },
-  { name: 'Jeep',          from: 1981, to: 9999 },
-  { name: 'Kia',           from: 1994, to: 9999 },
-  { name: 'Lexus',         from: 1989, to: 9999 },
-  { name: 'Lincoln',       from: 1981, to: 9999 },
-  { name: 'Lucid',         from: 2021, to: 9999 },
-  { name: 'Mazda',         from: 1981, to: 9999 },
-  { name: 'Mercedes-Benz', from: 1981, to: 9999 },
-  { name: 'Mini',          from: 2002, to: 9999 },
-  { name: 'Mitsubishi',    from: 1981, to: 9999 },
-  { name: 'Mercury',       from: 1981, to: 2011 },
-  { name: 'Nissan',        from: 1981, to: 9999 },
-  { name: 'Oldsmobile',    from: 1981, to: 2004 },
-  { name: 'Polestar',      from: 2020, to: 9999 },
-  { name: 'Porsche',       from: 1981, to: 9999 },
-  { name: 'Pontiac',       from: 1981, to: 2010 },
-  { name: 'RAM',           from: 2010, to: 9999 },
-  { name: 'Rivian',        from: 2021, to: 9999 },
-  { name: 'Saturn',        from: 1990, to: 2010 },
-  { name: 'Subaru',        from: 1981, to: 9999 },
-  { name: 'Tesla',         from: 2008, to: 9999 },
-  { name: 'Toyota',        from: 1981, to: 9999 },
-  { name: 'Volkswagen',    from: 1981, to: 9999 },
-  { name: 'Volvo',         from: 1981, to: 9999 },
-];
+async function vehicleApi(params: Record<string, string>): Promise<any> {
+  const qs = new URLSearchParams(params).toString();
+  const res = await fetch(`/vehicle-data?${qs}`);
+  if (!res.ok) throw new Error(`vehicle-data ${res.status}`);
+  return res.json();
+}
 
-function fetchMakes(year: string): Promise<string[]> {
-  const y = parseInt(year, 10);
-  return Promise.resolve(US_MAKES.filter(m => y >= m.from && y <= m.to).map(m => m.name).sort());
+async function fetchMakes(year: string): Promise<string[]> {
+  return cachedFetch(`makes-${year}`, async () => {
+    try {
+      const data = await vehicleApi({ cmd: 'getMakes' });
+      return (data.makes || []) as string[];
+    } catch {
+      // Fallback to static list if worker unavailable
+      return ['Acura','Audi','BMW','Buick','Cadillac','Chevrolet','Chrysler',
+        'Dodge','Ford','Genesis','GMC','Honda','Hyundai','Infiniti','Jaguar',
+        'Jeep','Kia','Lexus','Lincoln','Lucid','Mazda','Mercedes-Benz','MINI',
+        'Mitsubishi','Mercury','Nissan','Oldsmobile','Polestar','Pontiac',
+        'Porsche','RAM','Rivian','Saturn','Scout','Subaru','Tesla','Toyota',
+        'Volkswagen','Volvo'].sort();
+    }
+  });
 }
 
 async function fetchModels(year: string, make: string): Promise<string[]> {
   return cachedFetch(`models-${year}-${make}`, async () => {
-    const res = await fetch(
-      `https://vpic.nhtsa.dot.gov/api/vehicles/GetModelsForMakeYear/make/${encodeURIComponent(make)}/modelyear/${year}?format=json`
-    );
-    const data = await res.json();
-    const models: string[] = (data.Results || []).map((m: any) => m.Model_Name as string).sort();
-    return [...new Set(models)];
+    try {
+      const data = await vehicleApi({ cmd: 'getModels', make, year });
+      return (data.models || []) as string[];
+    } catch {
+      return [];
+    }
+  });
+}
+
+// fetchTrims now calls the Worker which hits CarQuery server-side.
+// Falls back to static engineData for 2024+ where CarQuery is thin.
+async function fetchTrimsFromWorker(year: string, make: string, model: string): Promise<{ label: string; engine: string }[]> {
+  return cachedFetch(`trims-${year}-${make}-${model}`, async () => {
+    try {
+      const data = await vehicleApi({ cmd: 'getTrims', make, model, year });
+      return (data.trims || []) as { label: string; engine: string }[];
+    } catch {
+      return [];
+    }
   });
 }
 
@@ -309,18 +302,42 @@ function VehicleSelector({ form, setForm, errors, clearError }: {
   const [loadingModels, setLoadingModels] = useState(false);
 
   // Engine options — lazy-load engineData.ts on first model selection
-  const [engineMapLoaded, setEngineMapLoaded] = useState(!!_engineMap);
+  // CarQuery trims from Worker (primary source)
+  const [workerTrims, setWorkerTrims] = useState<{ label: string; engine: string }[]>([]);
+  const [loadingTrims, setLoadingTrims] = useState(false);
+  // Static engineData fallback (for 2024+ or when Worker returns nothing)
+  const [engineMapLoaded, setEngineMapLoaded] = useState(!!_engineData);
   const [engineOther, setEngineOther] = useState(false);
 
+  // Load static engineData lazily
   useEffect(() => {
     if (!form.vehicleModel) return;
-    if (_engineMap) { setEngineMapLoaded(true); return; }
+    if (_engineData) { setEngineMapLoaded(true); return; }
     loadEngineMap().then(() => setEngineMapLoaded(true));
-  }, [form.vehicleModel, form.vehicleYear]);
+  }, [form.vehicleModel]);
 
-  const engineOptions = engineMapLoaded && form.vehicleMake && form.vehicleModel
+  // Fetch CarQuery trims via Worker whenever year+make+model are set
+  useEffect(() => {
+    if (!form.vehicleYear || !form.vehicleMake || !form.vehicleModel) {
+      setWorkerTrims([]);
+      return;
+    }
+    setLoadingTrims(true);
+    fetchTrimsFromWorker(form.vehicleYear, form.vehicleMake, form.vehicleModel)
+      .then(setWorkerTrims)
+      .catch(() => setWorkerTrims([]))
+      .finally(() => setLoadingTrims(false));
+  }, [form.vehicleYear, form.vehicleMake, form.vehicleModel]);
+
+  // Static fallback engines (used when Worker returns 0 results)
+  const staticEngines = engineMapLoaded && form.vehicleMake && form.vehicleModel
     ? getEngineOptions(form.vehicleMake, form.vehicleModel, form.vehicleYear)
     : [];
+
+  // Final engine options: Worker results take priority, static is fallback
+  const engineOptions: string[] = workerTrims.length > 0
+    ? workerTrims.map(t => t.label)
+    : staticEngines;
 
   useEffect(() => {
     if (!form.vehicleYear) { setMakes([]); return; }
@@ -376,7 +393,7 @@ function VehicleSelector({ form, setForm, errors, clearError }: {
             <select
               className={sc('vehicleEngine')}
               value={engineOther ? '__other' : form.vehicleEngine}
-              disabled={!form.vehicleModel}
+              disabled={!form.vehicleModel || loadingTrims}
               onChange={e => {
                 if (e.target.value === '__other') {
                   setEngineOther(true);
@@ -388,7 +405,7 @@ function VehicleSelector({ form, setForm, errors, clearError }: {
                 clearError('vehicleEngine');
               }}
             >
-              <option value="">Engine</option>
+              <option value="">{loadingTrims ? 'Loading engines…' : 'Engine'}</option>
               {engineOptions.map(opt => <option key={opt} value={opt}>{opt}</option>)}
               <option value="__other">Other / not listed</option>
             </select>
