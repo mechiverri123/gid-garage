@@ -20,7 +20,7 @@ const EMAIL = 'gidgarageaz@hotmail.com';
 
 // R2 public image URL — falls back to local /public in dev
 const R2 = (import.meta.env.VITE_R2_PUBLIC_URL as string | undefined)?.replace(/\/$/, '') ?? '';
-function img(filename: string) { return R2 ? `${R2}/public/${filename}` : `/${filename}`; }
+function img(filename: string) { return R2 ? `${R2}/${filename}` : `/${filename}`; }
 
 const services = [
   {

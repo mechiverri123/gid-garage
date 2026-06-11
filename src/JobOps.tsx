@@ -9,7 +9,7 @@ import { useState, useEffect, useRef } from 'react';
 const STRIPE_PK = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY as string;
 
 const R2 = (import.meta.env.VITE_R2_PUBLIC_URL as string | undefined)?.replace(/\/$/, '') ?? '';
-function img(filename: string) { return R2 ? `${R2}/public/${filename}` : `/${filename}`; }
+function img(filename: string) { return R2 ? `${R2}/${filename}` : `/${filename}`; }
 
 function loadStripe(publishableKey: string): Promise<any> {
   return new Promise((resolve) => {
@@ -2504,7 +2504,8 @@ export function InvoicePage() {
       <style>{`
         @media print {
           @page { margin: 0; size: A4; }
-          body { background: #0f0f0f !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+          html, body { background: #0f0f0f !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+          body > * { background: #0f0f0f !important; }
           .no-print { display: none !important; }
         }
       `}</style>

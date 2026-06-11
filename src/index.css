@@ -52,10 +52,14 @@
 
 /* Print styles for invoice/receipt page */
 @media print {
-  body {
+  @page { margin: 0; size: A4; }
+  html, body {
     background-color: #0f0f0f !important;
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
+  }
+  html::before, html::after, body::before, body::after {
+    background: #0f0f0f !important;
   }
   button { display: none !important; }
   a[href="/"] { pointer-events: none; }

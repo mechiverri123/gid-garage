@@ -2061,19 +2061,20 @@ export function AdminSchedule() {
             <p className="text-red-600 text-xs font-bold uppercase tracking-[0.25em] mb-1">Admin · GID Garage</p>
             <h1 className="text-4xl font-black text-white tracking-tight">Schedule</h1>
           </div>
-          <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex items-center gap-1.5 flex-wrap sm:flex-nowrap sm:gap-2">
             {notifPerm !== 'unsupported' && notifPerm !== 'granted' && (
               <button onClick={requestNotifications}
-                className="border border-yellow-700 text-yellow-600 hover:border-yellow-500 hover:text-yellow-400 text-xs font-bold uppercase tracking-widest px-3 py-2 transition-colors">🔔 Alerts</button>
+                className="border border-yellow-700 text-yellow-600 hover:border-yellow-500 hover:text-yellow-400 text-[10px] sm:text-xs font-bold uppercase tracking-widest px-2 sm:px-3 py-2 transition-colors whitespace-nowrap">🔔 Alerts</button>
             )}
             {notifPerm === 'granted' && (
-              <span className="text-xs text-green-600 font-bold uppercase tracking-widest px-3 py-2">🔔 On</span>
+              <span className="text-[10px] sm:text-xs text-green-600 font-bold uppercase tracking-widest px-2 sm:px-3 py-2 whitespace-nowrap">🔔 Alerts On</span>
             )}
             <button onClick={() => getSupabaseBookings().then(setBookings)}
-              className="border border-gray-700 text-gray-400 hover:border-red-600 hover:text-white text-xs font-bold uppercase tracking-widest px-3 py-2 transition-colors">↻</button>
+              className="border border-gray-700 text-gray-400 hover:border-red-600 hover:text-white text-[10px] sm:text-xs font-bold uppercase tracking-widest px-2 sm:px-3 py-2 transition-colors whitespace-nowrap">↻ Refresh</button>
             <button onClick={() => { sessionStorage.removeItem('gg_admin_auth'); setUnlocked(false); }}
-              className="border border-gray-700 text-gray-400 hover:border-red-600 hover:text-white text-xs font-bold uppercase tracking-widest px-3 py-2 transition-colors">🔒</button>
-            <a href="/" className="border border-gray-700 text-gray-400 hover:border-red-600 hover:text-white text-xs font-bold uppercase tracking-widest px-3 py-2 transition-colors">← Site</a>
+              className="border border-gray-700 text-gray-400 hover:border-red-600 hover:text-white text-[10px] sm:text-xs font-bold uppercase tracking-widest px-2 sm:px-3 py-2 transition-colors whitespace-nowrap">🔒 Lock</button>
+            <a href="/"
+              className="border border-gray-700 text-gray-400 hover:border-red-600 hover:text-white text-[10px] sm:text-xs font-bold uppercase tracking-widest px-2 sm:px-3 py-2 transition-colors whitespace-nowrap">← Site</a>
           </div>
         </div>
 
