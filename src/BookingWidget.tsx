@@ -200,65 +200,12 @@ function vehicleString(f: FormData): string {
 }
 
 // ── VEHICLE API ─────────────────────────────────────────────────────────────────
-// All vehicle data routes through /vehicle-data (Cloudflare Worker) which
-// proxies CarQuery server-side — no CORS issues, full coverage back to 1941.
-const _cache: Record<string, any> = {};
+// ── VEHICLE DATA (fully static — no API calls) ───────────────────────────────
+// Makes/models from vehicleData.ts, engines from engineData.ts
+import { MAKES, VEHICLE_MODELS } from './vehicleData';
 
-async function cachedFetch<T>(key: string, fetcher: () => Promise<T>): Promise<T> {
-  if (_cache[key] !== undefined) return _cache[key];
-  const result = await fetcher();
-  // Don't cache empty arrays — allow retry on next render
-  if (!Array.isArray(result) || result.length > 0) _cache[key] = result;
-  return result;
-}
-
-async function vehicleApi(params: Record<string, string>): Promise<any> {
-  const qs = new URLSearchParams(params).toString();
-  const res = await fetch(`/vehicle-data?${qs}`);
-  if (!res.ok) throw new Error(`vehicle-data ${res.status}`);
-  return res.json();
-}
-
-async function fetchMakes(year: string): Promise<string[]> {
-  return cachedFetch(`makes-${year}`, async () => {
-    const STATIC_MAKES = ['Acura','Audi','BMW','Buick','Cadillac','Chevrolet','Chrysler',
-      'Dodge','Ford','Genesis','GMC','Honda','Hyundai','Infiniti','Jaguar',
-      'Jeep','Kia','Lexus','Lincoln','Lucid','Mazda','Mercedes-Benz','MINI',
-      'Mitsubishi','Mercury','Nissan','Oldsmobile','Polestar','Pontiac',
-      'Porsche','RAM','Rivian','Saturn','Scout','Subaru','Tesla','Toyota',
-      'Volkswagen','Volvo'].sort();
-    try {
-      const data = await vehicleApi({ cmd: 'getMakes', ...(year ? { year } : {}) });
-      const makes = (data.makes || []) as string[];
-      return makes.length > 0 ? makes : STATIC_MAKES;
-    } catch {
-      return STATIC_MAKES;
-    }
-  });
-}
-
-async function fetchModels(year: string, make: string): Promise<string[]> {
-  return cachedFetch(`models-${year}-${make}`, async () => {
-    try {
-      const data = await vehicleApi({ cmd: 'getModels', make, year });
-      return (data.models || []) as string[];
-    } catch {
-      return [];
-    }
-  });
-}
-
-// fetchTrims now calls the Worker which hits CarQuery server-side.
-// Falls back to static engineData for 2024+ where CarQuery is thin.
-async function fetchTrimsFromWorker(year: string, make: string, model: string): Promise<{ label: string; engine: string }[]> {
-  return cachedFetch(`trims-${year}-${make}-${model}`, async () => {
-    try {
-      const data = await vehicleApi({ cmd: 'getTrims', make, model, year });
-      return (data.trims || []) as { label: string; engine: string }[];
-    } catch {
-      return [];
-    }
-  });
+function getModelsForMake(make: string): string[] {
+  return VEHICLE_MODELS[make] || [];
 }
 
 // ── ENGINE SUGGESTIONS (lazy-loaded) ─────────────────────────────────────────
@@ -298,15 +245,14 @@ function VehicleSelector({ form, setForm, errors, clearError }: {
 }) {
   const currentYear = new Date().getFullYear();
   const years = Array.from({ length: currentYear - 1980 + 1 }, (_, i) => currentYear - i);
-  const [makes, setMakes] = useState<string[]>([]);
-  const [models, setModels] = useState<string[]>([]);
-  const [loadingMakes, setLoadingMakes] = useState(false);
-  const [loadingModels, setLoadingModels] = useState(false);
 
-  // Engine options — load engineData.ts on first model selection
+  // Makes and models are fully static — instant, no network calls
+  const makes: string[] = MAKES;
+  const models: string[] = form.vehicleMake ? getModelsForMake(form.vehicleMake) : [];
+
+  // Engine options — load engineData.ts lazily on first model selection
   const [engineMapLoaded, setEngineMapLoaded] = useState(!!_engineData);
   const [engineOther, setEngineOther] = useState(false);
-  const [loadingTrims] = useState(false); // kept for disabled prop compat
 
   useEffect(() => {
     if (!form.vehicleModel) return;
@@ -314,22 +260,9 @@ function VehicleSelector({ form, setForm, errors, clearError }: {
     loadEngineMap().then(() => setEngineMapLoaded(true));
   }, [form.vehicleModel]);
 
-  // Engine options from static engineData (reliable, no network call)
   const engineOptions: string[] = engineMapLoaded && form.vehicleMake && form.vehicleModel
     ? getEngineOptions(form.vehicleMake, form.vehicleModel, form.vehicleYear)
     : [];
-
-  useEffect(() => {
-    if (!form.vehicleYear) { setMakes([]); return; }
-    setLoadingMakes(true);
-    fetchMakes(form.vehicleYear).then(setMakes).finally(() => setLoadingMakes(false));
-  }, [form.vehicleYear]);
-
-  useEffect(() => {
-    if (!form.vehicleYear || !form.vehicleMake) { setModels([]); return; }
-    setLoadingModels(true);
-    fetchModels(form.vehicleYear, form.vehicleMake).then(setModels).finally(() => setLoadingModels(false));
-  }, [form.vehicleYear, form.vehicleMake]);
 
   const baseSelect = 'w-full bg-gray-900 text-white text-sm px-3 py-2.5 outline-none transition-colors disabled:text-gray-600 disabled:cursor-not-allowed appearance-none border';
   const sc = (field: string) => baseSelect + (errors[field] ? ' border-red-500 focus:border-red-400' : ' border-gray-800 focus:border-red-600');
@@ -350,17 +283,17 @@ function VehicleSelector({ form, setForm, errors, clearError }: {
         </div>
         <div>
           {errors.vehicleMake && <p className="text-red-500 text-xs mb-1">{errors.vehicleMake}</p>}
-          <select className={sc('vehicleMake')} value={form.vehicleMake} disabled={!form.vehicleYear || loadingMakes}
+          <select className={sc('vehicleMake')} value={form.vehicleMake} disabled={!form.vehicleYear}
             onChange={e => { setForm(p => ({ ...p, vehicleMake: e.target.value, vehicleModel: '', vehicleEngine: '', vehicleTrim: '' })); clearError('vehicleMake'); clearError('vehicleModel'); }}>
-            <option value="">{loadingMakes ? 'Loading…' : 'Make'}</option>
+            <option value="">Make</option>
             {makes.map(m => <option key={m} value={m}>{m}</option>)}
           </select>
         </div>
         <div className="col-span-2 sm:col-span-1">
           {errors.vehicleModel && <p className="text-red-500 text-xs mb-1">{errors.vehicleModel}</p>}
-          <select className={sc('vehicleModel')} value={form.vehicleModel} disabled={!form.vehicleMake || loadingModels}
+          <select className={sc('vehicleModel')} value={form.vehicleModel} disabled={!form.vehicleMake}
             onChange={e => { setForm(p => ({ ...p, vehicleModel: e.target.value, vehicleEngine: '', vehicleTrim: '' })); setEngineOther(false); clearError('vehicleModel'); }}>
-            <option value="">{loadingModels ? 'Loading…' : 'Model'}</option>
+            <option value="">Model</option>
             {models.map(m => <option key={m} value={m}>{m}</option>)}
           </select>
         </div>
@@ -373,7 +306,7 @@ function VehicleSelector({ form, setForm, errors, clearError }: {
             <select
               className={sc('vehicleEngine')}
               value={engineOther ? '__other' : form.vehicleEngine}
-              disabled={!form.vehicleModel || loadingTrims}
+              disabled={!form.vehicleModel}
               onChange={e => {
                 if (e.target.value === '__other') {
                   setEngineOther(true);
@@ -385,7 +318,7 @@ function VehicleSelector({ form, setForm, errors, clearError }: {
                 clearError('vehicleEngine');
               }}
             >
-              <option value="">{loadingTrims ? 'Loading engines…' : 'Engine'}</option>
+              <option value="">Engine</option>
               {engineOptions.map(opt => <option key={opt} value={opt}>{opt}</option>)}
               <option value="__other">Other / not listed</option>
             </select>
