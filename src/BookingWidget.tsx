@@ -201,30 +201,21 @@ function vehicleString(f: FormData): string {
 
 // ── VEHICLE API ─────────────────────────────────────────────────────────────────
 // ── VEHICLE DATA (fully static — no API calls) ───────────────────────────────
-// Makes/models from vehicleData.ts, engines from engineData.ts
-import { MAKES, VEHICLE_MODELS } from './vehicleData';
+import { MAKES, VEHICLE_MODELS, VEHICLE_TRIMS } from './vehicleData';
+import { ENGINE_DATA } from './engineData';
 
 function getModelsForMake(make: string): string[] {
   return VEHICLE_MODELS[make] || [];
 }
 
-// ── ENGINE SUGGESTIONS (lazy-loaded) ─────────────────────────────────────────
-// ENGINE_DATA uses year-range entries. Loaded once on demand when user picks a model.
-import type { EngineEntry } from './engineData';
-let _engineData: Record<string, EngineEntry[]> | null = null;
-let _engineDataLoading: Promise<void> | null = null;
-
-function loadEngineMap(): Promise<void> {
-  if (_engineData) return Promise.resolve();
-  if (_engineDataLoading) return _engineDataLoading;
-  _engineDataLoading = import('./engineData').then(m => { _engineData = m.ENGINE_DATA; });
-  return _engineDataLoading;
+function getTrimsForModel(make: string, model: string): string[] {
+  const key = `${make.toUpperCase()}|${model.toUpperCase()}`;
+  return VEHICLE_TRIMS[key] || [];
 }
 
 function getEngineOptions(make: string, model: string, year: string): string[] {
-  if (!_engineData) return [];
   const key = `${make.toUpperCase()}|${model.toUpperCase()}`;
-  const entries = _engineData[key];
+  const entries = ENGINE_DATA[key];
   if (!entries) return [];
   const y = parseInt(year, 10);
   if (!y) {
@@ -246,23 +237,14 @@ function VehicleSelector({ form, setForm, errors, clearError }: {
   const currentYear = new Date().getFullYear();
   const years = Array.from({ length: currentYear - 1980 + 1 }, (_, i) => currentYear - i);
 
-  // Makes and models are fully static — instant, no network calls
+  // All vehicle data is fully static — instant, no network calls, no loading state
   const makes: string[] = MAKES;
   const models: string[] = form.vehicleMake ? getModelsForMake(form.vehicleMake) : [];
+  const trimOptions: string[] = form.vehicleMake && form.vehicleModel ? getTrimsForModel(form.vehicleMake, form.vehicleModel) : [];
+  const engineOptions: string[] = form.vehicleMake && form.vehicleModel ? getEngineOptions(form.vehicleMake, form.vehicleModel, form.vehicleYear) : [];
 
-  // Engine options — load engineData.ts lazily on first model selection
-  const [engineMapLoaded, setEngineMapLoaded] = useState(!!_engineData);
   const [engineOther, setEngineOther] = useState(false);
-
-  useEffect(() => {
-    if (!form.vehicleModel) return;
-    if (_engineData) { setEngineMapLoaded(true); return; }
-    loadEngineMap().then(() => setEngineMapLoaded(true));
-  }, [form.vehicleModel]);
-
-  const engineOptions: string[] = engineMapLoaded && form.vehicleMake && form.vehicleModel
-    ? getEngineOptions(form.vehicleMake, form.vehicleModel, form.vehicleYear)
-    : [];
+  const [trimOther, setTrimOther] = useState(false);
 
   const baseSelect = 'w-full bg-gray-900 text-white text-sm px-3 py-2.5 outline-none transition-colors disabled:text-gray-600 disabled:cursor-not-allowed appearance-none border';
   const sc = (field: string) => baseSelect + (errors[field] ? ' border-red-500 focus:border-red-400' : ' border-gray-800 focus:border-red-600');
@@ -276,7 +258,7 @@ function VehicleSelector({ form, setForm, errors, clearError }: {
         <div>
           {errors.vehicleYear && <p className="text-red-500 text-xs mb-1">{errors.vehicleYear}</p>}
           <select className={sc('vehicleYear')} value={form.vehicleYear}
-            onChange={e => { setForm(p => ({ ...p, vehicleYear: e.target.value, vehicleMake: '', vehicleModel: '', vehicleEngine: '', vehicleTrim: '' })); setEngineOther(false); clearError('vehicleYear'); clearError('vehicleMake'); clearError('vehicleModel'); }}>
+            onChange={e => { setForm(p => ({ ...p, vehicleYear: e.target.value, vehicleMake: '', vehicleModel: '', vehicleEngine: '', vehicleTrim: '' })); setEngineOther(false); setTrimOther(false); clearError('vehicleYear'); clearError('vehicleMake'); clearError('vehicleModel'); }}>
             <option value="">Year</option>
             {years.map(y => <option key={y} value={String(y)}>{y}</option>)}
           </select>
@@ -284,7 +266,7 @@ function VehicleSelector({ form, setForm, errors, clearError }: {
         <div>
           {errors.vehicleMake && <p className="text-red-500 text-xs mb-1">{errors.vehicleMake}</p>}
           <select className={sc('vehicleMake')} value={form.vehicleMake} disabled={!form.vehicleYear}
-            onChange={e => { setForm(p => ({ ...p, vehicleMake: e.target.value, vehicleModel: '', vehicleEngine: '', vehicleTrim: '' })); clearError('vehicleMake'); clearError('vehicleModel'); }}>
+            onChange={e => { setForm(p => ({ ...p, vehicleMake: e.target.value, vehicleModel: '', vehicleEngine: '', vehicleTrim: '' })); setEngineOther(false); setTrimOther(false); clearError('vehicleMake'); clearError('vehicleModel'); }}>
             <option value="">Make</option>
             {makes.map(m => <option key={m} value={m}>{m}</option>)}
           </select>
@@ -292,7 +274,7 @@ function VehicleSelector({ form, setForm, errors, clearError }: {
         <div className="col-span-2 sm:col-span-1">
           {errors.vehicleModel && <p className="text-red-500 text-xs mb-1">{errors.vehicleModel}</p>}
           <select className={sc('vehicleModel')} value={form.vehicleModel} disabled={!form.vehicleMake}
-            onChange={e => { setForm(p => ({ ...p, vehicleModel: e.target.value, vehicleEngine: '', vehicleTrim: '' })); setEngineOther(false); clearError('vehicleModel'); }}>
+            onChange={e => { setForm(p => ({ ...p, vehicleModel: e.target.value, vehicleEngine: '', vehicleTrim: '' })); setEngineOther(false); setTrimOther(false); clearError('vehicleModel'); }}>
             <option value="">Model</option>
             {models.map(m => <option key={m} value={m}>{m}</option>)}
           </select>
@@ -346,14 +328,48 @@ function VehicleSelector({ form, setForm, errors, clearError }: {
         </div>
         <div>
           {errors.vehicleTrim && <p className="text-red-500 text-xs mb-1">{errors.vehicleTrim}</p>}
-          <input
-            type="text"
-            placeholder="Trim (e.g. LE, Sport, XLT)"
-            value={form.vehicleTrim}
-            disabled={!form.vehicleModel}
-            onChange={e => { setForm(p => ({ ...p, vehicleTrim: e.target.value })); clearError('vehicleTrim'); }}
-            className={ic('vehicleTrim')}
-          />
+          {trimOptions.length > 0 ? (
+            <>
+              <select
+                className={sc('vehicleTrim')}
+                value={trimOther ? '__other' : form.vehicleTrim}
+                disabled={!form.vehicleModel}
+                onChange={e => {
+                  if (e.target.value === '__other') {
+                    setTrimOther(true);
+                    setForm(p => ({ ...p, vehicleTrim: '' }));
+                  } else {
+                    setTrimOther(false);
+                    setForm(p => ({ ...p, vehicleTrim: e.target.value }));
+                  }
+                  clearError('vehicleTrim');
+                }}
+              >
+                <option value="">Trim</option>
+                {trimOptions.map(t => <option key={t} value={t}>{t}</option>)}
+                <option value="__other">Other / not listed</option>
+              </select>
+              {trimOther && (
+                <input
+                  type="text"
+                  placeholder="Trim (e.g. LE, Sport, XLT)"
+                  value={form.vehicleTrim}
+                  autoFocus
+                  onChange={e => { setForm(p => ({ ...p, vehicleTrim: e.target.value })); clearError('vehicleTrim'); }}
+                  className={ic('vehicleTrim') + ' mt-2'}
+                />
+              )}
+            </>
+          ) : (
+            <input
+              type="text"
+              placeholder="Trim (e.g. LE, Sport, XLT)"
+              value={form.vehicleTrim}
+              disabled={!form.vehicleModel}
+              onChange={e => { setForm(p => ({ ...p, vehicleTrim: e.target.value })); clearError('vehicleTrim'); }}
+              className={ic('vehicleTrim')}
+            />
+          )}
         </div>
       </div>
     </div>
