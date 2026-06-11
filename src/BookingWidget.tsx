@@ -200,41 +200,16 @@ function vehicleString(f: FormData): string {
 }
 
 // ── VEHICLE API ─────────────────────────────────────────────────────────────────
-// ── VEHICLE DATA (fully static — no API calls) ───────────────────────────────
-import { MAKES, VEHICLE_MODELS } from './vehicleData';
-import { TRIM_DATA } from './trimData';
-import { ENGINE_DATA } from './engineData';
+// ── VEHICLE DATA (fully static — generated from EPA fuel economy database) ────
+import { MAKES, getModels } from './vehicleData';
+import { getEngines } from './engineData';
 
-function getModelsForMake(make: string): string[] {
-  return VEHICLE_MODELS[make] || [];
+function getModelsForMake(make: string, year: number): string[] {
+  return getModels(make, year);
 }
 
-function getTrimsForModel(make: string, model: string, year: string): string[] {
-  const key = `${make.toUpperCase()}|${model.toUpperCase()}`;
-  const entries = TRIM_DATA[key];
-  if (!entries) return [];
-  const y = parseInt(year, 10);
-  if (!y) {
-    const all = new Set<string>();
-    entries.forEach(e => e.trims.forEach(t => all.add(t)));
-    return Array.from(all);
-  }
-  const match = entries.find(e => y >= e.from && y <= e.to);
-  return match ? match.trims : [];
-}
-
-function getEngineOptions(make: string, model: string, year: string): string[] {
-  const key = `${make.toUpperCase()}|${model.toUpperCase()}`;
-  const entries = ENGINE_DATA[key];
-  if (!entries) return [];
-  const y = parseInt(year, 10);
-  if (!y) {
-    const all = new Set<string>();
-    entries.forEach(e => e.engines.forEach(eng => all.add(eng)));
-    return Array.from(all);
-  }
-  const match = entries.find(e => y >= e.from && y <= e.to);
-  return match ? match.engines : [];
+function getEngineOptions(make: string, model: string, year: number): string[] {
+  return getEngines(make, model, year);
 }
 
 // ── VEHICLE SELECTOR ─────────────────────────────────────────────────────────
@@ -247,14 +222,15 @@ function VehicleSelector({ form, setForm, errors, clearError }: {
   const currentYear = new Date().getFullYear();
   const years = Array.from({ length: currentYear - 1980 + 1 }, (_, i) => currentYear - i);
 
-  // All vehicle data is fully static — instant, no network calls, no loading state
+  // All vehicle data is fully static — generated from EPA database
+  // In the EPA data, "model" already encodes the trim (e.g. "RAV4 4WD", "Camry XLE")
+  // so there is no separate trim dropdown — Year → Make → Model → Engine
+  const y = parseInt(form.vehicleYear, 10);
   const makes: string[] = MAKES;
-  const models: string[] = form.vehicleMake ? getModelsForMake(form.vehicleMake) : [];
-  const trimOptions: string[] = form.vehicleMake && form.vehicleModel ? getTrimsForModel(form.vehicleMake, form.vehicleModel, form.vehicleYear) : [];
-  const engineOptions: string[] = form.vehicleMake && form.vehicleModel ? getEngineOptions(form.vehicleMake, form.vehicleModel, form.vehicleYear) : [];
+  const models: string[] = (form.vehicleMake && y) ? getModelsForMake(form.vehicleMake, y) : [];
+  const engineOptions: string[] = (form.vehicleMake && form.vehicleModel && y) ? getEngineOptions(form.vehicleMake, form.vehicleModel, y) : [];
 
   const [engineOther, setEngineOther] = useState(false);
-  const [trimOther, setTrimOther] = useState(false);
 
   const baseSelect = 'w-full bg-gray-900 text-white text-sm px-3 py-2.5 outline-none transition-colors disabled:text-gray-600 disabled:cursor-not-allowed appearance-none border';
   const sc = (field: string) => baseSelect + (errors[field] ? ' border-red-500 focus:border-red-400' : ' border-gray-800 focus:border-red-600');
@@ -268,7 +244,7 @@ function VehicleSelector({ form, setForm, errors, clearError }: {
         <div>
           {errors.vehicleYear && <p className="text-red-500 text-xs mb-1">{errors.vehicleYear}</p>}
           <select className={sc('vehicleYear')} value={form.vehicleYear}
-            onChange={e => { setForm(p => ({ ...p, vehicleYear: e.target.value, vehicleMake: '', vehicleModel: '', vehicleEngine: '', vehicleTrim: '' })); setEngineOther(false); setTrimOther(false); clearError('vehicleYear'); clearError('vehicleMake'); clearError('vehicleModel'); }}>
+            onChange={e => { setForm(p => ({ ...p, vehicleYear: e.target.value, vehicleMake: '', vehicleModel: '', vehicleEngine: '', vehicleTrim: '' })); setEngineOther(false); clearError('vehicleYear'); clearError('vehicleMake'); clearError('vehicleModel'); }}>
             <option value="">Year</option>
             {years.map(y => <option key={y} value={String(y)}>{y}</option>)}
           </select>
@@ -276,7 +252,7 @@ function VehicleSelector({ form, setForm, errors, clearError }: {
         <div>
           {errors.vehicleMake && <p className="text-red-500 text-xs mb-1">{errors.vehicleMake}</p>}
           <select className={sc('vehicleMake')} value={form.vehicleMake} disabled={!form.vehicleYear}
-            onChange={e => { setForm(p => ({ ...p, vehicleMake: e.target.value, vehicleModel: '', vehicleEngine: '', vehicleTrim: '' })); setEngineOther(false); setTrimOther(false); clearError('vehicleMake'); clearError('vehicleModel'); }}>
+            onChange={e => { setForm(p => ({ ...p, vehicleMake: e.target.value, vehicleModel: '', vehicleEngine: '', vehicleTrim: '' })); setEngineOther(false); clearError('vehicleMake'); clearError('vehicleModel'); }}>
             <option value="">Make</option>
             {makes.map(m => <option key={m} value={m}>{m}</option>)}
           </select>
@@ -284,7 +260,7 @@ function VehicleSelector({ form, setForm, errors, clearError }: {
         <div className="col-span-2 sm:col-span-1">
           {errors.vehicleModel && <p className="text-red-500 text-xs mb-1">{errors.vehicleModel}</p>}
           <select className={sc('vehicleModel')} value={form.vehicleModel} disabled={!form.vehicleMake}
-            onChange={e => { setForm(p => ({ ...p, vehicleModel: e.target.value, vehicleEngine: '', vehicleTrim: '' })); setEngineOther(false); setTrimOther(false); clearError('vehicleModel'); }}>
+            onChange={e => { setForm(p => ({ ...p, vehicleModel: e.target.value, vehicleEngine: '', vehicleTrim: '' })); setEngineOther(false); clearError('vehicleModel'); }}>
             <option value="">Model</option>
             {models.map(m => <option key={m} value={m}>{m}</option>)}
           </select>
@@ -333,51 +309,6 @@ function VehicleSelector({ form, setForm, errors, clearError }: {
               autoFocus
               onChange={e => { setForm(p => ({ ...p, vehicleEngine: e.target.value })); clearError('vehicleEngine'); }}
               className={ic('vehicleEngine') + ' mt-2'}
-            />
-          )}
-        </div>
-        <div>
-          {errors.vehicleTrim && <p className="text-red-500 text-xs mb-1">{errors.vehicleTrim}</p>}
-          {trimOptions.length > 0 ? (
-            <>
-              <select
-                className={sc('vehicleTrim')}
-                value={trimOther ? '__other' : form.vehicleTrim}
-                disabled={!form.vehicleModel}
-                onChange={e => {
-                  if (e.target.value === '__other') {
-                    setTrimOther(true);
-                    setForm(p => ({ ...p, vehicleTrim: '' }));
-                  } else {
-                    setTrimOther(false);
-                    setForm(p => ({ ...p, vehicleTrim: e.target.value }));
-                  }
-                  clearError('vehicleTrim');
-                }}
-              >
-                <option value="">Trim</option>
-                {trimOptions.map(t => <option key={t} value={t}>{t}</option>)}
-                <option value="__other">Other / not listed</option>
-              </select>
-              {trimOther && (
-                <input
-                  type="text"
-                  placeholder="Trim (e.g. LE, Sport, XLT)"
-                  value={form.vehicleTrim}
-                  autoFocus
-                  onChange={e => { setForm(p => ({ ...p, vehicleTrim: e.target.value })); clearError('vehicleTrim'); }}
-                  className={ic('vehicleTrim') + ' mt-2'}
-                />
-              )}
-            </>
-          ) : (
-            <input
-              type="text"
-              placeholder="Trim (e.g. LE, Sport, XLT)"
-              value={form.vehicleTrim}
-              disabled={!form.vehicleModel}
-              onChange={e => { setForm(p => ({ ...p, vehicleTrim: e.target.value })); clearError('vehicleTrim'); }}
-              className={ic('vehicleTrim')}
             />
           )}
         </div>
