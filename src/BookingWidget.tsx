@@ -266,33 +266,32 @@ async function fetchModels(year: string, make: string): Promise<string[]> {
   });
 }
 
-// CarQuery: returns trims with engine details for a given year/make/model
-interface CarQueryTrim {
-  model_trim: string;
-  model_engine_cc: string;
-  model_engine_cyl: string;
-  model_engine_type: string;
-  model_engine_fuel: string;
+// ── ENGINE SUGGESTIONS (lazy-loaded) ─────────────────────────────────────────
+// ENGINE_DATA uses year-range entries. Loaded once on demand when user picks a model.
+import type { EngineEntry } from './engineData';
+let _engineData: Record<string, EngineEntry[]> | null = null;
+let _engineDataLoading: Promise<void> | null = null;
+
+function loadEngineMap(): Promise<void> {
+  if (_engineData) return Promise.resolve();
+  if (_engineDataLoading) return _engineDataLoading;
+  _engineDataLoading = import('./engineData').then(m => { _engineData = m.ENGINE_DATA; });
+  return _engineDataLoading;
 }
 
-async function fetchTrims(year: string, make: string, model: string): Promise<CarQueryTrim[]> {
-  return cachedFetch(`trims-${year}-${make}-${model}`, async () => {
-    const url = `https://www.carqueryapi.com/api/0.3/?cmd=getTrims&year=${year}&make=${encodeURIComponent(make)}&model=${encodeURIComponent(model)}`;
-    const res = await fetch(url);
-    const data = await res.json();
-    return (data.Trims || []) as CarQueryTrim[];
-  }).catch(() => []);
-}
-
-function formatTrimLabel(t: CarQueryTrim): string {
-  const cc = parseFloat(t.model_engine_cc);
-  const liters = cc > 0 ? (cc / 1000).toFixed(1) + 'L' : '';
-  const cyls = t.model_engine_cyl ? t.model_engine_cyl + '-cyl' : '';
-  const fuel = t.model_engine_fuel?.toLowerCase();
-  const fuelTag = fuel?.includes('diesel') ? ' Diesel' : fuel?.includes('electric') ? ' Electric' : fuel?.includes('hybrid') ? ' Hybrid' : '';
-  const engine = [liters, cyls].filter(Boolean).join(' ') + fuelTag;
-  const trim = t.model_trim || '';
-  return [trim, engine].filter(Boolean).join(' — ');
+function getEngineOptions(make: string, model: string, year: string): string[] {
+  if (!_engineData) return [];
+  const key = `${make.toUpperCase()}|${model.toUpperCase()}`;
+  const entries = _engineData[key];
+  if (!entries) return [];
+  const y = parseInt(year, 10);
+  if (!y) {
+    const all = new Set<string>();
+    entries.forEach(e => e.engines.forEach(eng => all.add(eng)));
+    return Array.from(all);
+  }
+  const match = entries.find(e => y >= e.from && y <= e.to);
+  return match ? match.engines : [];
 }
 
 // ── VEHICLE SELECTOR ─────────────────────────────────────────────────────────
@@ -306,10 +305,22 @@ function VehicleSelector({ form, setForm, errors, clearError }: {
   const years = Array.from({ length: currentYear - 1980 + 1 }, (_, i) => currentYear - i);
   const [makes, setMakes] = useState<string[]>([]);
   const [models, setModels] = useState<string[]>([]);
-  const [trims, setTrims] = useState<CarQueryTrim[]>([]);
   const [loadingMakes, setLoadingMakes] = useState(false);
   const [loadingModels, setLoadingModels] = useState(false);
-  const [loadingTrims, setLoadingTrims] = useState(false);
+
+  // Engine options — lazy-load engineData.ts on first model selection
+  const [engineMapLoaded, setEngineMapLoaded] = useState(!!_engineMap);
+  const [engineOther, setEngineOther] = useState(false);
+
+  useEffect(() => {
+    if (!form.vehicleModel) return;
+    if (_engineMap) { setEngineMapLoaded(true); return; }
+    loadEngineMap().then(() => setEngineMapLoaded(true));
+  }, [form.vehicleModel, form.vehicleYear]);
+
+  const engineOptions = engineMapLoaded && form.vehicleMake && form.vehicleModel
+    ? getEngineOptions(form.vehicleMake, form.vehicleModel, form.vehicleYear)
+    : [];
 
   useEffect(() => {
     if (!form.vehicleYear) { setMakes([]); return; }
@@ -323,14 +334,6 @@ function VehicleSelector({ form, setForm, errors, clearError }: {
     fetchModels(form.vehicleYear, form.vehicleMake).then(setModels).finally(() => setLoadingModels(false));
   }, [form.vehicleYear, form.vehicleMake]);
 
-  useEffect(() => {
-    if (!form.vehicleYear || !form.vehicleMake || !form.vehicleModel) { setTrims([]); return; }
-    setLoadingTrims(true);
-    fetchTrims(form.vehicleYear, form.vehicleMake, form.vehicleModel)
-      .then(setTrims)
-      .finally(() => setLoadingTrims(false));
-  }, [form.vehicleYear, form.vehicleMake, form.vehicleModel]);
-
   const baseSelect = 'w-full bg-gray-900 text-white text-sm px-3 py-2.5 outline-none transition-colors disabled:text-gray-600 disabled:cursor-not-allowed appearance-none border';
   const sc = (field: string) => baseSelect + (errors[field] ? ' border-red-500 focus:border-red-400' : ' border-gray-800 focus:border-red-600');
   const baseInput = 'w-full bg-gray-900 text-white text-sm px-3 py-2.5 outline-none transition-colors disabled:text-gray-600 disabled:cursor-not-allowed placeholder-gray-600 border';
@@ -339,11 +342,11 @@ function VehicleSelector({ form, setForm, errors, clearError }: {
   return (
     <div className="col-span-2">
       <label className={`block text-xs font-bold uppercase tracking-wider mb-1.5 ${(errors.vehicleYear||errors.vehicleMake||errors.vehicleModel) ? 'text-red-500' : 'text-gray-500'}`}>Vehicle</label>
-      <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mb-2">
         <div>
           {errors.vehicleYear && <p className="text-red-500 text-xs mb-1">{errors.vehicleYear}</p>}
           <select className={sc('vehicleYear')} value={form.vehicleYear}
-            onChange={e => { setForm(p => ({ ...p, vehicleYear: e.target.value, vehicleMake: '', vehicleModel: '', vehicleEngine: '', vehicleTrim: '' })); clearError('vehicleYear'); clearError('vehicleMake'); clearError('vehicleModel'); }}>
+            onChange={e => { setForm(p => ({ ...p, vehicleYear: e.target.value, vehicleMake: '', vehicleModel: '', vehicleEngine: '', vehicleTrim: '' })); setEngineOther(false); clearError('vehicleYear'); clearError('vehicleMake'); clearError('vehicleModel'); }}>
             <option value="">Year</option>
             {years.map(y => <option key={y} value={String(y)}>{y}</option>)}
           </select>
@@ -356,63 +359,71 @@ function VehicleSelector({ form, setForm, errors, clearError }: {
             {makes.map(m => <option key={m} value={m}>{m}</option>)}
           </select>
         </div>
-        <div>
+        <div className="col-span-2 sm:col-span-1">
           {errors.vehicleModel && <p className="text-red-500 text-xs mb-1">{errors.vehicleModel}</p>}
           <select className={sc('vehicleModel')} value={form.vehicleModel} disabled={!form.vehicleMake || loadingModels}
-            onChange={e => { setForm(p => ({ ...p, vehicleModel: e.target.value, vehicleEngine: '', vehicleTrim: '' })); clearError('vehicleModel'); }}>
+            onChange={e => { setForm(p => ({ ...p, vehicleModel: e.target.value, vehicleEngine: '', vehicleTrim: '' })); setEngineOther(false); clearError('vehicleModel'); }}>
             <option value="">{loadingModels ? 'Loading…' : 'Model'}</option>
             {models.map(m => <option key={m} value={m}>{m}</option>)}
           </select>
         </div>
-        {/* Trim + Engine — CarQuery autopopulated, falls back to manual if no data */}
-        <div className="col-span-2 sm:col-span-2 space-y-2">
-          {errors.vehicleTrim && <p className="text-red-500 text-xs mb-1">{errors.vehicleTrim}</p>}
-          {(loadingTrims || trims.length > 0) && (
+      </div>
+      {/* Engine — dropdown when known, free text fallback */}
+      <div className="grid grid-cols-2 gap-2">
+        <div>
+          {errors.vehicleEngine && <p className="text-red-500 text-xs mb-1">{errors.vehicleEngine}</p>}
+          {engineOptions.length > 0 ? (
             <select
-              className={sc('vehicleTrim')}
-              value={form.vehicleTrim}
-              disabled={!form.vehicleModel || loadingTrims}
+              className={sc('vehicleEngine')}
+              value={engineOther ? '__other' : form.vehicleEngine}
+              disabled={!form.vehicleModel}
               onChange={e => {
-                const t = trims.find(tr => formatTrimLabel(tr) === e.target.value);
-                const cc = t ? parseFloat(t.model_engine_cc) : 0;
-                const liters = cc > 0 ? (cc / 1000).toFixed(1) : '';
-                const cyls = t?.model_engine_cyl || '';
-                const fuel = t?.model_engine_fuel?.toLowerCase() || '';
-                const engineVal = fuel.includes('diesel') ? `diesel_${liters}` : fuel.includes('electric') ? 'electric' : fuel.includes('hybrid') ? 'hybrid' : cyls ? `${cyls}cyl_${liters}` : liters;
-                setForm(p => ({ ...p, vehicleTrim: e.target.value === 'Not Listed' ? '' : e.target.value, vehicleEngine: e.target.value === 'Not Listed' ? '' : engineVal }));
-                clearError('vehicleTrim');
+                if (e.target.value === '__other') {
+                  setEngineOther(true);
+                  setForm(p => ({ ...p, vehicleEngine: '' }));
+                } else {
+                  setEngineOther(false);
+                  setForm(p => ({ ...p, vehicleEngine: e.target.value }));
+                }
                 clearError('vehicleEngine');
               }}
             >
-              <option value="">{loadingTrims ? 'Loading trims…' : 'Select Trim / Engine *'}</option>
-              {trims.map((t, i) => {
-                const label = formatTrimLabel(t);
-                return <option key={i} value={label}>{label}</option>;
-              })}
-              <option value="Not Listed">My trim isn't listed — I'll type it below</option>
+              <option value="">Engine</option>
+              {engineOptions.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+              <option value="__other">Other / not listed</option>
             </select>
+          ) : (
+            <input
+              type="text"
+              placeholder="Engine (e.g. 2.4L 4-cyl)"
+              value={form.vehicleEngine}
+              disabled={!form.vehicleModel}
+              onChange={e => { setForm(p => ({ ...p, vehicleEngine: e.target.value })); clearError('vehicleEngine'); }}
+              className={ic('vehicleEngine')}
+            />
           )}
-          {/* Always show manual fields when no trims found OR "Not Listed" chosen */}
-          {(!loadingTrims) && (trims.length === 0 || form.vehicleTrim === '' && trims.length > 0) && (
-            <div className="grid grid-cols-2 gap-2">
-              <input
-                type="text"
-                placeholder="Trim (e.g. LE, Sport, XLT)"
-                value={form.vehicleTrim}
-                disabled={!form.vehicleModel}
-                onChange={e => { setForm(p => ({ ...p, vehicleTrim: e.target.value })); clearError('vehicleTrim'); }}
-                className={ic('vehicleTrim')}
-              />
-              <input
-                type="text"
-                placeholder="Engine (e.g. 2.4L 4-cyl)"
-                value={form.vehicleEngine}
-                disabled={!form.vehicleModel}
-                onChange={e => { setForm(p => ({ ...p, vehicleEngine: e.target.value })); clearError('vehicleEngine'); }}
-                className={ic('vehicleEngine')}
-              />
-            </div>
+          {/* Show free-text input when "Other" selected */}
+          {engineOther && (
+            <input
+              type="text"
+              placeholder="Describe your engine (e.g. 2.4L 4-cyl)"
+              value={form.vehicleEngine}
+              autoFocus
+              onChange={e => { setForm(p => ({ ...p, vehicleEngine: e.target.value })); clearError('vehicleEngine'); }}
+              className={ic('vehicleEngine') + ' mt-2'}
+            />
           )}
+        </div>
+        <div>
+          {errors.vehicleTrim && <p className="text-red-500 text-xs mb-1">{errors.vehicleTrim}</p>}
+          <input
+            type="text"
+            placeholder="Trim (e.g. LE, Sport, XLT)"
+            value={form.vehicleTrim}
+            disabled={!form.vehicleModel}
+            onChange={e => { setForm(p => ({ ...p, vehicleTrim: e.target.value })); clearError('vehicleTrim'); }}
+            className={ic('vehicleTrim')}
+          />
         </div>
       </div>
     </div>
@@ -1991,25 +2002,24 @@ export function AdminSchedule() {
     <div className="min-h-screen bg-dark py-12 px-4 md:px-8 overflow-x-hidden">
       <div className="max-w-6xl mx-auto w-full">
         {/* Header */}
-        <div className="flex flex-wrap items-center gap-2 mb-8 justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-8">
           <div>
             <p className="text-red-600 text-xs font-bold uppercase tracking-[0.25em] mb-1">Admin · GID Garage</p>
             <h1 className="text-4xl font-black text-white tracking-tight">Schedule</h1>
           </div>
-          <div className="flex flex-wrap gap-2 items-center">
+          <div className="flex items-center gap-2 flex-wrap">
             {notifPerm !== 'unsupported' && notifPerm !== 'granted' && (
               <button onClick={requestNotifications}
-                className="border border-yellow-700 text-yellow-600 hover:border-yellow-500 hover:text-yellow-400 text-xs font-bold uppercase tracking-widest px-4 py-2 transition-colors">🔔 Enable Alerts</button>
+                className="border border-yellow-700 text-yellow-600 hover:border-yellow-500 hover:text-yellow-400 text-xs font-bold uppercase tracking-widest px-3 py-2 transition-colors">🔔 Alerts</button>
             )}
             {notifPerm === 'granted' && (
-              <button onClick={requestNotifications}
-                className="text-xs text-green-600 font-bold uppercase tracking-widest">🔔 Alerts On</button>
+              <span className="text-xs text-green-600 font-bold uppercase tracking-widest px-3 py-2">🔔 On</span>
             )}
             <button onClick={() => getSupabaseBookings().then(setBookings)}
-              className="border border-gray-700 text-gray-400 hover:border-red-600 hover:text-white text-xs font-bold uppercase tracking-widest px-4 py-2 transition-colors">↻ Refresh</button>
+              className="border border-gray-700 text-gray-400 hover:border-red-600 hover:text-white text-xs font-bold uppercase tracking-widest px-3 py-2 transition-colors">↻</button>
             <button onClick={() => { sessionStorage.removeItem('gg_admin_auth'); setUnlocked(false); }}
-              className="border border-gray-700 text-gray-400 hover:border-red-600 hover:text-white text-xs font-bold uppercase tracking-widest px-4 py-2 transition-colors">Lock</button>
-            <a href="/" className="border border-gray-700 text-gray-400 hover:border-red-600 hover:text-white text-xs font-bold uppercase tracking-widest px-4 py-2 transition-colors">← Site</a>
+              className="border border-gray-700 text-gray-400 hover:border-red-600 hover:text-white text-xs font-bold uppercase tracking-widest px-3 py-2 transition-colors">🔒</button>
+            <a href="/" className="border border-gray-700 text-gray-400 hover:border-red-600 hover:text-white text-xs font-bold uppercase tracking-widest px-3 py-2 transition-colors">← Site</a>
           </div>
         </div>
 

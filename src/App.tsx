@@ -111,12 +111,12 @@ function Hero({ openBooking }: { openBooking: () => void }) {
         <div className="absolute bottom-0 left-0 right-0 h-48" style={{ background: 'linear-gradient(to bottom, transparent, #0f0f0f)' }} />
       </div>
       <div className="relative z-10 w-full text-center">
-        <div className="mb-4 w-full max-w-4xl mx-auto px-4">
+        <div className="mb-4 w-full px-4 md:px-0 md:max-w-6xl lg:max-w-7xl mx-auto">
           <img
             src="/banner.PNG"
             alt="GID Garage"
             className="w-full object-contain drop-shadow-2xl"
-            style={{ maxHeight: '500px' }}
+            style={{ maxHeight: '560px' }}
           />
         </div>
         <div className="max-w-5xl mx-auto px-5 md:px-8">
