@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef, useCallback, type Dispatch, type SetStateAction } from 'react';
 import { JobsTab, BusinessHub } from './JobOps';
+import { getEngines } from './engineData';
+import { getTrims } from './trimData';
 
 const PHONE = '480-757-0476';
 
@@ -239,7 +241,16 @@ function VehicleSelector({ form, setForm, errors, clearError }: {
   const [models, setModels] = useState<string[]>([]);
   const [loadingMakes, setLoadingMakes] = useState(false);
   const [loadingModels, setLoadingModels] = useState(false);
+  const [trimOther, setTrimOther] = useState(false);
   const [engineOther, setEngineOther] = useState(false);
+
+  // Derived trim + engine options from static data
+  const trimOptions = (form.vehicleModel && form.vehicleYear)
+    ? getTrims(form.vehicleMake, form.vehicleModel, parseInt(form.vehicleYear, 10))
+    : [];
+  const engineOptions = (form.vehicleModel && form.vehicleYear)
+    ? getEngines(form.vehicleMake, form.vehicleModel, parseInt(form.vehicleYear, 10))
+    : [];
 
   // Load makes on mount
   useEffect(() => {
@@ -255,6 +266,12 @@ function VehicleSelector({ form, setForm, errors, clearError }: {
     nhtsaGetModels(form.vehicleMake, y).then(m => { setModels(m); setLoadingModels(false); });
   }, [form.vehicleMake, form.vehicleYear]);
 
+  // Reset trim/engine other-mode when model changes
+  useEffect(() => {
+    setTrimOther(false);
+    setEngineOther(false);
+  }, [form.vehicleModel, form.vehicleYear, form.vehicleMake]);
+
   const baseSelect = 'w-full bg-gray-900 text-white text-sm px-3 py-2.5 outline-none transition-colors disabled:text-gray-600 disabled:cursor-not-allowed appearance-none border';
   const sc = (field: string) => baseSelect + (errors[field] ? ' border-red-500 focus:border-red-400' : ' border-gray-800 focus:border-red-600');
   const baseInput = 'w-full bg-gray-900 text-white text-sm px-3 py-2.5 outline-none transition-colors disabled:text-gray-600 disabled:cursor-not-allowed placeholder-gray-600 border';
@@ -263,11 +280,12 @@ function VehicleSelector({ form, setForm, errors, clearError }: {
   return (
     <div className="col-span-2">
       <label className={`block text-xs font-bold uppercase tracking-wider mb-1.5 ${(errors.vehicleYear||errors.vehicleMake||errors.vehicleModel) ? 'text-red-500' : 'text-gray-500'}`}>Vehicle</label>
+      {/* Year / Make / Model — from NHTSA API */}
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mb-2">
         <div>
           {errors.vehicleYear && <p className="text-red-500 text-xs mb-1">{errors.vehicleYear}</p>}
           <select className={sc('vehicleYear')} value={form.vehicleYear}
-            onChange={e => { setForm(p => ({ ...p, vehicleYear: e.target.value, vehicleMake: '', vehicleModel: '', vehicleEngine: '', vehicleTrim: '' })); setModels([]); setEngineOther(false); clearError('vehicleYear'); clearError('vehicleMake'); clearError('vehicleModel'); }}>
+            onChange={e => { setForm(p => ({ ...p, vehicleYear: e.target.value, vehicleMake: '', vehicleModel: '', vehicleEngine: '', vehicleTrim: '' })); setModels([]); setTrimOther(false); setEngineOther(false); clearError('vehicleYear'); clearError('vehicleMake'); clearError('vehicleModel'); }}>
             <option value="">Year</option>
             {years.map(y => <option key={y} value={String(y)}>{y}</option>)}
           </select>
@@ -275,7 +293,7 @@ function VehicleSelector({ form, setForm, errors, clearError }: {
         <div>
           {errors.vehicleMake && <p className="text-red-500 text-xs mb-1">{errors.vehicleMake}</p>}
           <select className={sc('vehicleMake')} value={form.vehicleMake} disabled={!form.vehicleYear || loadingMakes}
-            onChange={e => { setForm(p => ({ ...p, vehicleMake: e.target.value, vehicleModel: '', vehicleEngine: '', vehicleTrim: '' })); setModels([]); setEngineOther(false); clearError('vehicleMake'); clearError('vehicleModel'); }}>
+            onChange={e => { setForm(p => ({ ...p, vehicleMake: e.target.value, vehicleModel: '', vehicleEngine: '', vehicleTrim: '' })); setModels([]); setTrimOther(false); setEngineOther(false); clearError('vehicleMake'); clearError('vehicleModel'); }}>
             <option value="">{loadingMakes ? 'Loading…' : 'Make'}</option>
             {makes.map(m => <option key={m} value={m}>{m}</option>)}
           </select>
@@ -283,37 +301,85 @@ function VehicleSelector({ form, setForm, errors, clearError }: {
         <div className="col-span-2 sm:col-span-1">
           {errors.vehicleModel && <p className="text-red-500 text-xs mb-1">{errors.vehicleModel}</p>}
           <select className={sc('vehicleModel')} value={form.vehicleModel} disabled={!form.vehicleMake || loadingModels}
-            onChange={e => { setForm(p => ({ ...p, vehicleModel: e.target.value, vehicleEngine: '', vehicleTrim: '' })); setEngineOther(false); clearError('vehicleModel'); }}>
+            onChange={e => { setForm(p => ({ ...p, vehicleModel: e.target.value, vehicleEngine: '', vehicleTrim: '' })); setTrimOther(false); setEngineOther(false); clearError('vehicleModel'); }}>
             <option value="">{loadingModels ? 'Loading…' : 'Model'}</option>
             {models.map(m => <option key={m} value={m}>{m}</option>)}
           </select>
         </div>
       </div>
-      {/* Trim + Engine — free text since NHTSA doesn't provide these reliably */}
-      <div className="grid grid-cols-2 gap-2">
-        <div>
-          {errors.vehicleTrim && <p className="text-red-500 text-xs mb-1">{errors.vehicleTrim}</p>}
-          <input
-            type="text"
-            placeholder="Trim (e.g. LE, XLT, Sport)"
-            value={form.vehicleTrim}
-            disabled={!form.vehicleModel}
-            onChange={e => { setForm(p => ({ ...p, vehicleTrim: e.target.value })); clearError('vehicleTrim'); }}
-            className={ic('vehicleTrim')}
-          />
+
+      {/* Trim + Engine — dropdown from static data, free-text fallback */}
+      {form.vehicleModel && (
+        <div className="grid grid-cols-2 gap-2">
+          {/* Trim */}
+          <div>
+            {errors.vehicleTrim && <p className="text-red-500 text-xs mb-1">{errors.vehicleTrim}</p>}
+            {trimOptions.length > 0 && !trimOther ? (
+              <select
+                className={sc('vehicleTrim')}
+                value={form.vehicleTrim}
+                onChange={e => {
+                  if (e.target.value === '__other__') { setTrimOther(true); setForm(p => ({ ...p, vehicleTrim: '' })); }
+                  else { setForm(p => ({ ...p, vehicleTrim: e.target.value })); clearError('vehicleTrim'); }
+                }}>
+                <option value="">Trim</option>
+                {trimOptions.map(t => <option key={t} value={t}>{t}</option>)}
+                <option value="__other__">Other / not listed</option>
+              </select>
+            ) : (
+              <div className="relative">
+                <input
+                  type="text"
+                  placeholder="Trim (e.g. LE, XLT, Sport)"
+                  value={form.vehicleTrim}
+                  onChange={e => { setForm(p => ({ ...p, vehicleTrim: e.target.value })); clearError('vehicleTrim'); }}
+                  className={ic('vehicleTrim')}
+                />
+                {trimOptions.length > 0 && (
+                  <button type="button" onClick={() => { setTrimOther(false); setForm(p => ({ ...p, vehicleTrim: '' })); }}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-red-400 text-[10px] font-bold uppercase tracking-wider">
+                    ← list
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Engine */}
+          <div>
+            {errors.vehicleEngine && <p className="text-red-500 text-xs mb-1">{errors.vehicleEngine}</p>}
+            {engineOptions.length > 0 && !engineOther ? (
+              <select
+                className={sc('vehicleEngine')}
+                value={form.vehicleEngine}
+                onChange={e => {
+                  if (e.target.value === '__other__') { setEngineOther(true); setForm(p => ({ ...p, vehicleEngine: '' })); }
+                  else { setForm(p => ({ ...p, vehicleEngine: e.target.value })); clearError('vehicleEngine'); }
+                }}>
+                <option value="">Engine</option>
+                {engineOptions.map(e => <option key={e} value={e}>{e}</option>)}
+                <option value="__other__">Other / not listed</option>
+              </select>
+            ) : (
+              <div className="relative">
+                <input
+                  type="text"
+                  placeholder="Engine (e.g. 2.4L 4-cyl)"
+                  value={form.vehicleEngine}
+                  onChange={e => { setForm(p => ({ ...p, vehicleEngine: e.target.value })); clearError('vehicleEngine'); }}
+                  className={ic('vehicleEngine')}
+                />
+                {engineOptions.length > 0 && (
+                  <button type="button" onClick={() => { setEngineOther(false); setForm(p => ({ ...p, vehicleEngine: '' })); }}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-red-400 text-[10px] font-bold uppercase tracking-wider">
+                    ← list
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
         </div>
-        <div>
-          {errors.vehicleEngine && <p className="text-red-500 text-xs mb-1">{errors.vehicleEngine}</p>}
-          <input
-            type="text"
-            placeholder="Engine (e.g. 2.4L 4-cyl)"
-            value={form.vehicleEngine}
-            disabled={!form.vehicleModel}
-            onChange={e => { setForm(p => ({ ...p, vehicleEngine: e.target.value })); clearError('vehicleEngine'); }}
-            className={ic('vehicleEngine')}
-          />
-        </div>
-      </div>
+      )}
     </div>
   );
 }

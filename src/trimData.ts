@@ -914,3 +914,11 @@ export const TRIM_DATA: Record<string, TrimEntry[]> = {
   ],
 
 };
+
+export function getTrims(make: string, model: string, year: number): string[] {
+  const key = `${make.toUpperCase()}|${model.toUpperCase()}`;
+  const entries = TRIM_DATA[key];
+  if (!entries) return [];
+  const match = entries.find(e => year >= e.from && year <= e.to);
+  return match ? match.trims : [];
+}
