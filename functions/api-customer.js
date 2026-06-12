@@ -373,6 +373,19 @@ export async function onRequestPost({ request, env }) {
         return json({ ok: true });
       }
 
+      // ---- Insert a new booking (customer booking + inquiry forms) --------
+      case 'insert-booking': {
+        const { row } = payload;
+        if (!row) return json({ error: 'Missing row' }, 400);
+        const res = await fetch(`${base}/bookings`, {
+          method: 'POST',
+          headers: { ...headers, Prefer: 'return=minimal' },
+          body: JSON.stringify(row),
+        });
+        if (!res.ok) return json({ error: await res.text() }, 502);
+        return json({ ok: true });
+      }
+
       default:
         return json({ error: `Unknown action: ${action}` }, 400);
     }

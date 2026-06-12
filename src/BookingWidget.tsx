@@ -88,10 +88,8 @@ async function getSupabaseBookings(): Promise<Booking[]> {
 }
 
 async function insertSupabaseBooking(b: Booking): Promise<void> {
-  await sbFetch('/bookings', {
-    method: 'POST',
-    headers: { 'Prefer': 'return=minimal' },
-    body: JSON.stringify({
+  await apiPost('insert-booking', {
+    row: {
       id: b.id,
       service: b.service,
       service_icon: b.serviceIcon,
@@ -106,7 +104,7 @@ async function insertSupabaseBooking(b: Booking): Promise<void> {
       garage_notes: b.garageNotes || '',
       status: b.status,
       created_at: b.createdAt,
-    }),
+    },
   });
 }
 
@@ -1198,7 +1196,7 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
       created_at: new Date().toISOString(),
     };
     try {
-      await sbFetch('/bookings', { method: 'POST', headers: { 'Prefer': 'return=minimal' }, body: JSON.stringify(inquiry) });
+      await apiPost('insert-booking', { row: inquiry });
     } catch (e: any) {
       setSubmitError('Something went wrong. Please try again or call us directly.');
       setSubmitting(false);
