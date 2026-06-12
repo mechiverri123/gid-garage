@@ -833,8 +833,9 @@ function AdminPhotoPanel({ entityId, onSave, initialPhotos, onPhotosChange }: {
   const [photos, setPhotos] = useState(initialPhotos);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
-  const [noteTimers, setNoteTimers] = useState<Record<string, ReturnType<typeof setTimeout>>>({});
-  const [savingNotes, setSavingNotes] = useState<Record<string, boolean>>({});
+  const [savingNotes, setSavingNotes] = useState(false);
+  const [notesSaved, setNotesSaved] = useState(false);
+  const [hasNoteChanges, setHasNoteChanges] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   async function savePhotosToDb(updated: typeof photos) {
@@ -865,17 +866,17 @@ function AdminPhotoPanel({ entityId, onSave, initialPhotos, onPhotosChange }: {
   }
 
   function updateNote(key: string, note: string) {
-    const updated = photos.map(p => p.key === key ? { ...p, note } : p);
-    setPhotos(updated);
-    // Autosave after 3s debounce
-    if (noteTimers[key]) clearTimeout(noteTimers[key]);
-    setSavingNotes(prev => ({ ...prev, [key]: false }));
-    const timer = setTimeout(async () => {
-      setSavingNotes(prev => ({ ...prev, [key]: true }));
-      await savePhotosToDb(updated);
-      setSavingNotes(prev => ({ ...prev, [key]: false }));
-    }, 3000);
-    setNoteTimers(prev => ({ ...prev, [key]: timer }));
+    setPhotos(prev => prev.map(p => p.key === key ? { ...p, note } : p));
+    setHasNoteChanges(true);
+    setNotesSaved(false);
+  }
+
+  async function saveAllNotes() {
+    setSavingNotes(true);
+    await savePhotosToDb(photos);
+    setSavingNotes(false);
+    setNotesSaved(true);
+    setHasNoteChanges(false);
   }
 
   async function deletePhoto(key: string) {
@@ -915,24 +916,30 @@ function AdminPhotoPanel({ entityId, onSave, initialPhotos, onPhotosChange }: {
                 <span className="absolute bottom-2 left-2 text-[10px] text-gray-400 bg-black/60 px-1.5 py-0.5">{p.name}</span>
               </div>
               <div className="p-2">
-                <div className="relative">
-                  <input
-                    type="text"
-                    value={p.note}
-                    onChange={e => updateNote(p.key, e.target.value)}
-                    placeholder="Add a note (autosaves in 3s)…"
-                    className="w-full bg-gray-800 border border-gray-700 text-white text-xs px-2.5 py-1.5 outline-none focus:border-yellow-700 placeholder-gray-600 transition-colors pr-14"
-                  />
-                  {savingNotes[p.key] !== undefined && (
-                    <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-gray-600">
-                      {savingNotes[p.key] ? 'saving…' : 'saved ✓'}
-                    </span>
-                  )}
-                </div>
+                <input
+                  type="text"
+                  value={p.note}
+                  onChange={e => updateNote(p.key, e.target.value)}
+                  placeholder="Add a note…"
+                  className="w-full bg-gray-800 border border-gray-700 text-white text-xs px-2.5 py-1.5 outline-none focus:border-yellow-700 placeholder-gray-600 transition-colors"
+                />
               </div>
             </div>
           ))}
         </div>
+      )}
+      {photos.length > 0 && (
+        <button
+          onClick={saveAllNotes}
+          disabled={savingNotes || !hasNoteChanges}
+          className={`mt-3 w-full border text-xs font-bold uppercase tracking-wider py-2.5 transition-colors ${
+            notesSaved ? 'border-emerald-800 text-emerald-600' :
+            hasNoteChanges ? 'border-yellow-700 text-yellow-600 hover:bg-yellow-900/20' :
+            'border-gray-800 text-gray-700 cursor-default'
+          }`}
+        >
+          {savingNotes ? 'Saving…' : notesSaved ? '✓ Notes Saved' : hasNoteChanges ? 'Save Notes' : '✓ Saved'}
+        </button>
       )}
     </div>
   );
