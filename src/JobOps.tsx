@@ -2674,9 +2674,9 @@ export function InvoicePage() {
         {/* Banner — full width, both screen and print */}
         <div className="mb-6">
           <a href="/" className="no-print">
-            <img src={img('banner.PNG')} alt="GID Garage" className="w-full object-cover max-h-28" />
+            <img src={img('banner.PNG')} alt="GID Garage" className="w-full h-auto block" />
           </a>
-          <img src={img('banner.PNG')} alt="GID Garage" className="hidden print:block w-full object-cover max-h-20 mb-2" />
+          <img src={img('banner.PNG')} alt="GID Garage" className="hidden print:block w-full h-auto block mb-2" />
           <div className="flex justify-end mt-3">
             {isPaid
               ? <span className="inline-block bg-emerald-900/40 border border-emerald-700 text-emerald-400 text-xs font-bold uppercase tracking-widest px-3 py-1.5">✓ Paid</span>
@@ -2974,7 +2974,7 @@ export function EstimatePage() {
       <div className="w-full max-w-lg">
         <div className="mb-8 no-print">
           <a href="/">
-            <img src={img('banner.PNG')} alt="GID Garage" className="w-full object-cover max-h-28" />
+            <img src={img('banner.PNG')} alt="GID Garage" className="w-full h-auto block" />
           </a>
         </div>
 
