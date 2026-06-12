@@ -2266,29 +2266,33 @@ export function JobsTab() {
         setLoading(false);
       });
 
-    const interval = setInterval(async () => {
+    // Poll jobs every 30s — was 10s but the extra worker hop made it noticeably heavy
+    const jobsInterval = setInterval(async () => {
       let fresh: Job[];
       try {
         fresh = await getAllJobs();
         setLoadError(null);
       } catch (err) {
         console.error('Job refresh failed:', err);
-        return; // keep showing existing jobs; don't crash the interval
+        return;
       }
       setJobs(fresh);
       setSelected(prev => prev ? (fresh.find(j => j.id === prev.id) ?? prev) : null);
+    }, 30000);
 
-      // Payment event notifications
+    // Payment event notifications on a separate 60s interval — decoupled from job refresh
+    const eventsInterval = setInterval(async () => {
       if (Notification.permission !== 'granted' || !('serviceWorker' in navigator)) return;
       try {
         const events = await adminPost('list-payment-events', { limit: 20 });
         if (!events?.length) return;
         const reg = await navigator.serviceWorker.ready;
+        const currentJobs = await getAllJobs().catch(() => [] as Job[]);
         for (const ev of events) {
           if (seenEventIds.current.has(ev.id)) continue;
           seenEventIds.current.add(ev.id);
           localStorage.setItem('seenPaymentEventIds', JSON.stringify([...seenEventIds.current].slice(-100)));
-          const job = fresh.find((j: Job) => j.id === ev.booking_id);
+          const job = currentJobs.find((j: Job) => j.id === ev.booking_id);
           const name = job ? `${job.fname} ${job.lname}` : 'Unknown customer';
           if (ev.event_type === 'paid') {
             reg.showNotification(`💳 Payment received — ${name}`, {
@@ -2307,9 +2311,9 @@ export function JobsTab() {
           }
         }
       } catch { /* non-critical */ }
-    }, 10000);
+    }, 60000);
 
-    return () => clearInterval(interval);
+    return () => { clearInterval(jobsInterval); clearInterval(eventsInterval); };
   }, []);
 
   function handleJobUpdate(updated: Job) {

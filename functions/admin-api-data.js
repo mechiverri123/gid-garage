@@ -69,8 +69,9 @@ export async function onRequestPost({ request, env }) {
   try {
     switch (action) {
       case 'list-bookings': {
+        const limit = Number(payload.limit) || 200;
         const res = await fetch(
-          `${base}/bookings?select=*&order=date.desc,time.desc`,
+          `${base}/bookings?select=*&order=date.desc,time.desc&limit=${limit}`,
           { headers }
         );
         if (!res.ok) return json({ error: await res.text() }, 502);
