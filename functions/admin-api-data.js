@@ -277,8 +277,8 @@ export async function onRequestPost({ request, env }) {
           to: [{ email: job.email, name: `${job.fname} ${job.lname}` }],
           subject: `Invoice — ${job.vehicle || 'Your Vehicle'} — GID Garage`,
           htmlContent: `<div style="font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;max-width:580px;margin:0 auto;background:#0f0f0f;color:#fff;">
-            <div style="background:#111827;padding:28px 32px;border-bottom:3px solid #dc2626;">
-              <img src="https://gidgarage.com/website_logo.png" alt="GID Garage" style="height:44px;width:auto;"/>
+            <div style="background:#111827;border-bottom:3px solid #dc2626;">
+              <img src="https://gidgarage.com/banner.PNG" alt="GID Garage" style="width:100%;display:block;max-height:130px;object-fit:cover;"/>
             </div>
             <div style="padding:32px;">
               <h2 style="color:#fff;font-size:24px;font-weight:900;margin:0 0 6px;letter-spacing:-0.5px;">Invoice Ready for Review</h2>
@@ -336,8 +336,8 @@ export async function onRequestPost({ request, env }) {
           to: [{ email: job.email, name: `${job.fname} ${job.lname}` }],
           subject: `Payment Receipt — ${job.vehicle || 'GID Garage'}`,
           htmlContent: `<div style="font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;max-width:580px;margin:0 auto;background:#0f0f0f;color:#fff;">
-            <div style="background:#111827;padding:28px 32px;border-bottom:3px solid #16a34a;">
-              <img src="https://gidgarage.com/website_logo.png" alt="GID Garage" style="height:44px;width:auto;"/>
+            <div style="background:#111827;border-bottom:3px solid #16a34a;">
+              <img src="https://gidgarage.com/banner.PNG" alt="GID Garage" style="width:100%;display:block;max-height:130px;object-fit:cover;"/>
             </div>
             <div style="padding:32px;">
               <h2 style="color:#4ade80;font-size:24px;font-weight:900;margin:0 0 6px;letter-spacing:-0.5px;">✅ Payment Confirmed</h2>

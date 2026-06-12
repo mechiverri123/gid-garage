@@ -1316,6 +1316,10 @@ function EstimatePanel({ job, onUpdate }: { job: Job; onUpdate: (j: Job) => void
                       if (!isNaN(n)) updateLineItem(item.id, 'amount', e.target.value);
                     }}
                     onBlur={e => {
+                      if (e.target.value === '') {
+                        setRawAmounts(prev => { const next = { ...prev }; delete next[item.id]; return next; });
+                        return;
+                      }
                       const n = parseFloat(e.target.value) || 0;
                       updateLineItem(item.id, 'amount', String(n));
                       setRawAmounts(prev => { const next = { ...prev }; delete next[item.id]; return next; });
@@ -1545,6 +1549,7 @@ function PaymentPanel({ job, onUpdate, onRequote }: { job: Job; onUpdate: (j: Jo
       }
       await writePaymentEvent(job.id, 'paid', confirmedAmount);
       await sendReceiptEmail(updated, adjustmentReason || undefined, hasAdjustment ? adjustmentAmt : undefined);
+      await sendInvoiceEmail(updated); // formal invoice document
       onUpdate(updated);
     } catch (e: any) {
       await writePaymentEvent(job.id, 'declined', chargedAmount, e.message ?? 'Charge failed');
@@ -2669,9 +2674,9 @@ export function InvoicePage() {
         {/* Banner — full width, both screen and print */}
         <div className="mb-6">
           <a href="/" className="no-print">
-            <img src={img('banner.PNG')} alt="GID Garage" className="w-full object-contain max-h-24" />
+            <img src={img('banner.PNG')} alt="GID Garage" className="w-full object-cover max-h-28" />
           </a>
-          <img src={img('banner.PNG')} alt="GID Garage" className="hidden print:block w-full object-contain max-h-20 mb-2" />
+          <img src={img('banner.PNG')} alt="GID Garage" className="hidden print:block w-full object-cover max-h-20 mb-2" />
           <div className="flex justify-end mt-3">
             {isPaid
               ? <span className="inline-block bg-emerald-900/40 border border-emerald-700 text-emerald-400 text-xs font-bold uppercase tracking-widest px-3 py-1.5">✓ Paid</span>
@@ -2969,7 +2974,7 @@ export function EstimatePage() {
       <div className="w-full max-w-lg">
         <div className="mb-8 no-print">
           <a href="/">
-            <img src={img('banner.PNG')} alt="GID Garage" className="w-full object-contain max-h-24" />
+            <img src={img('banner.PNG')} alt="GID Garage" className="w-full object-cover max-h-28" />
           </a>
         </div>
 
