@@ -1990,7 +1990,7 @@ function GarageNotesField({ booking, onSave }: { booking: Booking; onSave: (id: 
 export function AdminSchedule() {
   const [unlocked, setUnlocked] = useState(() => sessionStorage.getItem('gg_admin_auth') === '1');
   const [bookings, setBookings] = useState<Booking[]>([]);
-  const [adminTab, setAdminTab] = useState<'schedule' | 'history' | 'jobs' | 'hub'>('schedule');
+  const [adminTab, setAdminTab] = useState<'jobs' | 'schedule' | 'history' | 'hub'>('jobs');
   const [filter, setFilter] = useState<'all' | 'confirmed' | 'completed' | 'cancelled'>('all');
   const [view, setView] = useState<'list' | 'month' | 'week' | 'day'>('list');
   const [calDate, setCalDate] = useState(new Date());
@@ -2211,10 +2211,10 @@ export function AdminSchedule() {
 
         {/* Main Tabs */}
         <div className="flex gap-0 mb-8 border-b border-gray-800">
-          {(['schedule', 'history', 'jobs', 'hub'] as const).map(tab => (
+          {(['jobs', 'schedule', 'history', 'hub'] as const).map(tab => (
             <button key={tab} onClick={() => setAdminTab(tab)}
               className={`text-xs font-bold uppercase tracking-widest px-6 py-3 transition-colors border-b-2 -mb-px ${adminTab === tab ? 'border-red-600 text-white' : 'border-transparent text-gray-500 hover:text-gray-300'}`}>
-              {tab === 'schedule' ? '📅 Schedule' : tab === 'history' ? '🗂️ History' : tab === 'jobs' ? '💼 Jobs' : '🏢 Hub'}
+              {tab === 'jobs' ? '💼 Jobs' : tab === 'schedule' ? '📅 Schedule' : tab === 'history' ? '🗂️ History' : '🏢 Hub'}
             </button>
           ))}
         </div>

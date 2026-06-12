@@ -3281,6 +3281,206 @@ function usePersistentNotes(categoryId: string) {
   return { notes, loading, addNote, deleteNote, editNote };
 }
 
+// ── INVOICE EXPORT ────────────────────────────────────────────────────────────
+function InvoiceExport() {
+  const [allJobs, setAllJobs] = useState<Job[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [mode, setMode] = useState<'year' | 'month'>('year');
+  const [selectedYear, setSelectedYear] = useState<string>('');
+  const [selectedMonth, setSelectedMonth] = useState<string>('');
+
+  useEffect(() => {
+    adminPost('paid-bookings')
+      .then((data: any[]) => {
+        if (!data?.length) { setLoading(false); return; }
+        const jobs = data
+          .filter(b => b.paid_at)
+          .map(b => ({
+            id: b.id,
+            fname: b.fname,
+            lname: b.lname,
+            vehicle: b.vehicle,
+            date: b.date,
+            paidAt: b.paid_at,
+            invoiceAmount: Number(b.invoice_amount) || 0,
+            taxAmount: Number(b.tax_amount) || 0,
+            lineItems: b.line_items ?? [],
+            stripeTransactionId: b.stripe_transaction_id,
+            jobStatus: 'PAID' as JobStatus,
+            phone: b.phone,
+            email: b.email,
+            serviceType: b.service_type,
+            status: b.status,
+            time: b.time,
+            notes: b.notes,
+            adjustmentAmount: b.adjustment_amount,
+            adjustmentReason: b.adjustment_reason,
+            estimateAmount: b.estimate_amount,
+            estimateNotes: b.estimate_notes,
+            signedAt: b.signed_at,
+            signedIp: b.signed_ip,
+            stripeCustomerId: b.stripe_customer_id,
+            stripePaymentMethodId: b.stripe_payment_method_id,
+            cancelToken: b.cancel_token,
+          } as Job));
+        jobs.sort((a, b) => new Date(a.paidAt!).getTime() - new Date(b.paidAt!).getTime());
+        setAllJobs(jobs);
+        setLoading(false);
+      })
+      .catch(() => setLoading(false));
+  }, []);
+
+  const years = [...new Set(allJobs.map(j => new Date(j.paidAt!).getFullYear().toString()))].sort();
+  const months = selectedYear
+    ? [...new Set(allJobs
+        .filter(j => new Date(j.paidAt!).getFullYear().toString() === selectedYear)
+        .map(j => new Date(j.paidAt!).toISOString().slice(0, 7)))]
+        .sort()
+    : [];
+
+  const filteredJobs = allJobs.filter(j => {
+    const d = new Date(j.paidAt!);
+    if (mode === 'year') return selectedYear && d.getFullYear().toString() === selectedYear;
+    if (mode === 'month') return selectedMonth && d.toISOString().slice(0, 7) === selectedMonth;
+    return false;
+  });
+
+  function printInvoices() {
+    if (!filteredJobs.length) return;
+    const periodLabel = mode === 'year'
+      ? `Year ${selectedYear}`
+      : (() => {
+          const [yr, mo] = selectedMonth.split('-');
+          return new Date(Number(yr), Number(mo) - 1, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+        })();
+
+    const invoiceHtml = filteredJobs.map(job => {
+      const invoiceNum = job.id.startsWith('GID-') ? job.id : `GID-${job.id.slice(0, 8).toUpperCase()}`;
+      const total = ((job.invoiceAmount || 0) + (job.taxAmount || 0)).toFixed(2);
+      const svcDate = new Date(job.date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+      const paidDate = job.paidAt ? new Date(job.paidAt).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : '';
+      const lineItemsHtml = job.lineItems?.length
+        ? job.lineItems.map(li => `<tr><td style="padding:6px 0;color:#ccc;font-size:13px;">${li.label}</td><td style="padding:6px 0;text-align:right;font-family:monospace;font-size:13px;color:#fff;">${li.amount === 0 ? 'FREE' : '$' + li.amount.toFixed(2)}</td></tr>`).join('')
+        : '';
+      return `
+        <div style="background:#0f0f0f;color:#fff;padding:32px;margin-bottom:0;page-break-after:always;font-family:sans-serif;max-width:600px;margin-left:auto;margin-right:auto;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;">
+            <div>
+              <div style="font-size:10px;color:#666;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;margin-bottom:2px;">Receipt</div>
+              <div style="font-family:monospace;font-size:13px;color:#fff;">${invoiceNum}</div>
+            </div>
+            <div style="font-size:10px;color:#4ade80;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;">✓ Paid</div>
+          </div>
+          <div style="border:1px solid #222;padding:0;">
+            <div style="padding:16px 20px;border-bottom:1px solid #222;display:flex;justify-content:space-between;align-items:center;">
+              <div>
+                <div style="font-size:10px;color:#666;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;">GID Garage</div>
+                <div style="font-size:11px;color:#999;margin-top:2px;">EIN: 42-2687870 · TPT: 21663074</div>
+              </div>
+              <div style="font-size:26px;font-weight:900;color:#4ade80;">$${total}</div>
+            </div>
+            <table style="width:100%;border-collapse:collapse;">
+              ${[
+                ['Customer', `${job.fname} ${job.lname}`],
+                ['Vehicle', job.vehicle],
+                ['Service Date', svcDate],
+                ['Date Paid', paidDate],
+                ...(job.stripeTransactionId ? [['Transaction ID', job.stripeTransactionId]] : []),
+              ].map(([lbl, val]) => `<tr style="border-bottom:1px solid #1a1a1a;"><td style="padding:10px 20px;font-size:10px;color:#666;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;white-space:nowrap;">${lbl}</td><td style="padding:10px 20px;font-size:13px;color:#fff;text-align:right;">${val}</td></tr>`).join('')}
+            </table>
+            ${lineItemsHtml ? `
+            <div style="border-top:1px solid #222;padding:12px 20px;">
+              <div style="font-size:10px;color:#444;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:8px;">Services</div>
+              <table style="width:100%;">${lineItemsHtml}</table>
+            </div>` : ''}
+            <div style="border-top:1px solid #333;padding:12px 20px;">
+              <table style="width:100%;">
+                <tr><td style="padding:4px 0;font-size:11px;color:#666;">Subtotal</td><td style="text-align:right;font-family:monospace;font-size:12px;color:#fff;">$${(job.invoiceAmount||0).toFixed(2)}</td></tr>
+                <tr><td style="padding:4px 0;font-size:11px;color:#b45309;">AZ TPT (9.386%)</td><td style="text-align:right;font-family:monospace;font-size:12px;color:#fbbf24;">$${(job.taxAmount||0).toFixed(2)}</td></tr>
+                <tr style="border-top:1px solid #333;"><td style="padding:8px 0 4px;font-size:12px;color:#fff;font-weight:700;">Total</td><td style="text-align:right;font-family:monospace;font-size:14px;color:#4ade80;font-weight:900;">$${total}</td></tr>
+              </table>
+            </div>
+          </div>
+        </div>`;
+    }).join('');
+
+    const totals = filteredJobs.reduce((acc, j) => ({
+      subtotal: acc.subtotal + (j.invoiceAmount || 0),
+      tax: acc.tax + (j.taxAmount || 0),
+    }), { subtotal: 0, tax: 0 });
+
+    const summaryHtml = `
+      <div style="background:#0f0f0f;color:#fff;padding:32px;font-family:sans-serif;max-width:600px;margin:0 auto;page-break-before:always;">
+        <div style="font-size:14px;font-weight:900;color:#fff;margin-bottom:16px;text-transform:uppercase;letter-spacing:0.1em;">📊 ${periodLabel} — Tax Summary</div>
+        <table style="width:100%;border:1px solid #333;">
+          <tr style="background:#1a1a1a;"><td style="padding:10px 16px;font-size:11px;color:#999;text-transform:uppercase;">Invoices</td><td style="padding:10px 16px;text-align:right;font-size:13px;color:#fff;font-weight:700;">${filteredJobs.length}</td></tr>
+          <tr><td style="padding:10px 16px;font-size:11px;color:#999;text-transform:uppercase;">Subtotal</td><td style="padding:10px 16px;text-align:right;font-family:monospace;font-size:13px;color:#fff;">$${totals.subtotal.toFixed(2)}</td></tr>
+          <tr style="background:#1a0a00;"><td style="padding:10px 16px;font-size:11px;color:#b45309;text-transform:uppercase;">AZ TPT Collected</td><td style="padding:10px 16px;text-align:right;font-family:monospace;font-size:13px;color:#fbbf24;font-weight:700;">$${totals.tax.toFixed(2)}</td></tr>
+          <tr style="background:#0a1a0a;"><td style="padding:10px 16px;font-size:11px;color:#4ade80;text-transform:uppercase;font-weight:700;">Total Revenue</td><td style="padding:10px 16px;text-align:right;font-family:monospace;font-size:14px;color:#4ade80;font-weight:900;">$${(totals.subtotal + totals.tax).toFixed(2)}</td></tr>
+        </table>
+        <p style="font-size:10px;color:#444;margin-top:12px;">Remit TPT at AZTaxes.gov by the 20th of the following month. EIN: 42-2687870 · TPT License: 21663074</p>
+      </div>`;
+
+    const win = window.open('', '_blank');
+    if (!win) { alert('Pop-up blocked — allow pop-ups for this site and try again.'); return; }
+    win.document.write(`<!DOCTYPE html><html><head><title>GID Garage Invoices — ${periodLabel}</title><style>*{box-sizing:border-box;}body{margin:0;background:#0f0f0f;}@media print{@page{margin:0;size:letter;}body{-webkit-print-color-adjust:exact;print-color-adjust:exact;}}</style></head><body>${invoiceHtml}${summaryHtml}</body></html>`);
+    win.document.close();
+    setTimeout(() => win.print(), 400);
+  }
+
+  if (loading) return <p className="text-gray-600 text-xs py-4">Loading invoice data…</p>;
+  if (!allJobs.length) return null;
+
+  return (
+    <div className="mt-6 border border-gray-800 bg-gray-900/30 p-4">
+      <p className="text-gray-400 text-xs font-bold uppercase tracking-widest mb-4">🖨 Print Invoices</p>
+      <div className="flex gap-2 mb-4">
+        <button onClick={() => setMode('year')} className={`flex-1 text-xs font-bold uppercase tracking-wider py-2.5 border transition-colors ${mode === 'year' ? 'border-red-600 text-white bg-red-900/20' : 'border-gray-700 text-gray-500 hover:text-gray-300'}`}>By Year</button>
+        <button onClick={() => setMode('month')} className={`flex-1 text-xs font-bold uppercase tracking-wider py-2.5 border transition-colors ${mode === 'month' ? 'border-red-600 text-white bg-red-900/20' : 'border-gray-700 text-gray-500 hover:text-gray-300'}`}>By Month</button>
+      </div>
+      {mode === 'year' && (
+        <div className="space-y-2 mb-4">
+          {years.map(y => (
+            <button key={y} onClick={() => setSelectedYear(y)} className={`w-full text-left px-4 py-3 border text-sm font-bold transition-colors ${selectedYear === y ? 'border-red-600 text-white bg-red-900/20' : 'border-gray-800 text-gray-400 hover:border-gray-600 hover:text-white'}`}>
+              {y} — {allJobs.filter(j => new Date(j.paidAt!).getFullYear().toString() === y).length} invoices
+            </button>
+          ))}
+        </div>
+      )}
+      {mode === 'month' && (
+        <div className="space-y-1 mb-4">
+          <select
+            value={selectedYear}
+            onChange={e => { setSelectedYear(e.target.value); setSelectedMonth(''); }}
+            className="w-full bg-gray-900 border border-gray-700 text-white text-xs px-3 py-2.5 mb-2 outline-none focus:border-red-600"
+          >
+            <option value="">Select year…</option>
+            {years.map(y => <option key={y} value={y}>{y}</option>)}
+          </select>
+          {selectedYear && months.map(m => {
+            const [yr, mo] = m.split('-');
+            const label = new Date(Number(yr), Number(mo) - 1, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+            const count = allJobs.filter(j => new Date(j.paidAt!).toISOString().slice(0, 7) === m).length;
+            return (
+              <button key={m} onClick={() => setSelectedMonth(m)} className={`w-full text-left px-4 py-3 border text-sm font-bold transition-colors ${selectedMonth === m ? 'border-red-600 text-white bg-red-900/20' : 'border-gray-800 text-gray-400 hover:border-gray-600 hover:text-white'}`}>
+                {label} — {count} invoices
+              </button>
+            );
+          })}
+        </div>
+      )}
+      {filteredJobs.length > 0 && (
+        <button onClick={printInvoices} className="w-full py-3 bg-red-600 hover:bg-red-500 active:bg-red-700 text-white text-xs font-bold uppercase tracking-widest transition-colors">
+          🖨 Print / Save {filteredJobs.length} Invoice{filteredJobs.length !== 1 ? 's' : ''}
+        </button>
+      )}
+      {filteredJobs.length === 0 && (mode === 'year' ? selectedYear : selectedMonth) && (
+        <p className="text-gray-600 text-xs text-center py-2">No paid invoices for this period.</p>
+      )}
+    </div>
+  );
+}
+
 // ── TAX SUMMARY (live from Supabase) ──────────────────────────────────────────
 function TaxSummary() {
   const [rows, setRows] = useState<{ month: string; subtotal: number; tax: number; total: number }[]>([]);
@@ -3422,6 +3622,7 @@ function HubCategoryPanel({ cat }: { cat: HubCategory }) {
 
       {/* Tax summary auto-embedded in taxes tab */}
       {cat.id === 'taxes' && <TaxSummary />}
+      {cat.id === 'taxes' && <InvoiceExport />}
 
       {/* Add note */}
       <div className="mt-5 space-y-2">
