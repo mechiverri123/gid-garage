@@ -234,11 +234,48 @@ async function nhtsaGetMakes(): Promise<string[]> {
   } catch { return PRIORITY; }
 }
 
+// Makes that sell both automotive AND motorcycle/ATV/UTV products.
+// For these makes, NHTSA returns motorcycle/offroad models mixed with cars.
+// Patterns are matched against model names to exclude non-automotive results.
+const NON_AUTO_PATTERNS: Record<string, RegExp> = {
+  'Honda': /^(CBR|CRF|CMX|CT|CL|CB[0-9]|CB[0-9][0-9]|CB[0-9][0-9][0-9]|CR[0-9]|XR[0-9]|XL[0-9]|GL[0-9]|NC[0-9]|NX[0-9]|VFR|VTR|VTX|CTX|PCX|ADV|SH[0-9]|NSS|NPS|FJS|FSC|Gold Wing|Ruckus|Grom|Monkey|Navi|Metropolitan|Activa|Dio|TRX|FourTrax|Rancher|Foreman|Rubicon|Rincon|Recon|Pioneer|Talon|Big Red|SXS|Ridgepro|ATV|UTV|Fourtrax|Transalp|Africa Twin|Shadow|Rebel|Magna|Sabre|Valkyrie|Fury|Stateline|Interstate|Phantom|Ace|Spirit)\b/i,
+  'BMW': /^(R [0-9]|S [0-9][0-9][0-9][0-9]|F [0-9][0-9][0-9] |K [0-9][0-9][0-9][0-9]|G [0-9][0-9][0-9] |C [0-9][0-9][0-9]|HP2|HP4|R nine|Motorrad|GS [0-9]|Adventure [0-9])/i,
+  'Suzuki': /^(GSX-R|GSX-S|SV[0-9]|V-Strom|Burgman|Boulevard|Intruder|Marauder|VS[0-9]|VX[0-9]|TU[0-9]|RF[0-9]|RG[0-9]|GN[0-9]|GS[0-9][0-9][0-9][A-Z]|DR[0-9]|DRZ|RM[0-9]|RMX|LT-|Bandit|Hayabusa|Katana|Savage|Gladius|Inazuma|Gixxer|Access)/i,
+  'Kawasaki': /.*/, // Kawasaki's US cars were discontinued; all NHTSA entries are motorcycles
+  'Polaris': /^(RZR|Ranger|Sportsman|General|Scrambler|Outlaw|Phoenix|Trail|Predator|Magnum|Hawkeye|Xpedition|Ace |Slingshot [^car])/i,
+  'Can-Am': /^(Spyder|Ryker|Maverick|Defender|Outlander|Renegade|DS|Commander|Traxter)/i,
+  'Arctic Cat': /.*/,  // No cars
+  'Yamaha': /.*/,      // No cars sold in US
+};
+
 async function nhtsaGetModels(make: string, year: number): Promise<string[]> {
   try {
     const r = await fetch(`https://vpic.nhtsa.dot.gov/api/vehicles/GetModelsForMakeYear/make/${encodeURIComponent(make)}/modelyear/${year}?format=json`);
     const d = await r.json();
-    return (d.Results || []).map((m: any) => m.Model_Name as string).sort();
+    let models: string[] = (d.Results || []).map((m: any) => m.Model_Name as string);
+
+    // Apply per-make blocklist for makes that also sell non-automotive vehicles.
+    // Lookup is case-insensitive since NHTSA returns make names in varying cases.
+    const makeNorm = make.toLowerCase();
+    const blockEntry = Object.entries(NON_AUTO_PATTERNS).find(([k]) => k.toLowerCase() === makeNorm);
+    if (blockEntry) {
+      models = models.filter(name => !blockEntry[1].test(name));
+    }
+
+    // Normalize Ford Super Duty names: pre-1999 NHTSA returns "F-250"/"F-350" but
+    // our static trim/engine data uses the canonical "F-250 Super Duty"/"F-350 Super Duty".
+    if (makeNorm === 'ford') {
+      models = models.map(name => {
+        if (name === 'F-250') return 'F-250 Super Duty';
+        if (name === 'F-350') return 'F-350 Super Duty';
+        if (name === 'F-450') return 'F-450 Super Duty';
+        return name;
+      });
+      // Deduplicate in case both old and new names appeared
+      models = [...new Set(models)];
+    }
+
+    return models.sort();
   } catch { return []; }
 }
 
@@ -1697,8 +1734,9 @@ function BookingDetailModal({ booking, onClose, onUpdate, onBookingPatched }: {
   const [photos, setPhotos] = useState<{ key: string; url: string; name: string; note: string }[]>(booking.adminPhotos || []);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [photoError, setPhotoError] = useState<string | null>(null);
-  const [noteTimers, setNoteTimers] = useState<Record<string, ReturnType<typeof setTimeout>>>({});
-  const [savingNotes, setSavingNotes] = useState<Record<string, boolean>>({});
+  const [savingNotes, setSavingNotes] = useState(false);
+  const [notesSaved, setNotesSaved] = useState(false);
+  const [hasNoteChanges, setHasNoteChanges] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   async function savePhotosToDb(updated: typeof photos) {
@@ -1749,16 +1787,17 @@ function BookingDetailModal({ booking, onClose, onUpdate, onBookingPatched }: {
   }
 
   function updatePhotoNote(key: string, note: string) {
-    const updated = photos.map(p => p.key === key ? { ...p, note } : p);
-    setPhotos(updated);
-    if (noteTimers[key]) clearTimeout(noteTimers[key]);
-    setSavingNotes(prev => ({ ...prev, [key]: false }));
-    const timer = setTimeout(async () => {
-      setSavingNotes(prev => ({ ...prev, [key]: true }));
-      await savePhotosToDb(updated);
-      setSavingNotes(prev => ({ ...prev, [key]: false }));
-    }, 3000);
-    setNoteTimers(prev => ({ ...prev, [key]: timer }));
+    setPhotos(prev => prev.map(p => p.key === key ? { ...p, note } : p));
+    setHasNoteChanges(true);
+    setNotesSaved(false);
+  }
+
+  async function saveAllNotes() {
+    setSavingNotes(true);
+    await savePhotosToDb(photos);
+    setSavingNotes(false);
+    setNotesSaved(true);
+    setHasNoteChanges(false);
   }
 
   async function deletePhoto(key: string) {
@@ -1903,24 +1942,30 @@ function BookingDetailModal({ booking, onClose, onUpdate, onBookingPatched }: {
                     <span className="absolute bottom-2 left-2 text-[10px] text-gray-400 bg-black/60 px-1.5 py-0.5">{p.name}</span>
                   </div>
                   <div className="p-2">
-                    <div className="relative">
-                      <input
-                        type="text"
-                        value={p.note}
-                        onChange={e => updatePhotoNote(p.key, e.target.value)}
-                        placeholder="Add a note (autosaves in 3s)…"
-                        className="w-full bg-gray-800 border border-gray-700 text-white text-xs px-2.5 py-1.5 outline-none focus:border-yellow-700 placeholder-gray-600 transition-colors pr-14"
-                      />
-                      {savingNotes[p.key] !== undefined && (
-                        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-gray-600">
-                          {savingNotes[p.key] ? 'saving…' : 'saved ✓'}
-                        </span>
-                      )}
-                    </div>
+                    <input
+                      type="text"
+                      value={p.note}
+                      onChange={e => updatePhotoNote(p.key, e.target.value)}
+                      placeholder="Add a note…"
+                      className="w-full bg-gray-800 border border-gray-700 text-white text-xs px-2.5 py-1.5 outline-none focus:border-yellow-700 placeholder-gray-600 transition-colors"
+                    />
                   </div>
                 </div>
               ))}
             </div>
+          )}
+          {photos.length > 0 && (
+            <button
+              onClick={saveAllNotes}
+              disabled={savingNotes || !hasNoteChanges}
+              className={`mt-3 w-full border text-xs font-bold uppercase tracking-wider py-2.5 transition-colors ${
+                notesSaved ? 'border-emerald-800 text-emerald-600' :
+                hasNoteChanges ? 'border-yellow-700 text-yellow-600 hover:bg-yellow-900/20' :
+                'border-gray-800 text-gray-700 cursor-default'
+              }`}
+            >
+              {savingNotes ? 'Saving…' : notesSaved ? '✓ Notes Saved' : hasNoteChanges ? 'Save Notes' : '✓ Saved'}
+            </button>
           )}
         </div>
       </div>

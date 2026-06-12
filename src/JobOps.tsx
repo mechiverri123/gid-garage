@@ -833,8 +833,9 @@ function AdminPhotoPanel({ entityId, onSave, initialPhotos, onPhotosChange }: {
   const [photos, setPhotos] = useState(initialPhotos);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
-  const [noteTimers, setNoteTimers] = useState<Record<string, ReturnType<typeof setTimeout>>>({});
-  const [savingNotes, setSavingNotes] = useState<Record<string, boolean>>({});
+  const [savingNotes, setSavingNotes] = useState(false);
+  const [notesSaved, setNotesSaved] = useState(false);
+  const [hasNoteChanges, setHasNoteChanges] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   async function savePhotosToDb(updated: typeof photos) {
@@ -865,17 +866,17 @@ function AdminPhotoPanel({ entityId, onSave, initialPhotos, onPhotosChange }: {
   }
 
   function updateNote(key: string, note: string) {
-    const updated = photos.map(p => p.key === key ? { ...p, note } : p);
-    setPhotos(updated);
-    // Autosave after 3s debounce
-    if (noteTimers[key]) clearTimeout(noteTimers[key]);
-    setSavingNotes(prev => ({ ...prev, [key]: false }));
-    const timer = setTimeout(async () => {
-      setSavingNotes(prev => ({ ...prev, [key]: true }));
-      await savePhotosToDb(updated);
-      setSavingNotes(prev => ({ ...prev, [key]: false }));
-    }, 3000);
-    setNoteTimers(prev => ({ ...prev, [key]: timer }));
+    setPhotos(prev => prev.map(p => p.key === key ? { ...p, note } : p));
+    setHasNoteChanges(true);
+    setNotesSaved(false);
+  }
+
+  async function saveAllNotes() {
+    setSavingNotes(true);
+    await savePhotosToDb(photos);
+    setSavingNotes(false);
+    setNotesSaved(true);
+    setHasNoteChanges(false);
   }
 
   async function deletePhoto(key: string) {
@@ -915,24 +916,30 @@ function AdminPhotoPanel({ entityId, onSave, initialPhotos, onPhotosChange }: {
                 <span className="absolute bottom-2 left-2 text-[10px] text-gray-400 bg-black/60 px-1.5 py-0.5">{p.name}</span>
               </div>
               <div className="p-2">
-                <div className="relative">
-                  <input
-                    type="text"
-                    value={p.note}
-                    onChange={e => updateNote(p.key, e.target.value)}
-                    placeholder="Add a note (autosaves in 3s)…"
-                    className="w-full bg-gray-800 border border-gray-700 text-white text-xs px-2.5 py-1.5 outline-none focus:border-yellow-700 placeholder-gray-600 transition-colors pr-14"
-                  />
-                  {savingNotes[p.key] !== undefined && (
-                    <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-gray-600">
-                      {savingNotes[p.key] ? 'saving…' : 'saved ✓'}
-                    </span>
-                  )}
-                </div>
+                <input
+                  type="text"
+                  value={p.note}
+                  onChange={e => updateNote(p.key, e.target.value)}
+                  placeholder="Add a note…"
+                  className="w-full bg-gray-800 border border-gray-700 text-white text-xs px-2.5 py-1.5 outline-none focus:border-yellow-700 placeholder-gray-600 transition-colors"
+                />
               </div>
             </div>
           ))}
         </div>
+      )}
+      {photos.length > 0 && (
+        <button
+          onClick={saveAllNotes}
+          disabled={savingNotes || !hasNoteChanges}
+          className={`mt-3 w-full border text-xs font-bold uppercase tracking-wider py-2.5 transition-colors ${
+            notesSaved ? 'border-emerald-800 text-emerald-600' :
+            hasNoteChanges ? 'border-yellow-700 text-yellow-600 hover:bg-yellow-900/20' :
+            'border-gray-800 text-gray-700 cursor-default'
+          }`}
+        >
+          {savingNotes ? 'Saving…' : notesSaved ? '✓ Notes Saved' : hasNoteChanges ? 'Save Notes' : '✓ Saved'}
+        </button>
       )}
     </div>
   );
@@ -1309,6 +1316,10 @@ function EstimatePanel({ job, onUpdate }: { job: Job; onUpdate: (j: Job) => void
                       if (!isNaN(n)) updateLineItem(item.id, 'amount', e.target.value);
                     }}
                     onBlur={e => {
+                      if (e.target.value === '') {
+                        setRawAmounts(prev => { const next = { ...prev }; delete next[item.id]; return next; });
+                        return;
+                      }
                       const n = parseFloat(e.target.value) || 0;
                       updateLineItem(item.id, 'amount', String(n));
                       setRawAmounts(prev => { const next = { ...prev }; delete next[item.id]; return next; });
@@ -1538,6 +1549,7 @@ function PaymentPanel({ job, onUpdate, onRequote }: { job: Job; onUpdate: (j: Jo
       }
       await writePaymentEvent(job.id, 'paid', confirmedAmount);
       await sendReceiptEmail(updated, adjustmentReason || undefined, hasAdjustment ? adjustmentAmt : undefined);
+      await sendInvoiceEmail(updated); // formal invoice document
       onUpdate(updated);
     } catch (e: any) {
       await writePaymentEvent(job.id, 'declined', chargedAmount, e.message ?? 'Charge failed');
@@ -1869,7 +1881,7 @@ function JobDetailPanel({ job: initialJob, onClose, onJobUpdate }: {
   onJobUpdate: (j: Job) => void;
 }) {
   const [job, setJob] = useState(initialJob);
-  const [tab, setTab] = useState<'overview' | 'estimate' | 'payment' | 'photos' | 'inspection'>('overview');
+  const [tab, setTab] = useState<'overview' | 'estimate' | 'payment' | 'inspection'>('overview');
 
   function handleUpdate(updated: Job) {
     setJob(updated);
@@ -1932,12 +1944,12 @@ function JobDetailPanel({ job: initialJob, onClose, onJobUpdate }: {
 
         {/* Tabs */}
         <div className="flex border-b border-gray-800">
-          {(['overview', 'estimate', 'payment', 'photos', 'inspection'] as const).map(t => (
+          {(['overview', 'estimate', 'payment', 'inspection'] as const).map(t => (
             <button key={t} onClick={() => setTab(t)}
               className={`text-xs font-bold uppercase tracking-widest px-5 py-3 transition-colors border-b-2 -mb-px ${
                 tab === t ? 'border-red-600 text-white' : 'border-transparent text-gray-600 hover:text-gray-300'
               }`}>
-              {t === 'overview' ? '📋 Overview' : t === 'estimate' ? '📝 Estimate' : t === 'payment' ? '💳 Payment' : t === 'inspection' ? `🔍 Inspection` : `📷 Photos${job.jobPhotos?.length ? ` (${job.jobPhotos.length})` : ''}`}
+              {t === 'overview' ? '📋 Overview' : t === 'estimate' ? '📝 Estimate' : t === 'payment' ? '💳 Payment' : '🔍 Inspection'}
             </button>
           ))}
         </div>
@@ -2028,6 +2040,20 @@ function JobDetailPanel({ job: initialJob, onClose, onJobUpdate }: {
               </button>
                 </div>
               </div>
+
+              {/* Photos — inline in overview (same as Schedule) */}
+              <div className="border-t border-gray-800 pt-4">
+                <p className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-3">📷 Photos & Documentation</p>
+                <PhotoPanel job={job} onUpdate={handleUpdate} />
+                <div className="mt-4">
+                  <AdminPhotoPanel
+                    entityId={job.id}
+                    onSave={async (id, photos) => { await patchJob(id, { admin_photos: JSON.stringify(photos) }); }}
+                    initialPhotos={job.adminPhotos || []}
+                    onPhotosChange={photos => handleUpdate({ ...job, adminPhotos: photos })}
+                  />
+                </div>
+              </div>
             </div>
           )}
 
@@ -2037,18 +2063,7 @@ function JobDetailPanel({ job: initialJob, onClose, onJobUpdate }: {
           {/* PAYMENT TAB */}
           {tab === 'payment' && <PaymentPanel job={job} onUpdate={handleUpdate} onRequote={() => setTab('estimate')} />}
 
-          {/* PHOTOS TAB */}
-          {tab === 'photos' && (
-            <>
-              <PhotoPanel job={job} onUpdate={handleUpdate} />
-              <AdminPhotoPanel
-                entityId={job.id}
-                onSave={async (id, photos) => { await patchJob(id, { admin_photos: JSON.stringify(photos) }); }}
-                initialPhotos={job.adminPhotos || []}
-                onPhotosChange={photos => handleUpdate({ ...job, adminPhotos: photos })}
-              />
-            </>
-          )}
+
 
           {/* INSPECTION TAB */}
           {tab === 'inspection' && <InspectionPanel job={job} onUpdate={handleUpdate} />}
@@ -2256,29 +2271,33 @@ export function JobsTab() {
         setLoading(false);
       });
 
-    const interval = setInterval(async () => {
+    // Poll jobs every 30s — was 10s but the extra worker hop made it noticeably heavy
+    const jobsInterval = setInterval(async () => {
       let fresh: Job[];
       try {
         fresh = await getAllJobs();
         setLoadError(null);
       } catch (err) {
         console.error('Job refresh failed:', err);
-        return; // keep showing existing jobs; don't crash the interval
+        return;
       }
       setJobs(fresh);
       setSelected(prev => prev ? (fresh.find(j => j.id === prev.id) ?? prev) : null);
+    }, 30000);
 
-      // Payment event notifications
+    // Payment event notifications on a separate 60s interval — decoupled from job refresh
+    const eventsInterval = setInterval(async () => {
       if (Notification.permission !== 'granted' || !('serviceWorker' in navigator)) return;
       try {
         const events = await adminPost('list-payment-events', { limit: 20 });
         if (!events?.length) return;
         const reg = await navigator.serviceWorker.ready;
+        const currentJobs = await getAllJobs().catch(() => [] as Job[]);
         for (const ev of events) {
           if (seenEventIds.current.has(ev.id)) continue;
           seenEventIds.current.add(ev.id);
           localStorage.setItem('seenPaymentEventIds', JSON.stringify([...seenEventIds.current].slice(-100)));
-          const job = fresh.find((j: Job) => j.id === ev.booking_id);
+          const job = currentJobs.find((j: Job) => j.id === ev.booking_id);
           const name = job ? `${job.fname} ${job.lname}` : 'Unknown customer';
           if (ev.event_type === 'paid') {
             reg.showNotification(`💳 Payment received — ${name}`, {
@@ -2297,9 +2316,9 @@ export function JobsTab() {
           }
         }
       } catch { /* non-critical */ }
-    }, 10000);
+    }, 60000);
 
-    return () => clearInterval(interval);
+    return () => { clearInterval(jobsInterval); clearInterval(eventsInterval); };
   }, []);
 
   function handleJobUpdate(updated: Job) {
@@ -2333,7 +2352,7 @@ export function JobsTab() {
   const filtered = jobs
     .filter(j => {
       const matchStatus = filterStatus === 'ALL' || j.jobStatus === filterStatus;
-      const matchSearch = !search || `${j.fname} ${j.lname} ${j.vehicle} ${j.phone}`.toLowerCase().includes(search.toLowerCase());
+      const matchSearch = !search || `${j.fname} ${j.lname} ${j.vehicle} ${j.phone} ${j.stripeTransactionId || ''}`.toLowerCase().includes(search.toLowerCase());
       return matchStatus && matchSearch;
     })
     .sort((a, b) => {
@@ -2629,7 +2648,7 @@ export function InvoicePage() {
     <div className="min-h-screen bg-[#0f0f0f] py-12 px-4 print:py-0 print:px-0 print:min-h-0">
       <style>{`
         @media print {
-          @page { margin: 0; size: letter; }
+          @page { margin: 12mm; size: letter; }
           html, body, #root {
             background: #0f0f0f !important;
             background-color: #0f0f0f !important;
@@ -2641,32 +2660,33 @@ export function InvoicePage() {
             max-width: 100% !important;
             width: 100% !important;
             margin: 0 !important;
-            padding: 24px !important;
+            padding: 0 !important;
           }
+          /* Photos take too much space when printing — hide them */
+          .print-hide-photos { display: none !important; }
+          /* Ensure line items and totals don't break across pages */
+          table { page-break-inside: avoid; }
+          .page-break-avoid { page-break-inside: avoid; }
         }
       `}</style>
       <div className="max-w-lg mx-auto print-full">
 
-        {/* Header */}
-        <div className="flex items-center justify-between mb-8 no-print">
-          <a href="/">
-            <img src={img('banner.PNG')} alt="GID Garage" className="h-10 w-auto" />
+        {/* Banner — full width, both screen and print */}
+        <div className="mb-6">
+          <a href="/" className="no-print">
+            <img src={img('banner.PNG')} alt="GID Garage" className="w-full h-auto block" />
           </a>
-          <div className="text-right">
+          <img src={img('banner.PNG')} alt="GID Garage" className="hidden print:block w-full h-auto block mb-2" />
+          <div className="flex justify-end mt-3">
             {isPaid
               ? <span className="inline-block bg-emerald-900/40 border border-emerald-700 text-emerald-400 text-xs font-bold uppercase tracking-widest px-3 py-1.5">✓ Paid</span>
               : <span className="inline-block bg-yellow-900/40 border border-yellow-700 text-yellow-400 text-xs font-bold uppercase tracking-widest px-3 py-1.5">Amount Due</span>
             }
           </div>
         </div>
-        {/* Print-only header */}
-        <div className="hidden print:flex items-center justify-between mb-6">
-          <img src={img('website_logo.png')} alt="GID Garage" className="h-8 w-auto" />
-          <span className={`text-xs font-bold uppercase tracking-widest ${isPaid ? 'text-emerald-400' : 'text-yellow-400'}`}>{isPaid ? '✓ Paid' : 'Amount Due'}</span>
-        </div>
 
         {/* Invoice card */}
-        <div className="bg-white/5 border border-white/10">
+        <div className="bg-white/5 border border-white/10 page-break-avoid">
 
           {/* Title row */}
           <div className="px-6 py-5 border-b border-white/10 flex items-center justify-between">
@@ -2769,9 +2789,9 @@ export function InvoicePage() {
           </div>
         )}
 
-        {/* Job photos if present */}
+        {/* Job photos if present — hidden when printing */}
         {job.jobPhotos?.length > 0 && (
-          <div className="mt-4 border border-white/10 bg-white/5 px-6 py-4">
+          <div className="mt-4 border border-white/10 bg-white/5 px-6 py-4 print-hide-photos">
             <p className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-3">Job Photos</p>
             <div className="space-y-3">
               {job.jobPhotos.map(photo => (
@@ -2952,9 +2972,11 @@ export function EstimatePage() {
   return (
     <div className="min-h-screen bg-[#0f0f0f] flex items-start justify-center px-4 py-12" style={{ WebkitOverflowScrolling: 'touch' }}>
       <div className="w-full max-w-lg">
-        <a href="/" className="flex justify-center mb-8 no-print">
-          <img src={img('banner.PNG')} alt="GID Garage" className="h-12 w-auto" />
-        </a>
+        <div className="mb-8 no-print">
+          <a href="/">
+            <img src={img('banner.PNG')} alt="GID Garage" className="w-full h-auto block" />
+          </a>
+        </div>
 
         {loading && (
           <p className="text-center text-gray-600 text-sm font-bold uppercase tracking-widest">Loading estimate…</p>
