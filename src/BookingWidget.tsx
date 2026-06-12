@@ -79,6 +79,7 @@ async function getSupabaseBookings(): Promise<Booking[]> {
       status: b.status,
       createdAt: b.created_at,
       stripeCustomerId: b.stripe_customer_id || undefined,
+      adminPhotos: b.admin_photos ? (typeof b.admin_photos === 'string' ? JSON.parse(b.admin_photos) : b.admin_photos) : [],
     }));
   } catch (e) {
     console.warn('Supabase fetch failed, falling back to localStorage', e);
@@ -189,6 +190,7 @@ interface Booking {
   status: 'pending' | 'confirmed' | 'completed' | 'cancelled';
   stripeCustomerId?: string;
   createdAt: string;
+  adminPhotos: { key: string; url: string; name: string; note: string }[];
 }
 
 interface FormData {
@@ -1692,7 +1694,7 @@ function BookingDetailModal({ booking, onClose, onUpdate, onBookingPatched }: {
   const [editNotes, setEditNotes] = useState(booking.notes || '');
 
   // Photo upload state
-  const [photos, setPhotos] = useState<{ key: string; url: string; name: string; note: string }[]>([]);
+  const [photos, setPhotos] = useState<{ key: string; url: string; name: string; note: string }[]>(booking.adminPhotos || []);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [photoError, setPhotoError] = useState<string | null>(null);
   const [noteTimers, setNoteTimers] = useState<Record<string, ReturnType<typeof setTimeout>>>({});

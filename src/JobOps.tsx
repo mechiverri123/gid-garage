@@ -824,9 +824,9 @@ function QuoteCalculator({ job, onApply }: { job: Job; onApply: (items: LineItem
 
 // ── PHOTO PANEL ───────────────────────────────────────────────────────────────
 
-function AdminPhotoPanel({ entityId, entityType, initialPhotos, onPhotosChange }: {
+function AdminPhotoPanel({ entityId, onSave, initialPhotos, onPhotosChange }: {
   entityId: string;
-  entityType: 'booking' | 'job';
+  onSave: (id: string, photos: { key: string; url: string; name: string; note: string }[]) => Promise<void>;
   initialPhotos: { key: string; url: string; name: string; note: string }[];
   onPhotosChange?: (photos: { key: string; url: string; name: string; note: string }[]) => void;
 }) {
@@ -839,7 +839,7 @@ function AdminPhotoPanel({ entityId, entityType, initialPhotos, onPhotosChange }
 
   async function savePhotosToDb(updated: typeof photos) {
     try {
-      await adminPost('patch-booking', { id: entityId, fields: { admin_photos: JSON.stringify(updated) } });
+      await onSave(entityId, updated);
       onPhotosChange?.(updated);
     } catch {}
   }
@@ -2043,7 +2043,7 @@ function JobDetailPanel({ job: initialJob, onClose, onJobUpdate }: {
               <PhotoPanel job={job} onUpdate={handleUpdate} />
               <AdminPhotoPanel
                 entityId={job.id}
-                entityType="job"
+                onSave={async (id, photos) => { await patchJob(id, { admin_photos: JSON.stringify(photos) }); }}
                 initialPhotos={job.adminPhotos || []}
                 onPhotosChange={photos => handleUpdate({ ...job, adminPhotos: photos })}
               />
