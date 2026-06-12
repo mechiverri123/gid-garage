@@ -236,9 +236,40 @@ async function nhtsaGetMakes(): Promise<string[]> {
 
 async function nhtsaGetModels(make: string, year: number): Promise<string[]> {
   try {
-    const r = await fetch(`https://vpic.nhtsa.dot.gov/api/vehicles/GetModelsForMakeYear/make/${encodeURIComponent(make)}/modelyear/${year}?format=json`);
-    const d = await r.json();
-    return (d.Results || []).map((m: any) => m.Model_Name as string).sort();
+    // Fetch car and truck models separately to exclude motorcycles, ATVs, UTVs, etc.
+    const [carRes, truckRes] = await Promise.all([
+      fetch(`https://vpic.nhtsa.dot.gov/api/vehicles/GetModelsForMakeIdYear/makeId/${encodeURIComponent(make)}/modelyear/${year}/vehicleType/passenger%20car?format=json`).catch(() => null),
+      fetch(`https://vpic.nhtsa.dot.gov/api/vehicles/GetModelsForMakeIdYear/makeId/${encodeURIComponent(make)}/modelyear/${year}/vehicleType/truck?format=json`).catch(() => null),
+    ]);
+
+    // Fall back to name-based endpoint with vehicle type filtering
+    const [carByName, truckByName, mpvByName] = await Promise.all([
+      fetch(`https://vpic.nhtsa.dot.gov/api/vehicles/GetModelsForMakeYear/make/${encodeURIComponent(make)}/modelyear/${year}/vehicleType/passenger%20car?format=json`),
+      fetch(`https://vpic.nhtsa.dot.gov/api/vehicles/GetModelsForMakeYear/make/${encodeURIComponent(make)}/modelyear/${year}/vehicleType/truck?format=json`),
+      fetch(`https://vpic.nhtsa.dot.gov/api/vehicles/GetModelsForMakeYear/make/${encodeURIComponent(make)}/modelyear/${year}/vehicleType/multipurpose%20passenger%20vehicle%20(mpv)?format=json`),
+    ]);
+
+    const results = new Set<string>();
+    for (const res of [carByName, truckByName, mpvByName]) {
+      try {
+        const d = await res.json();
+        (d.Results || []).forEach((m: any) => results.add(m.Model_Name as string));
+      } catch { /* skip */ }
+    }
+
+    // If nothing came back from type-filtered endpoints, fall back to unfiltered
+    // but apply a keyword blocklist to strip obvious non-car models
+    if (results.size === 0) {
+      const r = await fetch(`https://vpic.nhtsa.dot.gov/api/vehicles/GetModelsForMakeYear/make/${encodeURIComponent(make)}/modelyear/${year}?format=json`);
+      const d = await r.json();
+      const NON_CAR = /\b(CBR|CRF|CMX|CB[0-9]|XL[0-9]|XR[0-9]|GL[0-9]|NC[0-9]|NX[0-9]|VFR|VTR|VTX|CTX|PCX|ADV|SH[0-9]|NSS|NPS|FJS|FSC|FX|RZR|Ranger|Maverick UTV|TRX[0-9]|TRX 4|Foreman|Rancher|Rubicon|Recon|FourTrax|FourWheeler|Pioneer UTV|Talon|Big Red|MUV|UTV|ATV|quad|motorcycle|moto|scooter|moped|enduro|motocross|supermoto|scrambler|cruiser [0-9]|sportster|softail|dyna|touring HD|heritage|fatboy|nightster|iron [0-9]|roadster HD|streetfighter|panigale|monster HD|multistrada|diavel|hypermotard|brutale|tuono|dorsoduro|shiver|GPZ|ZX-|ZX [0-9]|Ninja|Z [0-9][0-9][0-9]|KLR|KLX|KDX|RM-|DRZ|GSX-R|GSX-S|V-Strom|Burgman|Boulevard|Intruder|Marauder|VS[0-9]|VX[0-9]|SV[0-9]|TU[0-9]|RF[0-9]|GS[0-9][0-9][0-9]R|R[0-9][0-9][0-9]GS|F[0-9][0-9][0-9]|S[0-9][0-9][0-9]RR|MT-[0-9]|YZF|YZ[0-9]|WR[0-9]|FZ[0-9]|FJR|XSR|VMAX|Virago|V-Max|Road Star|Royal Star|Bolt|SCR|Tenere|Tracer|Street Triple|Speed Triple|Bonneville|Tiger|Scrambler|Thruxton|Rocket|Thunderbird|America|Chief|Scout HD|FTR|Springfield HD|Chieftain|Roadmaster HD|Challenger HD|Super Meteor|Himalayan|Interceptor|Hunter|Thunderbird HD|Classic [0-9]|Bullet [0-9]|Electra [0-9])\b/i;
+      (d.Results || [])
+        .map((m: any) => m.Model_Name as string)
+        .filter((name: string) => !NON_CAR.test(name))
+        .forEach((name: string) => results.add(name));
+    }
+
+    return [...results].sort();
   } catch { return []; }
 }
 
