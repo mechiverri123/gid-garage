@@ -237,8 +237,11 @@ export async function onRequestPost({ request, env }) {
                 <td style="color:#6b7280;font-size:12px;padding:3px 0;">GID Garage</td>
                 <td style="color:#fff;font-size:13px;font-weight:700;text-align:right;padding:3px 0;">$${(Number(job.estimateAmount||0)+Number(job.taxAmount||0)).toFixed(2)}</td>
               </tr>
+              <tr>
+                <td colspan="2" style="color:#86efac;font-size:11px;font-weight:700;padding:6px 0 2px;">and we come to you!</td>
+              </tr>
               <tr style="border-top:1px solid #166534;">
-                <td style="color:#4ade80;font-size:13px;font-weight:900;padding-top:8px;">You save</td>
+                <td style="color:#4ade80;font-size:13px;font-weight:900;padding-top:8px;">Customer Saves</td>
                 <td style="color:#4ade80;font-size:22px;font-weight:900;text-align:right;padding-top:8px;">$${savings.toFixed(2)}</td>
               </tr>
             </table>
