@@ -1869,7 +1869,7 @@ function JobDetailPanel({ job: initialJob, onClose, onJobUpdate }: {
   onJobUpdate: (j: Job) => void;
 }) {
   const [job, setJob] = useState(initialJob);
-  const [tab, setTab] = useState<'overview' | 'estimate' | 'payment' | 'photos' | 'inspection'>('overview');
+  const [tab, setTab] = useState<'overview' | 'estimate' | 'payment' | 'inspection'>('overview');
 
   function handleUpdate(updated: Job) {
     setJob(updated);
@@ -1932,12 +1932,12 @@ function JobDetailPanel({ job: initialJob, onClose, onJobUpdate }: {
 
         {/* Tabs */}
         <div className="flex border-b border-gray-800">
-          {(['overview', 'estimate', 'payment', 'photos', 'inspection'] as const).map(t => (
+          {(['overview', 'estimate', 'payment', 'inspection'] as const).map(t => (
             <button key={t} onClick={() => setTab(t)}
               className={`text-xs font-bold uppercase tracking-widest px-5 py-3 transition-colors border-b-2 -mb-px ${
                 tab === t ? 'border-red-600 text-white' : 'border-transparent text-gray-600 hover:text-gray-300'
               }`}>
-              {t === 'overview' ? '📋 Overview' : t === 'estimate' ? '📝 Estimate' : t === 'payment' ? '💳 Payment' : t === 'inspection' ? `🔍 Inspection` : `📷 Photos${job.jobPhotos?.length ? ` (${job.jobPhotos.length})` : ''}`}
+              {t === 'overview' ? '📋 Overview' : t === 'estimate' ? '📝 Estimate' : t === 'payment' ? '💳 Payment' : '🔍 Inspection'}
             </button>
           ))}
         </div>
@@ -2028,6 +2028,20 @@ function JobDetailPanel({ job: initialJob, onClose, onJobUpdate }: {
               </button>
                 </div>
               </div>
+
+              {/* Photos — inline in overview (same as Schedule) */}
+              <div className="border-t border-gray-800 pt-4">
+                <p className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-3">📷 Photos & Documentation</p>
+                <PhotoPanel job={job} onUpdate={handleUpdate} />
+                <div className="mt-4">
+                  <AdminPhotoPanel
+                    entityId={job.id}
+                    onSave={async (id, photos) => { await patchJob(id, { admin_photos: JSON.stringify(photos) }); }}
+                    initialPhotos={job.adminPhotos || []}
+                    onPhotosChange={photos => handleUpdate({ ...job, adminPhotos: photos })}
+                  />
+                </div>
+              </div>
             </div>
           )}
 
@@ -2037,18 +2051,7 @@ function JobDetailPanel({ job: initialJob, onClose, onJobUpdate }: {
           {/* PAYMENT TAB */}
           {tab === 'payment' && <PaymentPanel job={job} onUpdate={handleUpdate} onRequote={() => setTab('estimate')} />}
 
-          {/* PHOTOS TAB */}
-          {tab === 'photos' && (
-            <>
-              <PhotoPanel job={job} onUpdate={handleUpdate} />
-              <AdminPhotoPanel
-                entityId={job.id}
-                onSave={async (id, photos) => { await patchJob(id, { admin_photos: JSON.stringify(photos) }); }}
-                initialPhotos={job.adminPhotos || []}
-                onPhotosChange={photos => handleUpdate({ ...job, adminPhotos: photos })}
-              />
-            </>
-          )}
+
 
           {/* INSPECTION TAB */}
           {tab === 'inspection' && <InspectionPanel job={job} onUpdate={handleUpdate} />}
@@ -2333,7 +2336,7 @@ export function JobsTab() {
   const filtered = jobs
     .filter(j => {
       const matchStatus = filterStatus === 'ALL' || j.jobStatus === filterStatus;
-      const matchSearch = !search || `${j.fname} ${j.lname} ${j.vehicle} ${j.phone}`.toLowerCase().includes(search.toLowerCase());
+      const matchSearch = !search || `${j.fname} ${j.lname} ${j.vehicle} ${j.phone} ${j.stripeTransactionId || ''}`.toLowerCase().includes(search.toLowerCase());
       return matchStatus && matchSearch;
     })
     .sort((a, b) => {
@@ -2629,7 +2632,7 @@ export function InvoicePage() {
     <div className="min-h-screen bg-[#0f0f0f] py-12 px-4 print:py-0 print:px-0 print:min-h-0">
       <style>{`
         @media print {
-          @page { margin: 0; size: letter; }
+          @page { margin: 12mm; size: letter; }
           html, body, #root {
             background: #0f0f0f !important;
             background-color: #0f0f0f !important;
@@ -2641,32 +2644,33 @@ export function InvoicePage() {
             max-width: 100% !important;
             width: 100% !important;
             margin: 0 !important;
-            padding: 24px !important;
+            padding: 0 !important;
           }
+          /* Photos take too much space when printing — hide them */
+          .print-hide-photos { display: none !important; }
+          /* Ensure line items and totals don't break across pages */
+          table { page-break-inside: avoid; }
+          .page-break-avoid { page-break-inside: avoid; }
         }
       `}</style>
       <div className="max-w-lg mx-auto print-full">
 
-        {/* Header */}
-        <div className="flex items-center justify-between mb-8 no-print">
-          <a href="/">
-            <img src={img('banner.PNG')} alt="GID Garage" className="h-10 w-auto" />
+        {/* Banner — full width, both screen and print */}
+        <div className="mb-6">
+          <a href="/" className="no-print">
+            <img src={img('banner.PNG')} alt="GID Garage" className="w-full object-contain max-h-24" />
           </a>
-          <div className="text-right">
+          <img src={img('banner.PNG')} alt="GID Garage" className="hidden print:block w-full object-contain max-h-20 mb-2" />
+          <div className="flex justify-end mt-3">
             {isPaid
               ? <span className="inline-block bg-emerald-900/40 border border-emerald-700 text-emerald-400 text-xs font-bold uppercase tracking-widest px-3 py-1.5">✓ Paid</span>
               : <span className="inline-block bg-yellow-900/40 border border-yellow-700 text-yellow-400 text-xs font-bold uppercase tracking-widest px-3 py-1.5">Amount Due</span>
             }
           </div>
         </div>
-        {/* Print-only header */}
-        <div className="hidden print:flex items-center justify-between mb-6">
-          <img src={img('website_logo.png')} alt="GID Garage" className="h-8 w-auto" />
-          <span className={`text-xs font-bold uppercase tracking-widest ${isPaid ? 'text-emerald-400' : 'text-yellow-400'}`}>{isPaid ? '✓ Paid' : 'Amount Due'}</span>
-        </div>
 
         {/* Invoice card */}
-        <div className="bg-white/5 border border-white/10">
+        <div className="bg-white/5 border border-white/10 page-break-avoid">
 
           {/* Title row */}
           <div className="px-6 py-5 border-b border-white/10 flex items-center justify-between">
@@ -2769,9 +2773,9 @@ export function InvoicePage() {
           </div>
         )}
 
-        {/* Job photos if present */}
+        {/* Job photos if present — hidden when printing */}
         {job.jobPhotos?.length > 0 && (
-          <div className="mt-4 border border-white/10 bg-white/5 px-6 py-4">
+          <div className="mt-4 border border-white/10 bg-white/5 px-6 py-4 print-hide-photos">
             <p className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-3">Job Photos</p>
             <div className="space-y-3">
               {job.jobPhotos.map(photo => (
@@ -2952,9 +2956,11 @@ export function EstimatePage() {
   return (
     <div className="min-h-screen bg-[#0f0f0f] flex items-start justify-center px-4 py-12" style={{ WebkitOverflowScrolling: 'touch' }}>
       <div className="w-full max-w-lg">
-        <a href="/" className="flex justify-center mb-8 no-print">
-          <img src={img('banner.PNG')} alt="GID Garage" className="h-12 w-auto" />
-        </a>
+        <div className="mb-8 no-print">
+          <a href="/">
+            <img src={img('banner.PNG')} alt="GID Garage" className="w-full object-contain max-h-24" />
+          </a>
+        </div>
 
         {loading && (
           <p className="text-center text-gray-600 text-sm font-bold uppercase tracking-widest">Loading estimate…</p>
