@@ -52,15 +52,13 @@
 
 /* Print styles for invoice/receipt page */
 @media print {
-  @page { margin: 0; size: A4; }
-  html, body {
+  @page { margin: 0; size: letter; }
+  html, body, #root {
+    background: #0f0f0f !important;
     background-color: #0f0f0f !important;
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }
-  html::before, html::after, body::before, body::after {
-    background: #0f0f0f !important;
-  }
-  button { display: none !important; }
+  button, .no-print { display: none !important; }
   a[href="/"] { pointer-events: none; }
 }

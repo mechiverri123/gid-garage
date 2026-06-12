@@ -3359,8 +3359,14 @@ export const ENGINE_DATA: Record<string, Record<string, YE[]>> = {
   },
 };
 export function getEngines(make: string, model: string, year: number): string[] {
-  const entries = ENGINE_DATA[make]?.[model];
-  if (!entries) return [];
+  // Case-insensitive make lookup
+  const makeKey = Object.keys(ENGINE_DATA).find(k => k.toLowerCase() === make.toLowerCase());
+  if (!makeKey) return [];
+  const makeData = ENGINE_DATA[makeKey];
+  // Case-insensitive model lookup
+  const modelKey = Object.keys(makeData).find(k => k.toLowerCase() === model.toLowerCase());
+  if (!modelKey) return [];
+  const entries = makeData[modelKey];
   const match = entries.find(e => e[0] === year);
   return match ? (match.slice(1) as string[]) : [];
 }

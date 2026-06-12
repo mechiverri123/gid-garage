@@ -2500,16 +2500,26 @@ export function InvoicePage() {
   const invoiceNumber = job.id.startsWith('GID-') ? job.id : `GID-${job.id.slice(0, 8).toUpperCase()}`;
 
   return (
-    <div className="min-h-screen bg-[#0f0f0f] py-12 px-4">
+    <div className="min-h-screen bg-[#0f0f0f] py-12 px-4 print:py-0 print:px-0 print:min-h-0">
       <style>{`
         @media print {
-          @page { margin: 0; size: A4; }
-          html, body { background: #0f0f0f !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-          body > * { background: #0f0f0f !important; }
+          @page { margin: 0; size: letter; }
+          html, body, #root {
+            background: #0f0f0f !important;
+            background-color: #0f0f0f !important;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+          }
           .no-print { display: none !important; }
+          .print-full {
+            max-width: 100% !important;
+            width: 100% !important;
+            margin: 0 !important;
+            padding: 24px !important;
+          }
         }
       `}</style>
-      <div className="max-w-lg mx-auto">
+      <div className="max-w-lg mx-auto print-full">
 
         {/* Header */}
         <div className="flex items-start justify-between mb-8">

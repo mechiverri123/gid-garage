@@ -206,17 +206,30 @@ function vehicleString(f: FormData): string {
 // Falls back to empty arrays on network failure so the form stays usable.
 
 async function nhtsaGetMakes(): Promise<string[]> {
+  const PRIORITY = [
+    'Chevrolet', 'Ford', 'Toyota', 'Honda', 'Nissan', 'Jeep', 'Dodge', 'Ram',
+    'GMC', 'Subaru', 'Hyundai', 'Kia', 'Mazda', 'Volkswagen', 'BMW', 'Mercedes-Benz',
+    'Audi', 'Cadillac', 'Buick', 'Lincoln', 'Lexus', 'Acura', 'Infiniti',
+    'Mitsubishi', 'Chrysler', 'Pontiac', 'Oldsmobile', 'Saturn', 'Mercury',
+    'Scion', 'Isuzu', 'Suzuki', 'Hummer', 'Genesis', 'Volvo', 'Rivian', 'Tesla',
+  ];
   try {
     const r = await fetch('https://vpic.nhtsa.dot.gov/api/vehicles/GetMakesForVehicleType/car?format=json');
     const d = await r.json();
-    const makes: string[] = (d.Results || []).map((m: any) => m.MakeName as string).sort();
-    // Also include trucks/SUVs
+    const makes: string[] = (d.Results || []).map((m: any) => m.MakeName as string);
     const r2 = await fetch('https://vpic.nhtsa.dot.gov/api/vehicles/GetMakesForVehicleType/truck?format=json');
     const d2 = await r2.json();
     const truckMakes: string[] = (d2.Results || []).map((m: any) => m.MakeName as string);
-    const all = Array.from(new Set([...makes, ...truckMakes])).sort();
-    return all;
-  } catch { return []; }
+    const allSet = Array.from(new Set([...makes, ...truckMakes]));
+    // Find actual NHTSA casing for priority makes (case-insensitive match)
+    const priorityOrdered = PRIORITY
+      .map(p => allSet.find(m => m.toLowerCase() === p.toLowerCase()) ?? p)
+      .filter(p => allSet.some(m => m.toLowerCase() === p.toLowerCase()));
+    const rest = allSet
+      .filter(m => !PRIORITY.some(p => p.toLowerCase() === m.toLowerCase()))
+      .sort();
+    return [...priorityOrdered, ...rest];
+  } catch { return PRIORITY; }
 }
 
 async function nhtsaGetModels(make: string, year: number): Promise<string[]> {
@@ -2127,20 +2140,20 @@ export function AdminSchedule() {
             <p className="text-red-600 text-xs font-bold uppercase tracking-[0.25em] mb-1">Admin · GID Garage</p>
             <h1 className="text-4xl font-black text-white tracking-tight">Schedule</h1>
           </div>
-          <div className="flex items-center gap-1.5 flex-wrap sm:flex-nowrap sm:gap-2">
+          <div className="flex items-center gap-1 flex-wrap sm:flex-nowrap sm:gap-2">
             {notifPerm !== 'unsupported' && notifPerm !== 'granted' && (
               <button onClick={requestNotifications}
-                className="border border-yellow-700 text-yellow-600 hover:border-yellow-500 hover:text-yellow-400 text-[10px] sm:text-xs font-bold uppercase tracking-widest px-2 sm:px-3 py-2 transition-colors whitespace-nowrap">🔔 Alerts</button>
+                className="border border-yellow-700 text-yellow-600 hover:border-yellow-500 hover:text-yellow-400 text-[9px] sm:text-xs font-bold uppercase tracking-wide px-1.5 sm:px-3 py-1.5 sm:py-2 transition-colors whitespace-nowrap">🔔 Alerts</button>
             )}
             {notifPerm === 'granted' && (
-              <span className="text-[10px] sm:text-xs text-green-600 font-bold uppercase tracking-widest px-2 sm:px-3 py-2 whitespace-nowrap">🔔 Alerts On</span>
+              <span className="text-[9px] sm:text-xs text-green-600 font-bold uppercase tracking-wide px-1.5 sm:px-3 py-1.5 sm:py-2 whitespace-nowrap">🔔 On</span>
             )}
             <button onClick={() => getSupabaseBookings().then(setBookings)}
-              className="border border-gray-700 text-gray-400 hover:border-red-600 hover:text-white text-[10px] sm:text-xs font-bold uppercase tracking-widest px-2 sm:px-3 py-2 transition-colors whitespace-nowrap">↻ Refresh</button>
+              className="border border-gray-700 text-gray-400 hover:border-red-600 hover:text-white text-[9px] sm:text-xs font-bold uppercase tracking-wide px-1.5 sm:px-3 py-1.5 sm:py-2 transition-colors whitespace-nowrap">↻ Refresh</button>
             <button onClick={() => { sessionStorage.removeItem('gg_admin_auth'); setUnlocked(false); }}
-              className="border border-gray-700 text-gray-400 hover:border-red-600 hover:text-white text-[10px] sm:text-xs font-bold uppercase tracking-widest px-2 sm:px-3 py-2 transition-colors whitespace-nowrap">🔒 Lock</button>
+              className="border border-gray-700 text-gray-400 hover:border-red-600 hover:text-white text-[9px] sm:text-xs font-bold uppercase tracking-wide px-1.5 sm:px-3 py-1.5 sm:py-2 transition-colors whitespace-nowrap">🔒 Lock</button>
             <a href="/"
-              className="border border-gray-700 text-gray-400 hover:border-red-600 hover:text-white text-[10px] sm:text-xs font-bold uppercase tracking-widest px-2 sm:px-3 py-2 transition-colors whitespace-nowrap">← Site</a>
+              className="border border-gray-700 text-gray-400 hover:border-red-600 hover:text-white text-[9px] sm:text-xs font-bold uppercase tracking-wide px-1.5 sm:px-3 py-1.5 sm:py-2 transition-colors whitespace-nowrap">← Site</a>
           </div>
         </div>
 

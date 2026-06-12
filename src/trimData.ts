@@ -916,8 +916,10 @@ export const TRIM_DATA: Record<string, TrimEntry[]> = {
 };
 
 export function getTrims(make: string, model: string, year: number): string[] {
+  // Try exact key first, then case-insensitive
   const key = `${make.toUpperCase()}|${model.toUpperCase()}`;
-  const entries = TRIM_DATA[key];
+  const entries = TRIM_DATA[key]
+    ?? TRIM_DATA[Object.keys(TRIM_DATA).find(k => k.toLowerCase() === key.toLowerCase()) ?? ''];
   if (!entries) return [];
   const match = entries.find(e => year >= e.from && year <= e.to);
   return match ? match.trims : [];
