@@ -234,42 +234,48 @@ async function nhtsaGetMakes(): Promise<string[]> {
   } catch { return PRIORITY; }
 }
 
+// Makes that sell both automotive AND motorcycle/ATV/UTV products.
+// For these makes, NHTSA returns motorcycle/offroad models mixed with cars.
+// Patterns are matched against model names to exclude non-automotive results.
+const NON_AUTO_PATTERNS: Record<string, RegExp> = {
+  'Honda': /^(CBR|CRF|CMX|CT|CL|CB[0-9]|CB[0-9][0-9]|CB[0-9][0-9][0-9]|CR[0-9]|XR[0-9]|XL[0-9]|GL[0-9]|NC[0-9]|NX[0-9]|VFR|VTR|VTX|CTX|PCX|ADV|SH[0-9]|NSS|NPS|FJS|FSC|Gold Wing|Ruckus|Grom|Monkey|Navi|Metropolitan|Activa|Dio|TRX|FourTrax|Rancher|Foreman|Rubicon|Rincon|Recon|Pioneer|Talon|Big Red|SXS|Ridgepro|ATV|UTV|Fourtrax|Transalp|Africa Twin|Shadow|Rebel|Magna|Sabre|Valkyrie|Fury|Stateline|Interstate|Phantom|Ace|Spirit)\b/i,
+  'BMW': /^(R [0-9]|S [0-9][0-9][0-9][0-9]|F [0-9][0-9][0-9] |K [0-9][0-9][0-9][0-9]|G [0-9][0-9][0-9] |C [0-9][0-9][0-9]|HP2|HP4|R nine|Motorrad|GS [0-9]|Adventure [0-9])/i,
+  'Suzuki': /^(GSX-R|GSX-S|SV[0-9]|V-Strom|Burgman|Boulevard|Intruder|Marauder|VS[0-9]|VX[0-9]|TU[0-9]|RF[0-9]|RG[0-9]|GN[0-9]|GS[0-9][0-9][0-9][A-Z]|DR[0-9]|DRZ|RM[0-9]|RMX|LT-|Bandit|Hayabusa|Katana|Savage|Gladius|Inazuma|Gixxer|Access)/i,
+  'Kawasaki': /.*/, // Kawasaki's US cars were discontinued; all NHTSA entries are motorcycles
+  'Polaris': /^(RZR|Ranger|Sportsman|General|Scrambler|Outlaw|Phoenix|Trail|Predator|Magnum|Hawkeye|Xpedition|Ace |Slingshot [^car])/i,
+  'Can-Am': /^(Spyder|Ryker|Maverick|Defender|Outlander|Renegade|DS|Commander|Traxter)/i,
+  'Arctic Cat': /.*/,  // No cars
+  'Yamaha': /.*/,      // No cars sold in US
+};
+
 async function nhtsaGetModels(make: string, year: number): Promise<string[]> {
   try {
-    // Fetch car and truck models separately to exclude motorcycles, ATVs, UTVs, etc.
-    const [carRes, truckRes] = await Promise.all([
-      fetch(`https://vpic.nhtsa.dot.gov/api/vehicles/GetModelsForMakeIdYear/makeId/${encodeURIComponent(make)}/modelyear/${year}/vehicleType/passenger%20car?format=json`).catch(() => null),
-      fetch(`https://vpic.nhtsa.dot.gov/api/vehicles/GetModelsForMakeIdYear/makeId/${encodeURIComponent(make)}/modelyear/${year}/vehicleType/truck?format=json`).catch(() => null),
-    ]);
+    const r = await fetch(`https://vpic.nhtsa.dot.gov/api/vehicles/GetModelsForMakeYear/make/${encodeURIComponent(make)}/modelyear/${year}?format=json`);
+    const d = await r.json();
+    let models: string[] = (d.Results || []).map((m: any) => m.Model_Name as string);
 
-    // Fall back to name-based endpoint with vehicle type filtering
-    const [carByName, truckByName, mpvByName] = await Promise.all([
-      fetch(`https://vpic.nhtsa.dot.gov/api/vehicles/GetModelsForMakeYear/make/${encodeURIComponent(make)}/modelyear/${year}/vehicleType/passenger%20car?format=json`),
-      fetch(`https://vpic.nhtsa.dot.gov/api/vehicles/GetModelsForMakeYear/make/${encodeURIComponent(make)}/modelyear/${year}/vehicleType/truck?format=json`),
-      fetch(`https://vpic.nhtsa.dot.gov/api/vehicles/GetModelsForMakeYear/make/${encodeURIComponent(make)}/modelyear/${year}/vehicleType/multipurpose%20passenger%20vehicle%20(mpv)?format=json`),
-    ]);
-
-    const results = new Set<string>();
-    for (const res of [carByName, truckByName, mpvByName]) {
-      try {
-        const d = await res.json();
-        (d.Results || []).forEach((m: any) => results.add(m.Model_Name as string));
-      } catch { /* skip */ }
+    // Apply per-make blocklist for makes that also sell non-automotive vehicles.
+    // Lookup is case-insensitive since NHTSA returns make names in varying cases.
+    const makeNorm = make.toLowerCase();
+    const blockEntry = Object.entries(NON_AUTO_PATTERNS).find(([k]) => k.toLowerCase() === makeNorm);
+    if (blockEntry) {
+      models = models.filter(name => !blockEntry[1].test(name));
     }
 
-    // If nothing came back from type-filtered endpoints, fall back to unfiltered
-    // but apply a keyword blocklist to strip obvious non-car models
-    if (results.size === 0) {
-      const r = await fetch(`https://vpic.nhtsa.dot.gov/api/vehicles/GetModelsForMakeYear/make/${encodeURIComponent(make)}/modelyear/${year}?format=json`);
-      const d = await r.json();
-      const NON_CAR = /\b(CBR|CRF|CMX|CB[0-9]|XL[0-9]|XR[0-9]|GL[0-9]|NC[0-9]|NX[0-9]|VFR|VTR|VTX|CTX|PCX|ADV|SH[0-9]|NSS|NPS|FJS|FSC|FX|RZR|Ranger|Maverick UTV|TRX[0-9]|TRX 4|Foreman|Rancher|Rubicon|Recon|FourTrax|FourWheeler|Pioneer UTV|Talon|Big Red|MUV|UTV|ATV|quad|motorcycle|moto|scooter|moped|enduro|motocross|supermoto|scrambler|cruiser [0-9]|sportster|softail|dyna|touring HD|heritage|fatboy|nightster|iron [0-9]|roadster HD|streetfighter|panigale|monster HD|multistrada|diavel|hypermotard|brutale|tuono|dorsoduro|shiver|GPZ|ZX-|ZX [0-9]|Ninja|Z [0-9][0-9][0-9]|KLR|KLX|KDX|RM-|DRZ|GSX-R|GSX-S|V-Strom|Burgman|Boulevard|Intruder|Marauder|VS[0-9]|VX[0-9]|SV[0-9]|TU[0-9]|RF[0-9]|GS[0-9][0-9][0-9]R|R[0-9][0-9][0-9]GS|F[0-9][0-9][0-9]|S[0-9][0-9][0-9]RR|MT-[0-9]|YZF|YZ[0-9]|WR[0-9]|FZ[0-9]|FJR|XSR|VMAX|Virago|V-Max|Road Star|Royal Star|Bolt|SCR|Tenere|Tracer|Street Triple|Speed Triple|Bonneville|Tiger|Scrambler|Thruxton|Rocket|Thunderbird|America|Chief|Scout HD|FTR|Springfield HD|Chieftain|Roadmaster HD|Challenger HD|Super Meteor|Himalayan|Interceptor|Hunter|Thunderbird HD|Classic [0-9]|Bullet [0-9]|Electra [0-9])\b/i;
-      (d.Results || [])
-        .map((m: any) => m.Model_Name as string)
-        .filter((name: string) => !NON_CAR.test(name))
-        .forEach((name: string) => results.add(name));
+    // Normalize Ford Super Duty names: pre-1999 NHTSA returns "F-250"/"F-350" but
+    // our static trim/engine data uses the canonical "F-250 Super Duty"/"F-350 Super Duty".
+    if (makeNorm === 'ford') {
+      models = models.map(name => {
+        if (name === 'F-250') return 'F-250 Super Duty';
+        if (name === 'F-350') return 'F-350 Super Duty';
+        if (name === 'F-450') return 'F-450 Super Duty';
+        return name;
+      });
+      // Deduplicate in case both old and new names appeared
+      models = [...new Set(models)];
     }
 
-    return [...results].sort();
+    return models.sort();
   } catch { return []; }
 }
 

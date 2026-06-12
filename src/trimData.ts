@@ -348,6 +348,11 @@ export const TRIM_DATA: Record<string, TrimEntry[]> = {
     { from: 2015, to: 2026, trims: ['WT', 'Custom', 'LT', 'LTZ', 'High Country'] },
   ],
 
+  'CHEVROLET|SILVERADO 3500HD': [
+    { from: 2001, to: 2014, trims: ['Regular Cab WT', 'Regular Cab LS', 'Regular Cab LT', 'Extended Cab WT', 'Extended Cab LT', 'Crew Cab LS', 'Crew Cab LT', 'Crew Cab LTZ'] },
+    { from: 2015, to: 2026, trims: ['WT', 'Custom', 'LT', 'LTZ', 'High Country'] },
+  ],
+
   'CHEVROLET|EQUINOX': [
     { from: 2005, to: 2009, trims: ['LS 2WD', 'LS AWD', 'LT 2WD', 'LT AWD', 'Sport 2WD', 'Sport AWD'] },
     { from: 2010, to: 2017, trims: ['LS 2WD', 'LS AWD', 'LT 2WD', 'LT AWD', 'LTZ 2WD', 'LTZ AWD'] },
@@ -430,6 +435,11 @@ export const TRIM_DATA: Record<string, TrimEntry[]> = {
   ],
 
   'GMC|SIERRA 2500HD': [
+    { from: 2001, to: 2014, trims: ['Regular Cab SL', 'Regular Cab SLE', 'Extended Cab SLE', 'Extended Cab SLT', 'Crew Cab SLE', 'Crew Cab SLT', 'Crew Cab Denali'] },
+    { from: 2015, to: 2026, trims: ['SLE', 'SLT', 'AT4', 'Denali'] },
+  ],
+
+  'GMC|SIERRA 3500HD': [
     { from: 2001, to: 2014, trims: ['Regular Cab SL', 'Regular Cab SLE', 'Extended Cab SLE', 'Extended Cab SLT', 'Crew Cab SLE', 'Crew Cab SLT', 'Crew Cab Denali'] },
     { from: 2015, to: 2026, trims: ['SLE', 'SLT', 'AT4', 'Denali'] },
   ],
@@ -911,6 +921,61 @@ export const TRIM_DATA: Record<string, TrimEntry[]> = {
     { from: 2008, to: 2014, trims: ['C300 RWD', 'C300 4MATIC', 'C350 RWD', 'C350 4MATIC', 'C63 AMG', 'C63 AMG Black Series'] },
     { from: 2015, to: 2021, trims: ['C300 RWD', 'C300 4MATIC', 'C350e Plug-In Hybrid', 'C63 AMG', 'C63 S AMG', 'Cabriolet C300', 'Cabriolet C63 AMG'] },
     { from: 2022, to: 2026, trims: ['C300 RWD', 'C300 4MATIC', 'C43 AMG', 'C63 S E Performance AMG'] },
+  ],
+
+  // ── FORD VANS & HEAVY DUTY ────────────────────────────────────────────────
+  'FORD|TRANSIT': [
+    { from: 2015, to: 2026, trims: ['XL Cargo', 'XLT Cargo', 'XL Passenger', 'XLT Passenger', 'Limited Passenger', 'Trail'] },
+  ],
+  'FORD|TRANSIT CONNECT': [
+    { from: 2010, to: 2013, trims: ['XL', 'XLT'] },
+    { from: 2014, to: 2026, trims: ['XL', 'XLT', 'Titanium', 'Wagon XL', 'Wagon XLT', 'Wagon Titanium'] },
+  ],
+  'FORD|E-SERIES': [
+    { from: 1992, to: 2007, trims: ['E-150 XL', 'E-150 XLT', 'E-250 XL', 'E-250 XLT', 'E-350 XL', 'E-350 XLT', 'E-350 Super Duty'] },
+    { from: 2008, to: 2014, trims: ['E-150 XL', 'E-150 XLT', 'E-250 Super Duty XL', 'E-250 Super Duty XLT', 'E-350 Super Duty XL', 'E-350 Super Duty XLT'] },
+  ],
+  'FORD|F-450 SUPER DUTY': [
+    { from: 1999, to: 2016, trims: ['Regular Cab XL', 'Regular Cab XLT', 'Regular Cab Lariat', 'SuperCab XL', 'SuperCab XLT', 'Crew Cab XL', 'Crew Cab XLT', 'Crew Cab Lariat', 'Crew Cab King Ranch'] },
+    { from: 2017, to: 2026, trims: ['XL', 'XLT', 'Lariat', 'King Ranch', 'Platinum', 'Limited'] },
+  ],
+
+  // ── CHEVROLET / GMC VANS ──────────────────────────────────────────────────
+  'CHEVROLET|EXPRESS': [
+    { from: 1996, to: 2003, trims: ['1500 LS', '1500 LT', '2500 LS', '2500 LT', '3500 LS', '3500 LT', 'Cargo 1500', 'Cargo 2500', 'Cargo 3500'] },
+    { from: 2004, to: 2026, trims: ['LS', 'LT', '2500 LS', '2500 LT', '3500 LS', '3500 LT', 'Cargo', '2500 Cargo', '3500 Cargo', 'Work Van'] },
+  ],
+  'GMC|SAVANA': [
+    { from: 1996, to: 2003, trims: ['1500 SL', '1500 SLE', '2500 SL', '2500 SLE', '3500 SL', '3500 SLE', 'Cargo 2500', 'Cargo 3500'] },
+    { from: 2004, to: 2026, trims: ['SL', 'SLE', 'SLT', '2500 SLE', '3500 SLE', 'Cargo', '2500 Cargo', '3500 Cargo', 'Work Van'] },
+  ],
+
+  // ── RAM VANS ──────────────────────────────────────────────────────────────
+  'RAM|PROMASTER': [
+    { from: 2014, to: 2026, trims: ['1500 Low Roof', '1500 High Roof', '2500 High Roof', '3500 High Roof', 'Window Van'] },
+  ],
+  'RAM|PROMASTER CITY': [
+    { from: 2015, to: 2026, trims: ['Tradesman', 'SLT', 'Wagon SE', 'Wagon SLT'] },
+  ],
+
+  // ── NISSAN MISSING MODELS ─────────────────────────────────────────────────
+  'NISSAN|XTERRA': [
+    { from: 1999, to: 2004, trims: ['XE 2WD', 'XE 4WD', 'SE 2WD', 'SE 4WD'] },
+    { from: 2005, to: 2015, trims: ['X 2WD', 'X 4WD', 'S 2WD', 'S 4WD', 'PRO-4X 4WD', 'Off-Road 4WD'] },
+  ],
+  'NISSAN|VERSA': [
+    { from: 2007, to: 2011, trims: ['1.6 Base', '1.6 S', '1.8 S', '1.8 SL'] },
+    { from: 2012, to: 2019, trims: ['S', 'SV', 'SL', 'Note S', 'Note SV', 'Note SR', 'Note SL'] },
+    { from: 2020, to: 2026, trims: ['S', 'SV', 'SR'] },
+  ],
+
+  // ── HYUNDAI / KIA MISSING MODELS ─────────────────────────────────────────
+  'HYUNDAI|KONA': [
+    { from: 2018, to: 2023, trims: ['SE', 'SEL', 'Limited', 'N Line', 'Electric SE', 'Electric Limited'] },
+    { from: 2024, to: 2026, trims: ['SE', 'SEL', 'N Line', 'Limited', 'N', 'Electric Standard', 'Electric SE', 'Electric Limited'] },
+  ],
+  'KIA|SELTOS': [
+    { from: 2021, to: 2026, trims: ['LX', 'S', 'EX', 'SX'] },
   ],
 
 };
