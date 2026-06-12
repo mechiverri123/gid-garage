@@ -1692,10 +1692,18 @@ function BookingDetailModal({ booking, onClose, onUpdate, onBookingPatched }: {
   const [editNotes, setEditNotes] = useState(booking.notes || '');
 
   // Photo upload state
-  const [photos, setPhotos] = useState<{ key: string; url: string; name: string }[]>([]);
+  const [photos, setPhotos] = useState<{ key: string; url: string; name: string; note: string }[]>([]);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [photoError, setPhotoError] = useState<string | null>(null);
+  const [noteTimers, setNoteTimers] = useState<Record<string, ReturnType<typeof setTimeout>>>({});
+  const [savingNotes, setSavingNotes] = useState<Record<string, boolean>>({});
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  async function savePhotosToDb(updated: typeof photos) {
+    try {
+      await adminPost('patch-booking', { id: booking.id, fields: { admin_photos: JSON.stringify(updated) } });
+    } catch {}
+  }
 
   async function handleSave() {
     setSaving(true);
@@ -1728,11 +1736,33 @@ function BookingDetailModal({ booking, onClose, onUpdate, onBookingPatched }: {
       const res = await fetch('/admin-upload-photo', { method: 'POST', body: formData });
       if (!res.ok) throw new Error(await res.text());
       const data = await res.json() as any;
-      setPhotos(p => [...p, { key: data.key, url: data.url, name: file.name }]);
+      const newPhoto = { key: data.key, url: data.url, name: file.name, note: '' };
+      const updated = [...photos, newPhoto];
+      setPhotos(updated);
+      await savePhotosToDb(updated);
     } catch (e: any) {
       setPhotoError(e.message ?? 'Upload failed');
     }
     setUploadingPhoto(false);
+  }
+
+  function updatePhotoNote(key: string, note: string) {
+    const updated = photos.map(p => p.key === key ? { ...p, note } : p);
+    setPhotos(updated);
+    if (noteTimers[key]) clearTimeout(noteTimers[key]);
+    setSavingNotes(prev => ({ ...prev, [key]: false }));
+    const timer = setTimeout(async () => {
+      setSavingNotes(prev => ({ ...prev, [key]: true }));
+      await savePhotosToDb(updated);
+      setSavingNotes(prev => ({ ...prev, [key]: false }));
+    }, 3000);
+    setNoteTimers(prev => ({ ...prev, [key]: timer }));
+  }
+
+  async function deletePhoto(key: string) {
+    const updated = photos.filter(p => p.key !== key);
+    setPhotos(updated);
+    await savePhotosToDb(updated);
   }
 
   const timeSlots = getSlotsForDate(editDate);
@@ -1842,8 +1872,8 @@ function BookingDetailModal({ booking, onClose, onUpdate, onBookingPatched }: {
 
         {/* ── Admin-only photo uploads ── */}
         <div className="border-t border-gray-800 pt-4 mt-2">
-          <p className="text-yellow-600 text-xs font-bold uppercase tracking-widest mb-2">🔒 Admin Photos (not visible to customer)</p>
-          <p className="text-gray-600 text-[10px] mb-3">Upload damage photos, license plate, VIN plate, or any internal documentation.</p>
+          <p className="text-yellow-600 text-xs font-bold uppercase tracking-widest mb-1">🔒 Admin Photos</p>
+          <p className="text-gray-600 text-[10px] mb-3">Internal records only — VIN plate, license plate, damage, documentation. Not visible to customer.</p>
 
           <input ref={fileInputRef} type="file" accept="image/*" multiple className="hidden"
             onChange={async e => {
@@ -1853,20 +1883,40 @@ function BookingDetailModal({ booking, onClose, onUpdate, onBookingPatched }: {
             }}
           />
           <button onClick={() => fileInputRef.current?.click()} disabled={uploadingPhoto}
-            className={`w-full border border-dashed border-gray-700 text-gray-500 hover:border-yellow-700 hover:text-yellow-600 text-xs font-bold uppercase tracking-wider py-3 transition-colors mb-3 ${uploadingPhoto ? 'opacity-50 cursor-not-allowed' : ''}`}>
-            {uploadingPhoto ? 'Uploading…' : '+ Upload Photos'}
+            className={`w-full border border-dashed border-gray-700 text-gray-500 hover:border-yellow-700 hover:text-yellow-600 text-xs font-bold uppercase tracking-wider py-3 transition-colors ${uploadingPhoto ? 'opacity-50 cursor-not-allowed' : ''}`}>
+            {uploadingPhoto ? '⏳ Uploading…' : '+ Upload Photos'}
           </button>
-          {photoError && <p className="text-red-400 text-xs mb-2">{photoError}</p>}
-          <p className="text-gray-700 text-[10px]">
-            ⚠️ R2 upload worker (<code>/admin-upload-photo</code>) needs to be deployed separately. See setup instructions.
-          </p>
+          {photoError && <p className="text-red-400 text-xs mt-2">{photoError}</p>}
+
           {photos.length > 0 && (
-            <div className="grid grid-cols-3 gap-2 mt-3">
+            <div className="mt-3 space-y-3">
               {photos.map(p => (
-                <a key={p.key} href={p.url} target="_blank" rel="noopener noreferrer"
-                  className="block aspect-square bg-gray-900 border border-gray-700 overflow-hidden hover:border-yellow-600 transition-colors">
-                  <img src={p.url} alt={p.name} className="w-full h-full object-cover" />
-                </a>
+                <div key={p.key} className="bg-gray-900 border border-gray-800">
+                  <div className="relative">
+                    <a href={p.url} target="_blank" rel="noopener noreferrer">
+                      <img src={p.url} alt={p.name} className="w-full max-h-48 object-cover" />
+                    </a>
+                    <button onClick={() => deletePhoto(p.key)}
+                      className="absolute top-2 right-2 w-7 h-7 bg-black/70 text-red-500 hover:bg-red-900/80 flex items-center justify-center text-sm transition-colors">×</button>
+                    <span className="absolute bottom-2 left-2 text-[10px] text-gray-400 bg-black/60 px-1.5 py-0.5">{p.name}</span>
+                  </div>
+                  <div className="p-2">
+                    <div className="relative">
+                      <input
+                        type="text"
+                        value={p.note}
+                        onChange={e => updatePhotoNote(p.key, e.target.value)}
+                        placeholder="Add a note (autosaves in 3s)…"
+                        className="w-full bg-gray-800 border border-gray-700 text-white text-xs px-2.5 py-1.5 outline-none focus:border-yellow-700 placeholder-gray-600 transition-colors pr-14"
+                      />
+                      {savingNotes[p.key] !== undefined && (
+                        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-gray-600">
+                          {savingNotes[p.key] ? 'saving…' : 'saved ✓'}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
               ))}
             </div>
           )}

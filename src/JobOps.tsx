@@ -105,6 +105,7 @@ export interface Job {
   adjustmentAmount: number | null;
   // photos
   jobPhotos: JobPhoto[];
+  adminPhotos: { key: string; url: string; name: string; note: string }[];
   // inspection
   inspectionData: InspectionData | null;
 }
@@ -183,6 +184,7 @@ function mapJob(b: any): Job {
     adjustmentReason: b.adjustment_reason || '',
     adjustmentAmount: b.adjustment_amount ?? null,
     jobPhotos: b.job_photos ? (typeof b.job_photos === 'string' ? JSON.parse(b.job_photos) : b.job_photos) : [],
+    adminPhotos: b.admin_photos ? (typeof b.admin_photos === 'string' ? JSON.parse(b.admin_photos) : b.admin_photos) : [],
     inspectionData: b.inspection_data ? (typeof b.inspection_data === 'string' ? JSON.parse(b.inspection_data) : b.inspection_data) : null,
   };
 }
@@ -821,6 +823,120 @@ function QuoteCalculator({ job, onApply }: { job: Job; onApply: (items: LineItem
 }
 
 // ── PHOTO PANEL ───────────────────────────────────────────────────────────────
+
+function AdminPhotoPanel({ entityId, entityType, initialPhotos, onPhotosChange }: {
+  entityId: string;
+  entityType: 'booking' | 'job';
+  initialPhotos: { key: string; url: string; name: string; note: string }[];
+  onPhotosChange?: (photos: { key: string; url: string; name: string; note: string }[]) => void;
+}) {
+  const [photos, setPhotos] = useState(initialPhotos);
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [noteTimers, setNoteTimers] = useState<Record<string, ReturnType<typeof setTimeout>>>({});
+  const [savingNotes, setSavingNotes] = useState<Record<string, boolean>>({});
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  async function savePhotosToDb(updated: typeof photos) {
+    try {
+      await adminPost('patch-booking', { id: entityId, fields: { admin_photos: JSON.stringify(updated) } });
+      onPhotosChange?.(updated);
+    } catch {}
+  }
+
+  async function handleUpload(file: File) {
+    setUploading(true);
+    setUploadError(null);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('bookingId', entityId);
+      const res = await fetch('/admin-upload-photo', { method: 'POST', body: formData });
+      if (!res.ok) throw new Error(await res.text());
+      const data = await res.json() as any;
+      const newPhoto = { key: data.key, url: data.url, name: file.name, note: '' };
+      const updated = [...photos, newPhoto];
+      setPhotos(updated);
+      await savePhotosToDb(updated);
+    } catch (e: any) {
+      setUploadError(e.message ?? 'Upload failed');
+    }
+    setUploading(false);
+  }
+
+  function updateNote(key: string, note: string) {
+    const updated = photos.map(p => p.key === key ? { ...p, note } : p);
+    setPhotos(updated);
+    // Autosave after 3s debounce
+    if (noteTimers[key]) clearTimeout(noteTimers[key]);
+    setSavingNotes(prev => ({ ...prev, [key]: false }));
+    const timer = setTimeout(async () => {
+      setSavingNotes(prev => ({ ...prev, [key]: true }));
+      await savePhotosToDb(updated);
+      setSavingNotes(prev => ({ ...prev, [key]: false }));
+    }, 3000);
+    setNoteTimers(prev => ({ ...prev, [key]: timer }));
+  }
+
+  async function deletePhoto(key: string) {
+    const updated = photos.filter(p => p.key !== key);
+    setPhotos(updated);
+    await savePhotosToDb(updated);
+  }
+
+  return (
+    <div className="border-t border-gray-800 pt-4 mt-2">
+      <p className="text-yellow-600 text-xs font-bold uppercase tracking-widest mb-1">🔒 Admin Photos</p>
+      <p className="text-gray-600 text-[10px] mb-3">Internal records only — VIN plate, license plate, damage, documentation. Not visible to customer.</p>
+
+      <input ref={fileRef} type="file" accept="image/*" multiple className="hidden"
+        onChange={async e => {
+          const files = Array.from(e.target.files || []);
+          for (const f of files) await handleUpload(f);
+          e.target.value = '';
+        }}
+      />
+      <button onClick={() => fileRef.current?.click()} disabled={uploading}
+        className={`w-full border border-dashed border-gray-700 text-gray-500 hover:border-yellow-700 hover:text-yellow-600 text-xs font-bold uppercase tracking-wider py-3 transition-colors ${uploading ? 'opacity-50 cursor-not-allowed' : ''}`}>
+        {uploading ? '⏳ Uploading…' : '+ Upload Photos'}
+      </button>
+      {uploadError && <p className="text-red-400 text-xs mt-2">{uploadError}</p>}
+
+      {photos.length > 0 && (
+        <div className="mt-3 space-y-3">
+          {photos.map(p => (
+            <div key={p.key} className="bg-gray-900 border border-gray-800">
+              <div className="relative">
+                <a href={p.url} target="_blank" rel="noopener noreferrer">
+                  <img src={p.url} alt={p.name} className="w-full max-h-48 object-cover" />
+                </a>
+                <button onClick={() => deletePhoto(p.key)}
+                  className="absolute top-2 right-2 w-7 h-7 bg-black/70 text-red-500 hover:bg-red-900/80 flex items-center justify-center text-sm transition-colors">×</button>
+                <span className="absolute bottom-2 left-2 text-[10px] text-gray-400 bg-black/60 px-1.5 py-0.5">{p.name}</span>
+              </div>
+              <div className="p-2">
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={p.note}
+                    onChange={e => updateNote(p.key, e.target.value)}
+                    placeholder="Add a note (autosaves in 3s)…"
+                    className="w-full bg-gray-800 border border-gray-700 text-white text-xs px-2.5 py-1.5 outline-none focus:border-yellow-700 placeholder-gray-600 transition-colors pr-14"
+                  />
+                  {savingNotes[p.key] !== undefined && (
+                    <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-gray-600">
+                      {savingNotes[p.key] ? 'saving…' : 'saved ✓'}
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function PhotoPanel({ job, onUpdate }: { job: Job; onUpdate: (j: Job) => void }) {
   const [photos, setPhotos] = useState<JobPhoto[]>(job.jobPhotos || []);
@@ -1922,7 +2038,17 @@ function JobDetailPanel({ job: initialJob, onClose, onJobUpdate }: {
           {tab === 'payment' && <PaymentPanel job={job} onUpdate={handleUpdate} onRequote={() => setTab('estimate')} />}
 
           {/* PHOTOS TAB */}
-          {tab === 'photos' && <PhotoPanel job={job} onUpdate={handleUpdate} />}
+          {tab === 'photos' && (
+            <>
+              <PhotoPanel job={job} onUpdate={handleUpdate} />
+              <AdminPhotoPanel
+                entityId={job.id}
+                entityType="job"
+                initialPhotos={job.adminPhotos || []}
+                onPhotosChange={photos => handleUpdate({ ...job, adminPhotos: photos })}
+              />
+            </>
+          )}
 
           {/* INSPECTION TAB */}
           {tab === 'inspection' && <InspectionPanel job={job} onUpdate={handleUpdate} />}
@@ -2522,9 +2648,9 @@ export function InvoicePage() {
       <div className="max-w-lg mx-auto print-full">
 
         {/* Header */}
-        <div className="flex items-start justify-between mb-8">
+        <div className="flex items-center justify-between mb-8 no-print">
           <a href="/">
-            <img src={img('website_logo.png')} alt="GID Garage" className="h-10 w-auto" />
+            <img src={img('banner.PNG')} alt="GID Garage" className="h-10 w-auto" />
           </a>
           <div className="text-right">
             {isPaid
@@ -2532,6 +2658,11 @@ export function InvoicePage() {
               : <span className="inline-block bg-yellow-900/40 border border-yellow-700 text-yellow-400 text-xs font-bold uppercase tracking-widest px-3 py-1.5">Amount Due</span>
             }
           </div>
+        </div>
+        {/* Print-only header */}
+        <div className="hidden print:flex items-center justify-between mb-6">
+          <img src={img('website_logo.png')} alt="GID Garage" className="h-8 w-auto" />
+          <span className={`text-xs font-bold uppercase tracking-widest ${isPaid ? 'text-emerald-400' : 'text-yellow-400'}`}>{isPaid ? '✓ Paid' : 'Amount Due'}</span>
         </div>
 
         {/* Invoice card */}
@@ -2821,8 +2952,8 @@ export function EstimatePage() {
   return (
     <div className="min-h-screen bg-[#0f0f0f] flex items-start justify-center px-4 py-12" style={{ WebkitOverflowScrolling: 'touch' }}>
       <div className="w-full max-w-lg">
-        <a href="/" className="flex justify-center mb-8">
-          <img src={img('website_logo.png')} alt="GID Garage" className="h-12 w-auto" />
+        <a href="/" className="flex justify-center mb-8 no-print">
+          <img src={img('banner.PNG')} alt="GID Garage" className="h-12 w-auto" />
         </a>
 
         {loading && (
