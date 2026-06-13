@@ -50,10 +50,9 @@ export async function onRequestPost(context) {
     customMetadata: { bookingId: String(bookingId), originalName: file.name },
   });
 
-  // Build URL — use PHOTO_BASE_URL if set (custom domain on bucket), otherwise
-  // return the R2 public URL if public access is enabled on the bucket
-  const baseUrl = env.PHOTO_BASE_URL?.replace(/\/$/, '') ?? '';
-  const url = baseUrl ? `${baseUrl}/${key}` : `https://your-r2-public-domain.example.com/${key}`;
+  // Serve photos through the admin-photo-serve Worker (requires Access JWT).
+  // This allows R2 public access to be disabled — photos are never exposed publicly.
+  const url = `/admin-photo-serve?key=${encodeURIComponent(key)}`;
 
   return new Response(JSON.stringify({ key, url }), {
     headers: { 'Content-Type': 'application/json' },
