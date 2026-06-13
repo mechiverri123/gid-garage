@@ -2648,7 +2648,7 @@ export function InvoicePage() {
     <div className="min-h-screen bg-[#0f0f0f] py-12 px-4 print:py-0 print:px-0 print:min-h-0">
       <style>{`
         @media print {
-          @page { margin: 12mm; size: letter; }
+          @page { margin: 8mm; size: letter; }
           html, body, #root {
             background: #0f0f0f !important;
             background-color: #0f0f0f !important;
@@ -2660,7 +2660,12 @@ export function InvoicePage() {
             max-width: 100% !important;
             width: 100% !important;
             margin: 0 !important;
-            padding: 0 !important;
+            padding: 0 24px !important;
+          }
+          .print-banner {
+            max-height: 80px !important;
+            width: auto !important;
+            display: block !important;
           }
           /* Photos take too much space when printing — hide them */
           .print-hide-photos { display: none !important; }
@@ -2676,7 +2681,7 @@ export function InvoicePage() {
           <a href="/" className="no-print">
             <img src={img('banner.PNG')} alt="GID Garage" className="w-full h-auto block" />
           </a>
-          <img src={img('banner.PNG')} alt="GID Garage" className="hidden print:block w-full h-auto block mb-2" />
+          <img src={img('banner.PNG')} alt="GID Garage" className="hidden print:block h-auto block mb-2 print-banner" />
           <div className="flex justify-end mt-3">
             {isPaid
               ? <span className="inline-block bg-emerald-900/40 border border-emerald-700 text-emerald-400 text-xs font-bold uppercase tracking-widest px-3 py-1.5">✓ Paid</span>
