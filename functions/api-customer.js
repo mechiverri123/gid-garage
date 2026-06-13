@@ -256,7 +256,7 @@ export async function onRequestPost({ request, env }) {
             sender: { name: 'GID Garage Bookings', email: 'bookings@gidgarage.com' },
             to: [{ email: 'gidgarageaz@hotmail.com', name: 'GID Garage' }],
             subject: `New Booking: ${customerName} — ${serviceName} on ${dateStr}`,
-            htmlContent: `<div style="font-family:sans-serif;padding:24px;background:#0f0f0f;color:#fff;"><h2 style="color:#ef4444;">New Booking</h2><p><strong>${customerName}</strong><br>${booking.phone}<br>${booking.email}</p><p><strong>${serviceName}</strong><br>${dateStr} at ${booking.time}<br>${booking.vehicle}</p>${booking.notes ? `<p>Notes: ${booking.notes}</p>` : ''}</div>`,
+            htmlContent: `<meta name="color-scheme" content="light"><meta name="supported-color-schemes" content="light"><div style="font-family:sans-serif;padding:24px;background:#0f0f0f;color:#fff;"><h2 style="color:#ef4444;">New Booking</h2><p><strong>${customerName}</strong><br>${booking.phone}<br>${booking.email}</p><p><strong>${serviceName}</strong><br>${dateStr} at ${booking.time}<br>${booking.vehicle}</p>${booking.notes ? `<p>Notes: ${booking.notes}</p>` : ''}</div>`,
           });
         } catch (e) { console.error('Owner notification email failed:', e.message); }
         return json({ ok: true });
@@ -297,7 +297,7 @@ export async function onRequestPost({ request, env }) {
             sender: { name: 'GID Garage Bookings', email: 'bookings@gidgarage.com' },
             to: [{ email: 'gidgarageaz@hotmail.com', name: 'GID Garage' }],
             subject: `❌ Cancellation: ${customerName} — ${svcName} on ${dateStr}`,
-            htmlContent: `<div style="font-family:sans-serif;padding:24px;background:#0f0f0f;color:#fff;"><h2 style="color:#ef4444;">❌ Booking Cancelled</h2><p><strong>${customerName}</strong><br>${booking.phone}<br>${booking.email}</p><p>${svcName}<br>${apptLine}<br>${booking.vehicle}</p></div>`,
+            htmlContent: `<meta name="color-scheme" content="light"><meta name="supported-color-schemes" content="light"><div style="font-family:sans-serif;padding:24px;background:#0f0f0f;color:#fff;"><h2 style="color:#ef4444;">❌ Booking Cancelled</h2><p><strong>${customerName}</strong><br>${booking.phone}<br>${booking.email}</p><p>${svcName}<br>${apptLine}<br>${booking.vehicle}</p></div>`,
           });
         } catch (e) { console.error('Owner cancellation email failed:', e.message); }
 
@@ -307,7 +307,7 @@ export async function onRequestPost({ request, env }) {
             sender: { name: 'GID Garage', email: 'bookings@gidgarage.com' },
             to: [{ email: booking.email, name: customerName }],
             subject: `Your ${svcName} appointment has been cancelled — GID Garage`,
-            htmlContent: `
+            htmlContent: `<meta name="color-scheme" content="light"><meta name="supported-color-schemes" content="light">
 <div style="font-family:sans-serif;max-width:560px;margin:0 auto;background:#0f0f0f;color:#fff;padding:32px;">
   <img src="https://gidgarage.com/website_logo.png" alt="GID Garage" style="height:48px;margin-bottom:28px;"/>
   <h2 style="color:#ef4444;font-size:22px;font-weight:900;margin:0 0 8px;">Appointment Cancelled</h2>
@@ -367,7 +367,7 @@ export async function onRequestPost({ request, env }) {
             sender: { name: 'GID Garage Bookings', email: 'bookings@gidgarage.com' },
             to: [{ email: 'gidgarageaz@hotmail.com', name: 'GID Garage' }],
             subject: `💬 New Inquiry: ${esc(fname)} ${esc(lname)}`,
-            htmlContent: `<div style="font-family:sans-serif;max-width:520px;margin:0 auto;background:#0f0f0f;color:#fff;padding:32px;border-top:4px solid #dc2626;"><h2 style="margin:0 0 20px;font-size:22px;font-weight:900;">New Customer Inquiry</h2><table style="width:100%;border-collapse:collapse;font-size:13px;"><tr><td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#9ca3af;width:35%;">Name</td><td style="padding:8px 0;border-bottom:1px solid #1f2937;font-weight:600;">${esc(fname)} ${esc(lname)}</td></tr><tr><td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#9ca3af;">Phone</td><td style="padding:8px 0;border-bottom:1px solid #1f2937;">${esc(phone)}</td></tr>${email ? `<tr><td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#9ca3af;">Email</td><td style="padding:8px 0;border-bottom:1px solid #1f2937;">${esc(email)}</td></tr>` : ''}${vehicle ? `<tr><td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#9ca3af;">Vehicle</td><td style="padding:8px 0;border-bottom:1px solid #1f2937;">${esc(vehicle)}</td></tr>` : ''}</table><div style="margin-top:20px;background:#1a1a1a;border-left:3px solid #dc2626;padding:14px 16px;"><p style="color:#9ca3af;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;margin:0 0 8px;">Problem Description</p><p style="margin:0;font-size:14px;line-height:1.6;color:#e5e7eb;">${esc(notes)}</p></div><p style="margin-top:20px;font-size:12px;color:#6b7280;">Job ID: ${esc(bookingId)} · Submitted ${new Date().toLocaleString()}</p></div>`,
+            htmlContent: `<meta name="color-scheme" content="light"><meta name="supported-color-schemes" content="light"><div style="font-family:sans-serif;max-width:520px;margin:0 auto;background:#0f0f0f;color:#fff;padding:32px;border-top:4px solid #dc2626;"><h2 style="margin:0 0 20px;font-size:22px;font-weight:900;">New Customer Inquiry</h2><table style="width:100%;border-collapse:collapse;font-size:13px;"><tr><td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#9ca3af;width:35%;">Name</td><td style="padding:8px 0;border-bottom:1px solid #1f2937;font-weight:600;">${esc(fname)} ${esc(lname)}</td></tr><tr><td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#9ca3af;">Phone</td><td style="padding:8px 0;border-bottom:1px solid #1f2937;">${esc(phone)}</td></tr>${email ? `<tr><td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#9ca3af;">Email</td><td style="padding:8px 0;border-bottom:1px solid #1f2937;">${esc(email)}</td></tr>` : ''}${vehicle ? `<tr><td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#9ca3af;">Vehicle</td><td style="padding:8px 0;border-bottom:1px solid #1f2937;">${esc(vehicle)}</td></tr>` : ''}</table><div style="margin-top:20px;background:#1a1a1a;border-left:3px solid #dc2626;padding:14px 16px;"><p style="color:#9ca3af;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;margin:0 0 8px;">Problem Description</p><p style="margin:0;font-size:14px;line-height:1.6;color:#e5e7eb;">${esc(notes)}</p></div><p style="margin-top:20px;font-size:12px;color:#6b7280;">Job ID: ${esc(bookingId)} · Submitted ${new Date().toLocaleString()}</p></div>`,
           });
         } catch (e) { console.error('Inquiry email failed:', e.message); }
         return json({ ok: true });

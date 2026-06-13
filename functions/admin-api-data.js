@@ -254,7 +254,7 @@ export async function onRequestPost({ request, env }) {
           sender: { name: 'GID Garage', email: 'bookings@gidgarage.com' },
           to: [{ email: job.email, name: `${job.fname} ${job.lname}` }],
           subject: `Your GID Garage Estimate — ${job.vehicle}`,
-          htmlContent: `<div style="font-family:sans-serif;max-width:560px;margin:0 auto;background:#0f0f0f;color:#fff;padding:0;overflow:hidden;"><img src="https://gidgarage.com/banner.PNG" alt="GID Garage" style="width:100%;display:block;height:auto;"/><div style="padding:28px 32px 32px;"><h2 style="color:#fff;font-size:22px;margin:0 0 8px;">Your Estimate is Ready</h2><p style="color:#9ca3af;margin:0 0 20px;">Hi ${job.fname}, here's your quote for the upcoming appointment.</p><table style="width:100%;border-collapse:collapse;margin-bottom:8px;">${lineItemsHtml}</table><table style="width:100%;border-collapse:collapse;margin-bottom:20px;">
+          htmlContent: `<meta name="color-scheme" content="light"><meta name="supported-color-schemes" content="light"><div style="font-family:sans-serif;max-width:560px;margin:0 auto;background:#0f0f0f;color:#fff;padding:0;overflow:hidden;"><img src="https://gidgarage.com/banner.PNG" alt="GID Garage" style="width:100%;display:block;height:auto;"/><div style="padding:28px 32px 32px;"><h2 style="color:#fff;font-size:22px;margin:0 0 8px;">Your Estimate is Ready</h2><p style="color:#9ca3af;margin:0 0 20px;">Hi ${job.fname}, here's your quote for the upcoming appointment.</p><table style="width:100%;border-collapse:collapse;margin-bottom:8px;">${lineItemsHtml}</table><table style="width:100%;border-collapse:collapse;margin-bottom:20px;">
               <tr style="border-top:2px solid #374151;"><td style="padding:12px 0 4px;color:#9ca3af;font-size:13px;">Subtotal</td><td style="padding:12px 0 4px;color:#fff;font-size:13px;text-align:right;">$${Number(job.estimateAmount||0).toFixed(2)}</td></tr>
               <tr><td style="padding:4px 0;color:#9ca3af;font-size:13px;">AZ TPT (9.386%)</td><td style="padding:4px 0;color:#fff;font-size:13px;text-align:right;">$${Number(job.taxAmount||0).toFixed(2)}</td></tr>
               <tr style="background:#111827;"><td style="padding:10px 0 10px 0;color:#fff;font-size:14px;font-weight:700;border-top:1px solid #374151;">Total</td><td style="padding:10px 0;color:#fff;font-size:15px;font-weight:900;text-align:right;border-top:1px solid #374151;">$${(Number(job.estimateAmount||0)+Number(job.taxAmount||0)).toFixed(2)}</td></tr>
@@ -279,7 +279,7 @@ export async function onRequestPost({ request, env }) {
           sender: { name: 'GID Garage', email: 'bookings@gidgarage.com' },
           to: [{ email: job.email, name: `${job.fname} ${job.lname}` }],
           subject: `Invoice — ${job.vehicle || 'Your Vehicle'} — GID Garage`,
-          htmlContent: `<div style="font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;max-width:580px;margin:0 auto;background:#0f0f0f;color:#fff;">
+          htmlContent: `<meta name="color-scheme" content="light"><meta name="supported-color-schemes" content="light"><div style="font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;max-width:580px;margin:0 auto;background:#0f0f0f;color:#fff;">
             <div style="background:#111827;border-bottom:3px solid #dc2626;">
               <img src="https://gidgarage.com/banner.PNG" alt="GID Garage" style="width:100%;display:block;height:auto;"/>
             </div>
@@ -338,7 +338,7 @@ export async function onRequestPost({ request, env }) {
           sender: { name: 'GID Garage', email: 'bookings@gidgarage.com' },
           to: [{ email: job.email, name: `${job.fname} ${job.lname}` }],
           subject: `Payment Receipt — ${job.vehicle || 'GID Garage'}`,
-          htmlContent: `<div style="font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;max-width:580px;margin:0 auto;background:#0f0f0f;color:#fff;">
+          htmlContent: `<meta name="color-scheme" content="light"><meta name="supported-color-schemes" content="light"><div style="font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;max-width:580px;margin:0 auto;background:#0f0f0f;color:#fff;">
             <div style="background:#111827;border-bottom:3px solid #16a34a;">
               <img src="https://gidgarage.com/banner.PNG" alt="GID Garage" style="width:100%;display:block;height:auto;"/>
             </div>
@@ -385,7 +385,7 @@ export async function onRequestPost({ request, env }) {
           sender: { name: 'GID Garage', email: 'bookings@gidgarage.com' },
           to: [{ email: job.email, name: `${job.fname} ${job.lname}` }],
           subject: 'Payment Declined — GID Garage',
-          htmlContent: `<div style="font-family:sans-serif;max-width:560px;margin:0 auto;background:#0f0f0f;color:#fff;padding:32px;border-radius:4px;"><img src="https://gidgarage.com/banner.PNG" alt="GID Garage" style="width:100%;display:block;height:auto;margin-bottom:24px;"/><h2 style="color:#ef4444;font-size:22px;margin:0 0 8px;">⚠️ Payment Declined</h2><p style="color:#9ca3af;margin:0 0 16px;">Hi ${job.fname}, your payment for ${job.vehicle} was declined${reason ? ': ' + reason : '.'}. Please contact us to update your payment method.</p><p style="color:#4b5563;font-size:11px;margin-top:24px;">Call or text <strong style="color:#9ca3af;">480-757-0476</strong> — GID Garage, Flagstaff AZ</p></div>`,
+          htmlContent: `<meta name="color-scheme" content="light"><meta name="supported-color-schemes" content="light"><div style="font-family:sans-serif;max-width:560px;margin:0 auto;background:#0f0f0f;color:#fff;padding:32px;border-radius:4px;"><img src="https://gidgarage.com/banner.PNG" alt="GID Garage" style="width:100%;display:block;height:auto;margin-bottom:24px;"/><h2 style="color:#ef4444;font-size:22px;margin:0 0 8px;">⚠️ Payment Declined</h2><p style="color:#9ca3af;margin:0 0 16px;">Hi ${job.fname}, your payment for ${job.vehicle} was declined${reason ? ': ' + reason : '.'}. Please contact us to update your payment method.</p><p style="color:#4b5563;font-size:11px;margin-top:24px;">Call or text <strong style="color:#9ca3af;">480-757-0476</strong> — GID Garage, Flagstaff AZ</p></div>`,
         });
         return json({ ok: true });
       }
