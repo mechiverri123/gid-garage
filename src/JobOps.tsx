@@ -2117,6 +2117,7 @@ function ExternalLeadModal({ onClose, onAdded }: { onClose: () => void; onAdded:
   const [lineItems, setLineItems] = useState<LineItem[]>([
     { id: `li-${Date.now()}`, label: 'Mobile Service Fee', amount: 25, type: 'mobile' },
   ]);
+  const [rawAmounts, setRawAmounts] = useState<Record<string, string>>({});
 
   function set(k: string, v: string) { setF(p => ({ ...p, [k]: v })); setFieldErr(p => ({ ...p, [k]: '' })); }
 
@@ -2131,6 +2132,7 @@ function ExternalLeadModal({ onClose, onAdded }: { onClose: () => void; onAdded:
   }
   function removeLine(id: string) {
     setLineItems(prev => prev.filter(li => li.id !== id));
+    setRawAmounts(prev => { const next = { ...prev }; delete next[id]; return next; });
   }
 
   const subtotal = lineItems.reduce((s, i) => s + (i.amount || 0), 0);
@@ -2298,8 +2300,21 @@ function ExternalLeadModal({ onClose, onAdded }: { onClose: () => void; onAdded:
                     <input
                       type="text"
                       inputMode="decimal"
-                      value={item.amount === 0 ? '' : String(item.amount)}
-                      onChange={e => { if (/^[0-9]*\.?[0-9]*$/.test(e.target.value)) updateLine(item.id, 'amount', e.target.value); }}
+                      value={rawAmounts[item.id] ?? (item.amount === 0 ? '' : String(item.amount))}
+                      onChange={e => {
+                        if (/^[0-9]*\.?[0-9]*$/.test(e.target.value)) {
+                          setRawAmounts(prev => ({ ...prev, [item.id]: e.target.value }));
+                        }
+                      }}
+                      onBlur={e => {
+                        if (e.target.value === '') {
+                          setRawAmounts(prev => { const next = { ...prev }; delete next[item.id]; return next; });
+                          return;
+                        }
+                        const n = parseFloat(e.target.value) || 0;
+                        updateLine(item.id, 'amount', String(n));
+                        setRawAmounts(prev => { const next = { ...prev }; delete next[item.id]; return next; });
+                      }}
                       placeholder="0.00"
                       className="w-full bg-gray-900 border border-gray-700 text-white text-sm pl-5 pr-2 py-2 outline-none focus:border-red-600"
                     />
