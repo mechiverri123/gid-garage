@@ -2091,6 +2091,183 @@ const SERVICE_ICONS: Record<string, string> = {
   audio: '🔊', full: '✅', other: '💬',
 };
 
+// ── EXTERNAL LEAD → INSTANT ESTIMATE LINK ───────────────────────────────────
+// Standalone path for customers who didn't book through the site (Yelp, Nextdoor,
+// word of mouth, etc). Creates a job with no date/time requirement, then surfaces
+// the estimate link immediately so it can be copied straight into a text or DM.
+// Does not touch AddJobModal or the normal booking pipeline.
+function ExternalLeadModal({ onClose, onAdded }: { onClose: () => void; onAdded: (job: Job) => void }) {
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const [fieldErr, setFieldErr] = useState<Record<string, string>>({});
+  const [createdJob, setCreatedJob] = useState<Job | null>(null);
+  const [copied, setCopied] = useState(false);
+  const [f, setF] = useState({
+    fname: '', lname: '', phone: '', email: '',
+    vehicle: '', service: 'other', notes: '',
+  });
+
+  function set(k: string, v: string) { setF(p => ({ ...p, [k]: v })); setFieldErr(p => ({ ...p, [k]: '' })); }
+
+  async function handleSave() {
+    const errs: Record<string, string> = {};
+    if (!f.fname)    errs.fname   = 'Required';
+    if (!f.phone)    errs.phone   = 'Required';
+    if (!f.vehicle)  errs.vehicle = 'Required';
+    if (Object.keys(errs).length) { setFieldErr(errs); return; }
+
+    setSaving(true);
+    setErr(null);
+    const id = `GID-${Date.now()}`;
+    const now = new Date();
+    const row = {
+      id,
+      service: f.service,
+      service_icon: SERVICE_ICONS[f.service] ?? '🔧',
+      date: now.toISOString().slice(0, 10),
+      time: 'TBD',
+      fname: f.fname,
+      lname: f.lname,
+      phone: f.phone,
+      email: f.email,
+      vehicle: f.vehicle,
+      notes: f.notes ? `[External lead] ${f.notes}` : '[External lead]',
+      garage_notes: '',
+      status: 'confirmed',
+      job_status: 'BOOKED',
+      created_at: now.toISOString(),
+    };
+    try {
+      const inserted = await adminPost('insert-booking', { row });
+      const job = mapJob(inserted ?? row);
+      setCreatedJob(job);
+      onAdded(job);
+    } catch (e: any) {
+      setErr(e.message ?? 'Save failed. Try again.');
+      setSaving(false);
+    }
+  }
+
+  const estimateUrl = createdJob ? `https://gidgarage.com/estimate?id=${createdJob.id}` : '';
+
+  function copyLink() {
+    navigator.clipboard.writeText(estimateUrl).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  }
+
+  const inp = (k: string, label: string, type = 'text', placeholder = '') => (
+    <div>
+      <label className={`block text-xs font-bold uppercase tracking-wider mb-1 ${fieldErr[k] ? 'text-red-500' : 'text-gray-500'}`}>{label}</label>
+      <input
+        type={type}
+        placeholder={placeholder}
+        value={(f as any)[k]}
+        onChange={e => set(k, e.target.value)}
+        className={`w-full bg-gray-900 text-white text-sm px-3 py-2.5 outline-none border transition-colors ${fieldErr[k] ? 'border-red-500' : 'border-gray-700 focus:border-red-600'}`}
+      />
+      {fieldErr[k] && <p className="text-red-500 text-[10px] mt-0.5">{fieldErr[k]}</p>}
+    </div>
+  );
+
+  return (
+    <div className="fixed inset-0 z-[9999] bg-black/80 flex items-center justify-center p-4" onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="bg-[#0f0f0f] border border-gray-800 w-full max-w-lg p-7 relative overflow-y-auto max-h-[90vh]">
+        <button onClick={onClose} className="absolute top-4 right-4 w-8 h-8 border border-gray-700 text-gray-500 hover:border-red-600 hover:text-white flex items-center justify-center transition-colors">✕</button>
+        <div className="w-8 h-1 bg-indigo-500 mb-4" />
+
+        {!createdJob ? (
+          <>
+            <h2 className="text-xl font-black text-white mb-1">External Lead → Estimate</h2>
+            <p className="text-gray-500 text-xs mb-5">For customers from Yelp, Nextdoor, or anywhere off-site. No appointment time needed — just enough to build and send an estimate.</p>
+
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                {inp('fname', 'First Name *', 'text', 'John')}
+                {inp('lname', 'Last Name', 'text', 'Smith')}
+                {inp('phone', 'Phone *', 'tel', '480-555-0100')}
+                {inp('email', 'Email (optional)', 'email', 'customer@email.com')}
+              </div>
+
+              {inp('vehicle', 'Vehicle * (Year Make Model Trim)', 'text', '2019 Toyota Camry LE')}
+
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider mb-1 text-gray-500">Service</label>
+                <select
+                  value={f.service}
+                  onChange={e => set('service', e.target.value)}
+                  className="w-full bg-gray-900 text-white text-sm px-3 py-2.5 outline-none border border-gray-700 focus:border-red-600 transition-colors"
+                >
+                  {ADD_JOB_SERVICES.map(sv => (
+                    <option key={sv.id} value={sv.id}>{sv.label}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider mb-1 text-gray-500">Notes</label>
+                <textarea
+                  value={f.notes}
+                  onChange={e => set('notes', e.target.value)}
+                  placeholder="What they need, where you found them, anything useful"
+                  rows={3}
+                  className="w-full bg-gray-900 text-white text-sm px-3 py-2.5 outline-none border border-gray-700 focus:border-red-600 transition-colors resize-none"
+                />
+              </div>
+
+              {err && <p className="text-red-500 text-xs">{err}</p>}
+
+              <button
+                onClick={handleSave}
+                disabled={saving}
+                className="w-full bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-sm font-bold uppercase tracking-widest py-3 transition-colors mt-2"
+              >
+                {saving ? 'Creating…' : 'Create & Get Link'}
+              </button>
+            </div>
+          </>
+        ) : (
+          <>
+            <h2 className="text-xl font-black text-white mb-1">✓ Job Created</h2>
+            <p className="text-gray-500 text-xs mb-5">Build the estimate in Jobs like normal, then send this link — or copy it now and build the estimate after.</p>
+
+            <div className="bg-gray-900 border border-gray-700 p-4 mb-4">
+              <p className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-1">{createdJob.fname} {createdJob.lname}</p>
+              <p className="text-gray-400 text-sm">{createdJob.vehicle}</p>
+            </div>
+
+            <label className="block text-xs font-bold uppercase tracking-wider mb-1 text-gray-500">Estimate Link</label>
+            <div className="flex gap-2 mb-5">
+              <input
+                readOnly
+                value={estimateUrl}
+                onClick={e => (e.target as HTMLInputElement).select()}
+                className="flex-1 bg-gray-900 border border-gray-700 text-gray-300 text-xs px-3 py-2.5 outline-none font-mono"
+              />
+              <button
+                onClick={copyLink}
+                className={`px-4 py-2.5 text-xs font-bold uppercase tracking-widest transition-colors flex-shrink-0 ${copied ? 'bg-emerald-600 text-white' : 'bg-gray-800 text-white hover:bg-gray-700'}`}
+              >
+                {copied ? '✓ Copied' : 'Copy'}
+              </button>
+            </div>
+
+            <p className="text-gray-700 text-xs mb-5">Note: the link won't show pricing until you build line items on the Estimate tab in Jobs — the customer will see a blank/$0 estimate if sent before that.</p>
+
+            <button
+              onClick={onClose}
+              className="w-full border border-gray-700 hover:border-red-600 text-white text-sm font-bold uppercase tracking-widest py-3 transition-colors"
+            >
+              Done — Go Build Estimate
+            </button>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function AddJobModal({ onClose, onAdded }: { onClose: () => void; onAdded: (job: Job) => void }) {
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -2257,6 +2434,7 @@ export function JobsTab() {
   const [search, setSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState<JobStatus | 'ALL'>('ALL');
   const [showAddJob, setShowAddJob] = useState(false);
+  const [showExternalLead, setShowExternalLead] = useState(false);
 
   const seenEventIds = useRef<Set<string>>(
     new Set(JSON.parse(localStorage.getItem('seenPaymentEventIds') ?? '[]'))
@@ -2393,6 +2571,12 @@ export function JobsTab() {
         >
           <span className="text-base leading-none">+</span> Add Job
         </button>
+        <button
+          onClick={() => setShowExternalLead(true)}
+          className="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold uppercase tracking-widest px-4 py-2 transition-colors flex items-center gap-1.5 flex-shrink-0"
+        >
+          <span className="text-base leading-none">🔗</span> External Lead
+        </button>
         <div className="flex flex-wrap gap-1.5">
           {(['ALL', ...JOB_PIPELINE] as const).map(s => (
             <button key={s} onClick={() => setFilterStatus(s)}
@@ -2465,6 +2649,12 @@ export function JobsTab() {
         <AddJobModal
           onClose={() => setShowAddJob(false)}
           onAdded={job => { setJobs(prev => [job, ...prev]); setSelected(job); }}
+        />
+      )}
+      {showExternalLead && (
+        <ExternalLeadModal
+          onClose={() => setShowExternalLead(false)}
+          onAdded={job => { setJobs(prev => [job, ...prev]); }}
         />
       )}
     </div>
