@@ -2328,7 +2328,7 @@ function ExternalLeadModal({ onClose, onAdded }: { onClose: () => void; onAdded:
                 <span className="font-mono">${subtotal.toFixed(2)}</span>
               </div>
               <div className="flex justify-between text-xs text-gray-500">
-                <span>AZ TPT (9.182%)</span>
+                <span>AZ TPT (9.386%)</span>
                 <span className="font-mono">${tax.toFixed(2)}</span>
               </div>
               <div className="flex justify-between text-sm font-bold text-white pt-1">
