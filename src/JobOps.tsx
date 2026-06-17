@@ -2108,6 +2108,10 @@ function ExternalLeadModal({ onClose, onAdded }: { onClose: () => void; onAdded:
   const [sendTo, setSendTo] = useState('');
   const [sending, setSending] = useState(false);
   const [sentOk, setSentOk] = useState(false);
+  const [markingPaid, setMarkingPaid] = useState(false);
+  const [paidMethod, setPaidMethod] = useState('Cash');
+  const [paidRef, setPaidRef] = useState('');
+  const [isPaid, setIsPaid] = useState(false);
 
   const [f, setF] = useState({
     fname: '', lname: '', phone: '', email: '',
@@ -2196,11 +2200,37 @@ function ExternalLeadModal({ onClose, onAdded }: { onClose: () => void; onAdded:
     });
   }
 
+  async function handleMarkPaid() {
+    if (!createdJob) return;
+    setMarkingPaid(true);
+    setErr(null);
+    const paidAt = new Date().toISOString();
+    const ref = paidRef.trim() ? `${paidMethod} — ${paidRef.trim()}` : paidMethod;
+    try {
+      await adminPost('patch-booking', {
+        id: createdJob.id,
+        fields: {
+          stripe_transaction_id: ref,
+          paid_at: paidAt,
+          job_status: 'PAID',
+          status: 'completed',
+        },
+      });
+      setCreatedJob({ ...createdJob, stripeTransactionId: ref, paidAt, jobStatus: 'PAID' as JobStatus, status: 'completed' });
+      setIsPaid(true);
+    } catch (e: any) {
+      setErr(e.message ?? 'Could not mark as paid. Try again.');
+    } finally {
+      setMarkingPaid(false);
+    }
+  }
+
   async function handleSendEmail() {
     if (!createdJob || !sendTo) return;
     setSending(true);
     try {
-      await adminPost('send-invoice', { job: { ...createdJob, email: sendTo } });
+      const action = isPaid ? 'send-receipt' : 'send-invoice';
+      await adminPost(action, { job: { ...createdJob, email: sendTo } });
       setSentOk(true);
     } catch (e: any) {
       setErr(e.message ?? 'Send failed. Try again.');
@@ -2373,13 +2403,55 @@ function ExternalLeadModal({ onClose, onAdded }: { onClose: () => void; onAdded:
           </>
         )}
 
-        {/* STEP 3 — done — copy or send */}
+        {/* STEP 3 — done — mark paid, copy, or send */}
         {step === 3 && createdJob && (
           <>
-            <h2 className="text-xl font-black text-white mb-1">✓ Invoice Ready</h2>
+            <h2 className="text-xl font-black text-white mb-1">{isPaid ? '✓ Paid' : '✓ Invoice Ready'}</h2>
             <p className="text-gray-500 text-xs mb-5">{createdJob.fname} {createdJob.lname} · {createdJob.vehicle} · ${total.toFixed(2)}</p>
 
-            <label className="block text-xs font-bold uppercase tracking-wider mb-1 text-gray-500">Invoice Link</label>
+            {!isPaid && (
+              <div className="bg-gray-900 border border-gray-700 p-4 mb-5">
+                <p className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-3">Already paid in person?</p>
+                <div className="flex gap-2 mb-2">
+                  <select
+                    value={paidMethod}
+                    onChange={e => setPaidMethod(e.target.value)}
+                    className="bg-gray-800 border border-gray-700 text-white text-sm px-2.5 py-2 outline-none focus:border-emerald-600 flex-shrink-0"
+                  >
+                    <option>Cash</option>
+                    <option>Check</option>
+                    <option>Zelle</option>
+                    <option>Venmo</option>
+                    <option>CashApp</option>
+                    <option>Card (manual)</option>
+                    <option>Other</option>
+                  </select>
+                  <input
+                    type="text"
+                    value={paidRef}
+                    onChange={e => setPaidRef(e.target.value)}
+                    placeholder="Reference / check # (optional)"
+                    className="flex-1 bg-gray-800 border border-gray-700 text-white text-sm px-3 py-2 outline-none focus:border-emerald-600"
+                  />
+                </div>
+                <button
+                  onClick={handleMarkPaid}
+                  disabled={markingPaid}
+                  className="w-full bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white text-xs font-bold uppercase tracking-widest py-2.5 transition-colors"
+                >
+                  {markingPaid ? 'Marking Paid…' : 'Mark as Paid'}
+                </button>
+              </div>
+            )}
+
+            {isPaid && (
+              <div className="bg-emerald-950/40 border border-emerald-800 p-3 mb-5">
+                <p className="text-emerald-400 text-xs font-bold">✓ Marked paid — {createdJob.stripeTransactionId}</p>
+                <p className="text-gray-500 text-[10px] mt-1">Sending now sends a receipt instead of an open invoice.</p>
+              </div>
+            )}
+
+            <label className="block text-xs font-bold uppercase tracking-wider mb-1 text-gray-500">{isPaid ? 'Receipt' : 'Invoice'} Link</label>
             <div className="flex gap-2 mb-5">
               <input
                 readOnly
