@@ -751,7 +751,7 @@ function QuoteCalculator({ job, onApply }: { job: Job; onApply: (items: LineItem
             <div key={item.id} className="flex justify-between px-3 py-2">
               <span className="text-gray-400 text-xs">{item.label}</span>
               <span className={`text-xs font-mono font-bold ${item.amount === 0 ? 'text-gray-600' : 'text-white'}`}>
-                {item.amount === 0 ? 'FREE' : `$${item.amount.toFixed(2)}`}
+                {item.amount === 0 ? 'FREE' : (item.amount < 0 ? `-$${Math.abs(item.amount).toFixed(2)}` : `$${item.amount.toFixed(2)}`)}
               </span>
             </div>
           ))}
@@ -1819,7 +1819,7 @@ function SignedDocSection({ job }: { job: Job }) {
                   {job.lineItems.map(item => (
                     <div key={item.id} className="flex justify-between px-4 py-2">
                       <span className="text-gray-300 text-sm">{item.label}</span>
-                      <span className="text-white text-sm font-mono">{item.amount === 0 ? 'FREE' : `$${item.amount.toFixed(2)}`}</span>
+                      <span className="text-white text-sm font-mono">{item.amount === 0 ? 'FREE' : (item.amount < 0 ? `-$${Math.abs(item.amount).toFixed(2)}` : `$${item.amount.toFixed(2)}`)}</span>
                     </div>
                   ))}
                 </div>
@@ -3152,7 +3152,7 @@ export function InvoicePage() {
                   <div key={item.id} className="flex justify-between px-6 py-2.5">
                     <span className="text-gray-300 text-sm">{item.label}</span>
                     <span className={`text-sm font-mono font-bold ${item.amount === 0 ? 'text-gray-600' : 'text-white'}`}>
-                      {item.amount === 0 ? 'FREE' : `$${item.amount.toFixed(2)}`}
+                      {item.amount === 0 ? 'FREE' : (item.amount < 0 ? `-$${Math.abs(item.amount).toFixed(2)}` : `$${item.amount.toFixed(2)}`)}
                     </span>
                   </div>
                 ))}
@@ -3460,7 +3460,7 @@ export function EstimatePage() {
                     <div key={item.id} className="flex justify-between px-4 py-3">
                       <span className="text-gray-300 text-sm">{item.label}</span>
                       <span className={`text-sm font-mono font-bold ${item.amount === 0 ? 'text-gray-600' : 'text-white'}`}>
-                        {item.amount === 0 ? 'FREE' : `$${item.amount.toFixed(2)}`}
+                        {item.amount === 0 ? 'FREE' : (item.amount < 0 ? `-$${Math.abs(item.amount).toFixed(2)}` : `$${item.amount.toFixed(2)}`)}
                       </span>
                     </div>
                   ))}
@@ -3808,7 +3808,7 @@ function InvoiceExport() {
       const svcDate = new Date(job.date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
       const paidDate = job.paidAt ? new Date(job.paidAt).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : '';
       const lineItemsHtml = job.lineItems?.length
-        ? job.lineItems.map(li => `<tr><td style="padding:6px 0;color:#ccc;font-size:13px;">${li.label}</td><td style="padding:6px 0;text-align:right;font-family:monospace;font-size:13px;color:#fff;">${li.amount === 0 ? 'FREE' : '$' + li.amount.toFixed(2)}</td></tr>`).join('')
+        ? job.lineItems.map(li => `<tr><td style="padding:6px 0;color:#ccc;font-size:13px;">${li.label}</td><td style="padding:6px 0;text-align:right;font-family:monospace;font-size:13px;color:#fff;">${li.amount === 0 ? 'FREE' : (li.amount < 0 ? '-$' + Math.abs(li.amount).toFixed(2) : '$' + li.amount.toFixed(2))}</td></tr>`).join('')
         : '';
       return `
         <div style="background:#0f0f0f;color:#fff;padding:32px;margin-bottom:0;page-break-after:always;font-family:sans-serif;max-width:600px;margin-left:auto;margin-right:auto;">
