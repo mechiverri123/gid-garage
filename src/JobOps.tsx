@@ -2097,25 +2097,56 @@ const SERVICE_ICONS: Record<string, string> = {
 // the estimate link immediately so it can be copied straight into a text or DM.
 // Does not touch AddJobModal or the normal booking pipeline.
 function ExternalLeadModal({ onClose, onAdded }: { onClose: () => void; onAdded: (job: Job) => void }) {
+  // Step 1: contact + vehicle. Step 2: line item builder (same math as EstimatePanel).
+  // Step 3: done — copy link or send straight to an email of your choosing.
+  const [step, setStep] = useState<1 | 2 | 3>(1);
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [fieldErr, setFieldErr] = useState<Record<string, string>>({});
   const [createdJob, setCreatedJob] = useState<Job | null>(null);
   const [copied, setCopied] = useState(false);
+  const [sendTo, setSendTo] = useState('');
+  const [sending, setSending] = useState(false);
+  const [sentOk, setSentOk] = useState(false);
+
   const [f, setF] = useState({
     fname: '', lname: '', phone: '', email: '',
     vehicle: '', service: 'other', notes: '',
   });
 
+  const [lineItems, setLineItems] = useState<LineItem[]>([
+    { id: `li-${Date.now()}`, label: 'Mobile Service Fee', amount: 25, type: 'mobile' },
+  ]);
+
   function set(k: string, v: string) { setF(p => ({ ...p, [k]: v })); setFieldErr(p => ({ ...p, [k]: '' })); }
 
-  async function handleSave() {
-    const errs: Record<string, string> = {};
-    if (!f.fname)    errs.fname   = 'Required';
-    if (!f.phone)    errs.phone   = 'Required';
-    if (!f.vehicle)  errs.vehicle = 'Required';
-    if (Object.keys(errs).length) { setFieldErr(errs); return; }
+  function addLine() {
+    setLineItems(prev => [...prev, { id: `li-${Date.now()}-${prev.length}`, label: '', amount: 0, type: 'parts' }]);
+  }
+  function updateLine(id: string, field: 'label' | 'amount' | 'type', value: string) {
+    setLineItems(prev => prev.map(li => li.id === id
+      ? { ...li, [field]: field === 'amount' ? (parseFloat(value) || 0) : value }
+      : li
+    ));
+  }
+  function removeLine(id: string) {
+    setLineItems(prev => prev.filter(li => li.id !== id));
+  }
 
+  const subtotal = lineItems.reduce((s, i) => s + (i.amount || 0), 0);
+  const tax = taxFromItems(lineItems);
+  const total = subtotal + tax;
+
+  function validateStep1(): boolean {
+    const errs: Record<string, string> = {};
+    if (!f.fname)   errs.fname   = 'Required';
+    if (!f.phone)   errs.phone   = 'Required';
+    if (!f.vehicle) errs.vehicle = 'Required';
+    setFieldErr(errs);
+    return Object.keys(errs).length === 0;
+  }
+
+  async function handleCreateInvoice() {
     setSaving(true);
     setErr(null);
     const id = `GID-${Date.now()}`;
@@ -2134,27 +2165,46 @@ function ExternalLeadModal({ onClose, onAdded }: { onClose: () => void; onAdded:
       notes: f.notes ? `[External lead] ${f.notes}` : '[External lead]',
       garage_notes: '',
       status: 'confirmed',
-      job_status: 'BOOKED',
+      job_status: 'INVOICED',
       created_at: now.toISOString(),
+      line_items: JSON.stringify(lineItems),
+      invoice_amount: subtotal,
+      tax_amount: tax,
     };
     try {
       const inserted = await adminPost('insert-booking', { row });
       const job = mapJob(inserted ?? row);
       setCreatedJob(job);
+      setSendTo(f.email || '');
       onAdded(job);
+      setStep(3);
     } catch (e: any) {
       setErr(e.message ?? 'Save failed. Try again.');
+    } finally {
       setSaving(false);
     }
   }
 
-  const estimateUrl = createdJob ? `https://gidgarage.com/estimate?id=${createdJob.id}` : '';
+  const invoiceUrl = createdJob ? `https://gidgarage.com/invoice?id=${createdJob.id}` : '';
 
   function copyLink() {
-    navigator.clipboard.writeText(estimateUrl).then(() => {
+    navigator.clipboard.writeText(invoiceUrl).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     });
+  }
+
+  async function handleSendEmail() {
+    if (!createdJob || !sendTo) return;
+    setSending(true);
+    try {
+      await adminPost('send-invoice', { job: { ...createdJob, email: sendTo } });
+      setSentOk(true);
+    } catch (e: any) {
+      setErr(e.message ?? 'Send failed. Try again.');
+    } finally {
+      setSending(false);
+    }
   }
 
   const inp = (k: string, label: string, type = 'text', placeholder = '') => (
@@ -2177,10 +2227,11 @@ function ExternalLeadModal({ onClose, onAdded }: { onClose: () => void; onAdded:
         <button onClick={onClose} className="absolute top-4 right-4 w-8 h-8 border border-gray-700 text-gray-500 hover:border-red-600 hover:text-white flex items-center justify-center transition-colors">✕</button>
         <div className="w-8 h-1 bg-indigo-500 mb-4" />
 
-        {!createdJob ? (
+        {/* STEP 1 — contact + vehicle */}
+        {step === 1 && (
           <>
-            <h2 className="text-xl font-black text-white mb-1">External Lead → Estimate</h2>
-            <p className="text-gray-500 text-xs mb-5">For customers from Yelp, Nextdoor, or anywhere off-site. No appointment time needed — just enough to build and send an estimate.</p>
+            <h2 className="text-xl font-black text-white mb-1">External Lead</h2>
+            <p className="text-gray-500 text-xs mb-5">Yelp, Nextdoor, word of mouth — anyone who didn't book through the site. No appointment time needed yet.</p>
 
             <div className="space-y-3">
               <div className="grid grid-cols-2 gap-3">
@@ -2211,37 +2262,112 @@ function ExternalLeadModal({ onClose, onAdded }: { onClose: () => void; onAdded:
                   value={f.notes}
                   onChange={e => set('notes', e.target.value)}
                   placeholder="What they need, where you found them, anything useful"
-                  rows={3}
+                  rows={2}
                   className="w-full bg-gray-900 text-white text-sm px-3 py-2.5 outline-none border border-gray-700 focus:border-red-600 transition-colors resize-none"
                 />
               </div>
 
-              {err && <p className="text-red-500 text-xs">{err}</p>}
-
               <button
-                onClick={handleSave}
-                disabled={saving}
-                className="w-full bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-sm font-bold uppercase tracking-widest py-3 transition-colors mt-2"
+                onClick={() => { if (validateStep1()) setStep(2); }}
+                className="w-full bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-bold uppercase tracking-widest py-3 transition-colors mt-2"
               >
-                {saving ? 'Creating…' : 'Create & Get Link'}
+                Next — Build Invoice →
               </button>
             </div>
           </>
-        ) : (
-          <>
-            <h2 className="text-xl font-black text-white mb-1">✓ Job Created</h2>
-            <p className="text-gray-500 text-xs mb-5">Build the estimate in Jobs like normal, then send this link — or copy it now and build the estimate after.</p>
+        )}
 
-            <div className="bg-gray-900 border border-gray-700 p-4 mb-4">
-              <p className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-1">{createdJob.fname} {createdJob.lname}</p>
-              <p className="text-gray-400 text-sm">{createdJob.vehicle}</p>
+        {/* STEP 2 — line items, same math as EstimatePanel */}
+        {step === 2 && (
+          <>
+            <h2 className="text-xl font-black text-white mb-1">Build Invoice</h2>
+            <p className="text-gray-500 text-xs mb-5">{f.fname} {f.lname} · {f.vehicle}</p>
+
+            <div className="space-y-2 mb-3">
+              {lineItems.map(item => (
+                <div key={item.id} className="flex gap-2 items-start">
+                  <input
+                    type="text"
+                    value={item.label}
+                    onChange={e => updateLine(item.id, 'label', e.target.value)}
+                    placeholder="Description"
+                    className="flex-1 bg-gray-900 border border-gray-700 text-white text-sm px-2.5 py-2 outline-none focus:border-red-600"
+                  />
+                  <div className="relative w-28 flex-shrink-0">
+                    <span className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-500 text-sm">$</span>
+                    <input
+                      type="text"
+                      inputMode="decimal"
+                      value={item.amount === 0 ? '' : String(item.amount)}
+                      onChange={e => { if (/^[0-9]*\.?[0-9]*$/.test(e.target.value)) updateLine(item.id, 'amount', e.target.value); }}
+                      placeholder="0.00"
+                      className="w-full bg-gray-900 border border-gray-700 text-white text-sm pl-5 pr-2 py-2 outline-none focus:border-red-600"
+                    />
+                  </div>
+                  <select
+                    value={item.type}
+                    onChange={e => updateLine(item.id, 'type', e.target.value)}
+                    className="bg-gray-900 border border-gray-700 text-gray-400 text-xs px-1.5 py-2 outline-none focus:border-red-600 flex-shrink-0"
+                  >
+                    <option value="mobile">Mobile</option>
+                    <option value="labor">Labor</option>
+                    <option value="parts">Parts</option>
+                    <option value="fixed">Fixed</option>
+                    <option value="other">Other</option>
+                  </select>
+                  <button onClick={() => removeLine(item.id)} className="text-gray-700 hover:text-red-500 text-sm transition-colors w-5 flex-shrink-0 pt-2">×</button>
+                </div>
+              ))}
             </div>
 
-            <label className="block text-xs font-bold uppercase tracking-wider mb-1 text-gray-500">Estimate Link</label>
+            <button onClick={addLine} className="text-xs text-gray-500 hover:text-white transition-colors mb-4">+ Add Line</button>
+
+            <div className="border-t border-gray-800 pt-3 space-y-1 mb-5">
+              <div className="flex justify-between text-xs text-gray-500">
+                <span>Subtotal</span>
+                <span className="font-mono">${subtotal.toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between text-xs text-gray-500">
+                <span>AZ TPT (9.182%)</span>
+                <span className="font-mono">${tax.toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between text-sm font-bold text-white pt-1">
+                <span>Total</span>
+                <span className="font-mono">${total.toFixed(2)}</span>
+              </div>
+            </div>
+
+            {err && <p className="text-red-500 text-xs mb-3">{err}</p>}
+
+            <div className="flex gap-2">
+              <button
+                onClick={() => setStep(1)}
+                className="flex-shrink-0 border border-gray-700 hover:border-red-600 text-white text-xs font-bold uppercase tracking-widest px-4 py-3 transition-colors"
+              >
+                ← Back
+              </button>
+              <button
+                onClick={handleCreateInvoice}
+                disabled={saving || lineItems.length === 0}
+                className="flex-1 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-sm font-bold uppercase tracking-widest py-3 transition-colors"
+              >
+                {saving ? 'Creating…' : 'Create Invoice'}
+              </button>
+            </div>
+          </>
+        )}
+
+        {/* STEP 3 — done — copy or send */}
+        {step === 3 && createdJob && (
+          <>
+            <h2 className="text-xl font-black text-white mb-1">✓ Invoice Ready</h2>
+            <p className="text-gray-500 text-xs mb-5">{createdJob.fname} {createdJob.lname} · {createdJob.vehicle} · ${total.toFixed(2)}</p>
+
+            <label className="block text-xs font-bold uppercase tracking-wider mb-1 text-gray-500">Invoice Link</label>
             <div className="flex gap-2 mb-5">
               <input
                 readOnly
-                value={estimateUrl}
+                value={invoiceUrl}
                 onClick={e => (e.target as HTMLInputElement).select()}
                 className="flex-1 bg-gray-900 border border-gray-700 text-gray-300 text-xs px-3 py-2.5 outline-none font-mono"
               />
@@ -2253,13 +2379,30 @@ function ExternalLeadModal({ onClose, onAdded }: { onClose: () => void; onAdded:
               </button>
             </div>
 
-            <p className="text-gray-700 text-xs mb-5">Note: the link won't show pricing until you build line items on the Estimate tab in Jobs — the customer will see a blank/$0 estimate if sent before that.</p>
+            <label className="block text-xs font-bold uppercase tracking-wider mb-1 text-gray-500">Or send it to an email</label>
+            <div className="flex gap-2 mb-2">
+              <input
+                type="email"
+                value={sendTo}
+                onChange={e => { setSendTo(e.target.value); setSentOk(false); }}
+                placeholder="customer@email.com"
+                className="flex-1 bg-gray-900 border border-gray-700 text-white text-sm px-3 py-2.5 outline-none focus:border-red-600"
+              />
+              <button
+                onClick={handleSendEmail}
+                disabled={sending || !sendTo}
+                className={`px-4 py-2.5 text-xs font-bold uppercase tracking-widest transition-colors flex-shrink-0 disabled:opacity-50 ${sentOk ? 'bg-emerald-600 text-white' : 'bg-indigo-600 hover:bg-indigo-500 text-white'}`}
+              >
+                {sending ? 'Sending…' : sentOk ? '✓ Sent' : 'Send'}
+              </button>
+            </div>
+            {err && <p className="text-red-500 text-xs mb-3">{err}</p>}
 
             <button
               onClick={onClose}
-              className="w-full border border-gray-700 hover:border-red-600 text-white text-sm font-bold uppercase tracking-widest py-3 transition-colors"
+              className="w-full border border-gray-700 hover:border-red-600 text-white text-sm font-bold uppercase tracking-widest py-3 transition-colors mt-4"
             >
-              Done — Go Build Estimate
+              Done
             </button>
           </>
         )}
