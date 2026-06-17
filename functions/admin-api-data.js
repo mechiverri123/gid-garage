@@ -247,7 +247,7 @@ export async function onRequestPost({ request, env }) {
             </table>
           </td></tr></table>` : '';
         const lineItemsHtml = job.lineItems?.length
-          ? job.lineItems.map(i => `<tr><td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#9ca3af;font-size:13px;">${i.label}</td><td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#fff;font-size:13px;text-align:right;">${i.amount === 0 ? 'FREE' : '$' + Number(i.amount).toFixed(2)}</td></tr>`).join('')
+          ? job.lineItems.map(i => `<tr><td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#9ca3af;font-size:13px;">${i.label}</td><td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#fff;font-size:13px;text-align:right;">${i.amount === 0 ? 'FREE' : (i.amount < 0 ? '-$' + Math.abs(Number(i.amount)).toFixed(2) : '$' + Number(i.amount).toFixed(2))}</td></tr>`).join('')
           : `<tr><td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#9ca3af;font-size:13px;">${job.service}</td><td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#fff;font-size:13px;text-align:right;">$${Number(job.estimateAmount || 0).toFixed(2)}</td></tr>`;
         const estimateUrl = `https://gidgarage.com/estimate?id=${job.id}`;
         await brevoSend({
@@ -272,7 +272,7 @@ export async function onRequestPost({ request, env }) {
         const taxInv = job.taxAmount ? Number(job.taxAmount) : Math.round(subtotalInv * 0.09386 * 100) / 100;
         const totalInv = subtotalInv + taxInv;
         const lineItemsHtml = job.lineItems?.length
-          ? job.lineItems.map(i => `<tr><td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#9ca3af;font-size:13px;">${i.label}</td><td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#fff;font-size:13px;text-align:right;font-family:monospace;">${i.amount === 0 ? 'FREE' : '$' + Number(i.amount).toFixed(2)}</td></tr>`).join('')
+          ? job.lineItems.map(i => `<tr><td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#9ca3af;font-size:13px;">${i.label}</td><td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#fff;font-size:13px;text-align:right;font-family:monospace;">${i.amount === 0 ? 'FREE' : (i.amount < 0 ? '-$' + Math.abs(Number(i.amount)).toFixed(2) : '$' + Number(i.amount).toFixed(2))}</td></tr>`).join('')
           : '';
         const serviceDateInv = job.date ? new Date(job.date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }) : '';
         await brevoSend({
@@ -331,7 +331,7 @@ export async function onRequestPost({ request, env }) {
           ? `<tr style="background:#1a1a2e;"><td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#818cf8;font-size:13px;font-style:italic;">Price Adjustment — ${adjustmentReason}</td><td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#818cf8;font-size:13px;text-align:right;font-weight:700;font-family:monospace;">${Number(adjustmentAmount) < 0 ? '-' : '+'}$${Math.abs(Number(adjustmentAmount)).toFixed(2)}</td></tr>`
           : '';
         const lineItemsHtml = job.lineItems?.length
-          ? job.lineItems.map(i => `<tr><td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#9ca3af;font-size:13px;">${i.label}</td><td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#fff;font-size:13px;text-align:right;font-family:monospace;">${i.amount === 0 ? 'FREE' : '$' + Number(i.amount).toFixed(2)}</td></tr>`).join('')
+          ? job.lineItems.map(i => `<tr><td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#9ca3af;font-size:13px;">${i.label}</td><td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#fff;font-size:13px;text-align:right;font-family:monospace;">${i.amount === 0 ? 'FREE' : (i.amount < 0 ? '-$' + Math.abs(Number(i.amount)).toFixed(2) : '$' + Number(i.amount).toFixed(2))}</td></tr>`).join('')
           : '';
         const serviceDateRcpt = job.date ? new Date(job.date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }) : '';
         await brevoSend({

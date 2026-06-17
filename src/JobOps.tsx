@@ -26,7 +26,7 @@ const TAX_RATE = 0.09386; // 9.386%
 // AZ TPT does NOT apply to labor or the mobile service/travel fee. Everything else
 // (parts, flat service charges, misc add-on lines) is taxable. calcTax(subtotal) is a
 // legacy fallback that taxes the whole amount; prefer taxFromItems() with line items.
-const TAX_EXEMPT_TYPES: LineItem['type'][] = ['labor', 'mobile'];
+const TAX_EXEMPT_TYPES: LineItem['type'][] = ['labor', 'mobile', 'discount'];
 function calcTax(subtotal: number) { return Math.round(subtotal * TAX_RATE * 100) / 100; }
 function calcTotal(subtotal: number) { return Math.round((subtotal + calcTax(subtotal)) * 100) / 100; }
 
@@ -60,7 +60,7 @@ export interface LineItem {
   id: string;
   label: string;
   amount: number;
-  type: 'mobile' | 'labor' | 'parts' | 'fixed' | 'other';
+  type: 'mobile' | 'labor' | 'parts' | 'fixed' | 'other' | 'discount';
 }
 
 export interface JobPhoto {
@@ -2302,7 +2302,7 @@ function ExternalLeadModal({ onClose, onAdded }: { onClose: () => void; onAdded:
                       inputMode="decimal"
                       value={rawAmounts[item.id] ?? (item.amount === 0 ? '' : String(item.amount))}
                       onChange={e => {
-                        if (/^[0-9]*\.?[0-9]*$/.test(e.target.value)) {
+                        if (/^-?[0-9]*\.?[0-9]*$/.test(e.target.value)) {
                           setRawAmounts(prev => ({ ...prev, [item.id]: e.target.value }));
                         }
                       }}
@@ -2328,6 +2328,7 @@ function ExternalLeadModal({ onClose, onAdded }: { onClose: () => void; onAdded:
                     <option value="labor">Labor</option>
                     <option value="parts">Parts</option>
                     <option value="fixed">Fixed</option>
+                    <option value="discount">Discount</option>
                     <option value="other">Other</option>
                   </select>
                   <button onClick={() => removeLine(item.id)} className="text-gray-700 hover:text-red-500 text-sm transition-colors w-5 flex-shrink-0 pt-2">×</button>
