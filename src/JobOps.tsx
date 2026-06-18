@@ -3246,7 +3246,7 @@ export function InvoicePage() {
         </div>
 
         {/* Review CTA — only shown on paid receipts */}
-        {isPaid && (
+        {isPaid && job.id !== 'GID-1781742991286' && (
           <div className="mt-8 border border-white/10 bg-white/5 px-6 py-5 text-center no-print">
             <p className="text-gray-400 text-sm font-bold mb-1">How'd we do?</p>
             <p className="text-gray-600 text-xs mb-4">Your review helps other Flagstaff drivers find a shop they can trust.</p>
