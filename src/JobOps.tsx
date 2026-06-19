@@ -850,6 +850,12 @@ function AdminPhotoPanel({ entityId, onSave, initialPhotos, onPhotosChange }: {
   onPhotosChange?: (photos: { key: string; url: string; name: string; note: string }[]) => void;
 }) {
   const [photos, setPhotos] = useState(initialPhotos);
+
+  // Same fix as PhotoPanel above — sync if initialPhotos changes after mount
+  // (e.g. full job data arrives after the lean list row was already rendered).
+  useEffect(() => {
+    setPhotos(initialPhotos);
+  }, [entityId, initialPhotos]);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [savingNotes, setSavingNotes] = useState(false);
@@ -969,6 +975,15 @@ function PhotoPanel({ job, onUpdate }: { job: Job; onUpdate: (j: Job) => void })
   const [saving, setSaving] = useState(false);
   const [editingNote, setEditingNote] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement | null>(null);
+
+  // The job detail panel can mount with a lean (no-photos) version of the job
+  // while the full fetch (with real photos) is still in flight — useState's
+  // initializer only runs once, so without this the panel would keep showing
+  // an empty array forever even after job.jobPhotos arrives. Sync whenever the
+  // job's photo data actually changes underneath us.
+  useEffect(() => {
+    setPhotos(job.jobPhotos || []);
+  }, [job.id, job.jobPhotos]);
 
   function handleCapture(e: React.ChangeEvent<HTMLInputElement>) {
     const files = e.target.files;
