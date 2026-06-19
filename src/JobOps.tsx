@@ -2890,11 +2890,11 @@ export function JobsTab() {
               key={job.id}
               onClick={async () => {
                 setSelected(job);
-                // Skip the extra round trip entirely when we already have the full
-                // row cached, or when the lean row tells us there's nothing heavy
-                // to fetch (no photos, no signature, no inspection data yet).
-                const needsFullFetch = !job.fullyLoaded && (job.hasPhotos || job.hasSignature || job.hasInspection);
-                if (!needsFullFetch) return;
+                // Always fetch the full row on open. The previous "skip if no
+                // photos/signature/inspection" optimization caused real customer
+                // photos and notes to silently fail to display in production —
+                // not worth the risk. The lean list query above still saves real
+                // bandwidth on every list load; this is just the per-job open cost.
                 try {
                   const full = await getJobById(job.id);
                   if (full) {
