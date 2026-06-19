@@ -108,6 +108,14 @@ export interface Job {
   adminPhotos: { key: string; url: string; name: string; note: string }[];
   // inspection
   inspectionData: InspectionData | null;
+  // cheap existence flags from the lean list query — let the client skip a
+  // get-booking round trip when there's nothing heavy to fetch for this job
+  hasPhotos?: boolean;
+  hasSignature?: boolean;
+  hasInspection?: boolean;
+  // true once the full row (photos/signature/inspection) has been fetched and
+  // cached client-side — avoids refetching on every reopen of the same job
+  fullyLoaded?: boolean;
 }
 
 interface TireReading {
@@ -186,6 +194,17 @@ function mapJob(b: any): Job {
     jobPhotos: b.job_photos ? (typeof b.job_photos === 'string' ? JSON.parse(b.job_photos) : b.job_photos) : [],
     adminPhotos: b.admin_photos ? (typeof b.admin_photos === 'string' ? JSON.parse(b.admin_photos) : b.admin_photos) : [],
     inspectionData: b.inspection_data ? (typeof b.inspection_data === 'string' ? JSON.parse(b.inspection_data) : b.inspection_data) : null,
+    // has_photos etc. come from generated columns added by has_flags_migration.sql.
+    // If the migration hasn't run yet, b.has_photos is undefined: when this is a
+    // fully-loaded row (from get-booking) we can derive the real answer from the
+    // actual data; for a lean list row with no migration yet, default to true so
+    // the client falls back to fetching rather than silently skipping real photos.
+    hasPhotos: b.has_photos ?? ('job_photos' in b ? !!(b.job_photos && (Array.isArray(b.job_photos) ? b.job_photos.length : JSON.parse(b.job_photos || '[]').length)) : true),
+    hasSignature: b.has_signature ?? ('customer_signature' in b ? !!b.customer_signature : true),
+    hasInspection: b.has_inspection ?? ('inspection_data' in b ? !!b.inspection_data : true),
+    // If the row came from get-booking (select=*), job_photos/customer_signature/
+    // inspection_data are all present as real keys — mark this row as fully loaded.
+    fullyLoaded: 'job_photos' in b,
   };
 }
 
@@ -2690,8 +2709,24 @@ export function JobsTab() {
         console.error('Job refresh failed:', err);
         return;
       }
-      setJobs(fresh);
-      setSelected(prev => prev ? (fresh.find(j => j.id === prev.id) ?? prev) : null);
+      // Merge lean list data into jobs, but preserve heavy fields (photos, signature,
+      // inspection) plus the fullyLoaded flag for any job we've already fetched in
+      // full — list-bookings never returns the heavy columns, so a naive replace
+      // would wipe out cached data and force a refetch on the next click.
+      setJobs(prevJobs => fresh.map((f: Job) => {
+        const prevFull = prevJobs.find(j => j.id === f.id);
+        return (prevFull && prevFull.fullyLoaded)
+          ? { ...f, jobPhotos: prevFull.jobPhotos, customerSignature: prevFull.customerSignature, inspectionData: prevFull.inspectionData, fullyLoaded: true }
+          : f;
+      }));
+      setSelected(prev => {
+        if (!prev) return null;
+        const freshMatch = fresh.find((j: Job) => j.id === prev.id);
+        if (!freshMatch) return prev;
+        if (!prev.fullyLoaded) return freshMatch;
+        // Keep prev's heavy fields + cached flag, update everything else (status, line items, etc.)
+        return { ...freshMatch, jobPhotos: prev.jobPhotos, customerSignature: prev.customerSignature, inspectionData: prev.inspectionData, fullyLoaded: true };
+      });
     }, 30000);
 
     // Payment event notifications on a separate 60s interval — decoupled from job refresh
@@ -2838,7 +2873,23 @@ export function JobsTab() {
           return (
             <button
               key={job.id}
-              onClick={() => setSelected(job)}
+              onClick={async () => {
+                setSelected(job);
+                // Skip the extra round trip entirely when we already have the full
+                // row cached, or when the lean row tells us there's nothing heavy
+                // to fetch (no photos, no signature, no inspection data yet).
+                const needsFullFetch = !job.fullyLoaded && (job.hasPhotos || job.hasSignature || job.hasInspection);
+                if (!needsFullFetch) return;
+                try {
+                  const full = await getJobById(job.id);
+                  if (full) {
+                    setSelected(full);
+                    setJobs(prev => prev.map(j => j.id === full.id ? full : j));
+                  }
+                } catch (e) {
+                  console.error('Failed to load full job details:', e);
+                }
+              }}
               className={`w-full text-left bg-gray-900 border p-4 flex items-center justify-between gap-4 hover:border-red-600/50 transition-all ${
                 isOverdue ? 'border-yellow-900/50' : 'border-gray-800'
               }`}
