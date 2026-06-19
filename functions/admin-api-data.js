@@ -70,21 +70,8 @@ export async function onRequestPost({ request, env }) {
     switch (action) {
       case 'list-bookings': {
         const limit = Number(payload.limit) || 200;
-        // Exclude heavy columns (base64 photos, signature, inspection data) from the
-        // list view — they're only needed once a specific job is opened via get-booking.
-        // has_photos/has_signature/has_inspection are generated columns (see migration)
-        // that let the client skip the get-booking round trip when there's nothing to fetch.
-        const LIST_COLUMNS = [
-          'id', 'service', 'service_icon', 'date', 'time', 'fname', 'lname', 'phone', 'email',
-          'vehicle', 'notes', 'garage_notes', 'status', 'job_status', 'created_at',
-          'estimate_amount', 'estimate_notes', 'line_items', 'tax_amount',
-          'pre_existing_damage', 'customer_agreed', 'signed_at',
-          'invoice_amount', 'stripe_transaction_id', 'stripe_customer_id', 'stripe_last4', 'paid_at',
-          'adjustment_reason', 'adjustment_amount', 'admin_photos',
-          'has_photos', 'has_signature', 'has_inspection',
-        ].join(',');
         const res = await fetch(
-          `${base}/bookings?select=${LIST_COLUMNS}&order=date.desc,time.desc&limit=${limit}`,
+          `${base}/bookings?select=*&order=date.desc,time.desc&limit=${limit}`,
           { headers }
         );
         if (!res.ok) return json({ error: await res.text() }, 502);
