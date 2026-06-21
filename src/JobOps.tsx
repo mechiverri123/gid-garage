@@ -1255,7 +1255,6 @@ function EstimatePanel({ job, onUpdate }: { job: Job; onUpdate: (j: Job) => void
   }
 
   function removeLineItem(id: string) {
-    if (id === 'mobile') return; // can't remove mobile fee
     setLineItems(prev => prev.filter(i => i.id !== id));
   }
 
@@ -1323,7 +1322,6 @@ function EstimatePanel({ job, onUpdate }: { job: Job; onUpdate: (j: Job) => void
                   value={item.label}
                   onChange={e => updateLineItem(item.id, 'label', e.target.value)}
                   placeholder="Description"
-                  disabled={item.id === 'mobile'}
                   className="flex-1 bg-gray-800 border border-gray-700 text-white px-2 py-1.5 text-xs focus:border-red-600 outline-none disabled:opacity-50"
                 />
                 <div className="flex items-center gap-1 flex-shrink-0">
@@ -1345,24 +1343,20 @@ function EstimatePanel({ job, onUpdate }: { job: Job; onUpdate: (j: Job) => void
                       updateLineItem(item.id, 'amount', String(n));
                       setRawAmounts(prev => { const next = { ...prev }; delete next[item.id]; return next; });
                     }}
-                    disabled={item.id === 'mobile'}
                     className="w-20 bg-gray-800 border border-gray-700 text-white px-2 py-1.5 text-xs font-mono focus:border-red-600 outline-none disabled:opacity-50"
                   />
                 </div>
-                {/* Taxable checkbox — mobile always exempt, others toggleable */}
+                {/* Taxable checkbox */}
                 <label className="flex items-center gap-1 flex-shrink-0 cursor-pointer" title={isTaxable ? 'Taxable' : 'Tax exempt'}>
                   <input
                     type="checkbox"
                     checked={isTaxable}
-                    disabled={item.id === 'mobile'}
                     onChange={e => updateLineItem(item.id, 'taxable', e.target.checked)}
                     className="accent-yellow-500 w-3 h-3 disabled:opacity-30"
                   />
                   <span className={`text-[10px] font-bold ${isTaxable ? 'text-yellow-600' : 'text-gray-700'}`}>Tax</span>
                 </label>
-                {item.id !== 'mobile' && (
-                  <button onClick={() => removeLineItem(item.id)} className="text-gray-700 hover:text-red-500 text-sm transition-colors w-5">×</button>
-                )}
+                <button onClick={() => removeLineItem(item.id)} className="text-gray-700 hover:text-red-500 text-sm transition-colors w-5">×</button>
               </div>
             );
           })}
