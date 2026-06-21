@@ -30,6 +30,27 @@ const TAX_EXEMPT_TYPES: LineItem['type'][] = ['labor', 'mobile', 'discount'];
 function calcTax(subtotal: number) { return Math.round(subtotal * TAX_RATE * 100) / 100; }
 function calcTotal(subtotal: number) { return Math.round((subtotal + calcTax(subtotal)) * 100) / 100; }
 
+// Convert "14:30" (native <input type="time"> value) → "2:30 PM" (display format used everywhere else)
+function to12h(t: string): string {
+  const [hStr, mStr] = t.split(':');
+  const h = parseInt(hStr, 10);
+  const m = mStr ?? '00';
+  const period = h >= 12 ? 'PM' : 'AM';
+  const h12 = h % 12 === 0 ? 12 : h % 12;
+  return `${h12}:${m} ${period}`;
+}
+// Convert "2:30 PM" → "14:30" so the native time input can show the current value
+function from12h(t: string): string {
+  const m = t.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+  if (!m) return '12:00';
+  let h = parseInt(m[1], 10);
+  const min = m[2];
+  const period = m[3].toUpperCase();
+  if (period === 'PM' && h !== 12) h += 12;
+  if (period === 'AM' && h === 12) h = 0;
+  return `${String(h).padStart(2, '0')}:${min}`;
+}
+
 // Sum of taxable line items — everything except labor and the mobile fee.
 function taxableAmount(items?: LineItem[] | null): number {
   if (!items || items.length === 0) return 0;
@@ -1882,6 +1903,45 @@ function JobDetailPanel({ job: initialJob, onClose, onJobUpdate }: {
 }) {
   const [job, setJob] = useState(initialJob);
   const [tab, setTab] = useState<'overview' | 'estimate' | 'payment' | 'inspection'>('overview');
+  const [editingAppt, setEditingAppt] = useState(false);
+  const [apptSaving, setApptSaving] = useState(false);
+  const [apptErr, setApptErr] = useState<string | null>(null);
+  const [editDate, setEditDate] = useState(job.date);
+  const [editTime, setEditTime] = useState(job.time);
+  const [editCustomTime, setEditCustomTime] = useState(false);
+  const [editVehicle, setEditVehicle] = useState(job.vehicle || '');
+  const [editPhone, setEditPhone] = useState(job.phone || '');
+  const [editEmail, setEditEmail] = useState(job.email || '');
+  const [editNotes, setEditNotes] = useState(job.notes || '');
+
+  function startEditAppt() {
+    setEditDate(job.date);
+    setEditTime(job.time);
+    setEditCustomTime(false);
+    setEditVehicle(job.vehicle || '');
+    setEditPhone(job.phone || '');
+    setEditEmail(job.email || '');
+    setEditNotes(job.notes || '');
+    setApptErr(null);
+    setEditingAppt(true);
+  }
+
+  async function saveAppt() {
+    setApptSaving(true);
+    setApptErr(null);
+    try {
+      await patchJob(job.id, {
+        date: editDate, time: editTime, vehicle: editVehicle,
+        phone: editPhone, email: editEmail, notes: editNotes,
+      });
+      handleUpdate({ ...job, date: editDate, time: editTime, vehicle: editVehicle, phone: editPhone, email: editEmail, notes: editNotes });
+      setEditingAppt(false);
+    } catch (e: any) {
+      setApptErr(e.message ?? 'Save failed. Try again.');
+    } finally {
+      setApptSaving(false);
+    }
+  }
 
   function handleUpdate(updated: Job) {
     setJob(updated);
@@ -1960,21 +2020,87 @@ function JobDetailPanel({ job: initialJob, onClose, onJobUpdate }: {
           {tab === 'overview' && (
             <div className="space-y-6">
               {/* Customer & Job info */}
-              <div className="space-y-2">
-                {[
-                  ['Service', resolveServiceName(job.service, job.notes)],
-                  ['Date', `${dateStr} at ${job.time}`],
-                  ['Phone', job.phone],
-                  ['Email', job.email],
-                  ['Vehicle', job.vehicle],
-                  ['Customer Notes', job.notes || '—'],
-                ].map(([label, val]) => (
-                  <div key={label} className="flex gap-4 border-b border-gray-800 py-2">
-                    <span className="text-gray-600 text-xs font-bold uppercase tracking-wider w-32 flex-shrink-0 pt-0.5">{label}</span>
-                    <span className="text-white text-sm">{val}</span>
+              {!editingAppt ? (
+                <div className="space-y-2">
+                  {[
+                    ['Service', resolveServiceName(job.service, job.notes)],
+                    ['Date', `${dateStr} at ${job.time}`],
+                    ['Phone', job.phone],
+                    ['Email', job.email],
+                    ['Vehicle', job.vehicle],
+                    ['Customer Notes', job.notes || '—'],
+                  ].map(([label, val]) => (
+                    <div key={label} className="flex gap-4 border-b border-gray-800 py-2">
+                      <span className="text-gray-600 text-xs font-bold uppercase tracking-wider w-32 flex-shrink-0 pt-0.5">{label}</span>
+                      <span className="text-white text-sm">{val}</span>
+                    </div>
+                  ))}
+                  <button onClick={startEditAppt}
+                    className="w-full border border-gray-700 text-gray-400 hover:border-red-600 hover:text-white text-xs font-bold uppercase tracking-wider py-2.5 mt-2 transition-colors">
+                    ✏️ Edit Appointment
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-gray-500 text-[10px] font-bold uppercase tracking-wider mb-1">Date</label>
+                      <input type="date" value={editDate} onChange={e => setEditDate(e.target.value)}
+                        className="w-full bg-gray-900 text-white text-sm px-3 py-2 outline-none border border-gray-700 focus:border-red-600 transition-colors" />
+                    </div>
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="block text-gray-500 text-[10px] font-bold uppercase tracking-wider">Time</label>
+                        <button type="button" onClick={() => setEditCustomTime(v => !v)}
+                          className="text-[10px] text-indigo-400 hover:text-indigo-300 font-bold uppercase tracking-wider">
+                          {editCustomTime ? 'Use text' : 'Set exact time'}
+                        </button>
+                      </div>
+                      {editCustomTime ? (
+                        <input type="time" value={from12h(editTime)} onChange={e => setEditTime(to12h(e.target.value))}
+                          className="w-full bg-gray-900 text-white text-sm px-3 py-2 outline-none border border-gray-700 focus:border-red-600 transition-colors" />
+                      ) : (
+                        <input type="text" value={editTime} onChange={e => setEditTime(e.target.value)}
+                          className="w-full bg-gray-900 text-white text-sm px-3 py-2 outline-none border border-gray-700 focus:border-red-600 transition-colors" />
+                      )}
+                    </div>
                   </div>
-                ))}
-              </div>
+                  <div>
+                    <label className="block text-gray-500 text-[10px] font-bold uppercase tracking-wider mb-1">Vehicle</label>
+                    <input type="text" value={editVehicle} onChange={e => setEditVehicle(e.target.value)} placeholder="Year Make Model Trim Engine"
+                      className="w-full bg-gray-900 text-white text-sm px-3 py-2 outline-none border border-gray-700 focus:border-red-600 transition-colors" />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-gray-500 text-[10px] font-bold uppercase tracking-wider mb-1">Phone</label>
+                      <input type="tel" value={editPhone} onChange={e => setEditPhone(e.target.value)}
+                        className="w-full bg-gray-900 text-white text-sm px-3 py-2 outline-none border border-gray-700 focus:border-red-600 transition-colors" />
+                    </div>
+                    <div>
+                      <label className="block text-gray-500 text-[10px] font-bold uppercase tracking-wider mb-1">Email</label>
+                      <input type="email" value={editEmail} onChange={e => setEditEmail(e.target.value)}
+                        className="w-full bg-gray-900 text-white text-sm px-3 py-2 outline-none border border-gray-700 focus:border-red-600 transition-colors" />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-gray-500 text-[10px] font-bold uppercase tracking-wider mb-1">Notes</label>
+                    <textarea value={editNotes} onChange={e => setEditNotes(e.target.value)} rows={3}
+                      className="w-full bg-gray-900 text-white text-sm px-3 py-2 outline-none border border-gray-700 focus:border-red-600 transition-colors resize-none" />
+                  </div>
+                  {apptErr && <p className="text-red-400 text-xs">{apptErr}</p>}
+                  <div className="flex gap-2">
+                    <button onClick={saveAppt} disabled={apptSaving}
+                      className={`flex-1 bg-red-600 hover:bg-red-500 text-white text-xs font-bold uppercase tracking-wider py-2.5 transition-colors ${apptSaving ? 'opacity-50' : ''}`}>
+                      {apptSaving ? 'Saving…' : '✓ Save Changes'}
+                    </button>
+                    <button onClick={() => { setEditingAppt(false); setApptErr(null); }}
+                      className="flex-1 border border-gray-700 text-gray-400 text-xs font-bold uppercase tracking-wider py-2.5 hover:border-gray-500 transition-colors">
+                      Cancel
+                    </button>
+                  </div>
+                  <p className="text-yellow-600/70 text-[10px]">⚠️ Customer will not be auto-notified of changes — call or text them manually.</p>
+                </div>
+              )}
 
               {/* Signature info if signed */}
               {job.customerAgreed && (
@@ -2112,6 +2238,7 @@ function ExternalLeadModal({ onClose, onAdded }: { onClose: () => void; onAdded:
   const [paidMethod, setPaidMethod] = useState('Cash');
   const [paidRef, setPaidRef] = useState('');
   const [isPaid, setIsPaid] = useState(false);
+  const [docType, setDocType] = useState<'estimate' | 'invoice'>('invoice');
 
   const [f, setF] = useState({
     fname: '', lname: '', phone: '', email: '',
@@ -2152,12 +2279,14 @@ function ExternalLeadModal({ onClose, onAdded }: { onClose: () => void; onAdded:
     return Object.keys(errs).length === 0;
   }
 
-  async function handleCreateInvoice() {
+  async function handleCreate() {
     setSaving(true);
     setErr(null);
     const id = `GID-${Date.now()}`;
     const now = new Date();
-    const row = {
+    const isEstimate = docType === 'estimate';
+    const notesStr = f.notes ? `[External lead] ${f.notes}` : '[External lead]';
+    const row: Record<string, any> = {
       id,
       service: f.service,
       service_icon: SERVICE_ICONS[f.service] ?? '🔧',
@@ -2168,15 +2297,20 @@ function ExternalLeadModal({ onClose, onAdded }: { onClose: () => void; onAdded:
       phone: f.phone,
       email: f.email,
       vehicle: f.vehicle,
-      notes: f.notes ? `[External lead] ${f.notes}` : '[External lead]',
+      notes: notesStr,
       garage_notes: '',
       status: 'confirmed',
-      job_status: 'INVOICED',
+      job_status: isEstimate ? 'ESTIMATE_SENT' : 'INVOICED',
       created_at: now.toISOString(),
       line_items: JSON.stringify(lineItems),
-      invoice_amount: subtotal,
       tax_amount: tax,
     };
+    if (isEstimate) {
+      row.estimate_amount = subtotal;
+      row.estimate_notes = notesStr;
+    } else {
+      row.invoice_amount = subtotal;
+    }
     try {
       const inserted = await adminPost('insert-booking', { row });
       const job = mapJob(inserted ?? row);
@@ -2191,10 +2325,10 @@ function ExternalLeadModal({ onClose, onAdded }: { onClose: () => void; onAdded:
     }
   }
 
-  const invoiceUrl = createdJob ? `https://gidgarage.com/invoice?id=${createdJob.id}` : '';
+  const docUrl = createdJob ? `https://gidgarage.com/${docType === 'estimate' ? 'estimate' : 'invoice'}?id=${createdJob.id}` : '';
 
   function copyLink() {
-    navigator.clipboard.writeText(invoiceUrl).then(() => {
+    navigator.clipboard.writeText(docUrl).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     });
@@ -2229,8 +2363,13 @@ function ExternalLeadModal({ onClose, onAdded }: { onClose: () => void; onAdded:
     if (!createdJob || !sendTo) return;
     setSending(true);
     try {
-      const action = isPaid ? 'send-receipt' : 'send-invoice';
-      await adminPost(action, { job: { ...createdJob, email: sendTo } });
+      const job = { ...createdJob, email: sendTo };
+      if (docType === 'estimate') {
+        await adminPost('send-estimate', { job, shopAvg: 0 });
+      } else {
+        const action = isPaid ? 'send-receipt' : 'send-invoice';
+        await adminPost(action, { job });
+      }
       setSentOk(true);
     } catch (e: any) {
       setErr(e.message ?? 'Send failed. Try again.');
@@ -2264,6 +2403,23 @@ function ExternalLeadModal({ onClose, onAdded }: { onClose: () => void; onAdded:
           <>
             <h2 className="text-xl font-black text-white mb-1">External Lead</h2>
             <p className="text-gray-500 text-xs mb-5">Yelp, Nextdoor, word of mouth — anyone who didn't book through the site. No appointment time needed yet.</p>
+
+            <div className="flex gap-2 mb-4">
+              <button
+                type="button"
+                onClick={() => setDocType('estimate')}
+                className={`flex-1 text-xs font-bold uppercase tracking-widest py-2.5 border transition-colors ${docType === 'estimate' ? 'bg-indigo-600 border-indigo-600 text-white' : 'border-gray-700 text-gray-500 hover:border-gray-500'}`}
+              >
+                Estimate
+              </button>
+              <button
+                type="button"
+                onClick={() => setDocType('invoice')}
+                className={`flex-1 text-xs font-bold uppercase tracking-widest py-2.5 border transition-colors ${docType === 'invoice' ? 'bg-indigo-600 border-indigo-600 text-white' : 'border-gray-700 text-gray-500 hover:border-gray-500'}`}
+              >
+                Invoice
+              </button>
+            </div>
 
             <div className="space-y-3">
               <div className="grid grid-cols-2 gap-3">
@@ -2303,7 +2459,7 @@ function ExternalLeadModal({ onClose, onAdded }: { onClose: () => void; onAdded:
                 onClick={() => { if (validateStep1()) setStep(2); }}
                 className="w-full bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-bold uppercase tracking-widest py-3 transition-colors mt-2"
               >
-                Next — Build Invoice →
+                Next — Build {docType === 'estimate' ? 'Estimate' : 'Invoice'} →
               </button>
             </div>
           </>
@@ -2312,7 +2468,7 @@ function ExternalLeadModal({ onClose, onAdded }: { onClose: () => void; onAdded:
         {/* STEP 2 — line items, same math as EstimatePanel */}
         {step === 2 && (
           <>
-            <h2 className="text-xl font-black text-white mb-1">Build Invoice</h2>
+            <h2 className="text-xl font-black text-white mb-1">Build {docType === 'estimate' ? 'Estimate' : 'Invoice'}</h2>
             <p className="text-gray-500 text-xs mb-5">{f.fname} {f.lname} · {f.vehicle}</p>
 
             <div className="space-y-2 mb-3">
@@ -2393,11 +2549,11 @@ function ExternalLeadModal({ onClose, onAdded }: { onClose: () => void; onAdded:
                 ← Back
               </button>
               <button
-                onClick={handleCreateInvoice}
+                onClick={handleCreate}
                 disabled={saving || lineItems.length === 0}
                 className="flex-1 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-sm font-bold uppercase tracking-widest py-3 transition-colors"
               >
-                {saving ? 'Creating…' : 'Create Invoice'}
+                {saving ? 'Creating…' : `Create ${docType === 'estimate' ? 'Estimate' : 'Invoice'}`}
               </button>
             </div>
           </>
@@ -2406,10 +2562,10 @@ function ExternalLeadModal({ onClose, onAdded }: { onClose: () => void; onAdded:
         {/* STEP 3 — done — mark paid, copy, or send */}
         {step === 3 && createdJob && (
           <>
-            <h2 className="text-xl font-black text-white mb-1">{isPaid ? '✓ Paid' : '✓ Invoice Ready'}</h2>
+            <h2 className="text-xl font-black text-white mb-1">{isPaid ? '✓ Paid' : docType === 'estimate' ? '✓ Estimate Ready' : '✓ Invoice Ready'}</h2>
             <p className="text-gray-500 text-xs mb-5">{createdJob.fname} {createdJob.lname} · {createdJob.vehicle} · ${total.toFixed(2)}</p>
 
-            {!isPaid && (
+            {docType === 'invoice' && !isPaid && (
               <div className="bg-gray-900 border border-gray-700 p-4 mb-5">
                 <p className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-3">Already paid in person?</p>
                 <div className="flex gap-2 mb-2">
@@ -2451,11 +2607,11 @@ function ExternalLeadModal({ onClose, onAdded }: { onClose: () => void; onAdded:
               </div>
             )}
 
-            <label className="block text-xs font-bold uppercase tracking-wider mb-1 text-gray-500">{isPaid ? 'Receipt' : 'Invoice'} Link</label>
+            <label className="block text-xs font-bold uppercase tracking-wider mb-1 text-gray-500">{isPaid ? 'Receipt' : docType === 'estimate' ? 'Estimate' : 'Invoice'} Link</label>
             <div className="flex gap-2 mb-5">
               <input
                 readOnly
-                value={invoiceUrl}
+                value={docUrl}
                 onClick={e => (e.target as HTMLInputElement).select()}
                 className="flex-1 bg-gray-900 border border-gray-700 text-gray-300 text-xs px-3 py-2.5 outline-none font-mono"
               />

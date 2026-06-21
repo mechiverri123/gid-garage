@@ -531,7 +531,7 @@ export const MODEL_YEARS: Record<string, Record<string, ModelEntry>> = {
     'Loyale Turbo': { from: 1990, to: 1990 },
     'Loyale Wagon': { from: 1990, to: 1994 },
     'Loyale Wagon Turbo': { from: 1990, to: 1990 },
-    'Outback': { from: 2005, to: 2026 },
+    'Outback': { from: 1996, to: 2026 },
     'RX Turbo': { from: 1985, to: 1985 },
     'SVX': { from: 1992, to: 1997 },
     'Sedan': { from: 1984, to: 1985 },

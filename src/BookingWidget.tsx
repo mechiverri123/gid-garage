@@ -169,6 +169,26 @@ function getSlotsForDate(dateStr: string): string[] {
   return (dow === 0 || dow === 6) ? WEEKEND_SLOTS : WEEKDAY_SLOTS;
 }
 
+// Convert "14:30" (native <input type="time"> value) → "2:30 PM" (slot-string format used everywhere else)
+function to12h(t: string): string {
+  const [hStr, mStr] = t.split(':');
+  const h = parseInt(hStr, 10);
+  const m = mStr ?? '00';
+  const period = h >= 12 ? 'PM' : 'AM';
+  const h12 = h % 12 === 0 ? 12 : h % 12;
+  return `${h12}:${m} ${period}`;
+}
+// Convert "2:30 PM" → "14:30" so the native time input can show the current value
+function from12h(t: string): string {
+  const m = t.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+  if (!m) return '12:00';
+  let h = parseInt(m[1], 10);
+  const min = m[2];
+  const period = m[3].toUpperCase();
+  if (period === 'PM' && h !== 12) h += 12;
+  if (period === 'AM' && h === 12) h = 0;
+  return `${pad(h)}:${min}`;
+}
 function pad(n: number) { return String(n).padStart(2, '0'); }
 function dateKey(y: number, m: number, d: number) { return `${y}-${pad(m+1)}-${pad(d)}`; }
 
@@ -293,6 +313,7 @@ function VehicleSelector({ form, setForm, errors, clearError }: {
   const [loadingModels, setLoadingModels] = useState(false);
   const [trimOther, setTrimOther] = useState(false);
   const [engineOther, setEngineOther] = useState(false);
+  const [modelOther, setModelOther] = useState(false);
 
   // Derived trim + engine options from static data
   const trimOptions = (form.vehicleModel && form.vehicleYear)
@@ -320,6 +341,7 @@ function VehicleSelector({ form, setForm, errors, clearError }: {
   useEffect(() => {
     setTrimOther(false);
     setEngineOther(false);
+    setModelOther(false);
   }, [form.vehicleModel, form.vehicleYear, form.vehicleMake]);
 
   const baseSelect = 'w-full bg-gray-900 text-white text-sm px-3 py-2.5 outline-none transition-colors disabled:text-gray-600 disabled:cursor-not-allowed appearance-none border';
@@ -335,7 +357,7 @@ function VehicleSelector({ form, setForm, errors, clearError }: {
         <div>
           {errors.vehicleYear && <p className="text-red-500 text-xs mb-1">{errors.vehicleYear}</p>}
           <select className={sc('vehicleYear')} value={form.vehicleYear}
-            onChange={e => { setForm(p => ({ ...p, vehicleYear: e.target.value, vehicleMake: '', vehicleModel: '', vehicleEngine: '', vehicleTrim: '' })); setModels([]); setTrimOther(false); setEngineOther(false); clearError('vehicleYear'); clearError('vehicleMake'); clearError('vehicleModel'); }}>
+            onChange={e => { setForm(p => ({ ...p, vehicleYear: e.target.value, vehicleMake: '', vehicleModel: '', vehicleEngine: '', vehicleTrim: '' })); setModels([]); setTrimOther(false); setEngineOther(false); setModelOther(false); clearError('vehicleYear'); clearError('vehicleMake'); clearError('vehicleModel'); }}>
             <option value="">Year</option>
             {years.map(y => <option key={y} value={String(y)}>{y}</option>)}
           </select>
@@ -343,18 +365,41 @@ function VehicleSelector({ form, setForm, errors, clearError }: {
         <div>
           {errors.vehicleMake && <p className="text-red-500 text-xs mb-1">{errors.vehicleMake}</p>}
           <select className={sc('vehicleMake')} value={form.vehicleMake} disabled={!form.vehicleYear || loadingMakes}
-            onChange={e => { setForm(p => ({ ...p, vehicleMake: e.target.value, vehicleModel: '', vehicleEngine: '', vehicleTrim: '' })); setModels([]); setTrimOther(false); setEngineOther(false); clearError('vehicleMake'); clearError('vehicleModel'); }}>
+            onChange={e => { setForm(p => ({ ...p, vehicleMake: e.target.value, vehicleModel: '', vehicleEngine: '', vehicleTrim: '' })); setModels([]); setTrimOther(false); setEngineOther(false); setModelOther(false); clearError('vehicleMake'); clearError('vehicleModel'); }}>
             <option value="">{loadingMakes ? 'Loading…' : 'Make'}</option>
             {makes.map(m => <option key={m} value={m}>{m}</option>)}
           </select>
         </div>
         <div className="col-span-2 sm:col-span-1">
           {errors.vehicleModel && <p className="text-red-500 text-xs mb-1">{errors.vehicleModel}</p>}
-          <select className={sc('vehicleModel')} value={form.vehicleModel} disabled={!form.vehicleMake || loadingModels}
-            onChange={e => { setForm(p => ({ ...p, vehicleModel: e.target.value, vehicleEngine: '', vehicleTrim: '' })); setTrimOther(false); setEngineOther(false); clearError('vehicleModel'); }}>
-            <option value="">{loadingModels ? 'Loading…' : 'Model'}</option>
-            {models.map(m => <option key={m} value={m}>{m}</option>)}
-          </select>
+          {models.length > 0 && !modelOther ? (
+            <select className={sc('vehicleModel')} value={form.vehicleModel} disabled={!form.vehicleMake || loadingModels}
+              onChange={e => {
+                if (e.target.value === '__other__') { setModelOther(true); setForm(p => ({ ...p, vehicleModel: '', vehicleEngine: '', vehicleTrim: '' })); }
+                else { setForm(p => ({ ...p, vehicleModel: e.target.value, vehicleEngine: '', vehicleTrim: '' })); clearError('vehicleModel'); }
+              }}>
+              <option value="">{loadingModels ? 'Loading…' : 'Model'}</option>
+              {models.map(m => <option key={m} value={m}>{m}</option>)}
+              <option value="__other__">Other / not listed</option>
+            </select>
+          ) : (
+            <div className="relative">
+              <input
+                type="text"
+                placeholder={loadingModels ? 'Loading…' : 'Model (e.g. Outback)'}
+                disabled={!form.vehicleMake || loadingModels}
+                value={form.vehicleModel}
+                onChange={e => { setForm(p => ({ ...p, vehicleModel: e.target.value })); clearError('vehicleModel'); }}
+                className={ic('vehicleModel')}
+              />
+              {models.length > 0 && (
+                <button type="button" onClick={() => { setModelOther(false); setForm(p => ({ ...p, vehicleModel: '', vehicleEngine: '', vehicleTrim: '' })); }}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-red-400 text-[10px] font-bold uppercase tracking-wider">
+                  ← list
+                </button>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
@@ -1723,6 +1768,7 @@ function BookingDetailModal({ booking, onClose, onUpdate, onBookingPatched }: {
 
   const [editDate, setEditDate] = useState(booking.date);
   const [editTime, setEditTime] = useState(booking.time);
+  const [customTime, setCustomTime] = useState(false);
   const [editPhone, setEditPhone] = useState(booking.phone);
   const [editEmail, setEditEmail] = useState(booking.email || '');
   const [editVehicle, setEditVehicle] = useState(booking.vehicle || '');
@@ -1866,13 +1912,23 @@ function BookingDetailModal({ booking, onClose, onUpdate, onBookingPatched }: {
                   <input type="date" value={editDate} onChange={e => setEditDate(e.target.value)} className={inputCls} />
                 </div>
                 <div>
-                  <label className={labelCls}>Time</label>
-                  <select value={editTime} onChange={e => setEditTime(e.target.value)} className={inputCls}>
-                    {(getSlotsForDate(editDate).length > 0 ? getSlotsForDate(editDate) : timeSlots).map(t => (
-                      <option key={t} value={t}>{t}</option>
-                    ))}
-                    {!timeSlots.includes(editTime) && <option value={editTime}>{editTime} (current)</option>}
-                  </select>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className={labelCls + ' mb-0'}>Time</label>
+                    <button type="button" onClick={() => setCustomTime(v => !v)}
+                      className="text-[10px] text-indigo-400 hover:text-indigo-300 font-bold uppercase tracking-wider">
+                      {customTime ? 'Use slots' : 'Set exact time'}
+                    </button>
+                  </div>
+                  {customTime ? (
+                    <input type="time" value={from12h(editTime)} onChange={e => setEditTime(to12h(e.target.value))} className={inputCls} />
+                  ) : (
+                    <select value={editTime} onChange={e => setEditTime(e.target.value)} className={inputCls}>
+                      {(getSlotsForDate(editDate).length > 0 ? getSlotsForDate(editDate) : timeSlots).map(t => (
+                        <option key={t} value={t}>{t}</option>
+                      ))}
+                      {!timeSlots.includes(editTime) && <option value={editTime}>{editTime} (current)</option>}
+                    </select>
+                  )}
                 </div>
               </div>
               <div>
