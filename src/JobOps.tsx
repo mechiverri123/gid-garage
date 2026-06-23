@@ -3249,9 +3249,12 @@ function AddJobModal({ onClose, onAdded }: { onClose: () => void; onAdded: (job:
   );
 }
 
+const JOBS_CACHE_KEY = 'gid_jobs_cache_v1';
+
 export function JobsTab() {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [selected, setSelected] = useState<Job | null>(null);
   const [search, setSearch] = useState('');
@@ -3264,12 +3267,41 @@ export function JobsTab() {
   );
 
   useEffect(() => {
+    // Paint instantly from whatever was loaded last time — Supabase's free
+    // tier can take several seconds to wake from idle, and that wait was
+    // happening on every single admin open. Showing cached data immediately
+    // (then quietly refreshing) means that cold-start tax only ever shows up
+    // as a brief "Updating…" tag instead of a blank loading screen.
+    let hadCache = false;
+    try {
+      const cached = localStorage.getItem(JOBS_CACHE_KEY);
+      if (cached) {
+        const parsed = JSON.parse(cached) as Job[];
+        if (Array.isArray(parsed) && parsed.length) {
+          setJobs(parsed);
+          setLoading(false);
+          hadCache = true;
+        }
+      }
+    } catch { /* corrupt cache — ignore and fall through to a normal load */ }
+
+    if (hadCache) setRefreshing(true);
     getAllJobs()
-      .then(data => { setJobs(data); setLoadError(null); setLoading(false); })
+      .then(data => {
+        setJobs(data);
+        setLoadError(null);
+        setLoading(false);
+        setRefreshing(false);
+        try { localStorage.setItem(JOBS_CACHE_KEY, JSON.stringify(data)); } catch { /* storage full/unavailable — non-critical */ }
+      })
       .catch(err => {
         console.error('Failed to load jobs:', err);
-        setLoadError('Could not load jobs. The admin data service (/admin-api) may be unreachable — check Cloudflare Access covers /admin-api and SUPABASE_SERVICE_KEY is set.');
-        setLoading(false);
+        setRefreshing(false);
+        if (!hadCache) {
+          setLoadError('Could not load jobs. The admin data service (/admin-api) may be unreachable — check Cloudflare Access covers /admin-api and SUPABASE_SERVICE_KEY is set.');
+          setLoading(false);
+        }
+        // If we had cache, just keep showing it silently rather than erroring out a working screen.
       });
 
     // Poll jobs every 30s — was 10s but the extra worker hop made it noticeably heavy
@@ -3278,12 +3310,32 @@ export function JobsTab() {
       try {
         fresh = await getAllJobs();
         setLoadError(null);
+        try { localStorage.setItem(JOBS_CACHE_KEY, JSON.stringify(fresh)); } catch { /* non-critical */ }
       } catch (err) {
         console.error('Job refresh failed:', err);
         return;
       }
       setJobs(fresh);
-      setSelected(prev => prev ? (fresh.find(j => j.id === prev.id) ?? prev) : null);
+      setSelected(prev => {
+        if (!prev) return null;
+        const slimMatch = fresh.find(j => j.id === prev.id);
+        if (!slimMatch) return prev; // e.g. filtered out by status change elsewhere — keep showing what we have
+        // list-bookings only returns list-view columns now; carry forward the
+        // detail-only fields already loaded for the open job instead of
+        // wiping them with the slim poll data.
+        return {
+          ...slimMatch,
+          jobPhotos: prev.jobPhotos,
+          adminPhotos: prev.adminPhotos,
+          lineItems: prev.lineItems,
+          payments: prev.payments,
+          inspectionData: prev.inspectionData,
+          estimateNotes: prev.estimateNotes,
+          preExistingDamage: prev.preExistingDamage,
+          customerSignature: prev.customerSignature,
+          adjustmentReason: prev.adjustmentReason,
+        };
+      });
     }, 30000);
 
     // Payment event notifications on a separate 60s interval — decoupled from job refresh
@@ -3330,6 +3382,18 @@ export function JobsTab() {
     }
     setJobs(prev => prev.map(j => j.id === updated.id ? updated : j));
     setSelected(updated);
+  }
+
+  // list-bookings now returns only list-view columns (for load-time speed),
+  // so opening a job needs its full row — photos, line items, payments,
+  // inspection data, etc. Open instantly with what we already have, then
+  // fill in the rest as soon as it loads.
+  async function openJob(job: Job) {
+    setSelected(job);
+    try {
+      const full = await getJobById(job.id);
+      if (full) setSelected(prev => prev?.id === job.id ? full : prev);
+    } catch { /* keep showing the slim version if this fails */ }
   }
 
   const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Phoenix' });
@@ -3380,7 +3444,7 @@ export function JobsTab() {
       </div>
 
       {/* Filters + Add Job */}
-      <div className="flex flex-wrap gap-3 mb-6">
+      <div className="flex flex-wrap gap-3 mb-6 items-center">
         <input
           type="text"
           value={search}
@@ -3388,6 +3452,11 @@ export function JobsTab() {
           placeholder="Search customer, vehicle, phone…"
           className="bg-gray-900 border border-gray-700 text-white px-3 py-2 text-sm focus:border-red-600 outline-none flex-1 min-w-48"
         />
+        {refreshing && (
+          <span className="text-gray-600 text-[10px] font-bold uppercase tracking-widest flex items-center gap-1.5 flex-shrink-0">
+            <span className="w-1.5 h-1.5 rounded-full bg-yellow-600 animate-pulse" /> Updating…
+          </span>
+        )}
         <button
           onClick={() => setShowAddJob(true)}
           className="bg-red-600 hover:bg-red-500 text-white text-xs font-bold uppercase tracking-widest px-4 py-2 transition-colors flex items-center gap-1.5 flex-shrink-0"
@@ -3430,7 +3499,7 @@ export function JobsTab() {
           return (
             <button
               key={job.id}
-              onClick={() => setSelected(job)}
+              onClick={() => openJob(job)}
               className={`w-full text-left bg-gray-900 border p-4 flex items-center justify-between gap-4 hover:border-red-600/50 transition-all ${
                 isOverdue ? 'border-yellow-900/50' : 'border-gray-800'
               }`}

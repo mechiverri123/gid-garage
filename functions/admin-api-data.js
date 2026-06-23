@@ -70,8 +70,20 @@ export async function onRequestPost({ request, env }) {
     switch (action) {
       case 'list-bookings': {
         const limit = Number(payload.limit) || 200;
+        // Only the columns the job LIST view actually renders (name, vehicle,
+        // date, status, amounts, search fields). job_photos / admin_photos /
+        // line_items / inspection_data / payments are excluded here — those
+        // can be large (especially older jobs with legacy base64 photos) and
+        // are only needed when a specific job is opened, via get-booking.
+        const listColumns = [
+          'id', 'service', 'date', 'time', 'fname', 'lname', 'phone', 'email',
+          'vehicle', 'notes', 'garage_notes', 'status', 'job_status', 'created_at',
+          'estimate_amount', 'tax_amount', 'customer_agreed', 'signed_at',
+          'invoice_amount', 'stripe_transaction_id', 'stripe_customer_id',
+          'stripe_last4', 'paid_at', 'adjustment_amount', 'amount_paid',
+        ].join(',');
         const res = await fetch(
-          `${base}/bookings?select=*&order=date.desc,time.desc&limit=${limit}`,
+          `${base}/bookings?select=${listColumns}&order=date.desc,time.desc&limit=${limit}`,
           { headers }
         );
         if (!res.ok) return json({ error: await res.text() }, 502);
