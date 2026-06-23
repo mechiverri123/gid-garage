@@ -976,11 +976,55 @@ function PhotoPanel({ job, onUpdate }: { job: Job; onUpdate: (j: Job) => void })
   const [editingNote, setEditingNote] = useState<string | null>(null);
   const [savingNotes, setSavingNotes] = useState(false);
   const [notesSaved, setNotesSaved] = useState(false);
+  const [migrating, setMigrating] = useState(false);
+  const migratedRef = useRef(false);
 
   async function persist(updated: JobPhoto[]) {
     await patchJob(job.id, { job_photos: JSON.stringify(updated) });
     onUpdate({ ...job, jobPhotos: updated });
   }
+
+  async function uploadBlob(blob: Blob, filename: string): Promise<{ key: string; url: string }> {
+    const formData = new FormData();
+    formData.append('file', blob, filename);
+    formData.append('bookingId', job.id);
+    const res = await fetch('/customer-upload-photo', { method: 'POST', body: formData });
+    if (!res.ok) throw new Error(await res.text());
+    return res.json();
+  }
+
+  // One-time cleanup for older jobs: photos saved before the R2 fix have the
+  // full-resolution image base64-encoded directly into this DB row. Resending
+  // that bloat on every save (e.g. clicking "Save Notes") is what caused saves
+  // to hang/502 — even after this fix, *existing* jobs still had that old data
+  // sitting in job_photos. Migrate any legacy base64 photo to R2 in the
+  // background the first time this panel loads, replacing the inline base64
+  // with a small {key,url} reference so future saves stay small.
+  useEffect(() => {
+    const legacy = photos.filter(p => p.dataUrl && !p.url);
+    if (!legacy.length || migratedRef.current) return;
+    migratedRef.current = true;
+
+    (async () => {
+      setMigrating(true);
+      let current = photos;
+      for (const photo of legacy) {
+        try {
+          const blob = await (await fetch(photo.dataUrl as string)).blob();
+          const { key, url } = await uploadBlob(blob, `${photo.id}.jpg`);
+          current = current.map(p => p.id === photo.id ? { id: p.id, key, url, note: p.note, takenAt: p.takenAt } : p);
+          setPhotos(current);
+          await persist(current);
+        } catch {
+          // Leave this one as legacy base64 if migration fails (e.g. offline) —
+          // it'll just be retried next time the panel loads.
+        }
+      }
+      setMigrating(false);
+    })();
+    // Runs once on mount only — intentionally not re-running when `photos` changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Resize + re-encode in the browser before upload. Phone camera photos are
   // often 3-8MB each — uploading them full-res (and previously, as base64 text
@@ -1026,17 +1070,12 @@ function PhotoPanel({ job, onUpdate }: { job: Job; onUpdate: (j: Job) => void })
     for (const file of files) {
       try {
         const compressed = await compressImage(file);
-        const formData = new FormData();
         const safeName = file.name.replace(/\.\w+$/, '') + '.jpg';
-        formData.append('file', compressed, safeName);
-        formData.append('bookingId', job.id);
-        const res = await fetch('/customer-upload-photo', { method: 'POST', body: formData });
-        if (!res.ok) throw new Error(await res.text());
-        const data = await res.json() as any;
+        const { key, url } = await uploadBlob(compressed, safeName);
         const newPhoto: JobPhoto = {
           id: Math.random().toString(36).slice(2),
-          key: data.key,
-          url: data.url,
+          key,
+          url,
           note: '',
           takenAt: new Date().toISOString(),
         };
@@ -1075,7 +1114,7 @@ function PhotoPanel({ job, onUpdate }: { job: Job; onUpdate: (j: Job) => void })
     <div className="space-y-4">
       {/* Capture buttons — two separate so library is always accessible */}
       <div className="grid grid-cols-2 gap-2">
-        <label className={`flex flex-col items-center justify-center gap-1.5 bg-gray-800 border-2 border-dashed border-gray-600 hover:border-red-600 text-gray-400 hover:text-white py-4 transition-colors ${uploading ? 'opacity-50 pointer-events-none' : 'cursor-pointer'}`}>
+        <label className={`flex flex-col items-center justify-center gap-1.5 bg-gray-800 border-2 border-dashed border-gray-600 hover:border-red-600 text-gray-400 hover:text-white py-4 transition-colors ${uploading || migrating ? 'opacity-50 pointer-events-none' : 'cursor-pointer'}`}>
           <span className="text-xl">📷</span>
           <span className="text-xs font-bold uppercase tracking-widest">Camera</span>
           <input
@@ -1083,26 +1122,26 @@ function PhotoPanel({ job, onUpdate }: { job: Job; onUpdate: (j: Job) => void })
             accept="image/*"
             capture="environment"
             multiple
-            disabled={uploading}
+            disabled={uploading || migrating}
             className="hidden"
             onChange={handleCapture}
           />
         </label>
-        <label className={`flex flex-col items-center justify-center gap-1.5 bg-gray-800 border-2 border-dashed border-gray-600 hover:border-red-600 text-gray-400 hover:text-white py-4 transition-colors ${uploading ? 'opacity-50 pointer-events-none' : 'cursor-pointer'}`}>
+        <label className={`flex flex-col items-center justify-center gap-1.5 bg-gray-800 border-2 border-dashed border-gray-600 hover:border-red-600 text-gray-400 hover:text-white py-4 transition-colors ${uploading || migrating ? 'opacity-50 pointer-events-none' : 'cursor-pointer'}`}>
           <span className="text-xl">🖼️</span>
           <span className="text-xs font-bold uppercase tracking-widest">Library</span>
           <input
             type="file"
             accept="image/*"
             multiple
-            disabled={uploading}
+            disabled={uploading || migrating}
             className="hidden"
             onChange={handleCapture}
           />
         </label>
       </div>
       <p className="text-gray-700 text-xs text-center">
-        {uploading ? '⏳ Uploading…' : 'Add notes per photo after uploading'}
+        {migrating ? '⏳ Optimizing older photos…' : uploading ? '⏳ Uploading…' : 'Add notes per photo after uploading'}
       </p>
       {uploadError && <p className="text-red-400 text-xs text-center">{uploadError}</p>}
 
