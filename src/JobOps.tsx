@@ -1612,6 +1612,13 @@ function PaymentPanel({ job, onUpdate, onRequote }: { job: Job; onUpdate: (j: Jo
   const [paymentStripeId, setPaymentStripeId] = useState('');
   const [recordingPayment, setRecordingPayment] = useState(false);
   const [recordError, setRecordError] = useState<string | null>(null);
+  const [editingPaymentId, setEditingPaymentId] = useState<string | null>(null);
+  const [editAmt, setEditAmt] = useState('');
+  const [editMethod, setEditMethod] = useState('Cash');
+  const [editNote, setEditNote] = useState('');
+  const [editStripeId, setEditStripeId] = useState('');
+  const [savingEdit, setSavingEdit] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
 
   const hasCardOnFile = !!job.stripeCustomerId;
   const finalAmount = parseFloat(invoiceAmt) || job.estimateAmount || 0;
@@ -1694,6 +1701,155 @@ function PaymentPanel({ job, onUpdate, onRequote }: { job: Job; onUpdate: (j: Jo
       setRecordError(e.message ?? 'Failed to record payment');
     }
     setRecordingPayment(false);
+  }
+
+  // Shared by edit + delete: recompute amount_paid from the full payments
+  // array and reconcile job status both directions — an edit can push a job
+  // to fully paid, or pull a previously-PAID job back under the total if the
+  // amount was corrected downward.
+  async function applyPaymentsUpdate(updatedPayments: Payment[]) {
+    const newAmountPaid = Math.round(updatedPayments.reduce((s, p) => s + p.amount, 0) * 100) / 100;
+    const wasFullyPaid = job.jobStatus === 'PAID';
+    const isNowFullyPaid = newAmountPaid > 0 && newAmountPaid >= totalDue - 0.01;
+
+    const fields: Record<string, any> = {
+      payments: JSON.stringify(updatedPayments),
+      amount_paid: newAmountPaid,
+    };
+    if (isNowFullyPaid && !wasFullyPaid) {
+      fields.job_status = 'PAID';
+      fields.status = 'completed';
+      fields.paid_at = job.paidAt ?? new Date().toISOString();
+    } else if (!isNowFullyPaid && wasFullyPaid) {
+      // Correction dropped the total below what's owed — revert so the balance shows correctly
+      fields.job_status = 'INVOICED';
+      fields.paid_at = null;
+    }
+
+    await patchJob(job.id, fields);
+
+    const updated: Job = {
+      ...job,
+      payments: updatedPayments,
+      amountPaid: newAmountPaid,
+      jobStatus: (fields.job_status as JobStatus) ?? job.jobStatus,
+      status: fields.status ?? job.status,
+      paidAt: fields.paid_at !== undefined ? fields.paid_at : job.paidAt,
+    };
+    onUpdate(updated);
+    return updated;
+  }
+
+  function startEditPayment(p: Payment) {
+    setEditingPaymentId(p.id);
+    setEditAmt(p.amount.toString());
+    setEditMethod(p.method);
+    setEditNote(p.note);
+    setEditStripeId(p.stripeId || '');
+    setEditError(null);
+  }
+
+  async function saveEditPayment() {
+    const amt = parseFloat(editAmt);
+    if (!amt || amt <= 0 || !editingPaymentId) return;
+    setSavingEdit(true);
+    setEditError(null);
+    try {
+      const updatedPayments = (job.payments || []).map(p => p.id !== editingPaymentId ? p : {
+        id: p.id,
+        amount: Math.round(amt * 100) / 100,
+        method: editMethod,
+        note: editNote,
+        at: p.at,
+        ...(editStripeId.trim() ? { stripeId: editStripeId.trim() } : {}),
+      });
+      await applyPaymentsUpdate(updatedPayments);
+      setEditingPaymentId(null);
+    } catch (e: any) {
+      setEditError(e.message ?? 'Failed to save changes');
+    }
+    setSavingEdit(false);
+  }
+
+  async function deletePayment(id: string) {
+    if (!window.confirm('Delete this payment record? This cannot be undone.')) return;
+    setEditError(null);
+    try {
+      const updatedPayments = (job.payments || []).filter(p => p.id !== id);
+      await applyPaymentsUpdate(updatedPayments);
+    } catch (e: any) {
+      setEditError(e.message ?? 'Failed to delete payment');
+    }
+  }
+
+  // Single payment line — read view, or an inline edit form when this row is
+  // the one currently being edited. Shared by both the "Balance Due" summary
+  // and the fully-paid "Payments Received" history below.
+  function renderPaymentRow(p: Payment, amountColorClass: string) {
+    if (editingPaymentId === p.id) {
+      return (
+        <div key={p.id} className="bg-gray-900 border border-gray-700 p-3 space-y-2">
+          <div className="flex gap-2">
+            <div className="flex items-center gap-1 bg-gray-800 border border-gray-700 px-2">
+              <span className="text-gray-500 text-xs font-bold">$</span>
+              <input
+                type="number"
+                value={editAmt}
+                onChange={e => setEditAmt(e.target.value)}
+                className="bg-transparent text-white py-1.5 text-xs font-mono w-20 outline-none"
+              />
+            </div>
+            <select
+              value={editMethod}
+              onChange={e => setEditMethod(e.target.value)}
+              className="bg-gray-800 border border-gray-700 text-white px-1.5 text-xs outline-none focus:border-yellow-700 flex-1"
+            >
+              <option>Cash</option>
+              <option>Check</option>
+              <option>Zelle</option>
+              <option>Venmo</option>
+              <option>CashApp</option>
+              <option>Card (Tap to Pay)</option>
+              <option>Other</option>
+            </select>
+          </div>
+          <input
+            type="text"
+            value={editNote}
+            onChange={e => setEditNote(e.target.value)}
+            placeholder="Note"
+            className="w-full bg-gray-800 border border-gray-700 text-white px-2 py-1.5 text-xs outline-none focus:border-yellow-700 placeholder-gray-600"
+          />
+          <input
+            type="text"
+            value={editStripeId}
+            onChange={e => setEditStripeId(e.target.value)}
+            placeholder="Stripe Transaction ID (optional)"
+            className="w-full bg-gray-800 border border-gray-700 text-white px-2 py-1.5 text-xs font-mono outline-none focus:border-yellow-700 placeholder-gray-600"
+          />
+          {editError && <p className="text-red-400 text-xs">{editError}</p>}
+          <div className="flex gap-2">
+            <button onClick={() => setEditingPaymentId(null)} className="flex-1 border border-gray-600 text-gray-400 text-xs font-bold py-1.5 hover:border-white hover:text-white transition-colors">Cancel</button>
+            <button onClick={saveEditPayment} disabled={savingEdit || !editAmt || parseFloat(editAmt) <= 0} className="flex-1 bg-yellow-700 hover:bg-yellow-600 disabled:opacity-40 text-white text-xs font-bold py-1.5 transition-colors">
+              {savingEdit ? 'Saving…' : 'Save'}
+            </button>
+          </div>
+        </div>
+      );
+    }
+    return (
+      <div key={p.id} className="flex justify-between items-start text-xs gap-3 group">
+        <span className="text-gray-400">
+          {p.method}{p.note ? ` — ${p.note}` : ''}
+          {p.stripeId && <span className="block text-gray-600 font-mono text-[10px]">{p.stripeId}</span>}
+        </span>
+        <div className="flex items-center gap-2 flex-shrink-0">
+          <span className={`${amountColorClass} font-mono`}>${p.amount.toFixed(2)}</span>
+          <button onClick={() => startEditPayment(p)} className="text-gray-600 hover:text-yellow-500 transition-colors" title="Edit">✎</button>
+          <button onClick={() => deletePayment(p.id)} className="text-gray-600 hover:text-red-500 transition-colors" title="Delete">×</button>
+        </div>
+      </div>
+    );
   }
 
   const CHARGEABLE_STATUSES: JobStatus[] = ['COMPLETED', 'INVOICED', 'IN_PROGRESS', 'SIGNED'];
@@ -1830,15 +1986,7 @@ function PaymentPanel({ job, onUpdate, onRequote }: { job: Job; onUpdate: (j: Jo
         {job.payments?.length > 0 && (
           <div className="mt-3 pt-3 border-t border-emerald-800/50 space-y-1.5">
             <p className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-1">Payments Received</p>
-            {job.payments.map(p => (
-              <div key={p.id} className="flex justify-between text-xs gap-3">
-                <span className="text-gray-400">
-                  {p.method}{p.note ? ` — ${p.note}` : ''}
-                  {p.stripeId && <span className="block text-gray-600 font-mono text-[10px]">{p.stripeId}</span>}
-                </span>
-                <span className="text-emerald-400 font-mono flex-shrink-0">${p.amount.toFixed(2)}</span>
-              </div>
-            ))}
+            {job.payments.map(p => renderPaymentRow(p, 'text-emerald-400'))}
           </div>
         )}
         <p className="text-gray-500 text-xs font-mono">{job.stripeTransactionId}</p>
@@ -1918,15 +2066,7 @@ function PaymentPanel({ job, onUpdate, onRequote }: { job: Job; onUpdate: (j: Jo
           </div>
           {job.payments?.length > 0 && (
             <div className="pt-2 border-t border-yellow-800/30 space-y-1">
-              {job.payments.map(p => (
-                <div key={p.id} className="flex justify-between text-xs gap-3">
-                  <span className="text-gray-500">
-                    {p.method}{p.note ? ` — ${p.note}` : ''}
-                    {p.stripeId && <span className="block text-gray-700 font-mono text-[10px]">{p.stripeId}</span>}
-                  </span>
-                  <span className="text-gray-400 font-mono flex-shrink-0">${p.amount.toFixed(2)}</span>
-                </div>
-              ))}
+              {job.payments.map(p => renderPaymentRow(p, 'text-gray-400'))}
             </div>
           )}
         </div>
