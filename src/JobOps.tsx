@@ -877,6 +877,22 @@ function AdminPhotoPanel({ entityId, onSave, initialPhotos, onPhotosChange }: {
   const [notesSaved, setNotesSaved] = useState(false);
   const [hasNoteChanges, setHasNoteChanges] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+  const prevEntityId = useRef(entityId);
+
+  // The job list is now slim (no photos, for load speed) — a job panel can
+  // mount with an empty initialPhotos before the full record arrives a beat
+  // later. useState only reads its initial value once, so without this the
+  // panel would stay stuck showing no photos even after the real data lands.
+  // Re-sync on a job switch, or when we mounted empty and data has now caught up.
+  useEffect(() => {
+    if (entityId !== prevEntityId.current) {
+      prevEntityId.current = entityId;
+      setPhotos(initialPhotos);
+    } else if (photos.length === 0 && initialPhotos.length > 0) {
+      setPhotos(initialPhotos);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [entityId, initialPhotos]);
 
   async function savePhotosToDb(updated: typeof photos) {
     try {
@@ -993,7 +1009,22 @@ function PhotoPanel({ job, onUpdate }: { job: Job; onUpdate: (j: Job) => void })
   const [savingNotes, setSavingNotes] = useState(false);
   const [notesSaved, setNotesSaved] = useState(false);
   const [migrating, setMigrating] = useState(false);
-  const migratedRef = useRef(false);
+  const migratingRef = useRef(false);
+  const prevJobId = useRef(job.id);
+
+  // Same fix as AdminPhotoPanel: the job list is slim (no photos) for load
+  // speed, so this panel can mount before the full record (with real photos)
+  // arrives. Catch up once it does, without clobbering in-progress local edits.
+  useEffect(() => {
+    if (job.id !== prevJobId.current) {
+      prevJobId.current = job.id;
+      setPhotos(job.jobPhotos || []);
+      migratingRef.current = false;
+    } else if (photos.length === 0 && (job.jobPhotos || []).length > 0) {
+      setPhotos(job.jobPhotos || []);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [job.id, job.jobPhotos]);
 
   async function persist(updated: JobPhoto[]) {
     await patchJob(job.id, { job_photos: JSON.stringify(updated) });
@@ -1014,12 +1045,14 @@ function PhotoPanel({ job, onUpdate }: { job: Job; onUpdate: (j: Job) => void })
   // that bloat on every save (e.g. clicking "Save Notes") is what caused saves
   // to hang/502 — even after this fix, *existing* jobs still had that old data
   // sitting in job_photos. Migrate any legacy base64 photo to R2 in the
-  // background the first time this panel loads, replacing the inline base64
-  // with a small {key,url} reference so future saves stay small.
+  // background, replacing the inline base64 with a small {key,url} reference
+  // so future saves stay small. Runs whenever `photos` changes (not just on
+  // mount) since this panel can mount empty before the full job record — the
+  // one with the actual legacy photos — arrives a beat later.
   useEffect(() => {
     const legacy = photos.filter(p => p.dataUrl && !p.url);
-    if (!legacy.length || migratedRef.current) return;
-    migratedRef.current = true;
+    if (!legacy.length || migratingRef.current) return;
+    migratingRef.current = true;
 
     (async () => {
       setMigrating(true);
@@ -1037,10 +1070,9 @@ function PhotoPanel({ job, onUpdate }: { job: Job; onUpdate: (j: Job) => void })
         }
       }
       setMigrating(false);
+      migratingRef.current = false;
     })();
-    // Runs once on mount only — intentionally not re-running when `photos` changes.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [photos]);
 
   // Resize + re-encode in the browser before upload. Phone camera photos are
   // often 3-8MB each — uploading them full-res (and previously, as base64 text
@@ -1236,6 +1268,23 @@ function InspectionPanel({ job, onUpdate }: { job: Job; onUpdate: (j: Job) => vo
   const [codes, setCodes] = useState<DtcCode[]>(init.dtcCodes.length ? init.dtcCodes : []);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(true);
+  const prevJobId = useRef(job.id);
+
+  // The job list is slim (no inspection data, for load speed), so this panel
+  // can mount before the full record arrives a beat later. Catch up once it
+  // does — but only while `saved` is still true, i.e. the admin hasn't
+  // started entering readings yet, so we never clobber unsaved local edits.
+  useEffect(() => {
+    const isNewJob = job.id !== prevJobId.current;
+    if (isNewJob) prevJobId.current = job.id;
+    if (isNewJob || saved) {
+      const data = job.inspectionData ?? { tirePressure: { ...EMPTY_TIRES }, tireTread: { ...EMPTY_TIRES }, dtcCodes: [] };
+      setPressure({ ...data.tirePressure });
+      setTread({ ...data.tireTread });
+      setCodes(data.dtcCodes.length ? data.dtcCodes : []);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [job.id, job.inspectionData]);
 
   function markDirty() { setSaved(false); }
 
@@ -1351,17 +1400,40 @@ function EstimatePanel({ job, onUpdate }: { job: Job; onUpdate: (j: Job) => void
   const [showCalc, setShowCalc] = useState(!job.lineItems?.length);
   const [shopAvg, setShopAvg] = useState(0);
   const [showShopComparison, setShowShopComparison] = useState(true);
+  const prevJobId = useRef(job.id);
+  const hasLocalEdits = useRef(false);
+
+  // The job list is slim (no line items, for load speed), so this panel can
+  // mount before the full record arrives a beat later. Catch up once it does,
+  // unless the admin has already started editing the estimate themselves.
+  useEffect(() => {
+    if (job.id !== prevJobId.current) {
+      prevJobId.current = job.id;
+      hasLocalEdits.current = false;
+      setLineItems(job.lineItems?.length ? job.lineItems : [{ id: 'mobile', label: 'Mobile Service Fee', amount: MOBILE_FEE, type: 'mobile' }]);
+      setNotes(job.estimateNotes);
+      setShowCalc(!job.lineItems?.length);
+    } else if (!hasLocalEdits.current && job.lineItems?.length) {
+      setLineItems(job.lineItems);
+      setNotes(job.estimateNotes);
+      setShowCalc(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [job.id, job.lineItems, job.estimateNotes]);
+
 
   const total = lineItems.reduce((s, i) => s + i.amount, 0);
   const [rawAmounts, setRawAmounts] = useState<Record<string, string>>({});
 
   function handleApplyCalc(items: LineItem[], calcTotal: number, calcShopAvg: number) {
+    hasLocalEdits.current = true;
     setLineItems(items);
     setShopAvg(calcShopAvg);
     setShowCalc(false);
   }
 
   function updateLineItem(id: string, field: 'label' | 'amount' | 'taxable', value: string | boolean) {
+    hasLocalEdits.current = true;
     setLineItems(prev => prev.map(i => {
       if (i.id !== id) return i;
       if (field === 'amount') return { ...i, amount: parseFloat(value as string) || 0 };
@@ -1378,10 +1450,12 @@ function EstimatePanel({ job, onUpdate }: { job: Job; onUpdate: (j: Job) => void
   }
 
   function removeLineItem(id: string) {
+    hasLocalEdits.current = true;
     setLineItems(prev => prev.filter(i => i.id !== id));
   }
 
   function addLineItem() {
+    hasLocalEdits.current = true;
     setLineItems(prev => [...prev, { id: Math.random().toString(36).slice(2), label: '', amount: 0, type: 'other' }]);
   }
 
@@ -1551,7 +1625,7 @@ function EstimatePanel({ job, onUpdate }: { job: Job; onUpdate: (j: Job) => void
         <label className="text-gray-500 text-xs font-bold uppercase tracking-widest block mb-1">Scope Notes <span className="text-gray-700 normal-case font-normal">(shown to customer)</span></label>
         <textarea
           value={notes}
-          onChange={e => setNotes(e.target.value)}
+          onChange={e => { hasLocalEdits.current = true; setNotes(e.target.value); }}
           rows={2}
           placeholder="e.g. Full synthetic oil change, inspect brakes while on site…"
           className="bg-gray-800 border border-gray-700 text-white px-3 py-2 text-sm w-full focus:border-red-600 outline-none resize-none"
@@ -2338,6 +2412,16 @@ function JobDetailPanel({ job: initialJob, onClose, onJobUpdate }: {
   onJobUpdate: (j: Job) => void;
 }) {
   const [job, setJob] = useState(initialJob);
+
+  // JobsTab opens a job instantly with slim list data, then fetches the full
+  // record (photos, line items, payments, inspection data) a beat later and
+  // updates its `selected` state — which flows in here as a new `initialJob`.
+  // Without this, that full data would arrive but never reach this panel or
+  // any of its children, since useState only reads its initial value once.
+  useEffect(() => {
+    setJob(initialJob);
+  }, [initialJob]);
+
   const [tab, setTab] = useState<'overview' | 'estimate' | 'payment' | 'inspection'>('overview');
   const [editingAppt, setEditingAppt] = useState(false);
   const [apptSaving, setApptSaving] = useState(false);
