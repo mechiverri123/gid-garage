@@ -3818,12 +3818,13 @@ export function InvoicePage() {
               <p className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-2">Payments Received</p>
               <div className="space-y-1.5">
                 {job.payments.map(p => (
-                  <div key={p.id} className="flex justify-between text-sm">
+                  <div key={p.id} className="flex justify-between text-sm gap-3">
                     <span className="text-gray-400">
                       {p.method}{p.note ? ` — ${p.note}` : ''}
                       <span className="text-gray-600"> · {new Date(p.at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
+                      {p.stripeId && <span className="block text-gray-600 font-mono text-xs break-all">{p.stripeId}</span>}
                     </span>
-                    <span className="text-emerald-400 font-mono">${p.amount.toFixed(2)}</span>
+                    <span className="text-emerald-400 font-mono flex-shrink-0">${p.amount.toFixed(2)}</span>
                   </div>
                 ))}
               </div>
