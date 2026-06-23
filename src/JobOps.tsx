@@ -86,7 +86,10 @@ export interface LineItem {
 
 export interface JobPhoto {
   id: string;
-  dataUrl: string;
+  key?: string;
+  url?: string;
+  /** @deprecated legacy base64 photos saved before the R2 upload fix — kept only for backward-compat rendering of old records */
+  dataUrl?: string;
   note: string;
   takenAt: string;
 }
@@ -968,51 +971,111 @@ function AdminPhotoPanel({ entityId, onSave, initialPhotos, onPhotosChange }: {
 
 function PhotoPanel({ job, onUpdate }: { job: Job; onUpdate: (j: Job) => void }) {
   const [photos, setPhotos] = useState<JobPhoto[]>(job.jobPhotos || []);
-  const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
   const [editingNote, setEditingNote] = useState<string | null>(null);
-  const fileRef = useRef<HTMLInputElement | null>(null);
+  const [savingNotes, setSavingNotes] = useState(false);
+  const [notesSaved, setNotesSaved] = useState(false);
 
-  function handleCapture(e: React.ChangeEvent<HTMLInputElement>) {
-    const files = e.target.files;
-    if (!files) return;
-    Array.from(files).forEach(file => {
+  async function persist(updated: JobPhoto[]) {
+    await patchJob(job.id, { job_photos: JSON.stringify(updated) });
+    onUpdate({ ...job, jobPhotos: updated });
+  }
+
+  // Resize + re-encode in the browser before upload. Phone camera photos are
+  // often 3-8MB each — uploading them full-res (and previously, as base64 text
+  // crammed into one DB column) is what made multi-photo saves hang. Capping
+  // the longest edge at 1600px and re-encoding as JPEG q0.8 keeps each upload
+  // small and fast while still looking sharp on the estimate/invoice page.
+  function compressImage(file: File, maxDim = 1600, quality = 0.8): Promise<Blob> {
+    return new Promise((resolve, reject) => {
       const reader = new FileReader();
-      reader.onload = ev => {
+      reader.onload = () => {
+        const img = new Image();
+        img.onload = () => {
+          let { width, height } = img;
+          if (width > maxDim || height > maxDim) {
+            if (width > height) { height = Math.round((height * maxDim) / width); width = maxDim; }
+            else { width = Math.round((width * maxDim) / height); height = maxDim; }
+          }
+          const canvas = document.createElement('canvas');
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) { reject(new Error('Canvas not supported')); return; }
+          ctx.drawImage(img, 0, 0, width, height);
+          canvas.toBlob(blob => blob ? resolve(blob) : reject(new Error('Compression failed')), 'image/jpeg', quality);
+        };
+        img.onerror = () => reject(new Error('Image failed to load'));
+        img.src = reader.result as string;
+      };
+      reader.onerror = () => reject(new Error('File read failed'));
+      reader.readAsDataURL(file);
+    });
+  }
+
+  async function handleCapture(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(e.target.files || []);
+    e.target.value = '';
+    if (!files.length) return;
+
+    setUploading(true);
+    setUploadError(null);
+    let current = photos;
+
+    for (const file of files) {
+      try {
+        const compressed = await compressImage(file);
+        const formData = new FormData();
+        const safeName = file.name.replace(/\.\w+$/, '') + '.jpg';
+        formData.append('file', compressed, safeName);
+        formData.append('bookingId', job.id);
+        const res = await fetch('/customer-upload-photo', { method: 'POST', body: formData });
+        if (!res.ok) throw new Error(await res.text());
+        const data = await res.json() as any;
         const newPhoto: JobPhoto = {
           id: Math.random().toString(36).slice(2),
-          dataUrl: ev.target?.result as string,
+          key: data.key,
+          url: data.url,
           note: '',
           takenAt: new Date().toISOString(),
         };
-        setPhotos(prev => [...prev, newPhoto]);
-      };
-      reader.readAsDataURL(file);
-    });
-    e.target.value = '';
+        current = [...current, newPhoto];
+        setPhotos(current);
+        await persist(current); // save after each photo so progress is never lost mid-batch
+      } catch (err: any) {
+        setUploadError(err.message ?? 'Upload failed — try again');
+      }
+    }
+
+    setUploading(false);
   }
 
   function updateNote(id: string, note: string) {
     setPhotos(prev => prev.map(p => p.id === id ? { ...p, note } : p));
+    setNotesSaved(false);
   }
 
-  function deletePhoto(id: string) {
-    setPhotos(prev => prev.filter(p => p.id !== id));
+  async function saveNotes() {
+    setSavingNotes(true);
+    await persist(photos);
+    setSavingNotes(false);
+    setNotesSaved(true);
   }
 
-  async function savePhotos() {
-    setSaving(true);
-    await patchJob(job.id, { job_photos: JSON.stringify(photos) });
-    onUpdate({ ...job, jobPhotos: photos });
-    setSaving(false);
+  async function deletePhoto(id: string) {
+    const updated = photos.filter(p => p.id !== id);
+    setPhotos(updated);
+    await persist(updated);
   }
 
-  const hasChanges = JSON.stringify(photos) !== JSON.stringify(job.jobPhotos || []);
+  const hasNoteChanges = JSON.stringify(photos) !== JSON.stringify(job.jobPhotos || []);
 
   return (
     <div className="space-y-4">
       {/* Capture buttons — two separate so library is always accessible */}
       <div className="grid grid-cols-2 gap-2">
-        <label className="flex flex-col items-center justify-center gap-1.5 bg-gray-800 border-2 border-dashed border-gray-600 hover:border-red-600 text-gray-400 hover:text-white py-4 cursor-pointer transition-colors">
+        <label className={`flex flex-col items-center justify-center gap-1.5 bg-gray-800 border-2 border-dashed border-gray-600 hover:border-red-600 text-gray-400 hover:text-white py-4 transition-colors ${uploading ? 'opacity-50 pointer-events-none' : 'cursor-pointer'}`}>
           <span className="text-xl">📷</span>
           <span className="text-xs font-bold uppercase tracking-widest">Camera</span>
           <input
@@ -1020,23 +1083,28 @@ function PhotoPanel({ job, onUpdate }: { job: Job; onUpdate: (j: Job) => void })
             accept="image/*"
             capture="environment"
             multiple
+            disabled={uploading}
             className="hidden"
             onChange={handleCapture}
           />
         </label>
-        <label className="flex flex-col items-center justify-center gap-1.5 bg-gray-800 border-2 border-dashed border-gray-600 hover:border-red-600 text-gray-400 hover:text-white py-4 cursor-pointer transition-colors">
+        <label className={`flex flex-col items-center justify-center gap-1.5 bg-gray-800 border-2 border-dashed border-gray-600 hover:border-red-600 text-gray-400 hover:text-white py-4 transition-colors ${uploading ? 'opacity-50 pointer-events-none' : 'cursor-pointer'}`}>
           <span className="text-xl">🖼️</span>
           <span className="text-xs font-bold uppercase tracking-widest">Library</span>
           <input
             type="file"
             accept="image/*"
             multiple
+            disabled={uploading}
             className="hidden"
             onChange={handleCapture}
           />
         </label>
       </div>
-      <p className="text-gray-700 text-xs text-center">Add notes per photo after uploading</p>
+      <p className="text-gray-700 text-xs text-center">
+        {uploading ? '⏳ Uploading…' : 'Add notes per photo after uploading'}
+      </p>
+      {uploadError && <p className="text-red-400 text-xs text-center">{uploadError}</p>}
 
       {/* Photo grid */}
       {photos.length === 0 && (
@@ -1047,7 +1115,7 @@ function PhotoPanel({ job, onUpdate }: { job: Job; onUpdate: (j: Job) => void })
         {photos.map((photo) => (
           <div key={photo.id} className="bg-gray-900 border border-gray-800">
             <div className="relative">
-              <img src={photo.dataUrl} alt="Job photo" className="w-full max-h-48 object-cover" />
+              <img src={photo.url || photo.dataUrl} alt="Job photo" className="w-full max-h-48 object-cover" />
               <button
                 onClick={() => deletePhoto(photo.id)}
                 className="absolute top-2 right-2 w-7 h-7 bg-black/70 text-red-500 hover:bg-red-900/80 flex items-center justify-center text-sm transition-colors"
@@ -1085,11 +1153,11 @@ function PhotoPanel({ job, onUpdate }: { job: Job; onUpdate: (j: Job) => void })
 
       {photos.length > 0 && (
         <button
-          onClick={savePhotos}
-          disabled={saving || !hasChanges}
+          onClick={saveNotes}
+          disabled={savingNotes || !hasNoteChanges}
           className="w-full bg-gray-700 hover:bg-gray-600 disabled:opacity-40 text-white text-xs font-bold uppercase tracking-widest py-3 transition-colors"
         >
-          {saving ? 'Saving…' : hasChanges ? 'Save Photos & Notes' : '✓ Saved'}
+          {savingNotes ? 'Saving…' : notesSaved ? '✓ Notes Saved' : hasNoteChanges ? 'Save Notes' : '✓ Saved'}
         </button>
       )}
     </div>
@@ -3372,7 +3440,7 @@ export function InvoicePage() {
             <div className="space-y-3">
               {job.jobPhotos.map(photo => (
                 <div key={photo.id}>
-                  <img src={photo.dataUrl} alt="Job photo" className="w-full max-h-64 object-cover" />
+                  <img src={photo.url || photo.dataUrl} alt="Job photo" className="w-full max-h-64 object-cover" />
                   {photo.note && <p className="text-gray-400 text-xs mt-1">{photo.note}</p>}
                 </div>
               ))}
