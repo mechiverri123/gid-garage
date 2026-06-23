@@ -100,6 +100,7 @@ export interface Payment {
   method: string;
   note: string;
   at: string;
+  stripeId?: string;
 }
 
 export interface Job {
@@ -1608,6 +1609,7 @@ function PaymentPanel({ job, onUpdate, onRequote }: { job: Job; onUpdate: (j: Jo
   const [paymentAmt, setPaymentAmt] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('Cash');
   const [paymentNote, setPaymentNote] = useState('');
+  const [paymentStripeId, setPaymentStripeId] = useState('');
   const [recordingPayment, setRecordingPayment] = useState(false);
   const [recordError, setRecordError] = useState<string | null>(null);
 
@@ -1644,6 +1646,7 @@ function PaymentPanel({ job, onUpdate, onRequote }: { job: Job; onUpdate: (j: Jo
         method: paymentMethod,
         note: paymentNote,
         at: new Date().toISOString(),
+        ...(paymentStripeId.trim() ? { stripeId: paymentStripeId.trim() } : {}),
       };
       const updatedPayments = [...(job.payments || []), newPayment];
       const newAmountPaid = Math.round(((job.amountPaid || 0) + newPayment.amount) * 100) / 100;
@@ -1659,7 +1662,7 @@ function PaymentPanel({ job, onUpdate, onRequote }: { job: Job; onUpdate: (j: Jo
         fields.job_status = 'PAID';
         fields.status = 'completed';
         fields.paid_at = new Date().toISOString();
-        if (!job.stripeTransactionId) fields.stripe_transaction_id = `Manual — ${paymentMethod}`;
+        if (!job.stripeTransactionId) fields.stripe_transaction_id = newPayment.stripeId || `Manual — ${paymentMethod}`;
       } else if (job.jobStatus !== 'INVOICED' && job.jobStatus !== 'COMPLETED') {
         fields.job_status = 'INVOICED';
       }
@@ -1686,6 +1689,7 @@ function PaymentPanel({ job, onUpdate, onRequote }: { job: Job; onUpdate: (j: Jo
       onUpdate(updated);
       setPaymentAmt('');
       setPaymentNote('');
+      setPaymentStripeId('');
     } catch (e: any) {
       setRecordError(e.message ?? 'Failed to record payment');
     }
@@ -1827,9 +1831,12 @@ function PaymentPanel({ job, onUpdate, onRequote }: { job: Job; onUpdate: (j: Jo
           <div className="mt-3 pt-3 border-t border-emerald-800/50 space-y-1.5">
             <p className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-1">Payments Received</p>
             {job.payments.map(p => (
-              <div key={p.id} className="flex justify-between text-xs">
-                <span className="text-gray-400">{p.method}{p.note ? ` — ${p.note}` : ''}</span>
-                <span className="text-emerald-400 font-mono">${p.amount.toFixed(2)}</span>
+              <div key={p.id} className="flex justify-between text-xs gap-3">
+                <span className="text-gray-400">
+                  {p.method}{p.note ? ` — ${p.note}` : ''}
+                  {p.stripeId && <span className="block text-gray-600 font-mono text-[10px]">{p.stripeId}</span>}
+                </span>
+                <span className="text-emerald-400 font-mono flex-shrink-0">${p.amount.toFixed(2)}</span>
               </div>
             ))}
           </div>
@@ -1912,9 +1919,12 @@ function PaymentPanel({ job, onUpdate, onRequote }: { job: Job; onUpdate: (j: Jo
           {job.payments?.length > 0 && (
             <div className="pt-2 border-t border-yellow-800/30 space-y-1">
               {job.payments.map(p => (
-                <div key={p.id} className="flex justify-between text-xs">
-                  <span className="text-gray-500">{p.method}{p.note ? ` — ${p.note}` : ''}</span>
-                  <span className="text-gray-400 font-mono">${p.amount.toFixed(2)}</span>
+                <div key={p.id} className="flex justify-between text-xs gap-3">
+                  <span className="text-gray-500">
+                    {p.method}{p.note ? ` — ${p.note}` : ''}
+                    {p.stripeId && <span className="block text-gray-700 font-mono text-[10px]">{p.stripeId}</span>}
+                  </span>
+                  <span className="text-gray-400 font-mono flex-shrink-0">${p.amount.toFixed(2)}</span>
                 </div>
               ))}
             </div>
@@ -1958,6 +1968,13 @@ function PaymentPanel({ job, onUpdate, onRequote }: { job: Job; onUpdate: (j: Jo
           onChange={e => setPaymentNote(e.target.value)}
           placeholder="Note (e.g. Family friend — partial payment)"
           className="w-full bg-gray-800 border border-gray-700 text-white px-3 py-2 text-sm outline-none focus:border-yellow-700 placeholder-gray-600"
+        />
+        <input
+          type="text"
+          value={paymentStripeId}
+          onChange={e => setPaymentStripeId(e.target.value)}
+          placeholder="Stripe Transaction ID (optional — ch_xxx or pi_xxx, e.g. for Tap to Pay)"
+          className="w-full bg-gray-800 border border-gray-700 text-white px-3 py-2 text-sm font-mono outline-none focus:border-yellow-700 placeholder-gray-600"
         />
         {recordError && <p className="text-red-400 text-xs">{recordError}</p>}
         <button
@@ -3571,8 +3588,11 @@ export function InvoicePage() {
             </div>
             <div className="text-right">
               <p className={`text-3xl font-black ${isPaid ? 'text-emerald-400' : isPartiallyPaid ? 'text-yellow-400' : 'text-red-400'}`}>
-                ${((amount || 0) + (job.taxAmount || 0)).toFixed(2)}
+                ${isPartiallyPaid ? balanceDue.toFixed(2) : ((amount || 0) + (job.taxAmount || 0)).toFixed(2)}
               </p>
+              {isPartiallyPaid && (
+                <p className="text-gray-600 text-xs mt-0.5">of ${totalDue.toFixed(2)} total</p>
+              )}
             </div>
           </div>
 
