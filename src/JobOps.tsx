@@ -94,6 +94,14 @@ export interface JobPhoto {
   takenAt: string;
 }
 
+export interface Payment {
+  id: string;
+  amount: number;
+  method: string;
+  note: string;
+  at: string;
+}
+
 export interface Job {
   id: string;
   service: string;
@@ -127,6 +135,11 @@ export interface Job {
   paidAt: string | null;
   adjustmentReason: string;
   adjustmentAmount: number | null;
+  // partial / manual payments — running total + history, separate from the
+  // full Stripe-charge flow so cash/check/Zelle/family-discount payments can
+  // be recorded against an invoice without marking the whole job PAID.
+  amountPaid: number | null;
+  payments: Payment[];
   // photos
   jobPhotos: JobPhoto[];
   adminPhotos: { key: string; url: string; name: string; note: string }[];
@@ -207,6 +220,8 @@ function mapJob(b: any): Job {
     paidAt: b.paid_at || null,
     adjustmentReason: b.adjustment_reason || '',
     adjustmentAmount: b.adjustment_amount ?? null,
+    amountPaid: b.amount_paid ?? null,
+    payments: b.payments ? (typeof b.payments === 'string' ? JSON.parse(b.payments) : b.payments) : [],
     jobPhotos: b.job_photos ? (typeof b.job_photos === 'string' ? JSON.parse(b.job_photos) : b.job_photos) : [],
     adminPhotos: b.admin_photos ? (typeof b.admin_photos === 'string' ? JSON.parse(b.admin_photos) : b.admin_photos) : [],
     inspectionData: b.inspection_data ? (typeof b.inspection_data === 'string' ? JSON.parse(b.inspection_data) : b.inspection_data) : null,
@@ -1590,6 +1605,11 @@ function PaymentPanel({ job, onUpdate, onRequote }: { job: Job; onUpdate: (j: Jo
   const [chargeError, setChargeError] = useState<string | null>(null);
   const [chargeConfirm, setChargeConfirm] = useState(false);
   const [adjustmentReason, setAdjustmentReason] = useState('');
+  const [paymentAmt, setPaymentAmt] = useState('');
+  const [paymentMethod, setPaymentMethod] = useState('Cash');
+  const [paymentNote, setPaymentNote] = useState('');
+  const [recordingPayment, setRecordingPayment] = useState(false);
+  const [recordError, setRecordError] = useState<string | null>(null);
 
   const hasCardOnFile = !!job.stripeCustomerId;
   const finalAmount = parseFloat(invoiceAmt) || job.estimateAmount || 0;
@@ -1604,12 +1624,81 @@ function PaymentPanel({ job, onUpdate, onRequote }: { job: Job; onUpdate: (j: Jo
     return Math.round((amount + originalTax) * 100) / 100;
   }
 
+  const amountPaidSoFar = job.amountPaid || 0;
+  const totalDue = totalForAmount(finalAmount);
+  const balanceDue = Math.max(0, Math.round((totalDue - amountPaidSoFar) * 100) / 100);
+
+  // Record a manual/partial payment (cash, check, Zelle, family-friend discount,
+  // etc.) without going through the full Stripe charge flow. Multiple payments
+  // can be recorded against the same invoice; once they sum to the total due,
+  // the job is automatically marked PAID.
+  async function recordPayment() {
+    const amt = parseFloat(paymentAmt);
+    if (!amt || amt <= 0) return;
+    setRecordingPayment(true);
+    setRecordError(null);
+    try {
+      const newPayment: Payment = {
+        id: Math.random().toString(36).slice(2),
+        amount: Math.round(amt * 100) / 100,
+        method: paymentMethod,
+        note: paymentNote,
+        at: new Date().toISOString(),
+      };
+      const updatedPayments = [...(job.payments || []), newPayment];
+      const newAmountPaid = Math.round(((job.amountPaid || 0) + newPayment.amount) * 100) / 100;
+      const isNowFullyPaid = newAmountPaid >= totalDue - 0.01;
+
+      const fields: Record<string, any> = {
+        payments: JSON.stringify(updatedPayments),
+        amount_paid: newAmountPaid,
+        invoice_amount: finalAmount,
+        tax_amount: taxForAmount(finalAmount),
+      };
+      if (isNowFullyPaid) {
+        fields.job_status = 'PAID';
+        fields.status = 'completed';
+        fields.paid_at = new Date().toISOString();
+        if (!job.stripeTransactionId) fields.stripe_transaction_id = `Manual — ${paymentMethod}`;
+      } else if (job.jobStatus !== 'INVOICED' && job.jobStatus !== 'COMPLETED') {
+        fields.job_status = 'INVOICED';
+      }
+
+      await patchJob(job.id, fields);
+
+      const updated: Job = {
+        ...job,
+        payments: updatedPayments,
+        amountPaid: newAmountPaid,
+        invoiceAmount: finalAmount,
+        taxAmount: taxForAmount(finalAmount),
+        jobStatus: (fields.job_status as JobStatus) ?? job.jobStatus,
+        status: fields.status ?? job.status,
+        paidAt: fields.paid_at ?? job.paidAt,
+        stripeTransactionId: fields.stripe_transaction_id ?? job.stripeTransactionId,
+      };
+
+      if (isNowFullyPaid) {
+        if (job.jobStatus !== 'INVOICED' && job.jobStatus !== 'COMPLETED') await sendInvoiceEmail(updated);
+        await sendReceiptEmail(updated);
+      }
+
+      onUpdate(updated);
+      setPaymentAmt('');
+      setPaymentNote('');
+    } catch (e: any) {
+      setRecordError(e.message ?? 'Failed to record payment');
+    }
+    setRecordingPayment(false);
+  }
+
   const CHARGEABLE_STATUSES: JobStatus[] = ['COMPLETED', 'INVOICED', 'IN_PROGRESS', 'SIGNED'];
 
   async function chargeCardOnFile() {
     if (!hasCardOnFile || !finalAmount) return;
     if (!CHARGEABLE_STATUSES.includes(job.jobStatus)) return;
     const chargedAmount = finalAmount; // snapshot before any await — prevents mid-flight edits
+    const amountToCharge = amountPaidSoFar > 0 ? balanceDue : totalForAmount(chargedAmount);
     setCharging(true);
     setChargeError(null);
     try {
@@ -1618,7 +1707,7 @@ function PaymentPanel({ job, onUpdate, onRequote }: { job: Job; onUpdate: (j: Jo
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           customerId: job.stripeCustomerId,
-          amountCents: Math.round(totalForAmount(chargedAmount) * 100),
+          amountCents: Math.round(amountToCharge * 100),
           subtotal: chargedAmount,
           description: `GID Garage — ${job.service} — ${job.vehicle}`,
           bookingId: job.id,
@@ -1637,6 +1726,7 @@ function PaymentPanel({ job, onUpdate, onRequote }: { job: Job; onUpdate: (j: Jo
           paidAt: job.paidAt ?? new Date().toISOString(),
           jobStatus: 'PAID' as JobStatus,
           status: 'completed',
+          amountPaid: totalForAmount(alreadyPaidAmount),
         });
         setCharging(false);
         setChargeConfirm(false);
@@ -1661,14 +1751,13 @@ function PaymentPanel({ job, onUpdate, onRequote }: { job: Job; onUpdate: (j: Jo
         status: 'completed',
         adjustmentReason: hasAdjustment && adjustmentReason ? adjustmentReason : '',
         adjustmentAmount: hasAdjustment ? adjustmentAmt : null,
+        amountPaid: totalForAmount(confirmedAmount), // card charge covers whatever balance remained — invoice is now fully reconciled
       };
-      // Persist adjustment to Supabase so InvoicePage can show it
-      if (hasAdjustment) {
-        await adminPost('patch-booking', { id: job.id, fields: {
-          adjustment_reason: adjustmentReason || '',
-          adjustment_amount: adjustmentAmt,
-        }});
-      }
+      // Persist adjustment + reconciled amount_paid to Supabase so InvoicePage can show it
+      await adminPost('patch-booking', { id: job.id, fields: {
+        ...(hasAdjustment ? { adjustment_reason: adjustmentReason || '', adjustment_amount: adjustmentAmt } : {}),
+        amount_paid: updated.amountPaid,
+      }});
       await writePaymentEvent(job.id, 'paid', confirmedAmount);
       await sendReceiptEmail(updated, adjustmentReason || undefined, hasAdjustment ? adjustmentAmt : undefined);
       await sendInvoiceEmail(updated); // formal invoice document
@@ -1689,6 +1778,7 @@ function PaymentPanel({ job, onUpdate, onRequote }: { job: Job; onUpdate: (j: Jo
     if (!stripeId) return;
     setSaving(true);
     const paidAt = new Date().toISOString();
+    const reconciledAmountPaid = totalForAmount(finalAmount); // manual entry covers whatever balance remained
     if (job.jobStatus !== 'INVOICED') {
       await patchJob(job.id, { job_status: 'INVOICED', invoice_amount: finalAmount, tax_amount: taxForAmount(finalAmount) });
       await sendInvoiceEmail({ ...job, jobStatus: 'INVOICED' as JobStatus, invoiceAmount: finalAmount, taxAmount: taxForAmount(finalAmount) });
@@ -1700,8 +1790,9 @@ function PaymentPanel({ job, onUpdate, onRequote }: { job: Job; onUpdate: (j: Jo
       paid_at: paidAt,
       job_status: 'PAID',
       status: 'completed',
+      amount_paid: reconciledAmountPaid,
     });
-    const paidJob = { ...job, invoiceAmount: finalAmount, taxAmount: taxForAmount(finalAmount), stripeTransactionId: stripeId, paidAt, jobStatus: 'PAID' as JobStatus, status: 'completed' };
+    const paidJob = { ...job, invoiceAmount: finalAmount, taxAmount: taxForAmount(finalAmount), stripeTransactionId: stripeId, paidAt, jobStatus: 'PAID' as JobStatus, status: 'completed', amountPaid: reconciledAmountPaid };
     onUpdate(paidJob);
     // Send receipt email so customer gets confirmation even when paid manually
     await sendReceiptEmail(paidJob);
@@ -1732,6 +1823,17 @@ function PaymentPanel({ job, onUpdate, onRequote }: { job: Job; onUpdate: (j: Jo
           <span className="text-gray-600">AZ TPT (9.386%)</span>
           <span className="text-yellow-600 font-mono">${(job.taxAmount || 0).toFixed(2)}</span>
         </div>
+        {job.payments?.length > 0 && (
+          <div className="mt-3 pt-3 border-t border-emerald-800/50 space-y-1.5">
+            <p className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-1">Payments Received</p>
+            {job.payments.map(p => (
+              <div key={p.id} className="flex justify-between text-xs">
+                <span className="text-gray-400">{p.method}{p.note ? ` — ${p.note}` : ''}</span>
+                <span className="text-emerald-400 font-mono">${p.amount.toFixed(2)}</span>
+              </div>
+            ))}
+          </div>
+        )}
         <p className="text-gray-500 text-xs font-mono">{job.stripeTransactionId}</p>
         <p className="text-gray-600 text-xs">{job.paidAt ? new Date(job.paidAt).toLocaleString('en-US', { timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone }) : ''}</p>
         <a
@@ -1796,6 +1898,77 @@ function PaymentPanel({ job, onUpdate, onRequote }: { job: Job; onUpdate: (j: Jo
         </div>
       )}
 
+      {/* Partial payment summary + history — shown once any manual payment has been recorded */}
+      {amountPaidSoFar > 0 && (
+        <div className="bg-yellow-900/10 border border-yellow-800/50 p-4 space-y-2">
+          <div className="flex justify-between text-sm">
+            <span className="text-gray-400 font-bold uppercase tracking-wider text-xs">Amount Paid</span>
+            <span className="text-emerald-400 font-mono font-bold">${amountPaidSoFar.toFixed(2)}</span>
+          </div>
+          <div className="flex justify-between text-sm">
+            <span className="text-gray-400 font-bold uppercase tracking-wider text-xs">Balance Due</span>
+            <span className="text-yellow-400 font-mono font-bold">${balanceDue.toFixed(2)}</span>
+          </div>
+          {job.payments?.length > 0 && (
+            <div className="pt-2 border-t border-yellow-800/30 space-y-1">
+              {job.payments.map(p => (
+                <div key={p.id} className="flex justify-between text-xs">
+                  <span className="text-gray-500">{p.method}{p.note ? ` — ${p.note}` : ''}</span>
+                  <span className="text-gray-400 font-mono">${p.amount.toFixed(2)}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Record a Payment — cash, check, Zelle, family-friend discount, etc.
+          Use this for any payment that didn't come through Stripe, full or partial. */}
+      <div className="bg-gray-900 border border-gray-700 p-4 space-y-3">
+        <p className="text-gray-400 text-xs font-bold uppercase tracking-widest">Record a Payment</p>
+        <p className="text-gray-600 text-[11px]">For cash, check, Zelle, Venmo, or any payment not run through Stripe. Can be partial — balance carries forward.</p>
+        <div className="flex gap-2">
+          <div className="flex items-center gap-1.5 bg-gray-800 border border-gray-700 px-3">
+            <span className="text-gray-500 text-sm font-bold">$</span>
+            <input
+              type="number"
+              value={paymentAmt}
+              onChange={e => setPaymentAmt(e.target.value)}
+              placeholder={balanceDue ? balanceDue.toFixed(2) : '0.00'}
+              className="bg-transparent text-white py-2 text-sm font-mono w-24 outline-none"
+            />
+          </div>
+          <select
+            value={paymentMethod}
+            onChange={e => setPaymentMethod(e.target.value)}
+            className="bg-gray-800 border border-gray-700 text-white px-2 text-sm outline-none focus:border-yellow-700"
+          >
+            <option>Cash</option>
+            <option>Check</option>
+            <option>Zelle</option>
+            <option>Venmo</option>
+            <option>CashApp</option>
+            <option>Card (Tap to Pay)</option>
+            <option>Other</option>
+          </select>
+        </div>
+        <input
+          type="text"
+          value={paymentNote}
+          onChange={e => setPaymentNote(e.target.value)}
+          placeholder="Note (e.g. Family friend — partial payment)"
+          className="w-full bg-gray-800 border border-gray-700 text-white px-3 py-2 text-sm outline-none focus:border-yellow-700 placeholder-gray-600"
+        />
+        {recordError && <p className="text-red-400 text-xs">{recordError}</p>}
+        <button
+          onClick={recordPayment}
+          disabled={!paymentAmt || parseFloat(paymentAmt) <= 0 || recordingPayment}
+          className="w-full bg-yellow-700 hover:bg-yellow-600 disabled:opacity-40 text-white text-xs font-bold uppercase tracking-widest py-2.5 transition-colors"
+        >
+          {recordingPayment ? 'Recording…' : `Record $${paymentAmt ? parseFloat(paymentAmt).toFixed(2) : '0.00'} Payment`}
+        </button>
+      </div>
+
       {/* Card on file — primary payment method */}
       {hasCardOnFile ? (
         <div className="bg-gray-900 border border-gray-700 p-4 space-y-3">
@@ -1813,12 +1986,17 @@ function PaymentPanel({ job, onUpdate, onRequote }: { job: Job; onUpdate: (j: Jo
               disabled={!finalAmount || charging || !CHARGEABLE_STATUSES.includes(job.jobStatus)}
               className="w-full bg-emerald-700 hover:bg-emerald-600 disabled:opacity-40 text-white text-sm font-bold uppercase tracking-widest py-3 transition-colors"
             >
-              💳 Charge ${totalForAmount(finalAmount).toFixed(2)} to Card on File
+              💳 Charge ${(amountPaidSoFar > 0 ? balanceDue : totalForAmount(finalAmount)).toFixed(2)} to Card on File
+              {amountPaidSoFar > 0 ? ' (Remaining Balance)' : ''}
             </button>
           ) : (
             <div className="space-y-2">
-              <p className="text-yellow-400 text-xs font-bold">Confirm charge of ${totalForAmount(finalAmount).toFixed(2)} to •••• {job.stripeLast4}?</p>
-              <p className="text-gray-600 text-xs">${finalAmount.toFixed(2)} subtotal + ${taxForAmount(finalAmount).toFixed(2)} tax</p>
+              <p className="text-yellow-400 text-xs font-bold">Confirm charge of ${(amountPaidSoFar > 0 ? balanceDue : totalForAmount(finalAmount)).toFixed(2)} to •••• {job.stripeLast4}?</p>
+              <p className="text-gray-600 text-xs">
+                {amountPaidSoFar > 0
+                  ? `Remaining balance after $${amountPaidSoFar.toFixed(2)} already paid`
+                  : `${finalAmount.toFixed(2)} subtotal + ${taxForAmount(finalAmount).toFixed(2)} tax`}
+              </p>
               <div className="flex gap-2">
                 <button onClick={() => setChargeConfirm(false)} className="flex-1 border border-gray-600 text-gray-400 text-xs font-bold py-2 hover:border-white hover:text-white transition-colors">Cancel</button>
                 <button onClick={chargeCardOnFile} disabled={charging} className="flex-1 bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-bold py-2 transition-colors disabled:opacity-40">
@@ -3162,6 +3340,8 @@ function SelfPayForm({ job, onPaid }: { job: Job; onPaid: (updated: Job) => void
   const [paying, setPaying] = useState(false);
   const [done, setDone] = useState(false);
   const amount = job.invoiceAmount ?? job.estimateAmount ?? 0;
+  const amountPaidSoFar = job.amountPaid || 0;
+  const balanceDue = Math.max(0, Math.round((calcTotal(amount) - amountPaidSoFar) * 100) / 100);
 
   useEffect(() => {
     if (!STRIPE_PK) return;
@@ -3215,13 +3395,14 @@ function SelfPayForm({ job, onPaid }: { job: Job; onPaid: (updated: Job) => void
       const saveData = await saveRes.json() as any;
       if (saveData.error) throw new Error(saveData.error);
 
-      // Charge the new card
+      // Charge the new card — only the remaining balance, in case a partial
+      // payment (e.g. cash from a family friend) was already recorded against this invoice.
       const chargeRes = await fetch('/admin-charge', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           customerId: saveData.customerId,
-          amountCents: Math.round(calcTotal(amount) * 100),
+          amountCents: Math.round(balanceDue * 100),
           subtotal: amount,
           description: `GID Garage — ${job.service} — ${job.vehicle}`,
           bookingId: job.id,
@@ -3238,7 +3419,9 @@ function SelfPayForm({ job, onPaid }: { job: Job; onPaid: (updated: Job) => void
         paidAt: new Date().toISOString(),
         jobStatus: 'PAID' as JobStatus,
         status: 'completed',
+        amountPaid: calcTotal(amount), // this charge covers whatever balance remained — fully reconciled now
       };
+      await adminPost('patch-booking', { id: job.id, fields: { amount_paid: updated.amountPaid } });
       await writePaymentEvent(job.id, 'paid', amount);
       await sendReceiptEmail(updated);
       setDone(true);
@@ -3261,7 +3444,11 @@ function SelfPayForm({ job, onPaid }: { job: Job; onPaid: (updated: Job) => void
   return (
     <div className="mt-6 bg-white/5 border border-white/10 p-6">
       <p className="text-white text-sm font-bold uppercase tracking-widest mb-1">Pay with a New Card</p>
-      <p className="text-gray-500 text-xs mb-4">Enter your card details below to complete payment securely.</p>
+      <p className="text-gray-500 text-xs mb-4">
+        {amountPaidSoFar > 0
+          ? `Enter your card details to pay the remaining balance of $${balanceDue.toFixed(2)} ($${amountPaidSoFar.toFixed(2)} already received).`
+          : 'Enter your card details below to complete payment securely.'}
+      </p>
       <div ref={mountRef} className="bg-gray-900 border border-gray-700 px-3 py-3 mb-3" />
       {cardError && <p className="text-red-400 text-xs mb-3">{cardError}</p>}
       <button
@@ -3269,7 +3456,7 @@ function SelfPayForm({ job, onPaid }: { job: Job; onPaid: (updated: Job) => void
         disabled={!cardComplete || paying}
         className="w-full bg-red-600 hover:bg-red-500 disabled:opacity-40 text-white text-sm font-bold uppercase tracking-widest py-3 transition-colors"
       >
-        {paying ? 'Processing…' : `Pay $${calcTotal(amount).toFixed(2)}`}
+        {paying ? 'Processing…' : `Pay $${balanceDue.toFixed(2)}`}
       </button>
       <p className="text-gray-700 text-[10px] text-center mt-2">🔒 Secured by Stripe</p>
     </div>
@@ -3314,6 +3501,9 @@ export function InvoicePage() {
 
   const isPaid = job.jobStatus === 'PAID';
   const amount = job.invoiceAmount ?? job.estimateAmount;
+  const totalDue = (amount || 0) + (job.taxAmount || 0);
+  const isPartiallyPaid = !isPaid && (job.amountPaid || 0) > 0;
+  const balanceDue = Math.max(0, Math.round((totalDue - (job.amountPaid || 0)) * 100) / 100);
   const serviceDateStr = new Date(job.date + 'T12:00:00').toLocaleDateString('en-US', {
     weekday: 'long', month: 'long', day: 'numeric', year: 'numeric',
   });
@@ -3363,6 +3553,8 @@ export function InvoicePage() {
           <div className="flex justify-end mt-3">
             {isPaid
               ? <span className="inline-block bg-emerald-900/40 border border-emerald-700 text-emerald-400 text-xs font-bold uppercase tracking-widest px-3 py-1.5">✓ Paid</span>
+              : isPartiallyPaid
+              ? <span className="inline-block bg-yellow-900/40 border border-yellow-700 text-yellow-400 text-xs font-bold uppercase tracking-widest px-3 py-1.5">Partial Payment Received</span>
               : <span className="inline-block bg-yellow-900/40 border border-yellow-700 text-yellow-400 text-xs font-bold uppercase tracking-widest px-3 py-1.5">Amount Due</span>
             }
           </div>
@@ -3378,7 +3570,7 @@ export function InvoicePage() {
               <p className="text-white font-mono text-sm">{invoiceNumber}</p>
             </div>
             <div className="text-right">
-              <p className={`text-3xl font-black ${isPaid ? 'text-emerald-400' : 'text-red-400'}`}>
+              <p className={`text-3xl font-black ${isPaid ? 'text-emerald-400' : isPartiallyPaid ? 'text-yellow-400' : 'text-red-400'}`}>
                 ${((amount || 0) + (job.taxAmount || 0)).toFixed(2)}
               </p>
             </div>
@@ -3446,13 +3638,37 @@ export function InvoicePage() {
               <span className="text-gray-500 text-xs font-bold uppercase tracking-wider">AZ TPT (9.386%)</span>
               <span className="text-white text-sm font-mono">${(job.taxAmount || 0).toFixed(2)}</span>
             </div>
-            <div className={`px-6 py-6 border-t border-white/10 flex items-center justify-between ${isPaid ? 'bg-emerald-900/10' : 'bg-red-900/10'}`}>
-              <span className="text-white font-bold uppercase tracking-wider text-sm">{isPaid ? 'Total Paid' : 'Total Due'}</span>
-              <span className={`text-3xl font-black ${isPaid ? 'text-emerald-400' : 'text-red-400'}`}>
-                ${isPaid ? ((job.invoiceAmount || 0) + (job.taxAmount || 0)).toFixed(2) : (amount ? ((amount) + (job.taxAmount || 0)).toFixed(2) : '0.00')}
+            {isPartiallyPaid && (
+              <div className="flex justify-between px-6 py-3 border-t border-white/5">
+                <span className="text-emerald-400 text-xs font-bold uppercase tracking-wider">Amount Paid</span>
+                <span className="text-emerald-400 text-sm font-mono">-${(job.amountPaid || 0).toFixed(2)}</span>
+              </div>
+            )}
+            <div className={`px-6 py-6 border-t border-white/10 flex items-center justify-between ${isPaid ? 'bg-emerald-900/10' : isPartiallyPaid ? 'bg-yellow-900/10' : 'bg-red-900/10'}`}>
+              <span className="text-white font-bold uppercase tracking-wider text-sm">{isPaid ? 'Total Paid' : isPartiallyPaid ? 'Balance Due' : 'Total Due'}</span>
+              <span className={`text-3xl font-black ${isPaid ? 'text-emerald-400' : isPartiallyPaid ? 'text-yellow-400' : 'text-red-400'}`}>
+                ${isPaid ? ((job.invoiceAmount || 0) + (job.taxAmount || 0)).toFixed(2) : isPartiallyPaid ? balanceDue.toFixed(2) : (amount ? ((amount) + (job.taxAmount || 0)).toFixed(2) : '0.00')}
               </span>
             </div>
           </div>
+
+          {/* Payments received — shown whenever any payment (full or partial) has been recorded */}
+          {job.payments?.length > 0 && (
+            <div className="border-t border-white/10 px-6 py-4">
+              <p className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-2">Payments Received</p>
+              <div className="space-y-1.5">
+                {job.payments.map(p => (
+                  <div key={p.id} className="flex justify-between text-sm">
+                    <span className="text-gray-400">
+                      {p.method}{p.note ? ` — ${p.note}` : ''}
+                      <span className="text-gray-600"> · {new Date(p.at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
+                    </span>
+                    <span className="text-emerald-400 font-mono">${p.amount.toFixed(2)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Signed disclaimer */}
