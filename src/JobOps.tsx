@@ -3902,8 +3902,11 @@ function SelfPayForm({ job, onPaid }: { job: Job; onPaid: (updated: Job) => void
       if (saveData.error) throw new Error(saveData.error);
 
       // Charge the new card — only the remaining balance, in case a partial
-      // payment (e.g. cash from a family friend) was already recorded against this invoice.
-      const chargeRes = await fetch('/admin-charge', {
+      // payment (e.g. cash from a family friend) was already recorded against
+      // this invoice. Uses the public /customer-charge endpoint (not
+      // /admin-charge) since this runs in the customer's own browser, which
+      // has no Cloudflare Access session — that endpoint would 401 otherwise.
+      const chargeRes = await fetch('/customer-charge', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -3917,6 +3920,8 @@ function SelfPayForm({ job, onPaid }: { job: Job; onPaid: (updated: Job) => void
       const chargeData = await chargeRes.json() as any;
       if (!chargeRes.ok && chargeData.error !== 'already_paid') throw new Error(chargeData.error ?? `HTTP ${chargeRes.status}`);
 
+      // customer-charge.js already wrote the DB update, payment event, and
+      // receipt email server-side — no further Access-gated calls needed here.
       const updated: Job = {
         ...job,
         invoiceAmount: amount,
@@ -3925,16 +3930,13 @@ function SelfPayForm({ job, onPaid }: { job: Job; onPaid: (updated: Job) => void
         paidAt: new Date().toISOString(),
         jobStatus: 'PAID' as JobStatus,
         status: 'completed',
-        amountPaid: calcTotal(amount), // this charge covers whatever balance remained — fully reconciled now
+        amountPaid: chargeData.amountPaid ?? calcTotal(amount),
+        payments: chargeData.payments ?? job.payments,
       };
-      await adminPost('patch-booking', { id: job.id, fields: { amount_paid: updated.amountPaid } });
-      await writePaymentEvent(job.id, 'paid', amount);
-      await sendReceiptEmail(updated);
       setDone(true);
       onPaid(updated);
     } catch (e: any) {
       setCardError(e.message ?? 'Payment failed. Please try again.');
-      await writePaymentEvent(job.id, 'declined', amount, e.message);
     }
     setPaying(false);
   }

@@ -85,7 +85,10 @@ export async function onRequestPost({ request, env }) {
       body: JSON.stringify({
         stripe_transaction_id: charge.id,
         invoice_amount: subtotal != null ? subtotal : amountCents / 100,
-        tax_amount: subtotal != null ? Math.round((amountCents / 100 - subtotal) * 100) / 100 : 0,
+        // Computed independently from subtotal — NOT derived from amountCents,
+        // since amountCents may only be a remaining balance after a prior
+        // partial payment, not the full charge.
+        tax_amount: subtotal != null ? Math.round(subtotal * 0.09386 * 100) / 100 : 0,
         paid_at: new Date().toISOString(),
         job_status: 'PAID',
         status: 'completed',
