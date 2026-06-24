@@ -17,7 +17,7 @@ export async function onRequestPost({ request, env }) {
   }
 
   try {
-    const { customerId, amountCents, subtotal, description, bookingId } = await request.json();
+    const { customerId, amountCents, subtotal, taxAmount, description, bookingId } = await request.json();
     console.log('admin-charge received:', { bookingId, amountCents, subtotal });
 
     if (!customerId || !amountCents || !bookingId) {
@@ -85,10 +85,12 @@ export async function onRequestPost({ request, env }) {
       body: JSON.stringify({
         stripe_transaction_id: charge.id,
         invoice_amount: subtotal != null ? subtotal : amountCents / 100,
-        // Computed independently from subtotal — NOT derived from amountCents,
-        // since amountCents may only be a remaining balance after a prior
-        // partial payment, not the full charge.
-        tax_amount: subtotal != null ? Math.round(subtotal * 0.09386 * 100) / 100 : 0,
+        // Prefer the tax the client actually computed (which correctly
+        // excludes tax-exempt line items, e.g. a mobile service fee) — the
+        // flat-rate fallback overcharges tax whenever any line item is exempt.
+        tax_amount: taxAmount != null
+          ? Math.round(Number(taxAmount) * 100) / 100
+          : (subtotal != null ? Math.round(subtotal * 0.09386 * 100) / 100 : 0),
         paid_at: new Date().toISOString(),
         job_status: 'PAID',
         status: 'completed',

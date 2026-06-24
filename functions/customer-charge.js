@@ -33,7 +33,7 @@ export async function onRequestPost({ request, env }) {
     return json({ error: 'Invalid JSON' }, 400);
   }
 
-  const { customerId, amountCents, subtotal, description, bookingId } = payload;
+  const { customerId, amountCents, subtotal, taxAmount, description, bookingId } = payload;
   if (!customerId || !amountCents || !bookingId) {
     return json({ error: 'Missing required fields' }, 400);
   }
@@ -113,10 +113,15 @@ export async function onRequestPost({ request, env }) {
     if (charge.error) throw new Error(charge.error.message);
 
     const chargedAmount = amountCents / 100;
-    // Tax computed independently from the actual subtotal — NOT derived from
-    // amountCents, since amountCents may only be a remaining balance after a
-    // prior partial payment, not the full total.
-    const taxAmount = subtotal != null ? Math.round(Number(subtotal) * 0.09386 * 100) / 100 : 0;
+    // Prefer the tax amount the client actually computed (which correctly
+    // excludes tax-exempt line items, e.g. the Mobile Service Fee) over a flat
+    // rate on the whole subtotal — that flat-rate fallback is what caused the
+    // invoice to show one total ("Total Due") while the Pay button asked for
+    // a different, higher one. Only fall back to the flat rate if the client
+    // didn't send a tax figure at all.
+    const finalTaxAmount = taxAmount != null
+      ? Math.round(Number(taxAmount) * 100) / 100
+      : (subtotal != null ? Math.round(Number(subtotal) * 0.09386 * 100) / 100 : 0);
     const newAmountPaid = Math.round((amountPaidSoFar + chargedAmount) * 100) / 100;
 
     // If there was a prior partial payment, log this charge as its own entry
@@ -140,7 +145,7 @@ export async function onRequestPost({ request, env }) {
       body: JSON.stringify({
         stripe_transaction_id: charge.id,
         invoice_amount: subtotal != null ? Number(subtotal) : chargedAmount,
-        tax_amount: taxAmount,
+        tax_amount: finalTaxAmount,
         amount_paid: newAmountPaid,
         payments: JSON.stringify(updatedPayments),
         paid_at: paidAt,

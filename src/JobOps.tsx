@@ -1954,6 +1954,7 @@ function PaymentPanel({ job, onUpdate, onRequote }: { job: Job; onUpdate: (j: Jo
           customerId: job.stripeCustomerId,
           amountCents: Math.round(amountToCharge * 100),
           subtotal: chargedAmount,
+          taxAmount: taxForAmount(chargedAmount),
           description: `GID Garage — ${job.service} — ${job.vehicle}`,
           bookingId: job.id,
         }),
@@ -3847,7 +3848,15 @@ function SelfPayForm({ job, onPaid }: { job: Job; onPaid: (updated: Job) => void
   const [done, setDone] = useState(false);
   const amount = job.invoiceAmount ?? job.estimateAmount ?? 0;
   const amountPaidSoFar = job.amountPaid || 0;
-  const balanceDue = Math.max(0, Math.round((calcTotal(amount) - amountPaidSoFar) * 100) / 100);
+  // Must match what InvoicePage shows as "Total Due" exactly — that figure
+  // uses job.taxAmount (tax on taxable line items only, e.g. excluding the
+  // Mobile Service Fee), NOT a flat rate on the whole subtotal. calcTax/
+  // calcTotal apply the rate to everything, which overcharges whenever any
+  // line item is tax-exempt — that mismatch is exactly what showed up as
+  // "Total Due $303.91" vs. "Pay $306.26" on the same invoice.
+  const actualTax = job.taxAmount ?? (job.lineItems?.length ? taxFromItems(job.lineItems) : calcTax(amount));
+  const totalDue = Math.round((amount + actualTax) * 100) / 100;
+  const balanceDue = Math.max(0, Math.round((totalDue - amountPaidSoFar) * 100) / 100);
 
   useEffect(() => {
     if (!STRIPE_PK) return;
@@ -3913,6 +3922,7 @@ function SelfPayForm({ job, onPaid }: { job: Job; onPaid: (updated: Job) => void
           customerId: saveData.customerId,
           amountCents: Math.round(balanceDue * 100),
           subtotal: amount,
+          taxAmount: actualTax,
           description: `GID Garage — ${job.service} — ${job.vehicle}`,
           bookingId: job.id,
         }),
@@ -3925,12 +3935,12 @@ function SelfPayForm({ job, onPaid }: { job: Job; onPaid: (updated: Job) => void
       const updated: Job = {
         ...job,
         invoiceAmount: amount,
-        taxAmount: calcTax(amount),
+        taxAmount: actualTax,
         stripeTransactionId: chargeData.chargeId,
         paidAt: new Date().toISOString(),
         jobStatus: 'PAID' as JobStatus,
         status: 'completed',
-        amountPaid: chargeData.amountPaid ?? calcTotal(amount),
+        amountPaid: chargeData.amountPaid ?? totalDue,
         payments: chargeData.payments ?? job.payments,
       };
       setDone(true);
