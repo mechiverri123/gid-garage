@@ -1986,6 +1986,20 @@ function PaymentPanel({ job, onUpdate, onRequote }: { job: Job; onUpdate: (j: Jo
       // Send receipt email
       const adjustmentAmt = job.estimateAmount ? (chargedAmount - job.estimateAmount) : 0;
       const hasAdjustment = Math.abs(adjustmentAmt) > 0.01;
+      // If this job already had partial payments recorded, this charge is only
+      // covering the remainder — log it as its own payment entry so revenue-by-
+      // month tracking (which sums job.payments, not just paidAt) actually sees
+      // this charge instead of only the earlier partial entries.
+      const updatedPayments = amountPaidSoFar > 0
+        ? [...(job.payments || []), {
+            id: Math.random().toString(36).slice(2),
+            amount: amountToCharge,
+            method: 'Card (Stripe)',
+            note: 'Remaining balance',
+            at: paidAt,
+            stripeId: data.chargeId,
+          } as Payment]
+        : (job.payments || []);
       const updated = {
         ...job,
         invoiceAmount: confirmedAmount,
@@ -1997,11 +2011,13 @@ function PaymentPanel({ job, onUpdate, onRequote }: { job: Job; onUpdate: (j: Jo
         adjustmentReason: hasAdjustment && adjustmentReason ? adjustmentReason : '',
         adjustmentAmount: hasAdjustment ? adjustmentAmt : null,
         amountPaid: totalForAmount(confirmedAmount), // card charge covers whatever balance remained — invoice is now fully reconciled
+        payments: updatedPayments,
       };
       // Persist adjustment + reconciled amount_paid to Supabase so InvoicePage can show it
       await adminPost('patch-booking', { id: job.id, fields: {
         ...(hasAdjustment ? { adjustment_reason: adjustmentReason || '', adjustment_amount: adjustmentAmt } : {}),
         amount_paid: updated.amountPaid,
+        payments: JSON.stringify(updatedPayments),
       }});
       await writePaymentEvent(job.id, 'paid', confirmedAmount);
       await sendReceiptEmail(updated, adjustmentReason || undefined, hasAdjustment ? adjustmentAmt : undefined);
@@ -2028,6 +2044,19 @@ function PaymentPanel({ job, onUpdate, onRequote }: { job: Job; onUpdate: (j: Jo
       await patchJob(job.id, { job_status: 'INVOICED', invoice_amount: finalAmount, tax_amount: taxForAmount(finalAmount) });
       await sendInvoiceEmail({ ...job, jobStatus: 'INVOICED' as JobStatus, invoiceAmount: finalAmount, taxAmount: taxForAmount(finalAmount) });
     }
+    // Same reasoning as chargeCardOnFile — if there were prior partial
+    // payments, log this manual entry's remaining-balance amount so
+    // revenue-by-month tracking actually sees it.
+    const updatedPayments = amountPaidSoFar > 0
+      ? [...(job.payments || []), {
+          id: Math.random().toString(36).slice(2),
+          amount: balanceDue,
+          method: 'Manual Entry',
+          note: 'Remaining balance',
+          at: paidAt,
+          stripeId,
+        } as Payment]
+      : (job.payments || []);
     await patchJob(job.id, {
       invoice_amount: finalAmount,
       tax_amount: taxForAmount(finalAmount),
@@ -2036,8 +2065,9 @@ function PaymentPanel({ job, onUpdate, onRequote }: { job: Job; onUpdate: (j: Jo
       job_status: 'PAID',
       status: 'completed',
       amount_paid: reconciledAmountPaid,
+      payments: JSON.stringify(updatedPayments),
     });
-    const paidJob = { ...job, invoiceAmount: finalAmount, taxAmount: taxForAmount(finalAmount), stripeTransactionId: stripeId, paidAt, jobStatus: 'PAID' as JobStatus, status: 'completed', amountPaid: reconciledAmountPaid };
+    const paidJob = { ...job, invoiceAmount: finalAmount, taxAmount: taxForAmount(finalAmount), stripeTransactionId: stripeId, paidAt, jobStatus: 'PAID' as JobStatus, status: 'completed', amountPaid: reconciledAmountPaid, payments: updatedPayments };
     onUpdate(paidJob);
     // Send receipt email so customer gets confirmation even when paid manually
     await sendReceiptEmail(paidJob);
@@ -3547,15 +3577,15 @@ export function JobsTab() {
         if (!prev) return null;
         const slimMatch = fresh.find(j => j.id === prev.id);
         if (!slimMatch) return prev; // e.g. filtered out by status change elsewhere — keep showing what we have
-        // list-bookings only returns list-view columns now; carry forward the
-        // detail-only fields already loaded for the open job instead of
-        // wiping them with the slim poll data.
+        // list-bookings returns most list-view columns, including payments
+        // (small JSON, worth the cost — Revenue This Month needs it). The
+        // genuinely heavy fields still aren't in there, so carry those forward
+        // from the already-loaded full record instead of wiping them.
         return {
           ...slimMatch,
           jobPhotos: prev.jobPhotos,
           adminPhotos: prev.adminPhotos,
           lineItems: prev.lineItems,
-          payments: prev.payments,
           inspectionData: prev.inspectionData,
           estimateNotes: prev.estimateNotes,
           preExistingDamage: prev.preExistingDamage,
