@@ -144,8 +144,17 @@ export interface Job {
   // photos
   jobPhotos: JobPhoto[];
   adminPhotos: { key: string; url: string; name: string; note: string }[];
+  // pre/post health scan documents (optional links shown on the invoice)
+  preScan: ScanDoc | null;
+  postScan: ScanDoc | null;
   // inspection
   inspectionData: InspectionData | null;
+}
+
+export interface ScanDoc {
+  key?: string;
+  url: string;
+  name: string;
 }
 
 interface TireReading {
@@ -225,6 +234,8 @@ function mapJob(b: any): Job {
     payments: b.payments ? (typeof b.payments === 'string' ? JSON.parse(b.payments) : b.payments) : [],
     jobPhotos: b.job_photos ? (typeof b.job_photos === 'string' ? JSON.parse(b.job_photos) : b.job_photos) : [],
     adminPhotos: b.admin_photos ? (typeof b.admin_photos === 'string' ? JSON.parse(b.admin_photos) : b.admin_photos) : [],
+    preScan: b.pre_scan ? (typeof b.pre_scan === 'string' ? JSON.parse(b.pre_scan) : b.pre_scan) : null,
+    postScan: b.post_scan ? (typeof b.post_scan === 'string' ? JSON.parse(b.post_scan) : b.post_scan) : null,
     inspectionData: b.inspection_data ? (typeof b.inspection_data === 'string' ? JSON.parse(b.inspection_data) : b.inspection_data) : null,
   };
 }
@@ -2402,6 +2413,132 @@ function SignedDocSection({ job }: { job: Job }) {
   );
 }
 
+// ── PRE/POST HEALTH SCAN UPLOAD ─────────────────────────────────────────────
+// Optional link upload — admin attaches a pre-service and/or post-service
+// health scan document (PDF or image export from a scan tool). Stored in R2
+// under scans/{bookingId}/{stage}-..., served publicly so it can show up as
+// a link on the customer invoice.
+function ScanUploadBox({ job, stage, onUpdate }: { job: Job; stage: 'pre' | 'post'; onUpdate: (j: Job) => void }) {
+  const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [mode, setMode] = useState<'upload' | 'link'>('upload');
+  const [linkUrl, setLinkUrl] = useState('');
+  const [linkName, setLinkName] = useState('');
+  const [savingLink, setSavingLink] = useState(false);
+  const doc = stage === 'pre' ? job.preScan : job.postScan;
+  const label = stage === 'pre' ? 'Pre-Scan' : 'Post-Scan';
+
+  async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    setUploading(true);
+    setError(null);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('bookingId', job.id);
+      formData.append('stage', stage);
+      const res = await fetch('/admin-upload-scan', { method: 'POST', body: formData });
+      if (!res.ok) throw new Error(await res.text());
+      const data = await res.json() as { key: string; url: string; name: string };
+      const field = stage === 'pre' ? 'pre_scan' : 'post_scan';
+      await patchJob(job.id, { [field]: JSON.stringify(data) });
+      onUpdate({ ...job, ...(stage === 'pre' ? { preScan: data } : { postScan: data }) });
+    } catch (e: any) {
+      setError(e.message ?? 'Upload failed');
+    }
+    setUploading(false);
+  }
+
+  async function handleSaveLink() {
+    const url = linkUrl.trim();
+    if (!url) return;
+    setSavingLink(true);
+    setError(null);
+    try {
+      // eslint-disable-next-line no-new
+      new URL(url); // throws on garbage input before it ever hits the DB
+      const data: ScanDoc = { url, name: linkName.trim() || `${label} Report` };
+      const field = stage === 'pre' ? 'pre_scan' : 'post_scan';
+      await patchJob(job.id, { [field]: JSON.stringify(data) });
+      onUpdate({ ...job, ...(stage === 'pre' ? { preScan: data } : { postScan: data }) });
+      setLinkUrl('');
+      setLinkName('');
+    } catch {
+      setError('Enter a valid link (must start with https://)');
+    }
+    setSavingLink(false);
+  }
+
+  async function handleRemove() {
+    const field = stage === 'pre' ? 'pre_scan' : 'post_scan';
+    await patchJob(job.id, { [field]: null });
+    onUpdate({ ...job, ...(stage === 'pre' ? { preScan: null } : { postScan: null }) });
+    setMode('upload');
+  }
+
+  return (
+    <div className="bg-gray-900 border border-gray-800 p-3">
+      <p className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-2">{stage === 'pre' ? '🔍' : '✅'} {label}</p>
+      {doc ? (
+        <div className="space-y-2">
+          <a href={doc.url} target="_blank" rel="noopener noreferrer" className="block text-indigo-400 hover:text-indigo-300 text-xs truncate underline">
+            {doc.name}
+          </a>
+          <button onClick={handleRemove} className="text-gray-600 hover:text-red-500 text-[10px] font-bold uppercase tracking-wider transition-colors">
+            Remove
+          </button>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {/* Upload vs. paste-a-link toggle */}
+          <div className="flex gap-1">
+            <button onClick={() => setMode('upload')} className={`flex-1 text-[10px] font-bold uppercase tracking-wider py-1.5 border transition-colors ${mode === 'upload' ? 'bg-yellow-800/40 border-yellow-700 text-yellow-500' : 'border-gray-700 text-gray-600 hover:text-gray-400'}`}>
+              Upload File
+            </button>
+            <button onClick={() => setMode('link')} className={`flex-1 text-[10px] font-bold uppercase tracking-wider py-1.5 border transition-colors ${mode === 'link' ? 'bg-yellow-800/40 border-yellow-700 text-yellow-500' : 'border-gray-700 text-gray-600 hover:text-gray-400'}`}>
+              Paste Link
+            </button>
+          </div>
+
+          {mode === 'upload' ? (
+            <label className={`flex items-center justify-center gap-1.5 border-2 border-dashed border-gray-700 hover:border-yellow-700 text-gray-500 hover:text-yellow-600 py-3 transition-colors ${uploading ? 'opacity-50 pointer-events-none' : 'cursor-pointer'}`}>
+              <span className="text-xs font-bold uppercase tracking-wider">{uploading ? 'Uploading…' : `+ Upload ${label}`}</span>
+              <input type="file" accept="application/pdf,image/*" disabled={uploading} className="hidden" onChange={handleUpload} />
+            </label>
+          ) : (
+            <div className="space-y-1.5">
+              <input
+                type="text"
+                value={linkUrl}
+                onChange={e => setLinkUrl(e.target.value)}
+                placeholder="https://…"
+                className="w-full bg-gray-800 border border-gray-700 text-white px-2 py-1.5 text-xs outline-none focus:border-yellow-700 placeholder-gray-600"
+              />
+              <input
+                type="text"
+                value={linkName}
+                onChange={e => setLinkName(e.target.value)}
+                placeholder={`Label (optional — e.g. "${label} Report")`}
+                className="w-full bg-gray-800 border border-gray-700 text-white px-2 py-1.5 text-xs outline-none focus:border-yellow-700 placeholder-gray-600"
+              />
+              <button
+                onClick={handleSaveLink}
+                disabled={!linkUrl.trim() || savingLink}
+                className="w-full bg-yellow-700 hover:bg-yellow-600 disabled:opacity-40 text-white text-[10px] font-bold uppercase tracking-wider py-1.5 transition-colors"
+              >
+                {savingLink ? 'Saving…' : 'Save Link'}
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+      {error && <p className="text-red-400 text-[10px] mt-1">{error}</p>}
+    </div>
+  );
+}
+
 // ── JOB DETAIL PANEL ──────────────────────────────────────────────────────────
 
 const JOB_PIPELINE: JobStatus[] = ['BOOKED', 'ESTIMATE_SENT', 'SIGNED', 'IN_PROGRESS', 'COMPLETED', 'INVOICED', 'PAID'];
@@ -2539,6 +2676,12 @@ function JobDetailPanel({ job: initialJob, onClose, onJobUpdate }: {
           {/* OVERVIEW TAB */}
           {tab === 'overview' && (
             <div className="space-y-6">
+              {/* Pre/Post health scan documents — optional links shown on the customer invoice */}
+              <div className="grid grid-cols-2 gap-3">
+                <ScanUploadBox job={job} stage="pre" onUpdate={handleUpdate} />
+                <ScanUploadBox job={job} stage="post" onUpdate={handleUpdate} />
+              </div>
+
               {/* Customer & Job info */}
               {!editingAppt ? (
                 <div className="space-y-2">
@@ -3450,6 +3593,13 @@ export function JobsTab() {
               tag: `declined-${ev.id}`,
               data: { url: '/bookings' },
             });
+          } else if (ev.event_type === 'signed') {
+            reg.showNotification(`✅ Estimate signed — ${name}`, {
+              body: `$${Number(ev.amount).toFixed(2)} · ${job?.vehicle ?? ''}`.trim().replace(/· $/, ''),
+              icon: '/favicon-192.png',
+              tag: `signed-${ev.id}`,
+              data: { url: '/bookings' },
+            });
           }
         }
       } catch { /* non-critical */ }
@@ -4013,6 +4163,35 @@ export function InvoicePage() {
                   {photo.note && <p className="text-gray-400 text-xs mt-1">{photo.note}</p>}
                 </div>
               ))}
+            </div>
+          </div>
+        )}
+
+        {/* Health scan reports — optional pre/post service scan documents */}
+        {(job.preScan || job.postScan) && (
+          <div className="mt-4 border border-white/10 bg-white/5 px-6 py-4 no-print">
+            <p className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-3">Vehicle Health Scan Reports</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {job.preScan && (
+                <a href={job.preScan.url} target="_blank" rel="noopener noreferrer"
+                  className="flex items-center gap-2 border border-white/10 hover:border-indigo-500 px-4 py-3 transition-colors">
+                  <span className="text-lg">🔍</span>
+                  <span>
+                    <span className="block text-gray-400 text-[10px] font-bold uppercase tracking-wider">Pre-Service Scan</span>
+                    <span className="block text-indigo-400 text-sm underline truncate max-w-[180px]">{job.preScan.name}</span>
+                  </span>
+                </a>
+              )}
+              {job.postScan && (
+                <a href={job.postScan.url} target="_blank" rel="noopener noreferrer"
+                  className="flex items-center gap-2 border border-white/10 hover:border-indigo-500 px-4 py-3 transition-colors">
+                  <span className="text-lg">✅</span>
+                  <span>
+                    <span className="block text-gray-400 text-[10px] font-bold uppercase tracking-wider">Post-Service Scan</span>
+                    <span className="block text-indigo-400 text-sm underline truncate max-w-[180px]">{job.postScan.name}</span>
+                  </span>
+                </a>
+              )}
             </div>
           </div>
         )}

@@ -1,13 +1,14 @@
 /**
  * customer-photo-serve — Cloudflare Pages Function
- * PUBLIC endpoint — serves R2 photos with NO Access JWT required, since these
+ * PUBLIC endpoint — serves R2 files with NO Access JWT required, since these
  * need to render on the public estimate/invoice page for customers.
  *
- * Security: only ever serves keys under the "customer/" prefix. Admin-only
- * photos live under "bookings/" (served by admin-photo-serve.js, which DOES
- * require an Access JWT) — this endpoint can never read those.
+ * Security: only ever serves keys under the "customer/" or "scans/" prefixes.
+ * Admin-only photos live under "bookings/" (served by admin-photo-serve.js,
+ * which DOES require an Access JWT) — this endpoint can never read those.
  *
  * GET /customer-photo-serve?key=customer/{bookingId}/{filename}
+ * GET /customer-photo-serve?key=scans/{bookingId}/{pre|post}-{filename}
  *
  * Requires:
  *   - R2 bucket bound as GID_PHOTOS in Pages settings
@@ -25,8 +26,8 @@ export async function onRequestGet({ request, env }) {
     return new Response('Missing key', { status: 400 });
   }
 
-  // Prevent path traversal and restrict to the public customer-photo prefix.
-  if (key.includes('..') || !key.startsWith('customer/')) {
+  // Prevent path traversal and restrict to the public-safe prefixes.
+  if (key.includes('..') || !(key.startsWith('customer/') || key.startsWith('scans/'))) {
     return new Response('Invalid key', { status: 400 });
   }
 

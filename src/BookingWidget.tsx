@@ -145,6 +145,17 @@ async function getBookedTimesForDate(date: string): Promise<string[]> {
   }
 }
 
+// Admin-set days the shop is fully closed (later W2 shifts, vacation, etc.) —
+// fetched once per widget session since the list is small and rarely changes.
+async function getBlackoutDates(): Promise<Set<string>> {
+  try {
+    const data = await apiPost('blackout-dates', {});
+    return new Set((data || []) as string[]);
+  } catch {
+    return new Set(); // fail open — never block booking entirely over this
+  }
+}
+
 // ── LOCAL STORAGE FALLBACK ──────────────────────────────────────────────────
 const SERVICES = [
   { id: 'oil',        icon: '🛢️', name: 'Oil Change',   desc: 'Full synthetic only — your engine deserves it',            duration: '30 min',   startingAt: '$79.99*' },
@@ -1023,6 +1034,7 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
   const [submitting, setSubmitting] = useState(false);
   const [bookedTimes, setBookedTimes] = useState<string[]>([]);
   const [unavailableDates, setUnavailableDates] = useState<Set<string>>(new Set());
+  const [blackoutDates, setBlackoutDates] = useState<Set<string>>(new Set());
 
   const svc = SERVICES.find(x => x.id === s.service);
   const timeSlots = getSlotsForDate(s.date ?? '');
@@ -1031,6 +1043,11 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
     if (!s.date) return;
     getBookedTimesForDate(s.date).then(setBookedTimes);
   }, [s.date]);
+
+  // Admin-set blackout dates — fetched once per widget open, small list.
+  useEffect(() => {
+    getBlackoutDates().then(setBlackoutDates);
+  }, []);
 
   function parseSlotHour(t: string) {
     const [time, meridiem] = t.split(' ');
@@ -1044,9 +1061,10 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
     const dow = new Date(y, m, d).getDay();
     const today = new Date(); today.setHours(0, 0, 0, 0);
     if (new Date(y, m, d) < today) return false;
+    const k = dateKey(y, m, d);
+    if (blackoutDates.has(k)) return false;
     const now = new Date();
     const isToday = y === now.getFullYear() && m === now.getMonth() && d === now.getDate();
-    const k = dateKey(y, m, d);
     const takenTimes = await getBookedTimesForDate(k);
     const slots = (dow === 0 || dow === 6) ? WEEKEND_SLOTS : WEEKDAY_SLOTS;
     const availableSlots = slots.filter(t => {
@@ -1062,6 +1080,7 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
     if (new Date(y, m, d) < today) return false;
     const k = dateKey(y, m, d);
     if (unavailableDates.has(k)) return false;
+    if (blackoutDates.has(k)) return false;
     return true;
   }
 
@@ -1077,7 +1096,7 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
     Promise.all(checks).then(results => {
       setUnavailableDates(new Set(results.filter(Boolean) as string[]));
     });
-  }, [s.calYear, s.calMonth]);
+  }, [s.calYear, s.calMonth, blackoutDates]);
 
   function selectService(id: string) { setS(p => ({ ...p, service: id, step: id === 'other' ? 1 : Math.max(p.step, 2) })); }
   function selectDate(k: string) { setS(p => ({ ...p, date: k, time: null, step: Math.max(p.step, 3) })); }
@@ -1159,6 +1178,8 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
       setSubmitting(false);
       if (e?.message?.includes('unique') || e?.message?.includes('duplicate') || e?.message?.includes('23505')) {
         setSubmitError('Sorry, that time slot was just booked by someone else. Please go back and choose a different time.');
+      } else if (e?.message?.includes('unavailable')) {
+        setSubmitError('Sorry, that date just became unavailable. Please go back and choose a different date.');
       } else {
         setSubmitError('Something went wrong. Please try again or call us directly.');
       }
@@ -2085,6 +2106,131 @@ function GarageNotesField({ booking, onSave }: { booking: Booking; onSave: (id: 
   );
 }
 
+// ── BLACKOUT DATES MODAL ────────────────────────────────────────────────────
+// Days the shop is fully closed for booking — later W2 shifts, vacation, etc.
+// Stored in a `blackout_dates` table (date text PK, reason text) via
+// admin-api-data.js; the public booking widget reads this list read-only.
+interface BlackoutDate { date: string; reason: string | null }
+
+function BlackoutDatesModal({ onClose }: { onClose: () => void }) {
+  const [dates, setDates] = useState<BlackoutDate[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [newDate, setNewDate] = useState('');
+  const [newReason, setNewReason] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function load() {
+    setLoading(true);
+    try {
+      const rows = await adminPost('list-blackout-dates');
+      setDates((rows || []) as BlackoutDate[]);
+      setError(null);
+    } catch (e: any) {
+      setError(e.message ?? 'Failed to load blackout dates');
+    }
+    setLoading(false);
+  }
+
+  useEffect(() => { load(); }, []);
+
+  async function addDate() {
+    if (!newDate) return;
+    setSaving(true);
+    setError(null);
+    try {
+      await adminPost('add-blackout-date', { date: newDate, reason: newReason || null });
+      setNewDate('');
+      setNewReason('');
+      await load();
+    } catch (e: any) {
+      setError(e.message ?? 'Failed to add date');
+    }
+    setSaving(false);
+  }
+
+  async function removeDate(date: string) {
+    setSaving(true);
+    try {
+      await adminPost('remove-blackout-date', { date });
+      setDates(prev => prev.filter(d => d.date !== date));
+    } catch (e: any) {
+      setError(e.message ?? 'Failed to remove date');
+    }
+    setSaving(false);
+  }
+
+  const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Phoenix' });
+  const upcoming = dates.filter(d => d.date >= today);
+
+  function fmt(dateStr: string) {
+    return new Date(dateStr + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-gray-900 border border-gray-700 max-w-md w-full max-h-[85vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-800">
+          <h3 className="text-white text-sm font-bold uppercase tracking-widest">🚫 Blackout Dates</h3>
+          <button onClick={onClose} className="text-gray-500 hover:text-white text-xl leading-none">×</button>
+        </div>
+
+        <div className="p-5 space-y-4">
+          <p className="text-gray-500 text-xs">Days you're unavailable — later W2 shifts, vacation, etc. These dates disappear entirely from the customer booking calendar.</p>
+
+          {/* Add form */}
+          <div className="bg-gray-800/50 border border-gray-700 p-3 space-y-2">
+            <div className="flex gap-2">
+              <input
+                type="date"
+                value={newDate}
+                onChange={e => setNewDate(e.target.value)}
+                min={today}
+                className="flex-1 bg-gray-800 border border-gray-700 text-white px-2 py-2 text-sm outline-none focus:border-yellow-700"
+              />
+            </div>
+            <input
+              type="text"
+              value={newReason}
+              onChange={e => setNewReason(e.target.value)}
+              placeholder="Reason (optional — e.g. Mygrant late shift, Vacation)"
+              className="w-full bg-gray-800 border border-gray-700 text-white px-2 py-2 text-sm outline-none focus:border-yellow-700 placeholder-gray-600"
+            />
+            <button
+              onClick={addDate}
+              disabled={!newDate || saving}
+              className="w-full bg-yellow-700 hover:bg-yellow-600 disabled:opacity-40 text-white text-xs font-bold uppercase tracking-widest py-2 transition-colors"
+            >
+              {saving ? 'Saving…' : '+ Add Blackout Date'}
+            </button>
+          </div>
+
+          {error && <p className="text-red-400 text-xs">{error}</p>}
+
+          {/* List */}
+          {loading ? (
+            <p className="text-gray-600 text-xs text-center py-4">Loading…</p>
+          ) : upcoming.length === 0 ? (
+            <p className="text-gray-600 text-xs text-center py-4">No upcoming blackout dates</p>
+          ) : (
+            <div className="space-y-1.5">
+              {upcoming.map(d => (
+                <div key={d.date} className="flex items-center justify-between bg-gray-800/40 border border-gray-800 px-3 py-2">
+                  <div>
+                    <p className="text-white text-sm font-bold">{fmt(d.date)}</p>
+                    {d.reason && <p className="text-gray-500 text-xs">{d.reason}</p>}
+                  </div>
+                  <button onClick={() => removeDate(d.date)} disabled={saving} className="text-gray-600 hover:text-red-500 text-lg leading-none transition-colors disabled:opacity-40">×</button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── ADMIN SCHEDULE VIEW ─────────────────────────────────────────────────────
 export function AdminSchedule() {
   const [unlocked, setUnlocked] = useState(() => sessionStorage.getItem('gg_admin_auth') === '1');
@@ -2095,6 +2241,7 @@ export function AdminSchedule() {
   const [calDate, setCalDate] = useState(new Date());
   const [loading, setLoading] = useState(true);
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
+  const [showBlackoutManager, setShowBlackoutManager] = useState(false);
   const [notifPerm, setNotifPerm] = useState<NotificationPermission | 'unsupported'>(() => {
     if (!('Notification' in window)) return 'unsupported';
     return Notification.permission;
@@ -2339,7 +2486,11 @@ export function AdminSchedule() {
               </button>
             ))}
           </div>
-          <div className="flex gap-2">
+          <div className="flex gap-2 items-center">
+            <button onClick={() => setShowBlackoutManager(true)}
+              className="text-xs font-bold uppercase tracking-wider px-3 py-1.5 border border-yellow-800/60 text-yellow-700 hover:border-yellow-600 hover:text-yellow-500 transition-colors">
+              🚫 Blackout Dates
+            </button>
             {(['list','month','week','day'] as const).map(v => (
               <button key={v} onClick={() => setView(v)}
                 className={`text-xs font-bold uppercase tracking-wider px-3 py-1.5 border transition-colors ${view === v ? 'bg-gray-700 border-gray-600 text-white' : 'border-gray-800 text-gray-500 hover:text-white'}`}>
@@ -2348,6 +2499,8 @@ export function AdminSchedule() {
             ))}
           </div>
         </div>
+
+        {showBlackoutManager && <BlackoutDatesModal onClose={() => setShowBlackoutManager(false)} />}
 
         {loading && <div className="text-center py-16 text-gray-600 font-bold uppercase tracking-wider text-sm">Loading bookings...</div>}
 

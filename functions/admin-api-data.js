@@ -16,6 +16,9 @@
 //   patch-by-customer   { customerId, fields } -> { ok }   (e.g. update stripe_last4 on all rows)
 //   list-payment-events { limit? }         -> PaymentEvent[]
 //   write-payment-event { booking_id, event_type, amount, error_message } -> { ok }
+//   list-blackout-dates {}                 -> BlackoutDate[]   (requires a `blackout_dates` table: date text PK, reason text)
+//   add-blackout-date   { date, reason? }  -> BlackoutDate
+//   remove-blackout-date{ date }           -> { ok }
 
 function json(body, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -151,6 +154,40 @@ export async function onRequestPost({ request, env }) {
         return json({ ok: true });
       }
 
+      // ---- Blackout dates (days unavailable for booking — W2 shifts, vacation) ----
+      case 'list-blackout-dates': {
+        const res = await fetch(
+          `${base}/blackout_dates?select=*&order=date.asc`,
+          { headers }
+        );
+        if (!res.ok) return json({ error: await res.text() }, 502);
+        return json(await res.json());
+      }
+
+      case 'add-blackout-date': {
+        const { date, reason } = payload;
+        if (!date) return json({ error: 'Missing date' }, 400);
+        const res = await fetch(`${base}/blackout_dates`, {
+          method: 'POST',
+          headers: { ...headers, Prefer: 'return=representation,resolution=merge-duplicates' },
+          body: JSON.stringify({ date, reason: reason || null }),
+        });
+        if (!res.ok) return json({ error: await res.text() }, 502);
+        const rows = await res.json();
+        return json(Array.isArray(rows) ? rows[0] : rows);
+      }
+
+      case 'remove-blackout-date': {
+        const { date } = payload;
+        if (!date) return json({ error: 'Missing date' }, 400);
+        const res = await fetch(
+          `${base}/blackout_dates?date=eq.${encodeURIComponent(date)}`,
+          { method: 'DELETE', headers: { ...headers, Prefer: 'return=minimal' } }
+        );
+        if (!res.ok) return json({ error: await res.text() }, 502);
+        return json({ ok: true });
+      }
+
       // ---- Admin manual booking insert (returns the inserted row) ----------
       case 'insert-booking': {
         const { row } = payload;
@@ -279,7 +316,10 @@ export async function onRequestPost({ request, env }) {
       case 'send-invoice': {
         const { job } = payload;
         if (!job) return json({ error: 'Missing job' }, 400);
-        const invoiceUrl = `https://gidgarage.com/invoice?id=${job.id}`;
+        // action=pay is what tells InvoicePage to render the self-pay card-entry
+        // form. Without it, "PAY INVOICE →" lands on a read-only invoice — the
+        // exact bug this was missing before.
+        const invoiceUrl = `https://gidgarage.com/invoice?id=${job.id}&action=pay`;
         const subtotalInv = job.lineItems?.reduce((s, i) => s + Number(i.amount || 0), 0) || Number(job.estimateAmount || 0);
         const taxInv = job.taxAmount ? Number(job.taxAmount) : Math.round(subtotalInv * 0.09386 * 100) / 100;
         const totalInv = subtotalInv + taxInv;
@@ -393,11 +433,12 @@ export async function onRequestPost({ request, env }) {
       case 'send-decline': {
         const { job, reason } = payload;
         if (!job) return json({ error: 'Missing job' }, 400);
+        const retryUrl = `https://gidgarage.com/invoice?id=${job.id}&action=pay`;
         await brevoSend({
           sender: { name: 'GID Garage', email: 'bookings@gidgarage.com' },
           to: [{ email: job.email, name: `${job.fname} ${job.lname}` }],
           subject: 'Payment Declined — GID Garage',
-          htmlContent: `<div style="font-family:sans-serif;max-width:560px;margin:0 auto;background:#0f0f0f;color:#fff;padding:32px;"><img src="https://gidgarage.com/banner.PNG" alt="GID Garage" style="width:100%;display:block;height:auto;margin-bottom:24px;"/><h2 style="color:#ef4444;font-size:22px;margin:0 0 8px;">⚠️ Payment Declined</h2><p style="color:#9ca3af;margin:0 0 16px;">Hi ${job.fname}, your payment for ${job.vehicle} was declined${reason ? ': ' + reason : '.'}. Please contact us to update your payment method.</p><p style="color:#4b5563;font-size:11px;margin-top:24px;">Call or text <strong style="color:#9ca3af;">480-757-0476</strong> — GID Garage, Flagstaff AZ</p></div>`,
+          htmlContent: `<div style="font-family:sans-serif;max-width:560px;margin:0 auto;background:#0f0f0f;color:#fff;padding:32px;"><img src="https://gidgarage.com/banner.PNG" alt="GID Garage" style="width:100%;display:block;height:auto;margin-bottom:24px;"/><h2 style="color:#ef4444;font-size:22px;margin:0 0 8px;">⚠️ Payment Declined</h2><p style="color:#9ca3af;margin:0 0 16px;">Hi ${job.fname}, your payment for ${job.vehicle} was declined${reason ? ': ' + reason : '.'} No worries — you can try again below with the same card or a different one.</p><p style="margin:24px 0;text-align:center;"><a href="${retryUrl}" style="display:inline-block;background:#dc2626;color:#fff;text-decoration:none;font-weight:bold;font-size:13px;padding:14px 28px;letter-spacing:0.05em;text-transform:uppercase;">TRY PAYMENT AGAIN →</a></p><p style="color:#4b5563;font-size:11px;margin-top:24px;">Or call or text <strong style="color:#9ca3af;">480-757-0476</strong> — GID Garage, Flagstaff AZ</p></div>`,
         });
         return json({ ok: true });
       }

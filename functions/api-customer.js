@@ -6,6 +6,7 @@
 //
 // Body: { action: string, ...args }
 //   booked-slots        { date }                 -> string[]  (times only, no PII)
+//   blackout-dates      {}                       -> string[]  (dates the shop is fully closed)
 //   cancel-token        { id }                    -> { token } (HMAC, used when building cancel links)
 //   cancel-verify       { id, token }             -> { valid, booking? }
 //   cancel              { id, token }             -> { ok, booking? }
@@ -95,6 +96,17 @@ export async function onRequestPost({ request, env }) {
         return json(rows.map((r) => r.time));
       }
 
+      // ---- Blackout dates (read-only here — admin manages them) -----------
+      case 'blackout-dates': {
+        const res = await fetch(
+          `${base}/blackout_dates?select=date&date=gte.${new Date().toISOString().slice(0, 10)}`,
+          { headers }
+        );
+        if (!res.ok) return json([]); // fail open — never block booking entirely over this
+        const rows = await res.json();
+        return json(rows.map((r) => r.date));
+      }
+
       // ---- Cancel-link token (built when sending confirmation email) -------
       case 'cancel-token': {
         const { id } = payload;
@@ -168,7 +180,7 @@ export async function onRequestPost({ request, env }) {
           `${base}/bookings?id=eq.${encodeURIComponent(id)}`,
           {
             method: 'PATCH',
-            headers: { ...headers, Prefer: 'return=minimal' },
+            headers: { ...headers, Prefer: 'return=representation' },
             body: JSON.stringify({
               customer_agreed: true,
               customer_signature: String(signature).slice(0, 200),
@@ -179,6 +191,33 @@ export async function onRequestPost({ request, env }) {
           }
         );
         if (!res.ok) return json({ error: await res.text() }, 502);
+        const rows = await res.json().catch(() => []);
+        const booking = rows[0];
+
+        // Notify the shop owner — email always fires; the event row feeds the
+        // same local-notification system already used for payment alerts (shows
+        // up as a push-style notification whenever the admin panel/PWA is open).
+        if (booking) {
+          const customerName = `${booking.fname} ${booking.lname}`;
+          const total = (Number(booking.estimate_amount) || 0) + (Number(booking.tax_amount) || 0);
+          try {
+            await brevoSend({
+              sender: { name: 'GID Garage', email: 'bookings@gidgarage.com' },
+              to: [{ email: 'gidgarageaz@hotmail.com', name: 'GID Garage' }],
+              subject: `✅ Estimate Signed — ${customerName} — $${total.toFixed(2)}`,
+              htmlContent: `<div style="font-family:sans-serif;padding:24px;background:#0f0f0f;color:#fff;"><h2 style="color:#22c55e;">Estimate Signed</h2><p><strong>${customerName}</strong><br>${booking.phone || ''}<br>${booking.email || ''}</p><p><strong>${booking.vehicle || ''}</strong><br>${booking.service || ''}</p><p style="font-size:20px;font-weight:bold;color:#22c55e;">$${total.toFixed(2)}</p>${damage ? `<p>Pre-existing damage noted: ${String(damage).slice(0, 300)}</p>` : ''}</div>`,
+            });
+          } catch (e) { console.error('Signed-estimate owner email failed:', e.message); }
+
+          try {
+            await fetch(`${base}/payment_events`, {
+              method: 'POST',
+              headers: { ...headers, Prefer: 'return=minimal' },
+              body: JSON.stringify({ booking_id: id, event_type: 'signed', amount: total, error_message: null }),
+            });
+          } catch (e) { console.error('Signed-estimate event write failed:', e.message); }
+        }
+
         return json({ ok: true });
       }
 
@@ -376,6 +415,19 @@ export async function onRequestPost({ request, env }) {
       case 'insert-booking': {
         const { row } = payload;
         if (!row) return json({ error: 'Missing row' }, 400);
+        // Authoritative server-side check — the calendar UI already hides
+        // blacked-out dates, but a stale page or a direct API call shouldn't
+        // be able to slip a booking onto a day the shop marked closed.
+        if (row.date) {
+          const blackoutRes = await fetch(
+            `${base}/blackout_dates?select=date&date=eq.${encodeURIComponent(row.date)}`,
+            { headers }
+          );
+          if (blackoutRes.ok) {
+            const hits = await blackoutRes.json();
+            if (hits.length) return json({ error: 'That date is unavailable. Please pick another date.' }, 409);
+          }
+        }
         const res = await fetch(`${base}/bookings`, {
           method: 'POST',
           headers: { ...headers, Prefer: 'return=minimal' },
