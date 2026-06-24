@@ -98,8 +98,11 @@ export async function onRequestPost({ request, env }) {
 
       // ---- Blackout dates (read-only here — admin manages them) -----------
       case 'blackout-dates': {
+        // Phoenix is UTC-7 year-round — using raw UTC here would drop "today"
+        // from the list 7 hours before Phoenix midnight actually arrives.
+        const phoenixToday = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Phoenix' });
         const res = await fetch(
-          `${base}/blackout_dates?select=date&date=gte.${new Date().toISOString().slice(0, 10)}`,
+          `${base}/blackout_dates?select=date&date=gte.${phoenixToday}`,
           { headers }
         );
         if (!res.ok) return json([]); // fail open — never block booking entirely over this

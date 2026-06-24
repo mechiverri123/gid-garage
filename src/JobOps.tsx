@@ -2953,7 +2953,7 @@ function ExternalLeadModal({ onClose, onAdded }: { onClose: () => void; onAdded:
       id,
       service: f.service,
       service_icon: SERVICE_ICONS[f.service] ?? '🔧',
-      date: now.toISOString().slice(0, 10),
+      date: now.toLocaleDateString('en-CA', { timeZone: 'America/Phoenix' }), // Phoenix is UTC-7 year-round; raw UTC date rolls over 7hrs early
       time: 'TBD',
       fname: f.fname,
       lname: f.lname,
@@ -3635,14 +3635,30 @@ export function JobsTab() {
   // Stats
   const unpaid = jobs.filter(j => j.jobStatus === 'COMPLETED' || j.jobStatus === 'INVOICED').length;
   const awaitingSign = jobs.filter(j => j.jobStatus === 'ESTIMATE_SENT').length;
-  const paidThisMonth = jobs.filter(j => {
-    if (j.jobStatus !== 'PAID' || !j.paidAt) return false;
-    const m = new Date(j.paidAt).getMonth();
-    const y = new Date(j.paidAt).getFullYear();
-    const now = new Date();
-    return m === now.getMonth() && y === now.getFullYear();
-  });
-  const monthRevenue = paidThisMonth.reduce((sum, j) => sum + (j.invoiceAmount || 0), 0);
+  const now = new Date();
+  const isThisMonth = (iso: string) => {
+    const d = new Date(iso);
+    return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+  };
+  const paidThisMonth = jobs.filter(j => j.jobStatus === 'PAID' && j.paidAt && isThisMonth(j.paidAt));
+  // Revenue collected this month — two payment paths don't overlap:
+  // (1) a single full Stripe charge never gets logged into job.payments, so for
+  //     those count the job's total when its paidAt falls this month;
+  // (2) anything recorded via "Record a Payment" (manual/partial — cash, Zelle,
+  //     a card charge that only covered part of the balance, etc.) lives in
+  //     job.payments regardless of whether the job has reached PAID yet, so sum
+  //     whichever individual entries landed this month instead of gating on
+  //     job-level status. This is what was missing — partial payments on a job
+  //     still sitting at INVOICED were invisible to the old paidAt-only filter.
+  const monthRevenue = jobs.reduce((sum, j) => {
+    if (j.payments?.length) {
+      return sum + j.payments.filter(p => isThisMonth(p.at)).reduce((s, p) => s + p.amount, 0);
+    }
+    if (j.jobStatus === 'PAID' && j.paidAt && isThisMonth(j.paidAt)) {
+      return sum + (j.invoiceAmount || 0) + (j.taxAmount || 0);
+    }
+    return sum;
+  }, 0);
 
   const JOB_STATUS_ORDER: Record<string, number> = {
     BOOKED: 0, ESTIMATE_SENT: 1, SIGNED: 2, IN_PROGRESS: 3,

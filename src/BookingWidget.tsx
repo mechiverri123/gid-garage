@@ -201,6 +201,15 @@ function from12h(t: string): string {
   return `${pad(h)}:${min}`;
 }
 function pad(n: number) { return String(n).padStart(2, '0'); }
+
+// Phoenix is UTC-7 year-round (no DST). The booking calendar's "is this slot
+// still bookable today" logic needs to be anchored to Phoenix time, not the
+// visitor's own device timezone — otherwise a customer browsing from a
+// different timezone near midnight could see today's slots as bookable (or
+// not) out of step with what's actually still open in Flagstaff.
+function getPhoenixNow(): Date {
+  return new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Phoenix' }));
+}
 function dateKey(y: number, m: number, d: number) { return `${y}-${pad(m+1)}-${pad(d)}`; }
 
 interface Booking {
@@ -1059,24 +1068,24 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
 
   async function isAvailable(y: number, m: number, d: number): Promise<boolean> {
     const dow = new Date(y, m, d).getDay();
-    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const phxNow = getPhoenixNow();
+    const today = new Date(phxNow); today.setHours(0, 0, 0, 0);
     if (new Date(y, m, d) < today) return false;
     const k = dateKey(y, m, d);
     if (blackoutDates.has(k)) return false;
-    const now = new Date();
-    const isToday = y === now.getFullYear() && m === now.getMonth() && d === now.getDate();
+    const isToday = y === phxNow.getFullYear() && m === phxNow.getMonth() && d === phxNow.getDate();
     const takenTimes = await getBookedTimesForDate(k);
     const slots = (dow === 0 || dow === 6) ? WEEKEND_SLOTS : WEEKDAY_SLOTS;
     const availableSlots = slots.filter(t => {
       if (takenTimes.includes(t)) return false;
-      if (isToday && parseSlotHour(t) <= now.getHours()) return false;
+      if (isToday && parseSlotHour(t) <= phxNow.getHours()) return false;
       return true;
     });
     return availableSlots.length > 0;
   }
 
   function isAvailableSync(y: number, m: number, d: number): boolean {
-    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const today = new Date(getPhoenixNow()); today.setHours(0, 0, 0, 0);
     if (new Date(y, m, d) < today) return false;
     const k = dateKey(y, m, d);
     if (unavailableDates.has(k)) return false;
@@ -1242,7 +1251,7 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
     setSubmitting(true);
     setSubmitError(null);
     const bookingId = `GID-${Date.now()}`;
-    const today = new Date().toISOString().slice(0, 10);
+    const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Phoenix' });
     const nowTime = new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
     const inquiry = {
       id: bookingId,
@@ -2377,7 +2386,10 @@ export function AdminSchedule() {
       return b.date.localeCompare(a.date) || b.time.localeCompare(a.time);
     });
 
-  const today = new Date().toISOString().slice(0, 10);
+  // Phoenix is UTC-7 year-round (no DST) — using raw UTC here made "today"
+  // flip over at 5pm Phoenix time instead of midnight, which is exactly the
+  // "calendar shows tomorrow in the evening" bug.
+  const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Phoenix' });
   const upcoming = bookings.filter(b => b.date >= today && b.status === 'confirmed').length;
   const completed = bookings.filter(b => b.status === 'completed').length;
   const total = bookings.length;
