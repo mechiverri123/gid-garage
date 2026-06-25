@@ -85,6 +85,17 @@ export default function Game2048({ onGameEnd }: { onGameEnd: (score: number) => 
   const [over, setOver] = useState(false);
   const [won, setWon] = useState(false);
   const touchStart = useRef<{ x: number; y: number } | null>(null);
+  const wrapperRef = useRef<HTMLDivElement>(null);
+
+  // JSX onTouchMove is passive in React, so preventDefault() there is
+  // ignored. A native listener is required to actually block page scroll.
+  useEffect(() => {
+    const el = wrapperRef.current;
+    if (!el) return;
+    const block = (e: TouchEvent) => e.preventDefault();
+    el.addEventListener('touchmove', block, { passive: false });
+    return () => el.removeEventListener('touchmove', block);
+  }, []);
   const endedRef = useRef(false);
 
   const doMove = useCallback((dir: 'up' | 'down' | 'left' | 'right') => {
@@ -146,6 +157,7 @@ export default function Game2048({ onGameEnd }: { onGameEnd: (score: number) => 
         <button onClick={reset} className="bg-red-600 active:bg-red-700 text-white font-bold px-4 py-2 rounded text-sm">New Game</button>
       </div>
       <div
+        ref={wrapperRef}
         className="relative bg-zinc-900 p-2 rounded-lg touch-none"
         style={{ width: 'min(92vw, 360px)' }}
         onTouchStart={handleTouchStart}

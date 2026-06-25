@@ -105,6 +105,19 @@ export default function Snake({ onGameEnd }: { onGameEnd: (score: number) => voi
   function handleTouchStart(e: React.TouchEvent) {
     touchStart.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
   }
+  const wrapperRef = useRef<HTMLDivElement>(null);
+
+  // React's JSX onTouchMove is attached as a passive listener, so
+  // preventDefault() inside it is silently ignored by the browser. A native
+  // listener with passive:false is required to actually stop page scroll.
+  useEffect(() => {
+    const el = wrapperRef.current;
+    if (!el) return;
+    const block = (e: TouchEvent) => e.preventDefault();
+    el.addEventListener('touchmove', block, { passive: false });
+    return () => el.removeEventListener('touchmove', block);
+  }, []);
+
   function handleTouchEnd(e: React.TouchEvent) {
     if (!touchStart.current) return;
     const dx = e.changedTouches[0].clientX - touchStart.current.x;
@@ -120,7 +133,7 @@ export default function Snake({ onGameEnd }: { onGameEnd: (score: number) => voi
   return (
     <div className="flex flex-col items-center gap-4">
       <div className="text-white font-bold text-lg">Score: {score}</div>
-      <div className="relative" onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd}>
+      <div ref={wrapperRef} className="relative touch-none" onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd}>
         <canvas
           ref={canvasRef}
           width={SIZE}

@@ -1,18 +1,20 @@
 import { lazy, Suspense, useState } from 'react';
-import { ArrowLeft, Gamepad2, Brain, Grid3x3, HelpCircle, Star, X, Coins } from 'lucide-react';
+import { ArrowLeft, Gamepad2, Brain, Grid3x3, HelpCircle, Star, X, Coins, Spade } from 'lucide-react';
 
 const Snake = lazy(() => import('./games/Snake'));
 const Game2048 = lazy(() => import('./games/Game2048'));
 const Memory = lazy(() => import('./games/Memory'));
 const Trivia = lazy(() => import('./games/Trivia'));
 const SlotMachine = lazy(() => import('./games/SlotMachine'));
+const Blackjack = lazy(() => import('./games/Blackjack'));
 
 const REVIEW_URL = 'https://g.page/r/CdERSypGqVdlEAE/review';
 
-type GameId = 'snake' | '2048' | 'memory' | 'trivia' | 'slots';
+type GameId = 'snake' | '2048' | 'memory' | 'trivia' | 'slots' | 'blackjack';
 
 const GAMES: { id: GameId; title: string; desc: string; icon: typeof Gamepad2 }[] = [
   { id: 'slots', title: 'Spin & Win', desc: 'Free spins — win real shop prizes', icon: Coins },
+  { id: 'blackjack', title: 'Blackjack', desc: 'Beat the dealer for real prizes', icon: Spade },
   { id: 'snake', title: 'Snake', desc: 'Classic arcade — swipe to move', icon: Gamepad2 },
   { id: '2048', title: '2048', desc: 'Swipe to merge tiles to 2048', icon: Grid3x3 },
   { id: 'memory', title: 'Memory Match', desc: 'Find all the matching pairs', icon: Brain },
@@ -33,6 +35,8 @@ function GameLoader({ id }: { id: GameId }) {
       return <Suspense fallback={fallback}><Trivia onGameEnd={noop} /></Suspense>;
     case 'slots':
       return <Suspense fallback={fallback}><SlotMachine /></Suspense>;
+    case 'blackjack':
+      return <Suspense fallback={fallback}><Blackjack /></Suspense>;
   }
 }
 
