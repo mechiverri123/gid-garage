@@ -3,6 +3,7 @@ import { Phone, Mail, Menu, X } from 'lucide-react';
 import BookingWidget, { AdminSchedule, verifyCancelToken, deleteLocalBooking, sendCancellationNotification } from './BookingWidget';
 import { EstimatePage, InvoicePage } from './JobOps';
 import GamesPage from './GamesPage';
+import GameRedeem from './GameRedeem';
 
 // Cancel flow now validates server-side (secret lives in the worker, not here).
 async function apiPost(action: string, args: Record<string, any> = {}) {
@@ -659,6 +660,7 @@ export default function App() {
   const isEstimate = window.location.pathname === '/estimate';
   const isInvoice = window.location.pathname === '/invoice';
   const isGames = window.location.pathname === '/games';
+  const isGameRedeem = window.location.pathname === '/game-redeem';
 
   function handleBookService(id: string) {
     setBookingServiceId(id);
@@ -674,6 +676,7 @@ export default function App() {
   if (isEstimate) return <EstimatePage />;
   if (isInvoice) return <InvoicePage />;
   if (isGames) return <GamesPage />;
+  if (isGameRedeem) return <GameRedeem />;
   if (cancelId && cancelToken) return <CancelPage bookingId={cancelId} token={cancelToken} />;
 
   return (
