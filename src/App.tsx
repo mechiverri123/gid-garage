@@ -2,6 +2,7 @@ import { useEffect, useState, useRef } from 'react';
 import { Phone, Mail, Menu, X } from 'lucide-react';
 import BookingWidget, { AdminSchedule, verifyCancelToken, deleteLocalBooking, sendCancellationNotification } from './BookingWidget';
 import { EstimatePage, InvoicePage } from './JobOps';
+import GamesPage from './GamesPage';
 
 // Cancel flow now validates server-side (secret lives in the worker, not here).
 async function apiPost(action: string, args: Record<string, any> = {}) {
@@ -75,6 +76,7 @@ function Nav({ openBooking }: { openBooking: () => void }) {
     { label: 'Services', href: '#services' },
     { label: 'Why Us', href: '#why' },
     { label: 'Service Area', href: '#area' },
+    { label: 'Waiting Room', href: '/games' },
     { label: 'Contact', href: '#footer' },
   ];
 
@@ -656,6 +658,7 @@ export default function App() {
   const isBookingsRoute = window.location.pathname === '/bookings';
   const isEstimate = window.location.pathname === '/estimate';
   const isInvoice = window.location.pathname === '/invoice';
+  const isGames = window.location.pathname === '/games';
 
   function handleBookService(id: string) {
     setBookingServiceId(id);
@@ -670,6 +673,7 @@ export default function App() {
   if (isAdmin) return <AdminSchedule />;
   if (isEstimate) return <EstimatePage />;
   if (isInvoice) return <InvoicePage />;
+  if (isGames) return <GamesPage />;
   if (cancelId && cancelToken) return <CancelPage bookingId={cancelId} token={cancelToken} />;
 
   return (
