@@ -117,14 +117,14 @@ export default function SlotMachine() {
           value={fname}
           onChange={(e) => setFname(e.target.value)}
           placeholder="First name"
-          className="w-full bg-zinc-900 border border-white/10 rounded px-4 py-3 text-white text-sm"
+          className="w-full bg-zinc-900 border border-white/10 rounded px-4 py-3 text-white text-base"
         />
         <input
           value={phone}
           onChange={(e) => setPhone(e.target.value)}
           placeholder="Phone number"
           type="tel"
-          className="w-full bg-zinc-900 border border-white/10 rounded px-4 py-3 text-white text-sm"
+          className="w-full bg-zinc-900 border border-white/10 rounded px-4 py-3 text-white text-base"
         />
         {error && <p className="text-red-400 text-xs">{error}</p>}
         <button

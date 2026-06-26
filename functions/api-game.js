@@ -31,39 +31,39 @@ const ALLOWED_BETS = [1, 5, 10, 20];
 // deliberately rare and gated to max bet only.
 const BET_PRIZE_TABLES = {
   1: [
-    { weight: 5500, type: 'lose' },
-    { weight: 3500, type: 'credit' },
-    { weight: 700, type: 'real', label: 'Free Multi-Point Inspection (tires & brakes)' },
-    { weight: 300, type: 'real', label: '5% off your next service' },
+    { weight: 7000, type: 'lose' },
+    { weight: 2700, type: 'credit' },
+    { weight: 200, type: 'real', label: 'Free Multi-Point Inspection' },
+    { weight: 100, type: 'real', label: '5% off your next service' },
   ],
   5: [
-    { weight: 5000, type: 'lose' },
-    { weight: 3000, type: 'credit' },
-    { weight: 600, type: 'real', label: 'Free Multi-Point Inspection (tires & brakes)' },
-    { weight: 700, type: 'real', label: '5% off your next service' },
-    { weight: 500, type: 'real', label: 'Free GID Garage decal + $5 off any service' },
-    { weight: 200, type: 'real', label: '$15 off Full Synthetic Oil Change' },
+    { weight: 6600, type: 'lose' },
+    { weight: 2900, type: 'credit' },
+    { weight: 150, type: 'real', label: 'Free Multi-Point Inspection' },
+    { weight: 150, type: 'real', label: '5% off your next service' },
+    { weight: 100, type: 'real', label: '$20 off any service' },
+    { weight: 100, type: 'real', label: '$15 off Full Synthetic Oil Change' },
   ],
   10: [
-    { weight: 4800, type: 'lose' },
-    { weight: 2700, type: 'credit' },
-    { weight: 700, type: 'real', label: 'Free Multi-Point Inspection (tires & brakes)' },
-    { weight: 800, type: 'real', label: '5% off your next service' },
-    { weight: 600, type: 'real', label: 'Free GID Garage decal + $5 off any service' },
-    { weight: 300, type: 'real', label: '$15 off Full Synthetic Oil Change' },
-    { weight: 100, type: 'real', label: '10% off Diagnostics ($89.99 service)' },
+    { weight: 6400, type: 'lose' },
+    { weight: 3000, type: 'credit' },
+    { weight: 150, type: 'real', label: 'Free Multi-Point Inspection' },
+    { weight: 150, type: 'real', label: '5% off your next service' },
+    { weight: 100, type: 'real', label: '$20 off any service' },
+    { weight: 100, type: 'real', label: '$15 off Full Synthetic Oil Change' },
+    { weight: 100, type: 'real', label: '15% off Diagnostics ($89.99 service)' },
   ],
   20: [
-    { weight: 4000, type: 'lose' },
-    { weight: 2000, type: 'credit' },
-    { weight: 1000, type: 'real', label: 'Free Multi-Point Inspection (tires & brakes)' },
-    { weight: 1200, type: 'real', label: '5% off your next service' },
-    { weight: 800, type: 'real', label: 'Free GID Garage decal + $5 off any service' },
-    { weight: 500, type: 'real', label: '$15 off Full Synthetic Oil Change' },
-    { weight: 300, type: 'real', label: '10% off Diagnostics ($89.99 service)' },
-    { weight: 150, type: 'real', label: '10% off Car Audio Install' },
-    { weight: 45, type: 'real', label: '15% off Full Brake Job (pads + rotors)' },
-    { weight: 5, type: 'real', label: 'Free Mobile Full Synthetic Oil Change' },
+    { weight: 6000, type: 'lose' },
+    { weight: 3400, type: 'credit' },
+    { weight: 150, type: 'real', label: 'Free Multi-Point Inspection' },
+    { weight: 150, type: 'real', label: '5% off your next service' },
+    { weight: 100, type: 'real', label: '$20 off any service' },
+    { weight: 100, type: 'real', label: '$15 off Full Synthetic Oil Change' },
+    { weight: 80, type: 'real', label: '15% off Diagnostics ($89.99 service)' },
+    { weight: 15, type: 'real', label: '20% off Car Audio Install' },
+    { weight: 4, type: 'real', label: '15% off Full Brake Job (pads + rotors)' },
+    { weight: 1, type: 'real', label: 'Free Mobile Full Synthetic Oil Change' },
   ],
 };
 
@@ -82,8 +82,9 @@ function phoenixToday() {
   return new Date().toLocaleDateString('en-CA', { timeZone: 'America/Phoenix' });
 }
 
-function rollPrize(bet) {
-  const table = BET_PRIZE_TABLES[bet] ?? BET_PRIZE_TABLES[1];
+function rollPrize(bet, excludeLabels) {
+  const table = (BET_PRIZE_TABLES[bet] ?? BET_PRIZE_TABLES[1])
+    .filter((p) => p.type !== 'real' || !excludeLabels?.has(p.label));
   const totalWeight = table.reduce((s, p) => s + p.weight, 0);
   let roll = Math.random() * totalWeight;
   for (const p of table) {
@@ -137,9 +138,9 @@ function dealerPlay(dealerHand, deck) {
 // Roll among a bet tier's non-"lose" entries (credit + real), used on a
 // regular win — most of the time this lands on a credit bonus, occasionally
 // a real prize, same proportions as the slot machine for that denomination.
-function rollWinPrize(bet) {
+function rollWinPrize(bet, excludeLabels) {
   const table = BET_PRIZE_TABLES[bet] ?? BET_PRIZE_TABLES[1];
-  const pool = table.filter((p) => p.type !== 'lose');
+  const pool = table.filter((p) => p.type !== 'lose' && (p.type !== 'real' || !excludeLabels?.has(p.label)));
   const totalWeight = pool.reduce((s, p) => s + p.weight, 0);
   let roll = Math.random() * totalWeight;
   for (const p of pool) {
@@ -151,10 +152,11 @@ function rollWinPrize(bet) {
 
 // Roll among a bet tier's real-only entries — used on a natural blackjack,
 // so every natural always lands on at least the lowest real prize unlocked
-// at that bet size.
-function rollNaturalPrize(bet) {
+// at that bet size (excluding anything already won today).
+function rollNaturalPrize(bet, excludeLabels) {
   const table = BET_PRIZE_TABLES[bet] ?? BET_PRIZE_TABLES[1];
-  const pool = table.filter((p) => p.type === 'real');
+  const pool = table.filter((p) => p.type === 'real' && !excludeLabels?.has(p.label));
+  if (!pool.length) return null; // every real prize at this tier already won today
   const totalWeight = pool.reduce((s, p) => s + p.weight, 0);
   let roll = Math.random() * totalWeight;
   for (const p of pool) {
@@ -221,6 +223,18 @@ export async function onRequestPost({ request, env }) {
     return { row, isNew: false };
   }
 
+  // Prizes this phone has already won today (Phoenix time) — excluded from
+  // future rolls today so nobody stacks 3x of the same prize in one day.
+  async function getWonLabelsToday(phone) {
+    const today = phoenixToday();
+    const res = await fetch(
+      `${base}/game_wins?phone=eq.${encodeURIComponent(phone)}&created_at=gte.${today}&select=prize_label`,
+      { headers }
+    );
+    const rows = res.ok ? await res.json() : [];
+    return new Set(rows.map((r) => r.prize_label));
+  }
+
   // Generates a unique 6-digit code, stores the win, returns the code.
   async function awardRealPrize(phone, fname, prizeLabel, bet) {
     let code = null;
@@ -281,17 +295,22 @@ export async function onRequestPost({ request, env }) {
     let prizeLabel = null;
     let code = null;
     let payout = 0; // amount credited back beyond the already-escrowed bet
+    const excludeLabels = await getWonLabelsToday(phone);
 
     if (outcome === 'blackjack') {
       payout = bet * 2.5; // 3:2 win + original bet back
-      const prize = rollNaturalPrize(bet);
-      if (prize.type === 'real') {
+      const prize = rollNaturalPrize(bet, excludeLabels);
+      if (prize && prize.type === 'real') {
         prizeLabel = prize.label;
         code = await awardRealPrize(phone, fname, prizeLabel, bet);
+      } else {
+        // Every real prize at this tier already won today — consolation credits instead.
+        creditWin = Math.round(bet * 1.5 * 100) / 100;
+        payout += creditWin;
       }
     } else if (outcome === 'win') {
       payout = bet * 2; // 1:1 win + original bet back
-      const prize = rollWinPrize(bet);
+      const prize = rollWinPrize(bet, excludeLabels);
       if (prize.type === 'credit') {
         const mult = 0.5 + Math.random() * 1.5; // smaller bonus on top of the real payout
         creditWin = Math.round(bet * mult * 100) / 100;
@@ -340,7 +359,7 @@ export async function onRequestPost({ request, env }) {
         if (row.spins_today >= MAX_SPINS_PER_DAY) return json({ error: 'Daily spin limit reached. Come back tomorrow!' }, 429);
         if (row.balance < bet) return json({ error: 'Not enough credits for that bet' }, 400);
 
-        const prize = rollPrize(bet);
+        const prize = rollPrize(bet, await getWonLabelsToday(phone));
         let creditWin = 0;
         let prizeLabel = null;
         let code = null;

@@ -19,6 +19,21 @@ function cardLabel(c: Card) {
   return `${c.r}${c.s}`;
 }
 
+function DealtCard({ children, index, faceDown }: { children: React.ReactNode; index: number; faceDown?: boolean }) {
+  return (
+    <div
+      className={`w-12 h-16 rounded flex items-center justify-center text-lg border border-white/10 ${faceDown ? 'bg-zinc-700' : 'bg-black'}`}
+      style={{
+        animation: 'gid-deal-card 0.35s cubic-bezier(0.2, 0.8, 0.2, 1) forwards',
+        animationDelay: `${index * 140}ms`,
+        animationFillMode: 'both',
+      }}
+    >
+      {children}
+    </div>
+  );
+}
+
 function handTotal(hand: Card[]) {
   let total = 0;
   let aces = 0;
@@ -155,14 +170,14 @@ export default function Blackjack() {
           value={fname}
           onChange={(e) => setFname(e.target.value)}
           placeholder="First name"
-          className="w-full bg-zinc-900 border border-white/10 rounded px-4 py-3 text-white text-sm"
+          className="w-full bg-zinc-900 border border-white/10 rounded px-4 py-3 text-white text-base"
         />
         <input
           value={phone}
           onChange={(e) => setPhone(e.target.value)}
           placeholder="Phone number"
           type="tel"
-          className="w-full bg-zinc-900 border border-white/10 rounded px-4 py-3 text-white text-sm"
+          className="w-full bg-zinc-900 border border-white/10 rounded px-4 py-3 text-white text-base"
         />
         {error && <p className="text-red-400 text-xs">{error}</p>}
         <button
@@ -179,6 +194,12 @@ export default function Blackjack() {
 
   return (
     <div className="flex flex-col items-center gap-4 w-full" style={{ maxWidth: 340 }}>
+      <style>{`
+        @keyframes gid-deal-card {
+          from { opacity: 0; transform: translateY(-18px) scale(0.8) rotate(-4deg); }
+          to { opacity: 1; transform: translateY(0) scale(1) rotate(0deg); }
+        }
+      `}</style>
       <div className="flex items-center gap-3 w-full">
         <div className="flex-1 bg-zinc-800 rounded px-3 py-2 text-center">
           <span className="text-white/50 text-[10px] uppercase block">Balance</span>
@@ -197,12 +218,12 @@ export default function Blackjack() {
           <div className="flex gap-2 justify-center">
             {inHand && dealerUpCard && !dealerHand && (
               <>
-                <div className="w-12 h-16 bg-black rounded flex items-center justify-center text-lg border border-white/10">{cardLabel(dealerUpCard)}</div>
-                <div className="w-12 h-16 bg-zinc-700 rounded flex items-center justify-center text-lg border border-white/10">🂠</div>
+                <DealtCard index={0}>{cardLabel(dealerUpCard)}</DealtCard>
+                <DealtCard index={1} faceDown>🂠</DealtCard>
               </>
             )}
             {dealerHand && dealerHand.map((c, i) => (
-              <div key={i} className="w-12 h-16 bg-black rounded flex items-center justify-center text-lg border border-white/10">{cardLabel(c)}</div>
+              <DealtCard key={i} index={i}>{cardLabel(c)}</DealtCard>
             ))}
           </div>
         </div>
@@ -212,7 +233,7 @@ export default function Blackjack() {
           <p className="text-white/50 text-xs uppercase mb-1 text-center">You{playerHand.length ? ` · ${handTotal(playerHand)}` : ''}</p>
           <div className="flex gap-2 justify-center flex-wrap">
             {playerHand.map((c, i) => (
-              <div key={i} className="w-12 h-16 bg-black rounded flex items-center justify-center text-lg border border-white/10">{cardLabel(c)}</div>
+              <DealtCard key={i} index={i}>{cardLabel(c)}</DealtCard>
             ))}
           </div>
         </div>
