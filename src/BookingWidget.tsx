@@ -171,8 +171,20 @@ const MONTHS = ['January','February','March','April','May','June','July','August
 const DAY_LABELS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 
 // Mon–Fri 1:30pm–8pm, Sat–Sun 5am–8pm — resolved at selection time
-const WEEKDAY_SLOTS = ['1:30 PM','2:30 PM','3:30 PM','4:30 PM','5:30 PM','6:30 PM','7:00 PM'];
-const WEEKEND_SLOTS = ['5:00 AM','6:00 AM','7:00 AM','8:00 AM','9:00 AM','10:00 AM','11:00 AM','12:00 PM','1:00 PM','2:00 PM','3:00 PM','4:00 PM','5:00 PM','6:00 PM','7:00 PM'];
+function genSlots(startH: number, startM: number, endH: number, endM: number): string[] {
+  const out: string[] = [];
+  let h = startH, m = startM;
+  while (h < endH || (h === endH && m <= endM)) {
+    const period = h >= 12 ? 'PM' : 'AM';
+    const h12 = h % 12 === 0 ? 12 : h % 12;
+    out.push(`${h12}:${m === 0 ? '00' : m} ${period}`);
+    m += 30;
+    if (m >= 60) { m = 0; h += 1; }
+  }
+  return out;
+}
+const WEEKDAY_SLOTS = genSlots(13, 30, 19, 0);
+const WEEKEND_SLOTS = genSlots(5, 0, 19, 0);
 
 function getSlotsForDate(dateStr: string): string[] {
   if (!dateStr) return WEEKDAY_SLOTS;
@@ -2246,7 +2258,7 @@ export function AdminSchedule() {
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [adminTab, setAdminTab] = useState<'jobs' | 'schedule' | 'history' | 'hub'>('jobs');
   const [filter, setFilter] = useState<'all' | 'confirmed' | 'completed' | 'cancelled'>('all');
-  const [view, setView] = useState<'list' | 'month' | 'week' | 'day'>('list');
+  const [view, setView] = useState<'list' | 'month' | 'week' | 'day'>('month');
   const [calDate, setCalDate] = useState(new Date());
   const [loading, setLoading] = useState(true);
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
@@ -2414,7 +2426,7 @@ export function AdminSchedule() {
   const weekDates = getWeekDates(calDate);
 
   // All possible slots across both weekday/weekend schedules for reference
-  const ALL_SLOTS = ['8:00 AM','9:00 AM','10:00 AM','11:00 AM','12:00 PM','1:00 PM','2:00 PM','3:00 PM','4:00 PM','5:00 PM','6:00 PM','7:00 PM'];
+  const ALL_SLOTS = WEEKEND_SLOTS;
 
   function navCalendar(dir: number) {
     if (view === 'month') {

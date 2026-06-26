@@ -1407,7 +1407,15 @@ function EstimatePanel({ job, onUpdate }: { job: Job; onUpdate: (j: Job) => void
   const [saving, setSaving] = useState(false);
   const [sending, setSending] = useState(false);
   const [sent, setSent] = useState(false);
+  const [linkCopied, setLinkCopied] = useState(false);
   const alreadySent = job.jobStatus === 'ESTIMATE_SENT' || job.jobStatus === 'SIGNED' || job.jobStatus === 'IN_PROGRESS' || job.jobStatus === 'COMPLETED' || job.jobStatus === 'INVOICED' || job.jobStatus === 'PAID';
+  const estimateUrl = `https://gidgarage.com/estimate?id=${job.id}`;
+  function copyEstimateLink() {
+    navigator.clipboard.writeText(estimateUrl).then(() => {
+      setLinkCopied(true);
+      setTimeout(() => setLinkCopied(false), 2000);
+    });
+  }
   const [showCalc, setShowCalc] = useState(!job.lineItems?.length);
   const [shopAvg, setShopAvg] = useState(0);
   const [showShopComparison, setShowShopComparison] = useState(true);
@@ -1504,6 +1512,18 @@ function EstimatePanel({ job, onUpdate }: { job: Job; onUpdate: (j: Job) => void
 
   return (
     <div className="space-y-5">
+      {/* Estimate link — always accessible regardless of how job was created */}
+      <div className="flex items-center gap-2 bg-gray-800/50 border border-gray-700 px-3 py-2">
+        <span className="text-gray-500 text-[10px] font-bold uppercase tracking-wider flex-shrink-0">Link</span>
+        <code className="text-gray-400 text-xs flex-1 truncate">{estimateUrl}</code>
+        <button
+          onClick={copyEstimateLink}
+          className="text-xs font-bold uppercase tracking-wider px-2.5 py-1 flex-shrink-0 transition-colors border border-gray-600 text-gray-300 hover:border-white hover:text-white"
+        >
+          {linkCopied ? '✓ Copied' : 'Copy'}
+        </button>
+      </div>
+
       {/* Calculator toggle */}
       <button
         onClick={() => setShowCalc(v => !v)}
@@ -1704,6 +1724,14 @@ function PaymentPanel({ job, onUpdate, onRequote }: { job: Job; onUpdate: (j: Jo
   const [editStripeId, setEditStripeId] = useState('');
   const [savingEdit, setSavingEdit] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
+  const [invoiceLinkCopied, setInvoiceLinkCopied] = useState(false);
+  const invoiceUrl = `https://gidgarage.com/invoice?id=${job.id}`;
+  function copyInvoiceLink() {
+    navigator.clipboard.writeText(invoiceUrl).then(() => {
+      setInvoiceLinkCopied(true);
+      setTimeout(() => setInvoiceLinkCopied(false), 2000);
+    });
+  }
 
   const hasCardOnFile = !!job.stripeCustomerId;
   const finalAmount = parseFloat(invoiceAmt) || job.estimateAmount || 0;
@@ -2121,6 +2149,18 @@ function PaymentPanel({ job, onUpdate, onRequote }: { job: Job; onUpdate: (j: Jo
 
   return (
     <div className="space-y-4">
+      {/* Invoice link — always accessible regardless of how job was created */}
+      <div className="flex items-center gap-2 bg-gray-800/50 border border-gray-700 px-3 py-2">
+        <span className="text-gray-500 text-[10px] font-bold uppercase tracking-wider flex-shrink-0">Link</span>
+        <code className="text-gray-400 text-xs flex-1 truncate">{invoiceUrl}</code>
+        <button
+          onClick={copyInvoiceLink}
+          className="text-xs font-bold uppercase tracking-wider px-2.5 py-1 flex-shrink-0 transition-colors border border-gray-600 text-gray-300 hover:border-white hover:text-white"
+        >
+          {invoiceLinkCopied ? '✓ Copied' : 'Copy'}
+        </button>
+      </div>
+
       <div>
         <label className="text-gray-500 text-xs font-bold uppercase tracking-widest block mb-1">Final Invoice Amount</label>
         <div className="flex items-center gap-2">
