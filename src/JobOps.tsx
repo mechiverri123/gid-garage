@@ -94,6 +94,14 @@ export interface JobPhoto {
   takenAt: string;
 }
 
+export interface JobVideo {
+  id: string;
+  key?: string;
+  url?: string;
+  note: string;
+  takenAt: string;
+}
+
 export interface Payment {
   id: string;
   amount: number;
@@ -143,6 +151,7 @@ export interface Job {
   payments: Payment[];
   // photos
   jobPhotos: JobPhoto[];
+  jobVideos: JobVideo[];
   adminPhotos: { key: string; url: string; name: string; note: string }[];
   // pre/post health scan documents (optional links shown on the invoice)
   preScan: ScanDoc | null;
@@ -233,6 +242,7 @@ function mapJob(b: any): Job {
     amountPaid: b.amount_paid ?? null,
     payments: b.payments ? (typeof b.payments === 'string' ? JSON.parse(b.payments) : b.payments) : [],
     jobPhotos: b.job_photos ? (typeof b.job_photos === 'string' ? JSON.parse(b.job_photos) : b.job_photos) : [],
+    jobVideos: b.job_videos ? (typeof b.job_videos === 'string' ? JSON.parse(b.job_videos) : b.job_videos) : [],
     adminPhotos: b.admin_photos ? (typeof b.admin_photos === 'string' ? JSON.parse(b.admin_photos) : b.admin_photos) : [],
     preScan: b.pre_scan ? (typeof b.pre_scan === 'string' ? JSON.parse(b.pre_scan) : b.pre_scan) : null,
     postScan: b.post_scan ? (typeof b.post_scan === 'string' ? JSON.parse(b.post_scan) : b.post_scan) : null,
@@ -1261,6 +1271,190 @@ function PhotoPanel({ job, onUpdate }: { job: Job; onUpdate: (j: Job) => void })
     </div>
   );
 }
+
+// ── VIDEO PANEL (customer-facing — shown on the invoice page) ───────────────
+const MAX_VIDEO_BYTES = 50 * 1024 * 1024; // 50MB safety cap — matches customer-upload-video.js
+
+function VideoPanel({ job, onUpdate }: { job: Job; onUpdate: (j: Job) => void }) {
+  const [videos, setVideos] = useState<JobVideo[]>(job.jobVideos || []);
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [editingNote, setEditingNote] = useState<string | null>(null);
+  const [savingNotes, setSavingNotes] = useState(false);
+  const [notesSaved, setNotesSaved] = useState(false);
+  const prevJobId = useRef(job.id);
+
+  // Same slim/full record sync fix used by PhotoPanel — job list is slim
+  // (no videos, for load speed), so this panel can mount before the full
+  // record arrives a beat later.
+  useEffect(() => {
+    if (job.id !== prevJobId.current) {
+      prevJobId.current = job.id;
+      setVideos(job.jobVideos || []);
+    } else if (videos.length === 0 && (job.jobVideos || []).length > 0) {
+      setVideos(job.jobVideos || []);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [job.id, job.jobVideos]);
+
+  async function persist(updated: JobVideo[]) {
+    await patchJob(job.id, { job_videos: JSON.stringify(updated) });
+    onUpdate({ ...job, jobVideos: updated });
+  }
+
+  async function handleCapture(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(e.target.files || []);
+    e.target.value = '';
+    if (!files.length) return;
+
+    setUploading(true);
+    setUploadError(null);
+    let current = videos;
+
+    for (const file of files) {
+      if (file.size > MAX_VIDEO_BYTES) {
+        setUploadError(`${file.name} is too large (50MB max)`);
+        continue;
+      }
+      try {
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('bookingId', job.id);
+        const res = await fetch('/customer-upload-video', { method: 'POST', body: formData });
+        if (!res.ok) throw new Error(await res.text());
+        const { key, url } = await res.json() as any;
+        const newVideo: JobVideo = {
+          id: Math.random().toString(36).slice(2),
+          key,
+          url,
+          note: '',
+          takenAt: new Date().toISOString(),
+        };
+        current = [...current, newVideo];
+        setVideos(current);
+        await persist(current); // save after each video so progress is never lost mid-batch
+      } catch (err: any) {
+        setUploadError(err.message ?? 'Upload failed — try again');
+      }
+    }
+
+    setUploading(false);
+  }
+
+  function updateNote(id: string, note: string) {
+    setVideos(prev => prev.map(v => v.id === id ? { ...v, note } : v));
+    setNotesSaved(false);
+  }
+
+  async function saveNotes() {
+    setSavingNotes(true);
+    await persist(videos);
+    setSavingNotes(false);
+    setNotesSaved(true);
+  }
+
+  async function deleteVideo(id: string) {
+    const updated = videos.filter(v => v.id !== id);
+    setVideos(updated);
+    await persist(updated);
+  }
+
+  const hasNoteChanges = JSON.stringify(videos) !== JSON.stringify(job.jobVideos || []);
+
+  return (
+    <div className="space-y-4">
+      {/* Capture buttons — two separate so library is always accessible */}
+      <div className="grid grid-cols-2 gap-2">
+        <label className={`flex flex-col items-center justify-center gap-1.5 bg-gray-800 border-2 border-dashed border-gray-600 hover:border-red-600 text-gray-400 hover:text-white py-4 transition-colors ${uploading ? 'opacity-50 pointer-events-none' : 'cursor-pointer'}`}>
+          <span className="text-xl">🎥</span>
+          <span className="text-xs font-bold uppercase tracking-widest">Camera</span>
+          <input
+            type="file"
+            accept="video/*"
+            capture="environment"
+            multiple
+            disabled={uploading}
+            className="hidden"
+            onChange={handleCapture}
+          />
+        </label>
+        <label className={`flex flex-col items-center justify-center gap-1.5 bg-gray-800 border-2 border-dashed border-gray-600 hover:border-red-600 text-gray-400 hover:text-white py-4 transition-colors ${uploading ? 'opacity-50 pointer-events-none' : 'cursor-pointer'}`}>
+          <span className="text-xl">📁</span>
+          <span className="text-xs font-bold uppercase tracking-widest">Library</span>
+          <input
+            type="file"
+            accept="video/*"
+            multiple
+            disabled={uploading}
+            className="hidden"
+            onChange={handleCapture}
+          />
+        </label>
+      </div>
+      <p className="text-gray-700 text-xs text-center">
+        {uploading ? '⏳ Uploading…' : 'Up to 50MB per video — add notes after uploading'}
+      </p>
+      {uploadError && <p className="text-red-400 text-xs text-center">{uploadError}</p>}
+
+      {/* Video list */}
+      {videos.length === 0 && (
+        <div className="text-center py-8 text-gray-700 text-sm">No videos yet</div>
+      )}
+
+      <div className="space-y-3">
+        {videos.map((video) => (
+          <div key={video.id} className="bg-gray-900 border border-gray-800">
+            <div className="relative">
+              <video src={video.url} controls className="w-full max-h-48 bg-black" />
+              <button
+                onClick={() => deleteVideo(video.id)}
+                className="absolute top-2 right-2 w-7 h-7 bg-black/70 text-red-500 hover:bg-red-900/80 flex items-center justify-center text-sm transition-colors"
+              >×</button>
+              <span className="absolute bottom-2 left-2 text-[10px] text-gray-400 bg-black/60 px-1.5 py-0.5">
+                {new Date(video.takenAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+              </span>
+            </div>
+            <div className="p-3">
+              {editingNote === video.id ? (
+                <div className="flex gap-2">
+                  <input
+                    autoFocus
+                    type="text"
+                    value={video.note}
+                    onChange={e => updateNote(video.id, e.target.value)}
+                    onBlur={() => setEditingNote(null)}
+                    onKeyDown={e => e.key === 'Enter' && setEditingNote(null)}
+                    placeholder="Add a note…"
+                    className="flex-1 bg-gray-800 border border-gray-600 text-white px-2 py-1.5 text-xs focus:border-red-600 outline-none"
+                  />
+                </div>
+              ) : (
+                <button
+                  onClick={() => setEditingNote(video.id)}
+                  className="w-full text-left text-xs text-gray-500 hover:text-gray-300 transition-colors"
+                >
+                  {video.note || <span className="italic">+ Add note…</span>}
+                </button>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {videos.length > 0 && (
+        <button
+          onClick={saveNotes}
+          disabled={savingNotes || !hasNoteChanges}
+          className="w-full bg-gray-700 hover:bg-gray-600 disabled:opacity-40 text-white text-xs font-bold uppercase tracking-widest py-3 transition-colors"
+        >
+          {savingNotes ? 'Saving…' : notesSaved ? '✓ Notes Saved' : hasNoteChanges ? 'Save Notes' : '✓ Saved'}
+        </button>
+      )}
+    </div>
+  );
+}
+
+
 
 // ── INSPECTION PANEL (admin — tire pressure, tread, DTC codes) ───────────────
 
@@ -2914,6 +3108,12 @@ function JobDetailPanel({ job: initialJob, onClose, onJobUpdate }: {
                   />
                 </div>
               </div>
+
+              {/* Videos — shown to customer on the invoice page */}
+              <div className="border-t border-gray-800 pt-4">
+                <p className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-3">🎥 Videos</p>
+                <VideoPanel job={job} onUpdate={handleUpdate} />
+              </div>
             </div>
           )}
 
@@ -3625,6 +3825,7 @@ export function JobsTab() {
         return {
           ...slimMatch,
           jobPhotos: prev.jobPhotos,
+          jobVideos: prev.jobVideos,
           adminPhotos: prev.adminPhotos,
           lineItems: prev.lineItems,
           inspectionData: prev.inspectionData,
@@ -4259,6 +4460,21 @@ export function InvoicePage() {
                 <div key={photo.id}>
                   <img src={photo.url || photo.dataUrl} alt="Job photo" className="w-full max-h-64 object-cover" />
                   {photo.note && <p className="text-gray-400 text-xs mt-1">{photo.note}</p>}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Job videos if present — hidden when printing */}
+        {job.jobVideos?.length > 0 && (
+          <div className="mt-4 border border-white/10 bg-white/5 px-6 py-4 print-hide-photos">
+            <p className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-3">Job Videos</p>
+            <div className="space-y-3">
+              {job.jobVideos.map(video => (
+                <div key={video.id}>
+                  <video src={video.url} controls className="w-full max-h-64 bg-black" />
+                  {video.note && <p className="text-gray-400 text-xs mt-1">{video.note}</p>}
                 </div>
               ))}
             </div>
