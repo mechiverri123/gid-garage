@@ -144,6 +144,10 @@ export interface Job {
   paidAt: string | null;
   adjustmentReason: string;
   adjustmentAmount: number | null;
+  // how many times the invoice email has been sent, and when last — surfaced
+  // on the Payment tab so it's obvious whether a customer was ever notified
+  invoiceSentCount: number;
+  invoiceLastSentAt: string | null;
   // partial / manual payments — running total + history, separate from the
   // full Stripe-charge flow so cash/check/Zelle/family-discount payments can
   // be recorded against an invoice without marking the whole job PAID.
@@ -239,6 +243,8 @@ function mapJob(b: any): Job {
     paidAt: b.paid_at || null,
     adjustmentReason: b.adjustment_reason || '',
     adjustmentAmount: b.adjustment_amount ?? null,
+    invoiceSentCount: b.invoice_sent_count ?? 0,
+    invoiceLastSentAt: b.invoice_last_sent_at ?? null,
     amountPaid: b.amount_paid ?? null,
     payments: b.payments ? (typeof b.payments === 'string' ? JSON.parse(b.payments) : b.payments) : [],
     jobPhotos: b.job_photos ? (typeof b.job_photos === 'string' ? JSON.parse(b.job_photos) : b.job_photos) : [],
@@ -297,10 +303,21 @@ async function sendEstimateEmail(job: Job, shopAvg: number = 0) {
 
 
 // ── BREVO: SEND INVOICE EMAIL ─────────────────────────────────────────────────
-
-async function sendInvoiceEmail(job: Job) {
-  try { await adminPost('send-invoice', { job }); }
-  catch (e) { console.error('Invoice email failed:', e); }
+// Single chokepoint for every "send invoice" call site (Mark Invoiced, Mark
+// Paid, Charge Card on File, Record Payment-fully-paid) — also bumps and
+// persists invoice_sent_count / invoice_last_sent_at so the Payment tab can
+// show whether (and how many times) the customer was actually notified.
+async function sendInvoiceEmail(job: Job): Promise<{ count: number; lastSentAt: string } | null> {
+  const count = (job.invoiceSentCount || 0) + 1;
+  const lastSentAt = new Date().toISOString();
+  try {
+    await adminPost('send-invoice', { job });
+    await patchJob(job.id, { invoice_sent_count: count, invoice_last_sent_at: lastSentAt });
+    return { count, lastSentAt };
+  } catch (e) {
+    console.error('Invoice email failed:', e);
+    return null;
+  }
 }
 
 // ── BREVO: SEND RECEIPT EMAIL ─────────────────────────────────────────────────
@@ -1996,7 +2013,10 @@ function PaymentPanel({ job, onUpdate, onRequote }: { job: Job; onUpdate: (j: Jo
       };
 
       if (isNowFullyPaid) {
-        if (job.jobStatus !== 'INVOICED' && job.jobStatus !== 'COMPLETED') await sendInvoiceEmail(updated);
+        if (job.jobStatus !== 'INVOICED' && job.jobStatus !== 'COMPLETED') {
+          const inv = await sendInvoiceEmail(updated);
+          if (inv) { updated.invoiceSentCount = inv.count; updated.invoiceLastSentAt = inv.lastSentAt; }
+        }
         await sendReceiptEmail(updated);
       }
 
@@ -2244,7 +2264,8 @@ function PaymentPanel({ job, onUpdate, onRequote }: { job: Job; onUpdate: (j: Jo
       }});
       await writePaymentEvent(job.id, 'paid', confirmedAmount);
       await sendReceiptEmail(updated, adjustmentReason || undefined, hasAdjustment ? adjustmentAmt : undefined);
-      await sendInvoiceEmail(updated); // formal invoice document
+      const inv = await sendInvoiceEmail(updated); // formal invoice document
+      if (inv) { updated.invoiceSentCount = inv.count; updated.invoiceLastSentAt = inv.lastSentAt; }
       onUpdate(updated);
     } catch (e: any) {
       await writePaymentEvent(job.id, 'declined', chargedAmount, e.message ?? 'Charge failed');
@@ -2263,9 +2284,10 @@ function PaymentPanel({ job, onUpdate, onRequote }: { job: Job; onUpdate: (j: Jo
     setSaving(true);
     const paidAt = new Date().toISOString();
     const reconciledAmountPaid = totalForAmount(finalAmount); // manual entry covers whatever balance remained
+    let invoiceBump: { count: number; lastSentAt: string } | null = null;
     if (job.jobStatus !== 'INVOICED') {
       await patchJob(job.id, { job_status: 'INVOICED', invoice_amount: finalAmount, tax_amount: taxForAmount(finalAmount) });
-      await sendInvoiceEmail({ ...job, jobStatus: 'INVOICED' as JobStatus, invoiceAmount: finalAmount, taxAmount: taxForAmount(finalAmount) });
+      invoiceBump = await sendInvoiceEmail({ ...job, jobStatus: 'INVOICED' as JobStatus, invoiceAmount: finalAmount, taxAmount: taxForAmount(finalAmount) });
     }
     // Same reasoning as chargeCardOnFile — if there were prior partial
     // payments, log this manual entry's remaining-balance amount so
@@ -2290,7 +2312,10 @@ function PaymentPanel({ job, onUpdate, onRequote }: { job: Job; onUpdate: (j: Jo
       amount_paid: reconciledAmountPaid,
       payments: JSON.stringify(updatedPayments),
     });
-    const paidJob = { ...job, invoiceAmount: finalAmount, taxAmount: taxForAmount(finalAmount), stripeTransactionId: stripeId, paidAt, jobStatus: 'PAID' as JobStatus, status: 'completed', amountPaid: reconciledAmountPaid, payments: updatedPayments };
+    const paidJob = {
+      ...job, invoiceAmount: finalAmount, taxAmount: taxForAmount(finalAmount), stripeTransactionId: stripeId, paidAt, jobStatus: 'PAID' as JobStatus, status: 'completed', amountPaid: reconciledAmountPaid, payments: updatedPayments,
+      ...(invoiceBump ? { invoiceSentCount: invoiceBump.count, invoiceLastSentAt: invoiceBump.lastSentAt } : {}),
+    };
     onUpdate(paidJob);
     // Send receipt email so customer gets confirmation even when paid manually
     await sendReceiptEmail(paidJob);
@@ -2300,10 +2325,21 @@ function PaymentPanel({ job, onUpdate, onRequote }: { job: Job; onUpdate: (j: Jo
   async function markInvoiced() {
     setSaving(true);
     await patchJob(job.id, { job_status: 'INVOICED', invoice_amount: finalAmount, tax_amount: taxForAmount(finalAmount) });
-    const updated = { ...job, jobStatus: 'INVOICED' as JobStatus, invoiceAmount: finalAmount, taxAmount: taxForAmount(finalAmount) };
-    await sendInvoiceEmail(updated);
+    let updated = { ...job, jobStatus: 'INVOICED' as JobStatus, invoiceAmount: finalAmount, taxAmount: taxForAmount(finalAmount) };
+    const inv = await sendInvoiceEmail(updated);
+    if (inv) updated = { ...updated, invoiceSentCount: inv.count, invoiceLastSentAt: inv.lastSentAt };
     onUpdate(updated);
     setSaving(false);
+  }
+
+  const [resending, setResending] = useState(false);
+  // Manual resend — covers the "marked paid before invoice ever went out" gap,
+  // and any other case where the customer needs the invoice re-emailed.
+  async function resendInvoice() {
+    setResending(true);
+    const inv = await sendInvoiceEmail(job);
+    if (inv) onUpdate({ ...job, invoiceSentCount: inv.count, invoiceLastSentAt: inv.lastSentAt });
+    setResending(false);
   }
 
   if (job.jobStatus === 'PAID') {
@@ -2346,6 +2382,22 @@ function PaymentPanel({ job, onUpdate, onRequote }: { job: Job; onUpdate: (j: Jo
             {invoiceLinkCopied ? '✓ Copied' : 'Copy'}
           </button>
         </div>
+        <div className="flex items-center justify-between gap-2">
+          <p className={`text-xs ${job.invoiceSentCount ? 'text-emerald-700' : 'text-yellow-600'}`}>
+            {job.invoiceSentCount
+              ? `📧 Invoice emailed ${job.invoiceSentCount}× — last sent ${job.invoiceLastSentAt ? new Date(job.invoiceLastSentAt).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : ''}`
+              : '⚠️ Invoice email never sent to this customer'}
+          </p>
+          {!!job.email && (
+            <button
+              onClick={resendInvoice}
+              disabled={resending}
+              className="text-[10px] font-bold uppercase tracking-wider text-emerald-600 hover:text-emerald-300 underline flex-shrink-0 disabled:opacity-40"
+            >
+              {resending ? 'Sending…' : job.invoiceSentCount ? 'Resend' : 'Send Now'}
+            </button>
+          )}
+        </div>
       </div>
     );
   }
@@ -2362,6 +2414,22 @@ function PaymentPanel({ job, onUpdate, onRequote }: { job: Job; onUpdate: (j: Jo
         >
           {invoiceLinkCopied ? '✓ Copied' : 'Copy'}
         </button>
+      </div>
+      <div className="flex items-center justify-between gap-2 -mt-1">
+        <p className={`text-xs ${job.invoiceSentCount ? 'text-gray-600' : 'text-yellow-600'}`}>
+          {job.invoiceSentCount
+            ? `📧 Invoice emailed ${job.invoiceSentCount}× — last sent ${job.invoiceLastSentAt ? new Date(job.invoiceLastSentAt).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : ''}`
+            : '⚠️ Invoice email never sent to this customer'}
+        </p>
+        {!!job.email && (
+          <button
+            onClick={resendInvoice}
+            disabled={resending}
+            className="text-[10px] font-bold uppercase tracking-wider text-gray-500 hover:text-white underline flex-shrink-0 disabled:opacity-40"
+          >
+            {resending ? 'Sending…' : job.invoiceSentCount ? 'Resend' : 'Send Now'}
+          </button>
+        )}
       </div>
 
       <div>
