@@ -2307,7 +2307,6 @@ function PaymentPanel({ job, onUpdate, onRequote }: { job: Job; onUpdate: (j: Jo
   }
 
   if (job.jobStatus === 'PAID') {
-    const invoiceUrl = `${window.location.origin}/invoice?id=${job.id}`;
     return (
       <div className="bg-emerald-900/20 border border-emerald-800 p-5 space-y-2">
         <p className="text-emerald-400 text-sm font-bold uppercase tracking-widest">✓ Paid</p>
@@ -2337,6 +2336,16 @@ function PaymentPanel({ job, onUpdate, onRequote }: { job: Job; onUpdate: (j: Jo
         >
           🧾 View / Print Invoice
         </a>
+        <div className="flex items-center gap-2 bg-black/20 border border-emerald-800/50 px-3 py-2 mt-2">
+          <span className="text-emerald-700 text-[10px] font-bold uppercase tracking-wider flex-shrink-0">Link</span>
+          <code className="text-emerald-300/70 text-xs flex-1 truncate">{invoiceUrl}</code>
+          <button
+            onClick={copyInvoiceLink}
+            className="text-xs font-bold uppercase tracking-wider px-2.5 py-1 flex-shrink-0 transition-colors border border-emerald-700 text-emerald-400 hover:bg-emerald-900/40"
+          >
+            {invoiceLinkCopied ? '✓ Copied' : 'Copy'}
+          </button>
+        </div>
       </div>
     );
   }
