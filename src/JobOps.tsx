@@ -1273,7 +1273,7 @@ function PhotoPanel({ job, onUpdate }: { job: Job; onUpdate: (j: Job) => void })
 }
 
 // ── VIDEO PANEL (customer-facing — shown on the invoice page) ───────────────
-const MAX_VIDEO_BYTES = 50 * 1024 * 1024; // 50MB safety cap — matches customer-upload-video.js
+const MAX_VIDEO_BYTES = 80 * 1024 * 1024; // 80MB safety cap — matches customer-upload-video.js
 
 function VideoPanel({ job, onUpdate }: { job: Job; onUpdate: (j: Job) => void }) {
   const [videos, setVideos] = useState<JobVideo[]>(job.jobVideos || []);
@@ -1313,7 +1313,7 @@ function VideoPanel({ job, onUpdate }: { job: Job; onUpdate: (j: Job) => void })
 
     for (const file of files) {
       if (file.size > MAX_VIDEO_BYTES) {
-        setUploadError(`${file.name} is too large (50MB max)`);
+        setUploadError(`${file.name} is too large (80MB max)`);
         continue;
       }
       try {
@@ -1392,7 +1392,7 @@ function VideoPanel({ job, onUpdate }: { job: Job; onUpdate: (j: Job) => void })
         </label>
       </div>
       <p className="text-gray-700 text-xs text-center">
-        {uploading ? '⏳ Uploading…' : 'Up to 50MB per video — add notes after uploading'}
+        {uploading ? '⏳ Uploading…' : 'Up to 80MB per video — add notes after uploading'}
       </p>
       {uploadError && <p className="text-red-400 text-xs text-center">{uploadError}</p>}
 
