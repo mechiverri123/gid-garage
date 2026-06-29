@@ -383,16 +383,27 @@ function ServiceMap() {
 }
 
 function PhotoGallery() {
-  const photos = [
+  // Static fallback shown until /gallery-list resolves (or if it ever fails).
+  const fallbackPhotos = [
     { src: 'https://images.unsplash.com/photo-1486262715619-67b85e0b08d3?w=800&q=80&auto=format&fit=crop', alt: 'Mechanic at work' },
-    { src: img('photo-audio.jpg'), alt: 'Car audio installation' },
-    { src: img('photo-brakes.jpg'), alt: 'Brake service' },
-    { src: img('magnaride.jpg'), alt: 'Magnaride suspension work' },
-    { src: img('rav4shocks.jpg'), alt: 'RAV4 shock replacement' },
-    { src: img('rotor_before.jpg'), alt: 'Rotor before service' },
-    { src: img('rotor_after.jpg'), alt: 'Rotor after service' },
-    { src: img('afba.jpg'), alt: 'GID Garage work' },
   ];
+
+  const [photos, setPhotos] = useState(fallbackPhotos);
+
+  useEffect(() => {
+    fetch('/gallery-list')
+      .then(res => (res.ok ? res.json() : null))
+      .then(data => {
+        if (data?.keys?.length) {
+          setPhotos([
+            fallbackPhotos[0],
+            ...data.keys.map((key: string) => ({ src: img(key), alt: 'GID Garage work' })),
+          ]);
+        }
+      })
+      .catch(() => {}); // keep fallbackPhotos on failure
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const [current, setCurrent] = useState(0);
   const total = photos.length;
