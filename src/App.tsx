@@ -430,12 +430,11 @@ function PhotoGallery() {
 
   return (
     <section className="py-0 bg-light relative overflow-hidden" onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
-      {/* Desktop: 3 across */}
-      <div className="hidden sm:grid sm:grid-cols-3 relative">
+      {/* Desktop: 3 across, justified row — each photo keeps its natural aspect ratio */}
+      <div className="hidden sm:flex relative bg-[#0f0f0f] overflow-hidden" style={{ height: '420px' }}>
         {desktopPhotos.map(({ src, alt }, i) => (
-          <div key={`${src}-${i}`} className="relative overflow-hidden bg-[#0f0f0f]" style={{ aspectRatio: '1/1' }}>
-            <img src={src} alt={alt} className="w-full h-full object-contain hover:scale-105 transition-transform duration-500" />
-          </div>
+          <img key={`${src}-${i}`} src={src} alt={alt}
+            className="h-full w-auto grow shrink basis-auto object-contain hover:scale-105 transition-transform duration-500" />
         ))}
         {/* Arrows over desktop */}
         <button onClick={prev} aria-label="Previous photos"
@@ -449,11 +448,9 @@ function PhotoGallery() {
       </div>
 
       {/* Mobile: single photo carousel */}
-      <div className="sm:hidden relative">
-        <div className="relative overflow-hidden bg-[#0f0f0f]" style={{ aspectRatio: '1/1' }}>
-          <img src={photos[current].src} alt={photos[current].alt}
-            className="w-full h-full object-contain transition-opacity duration-300" />
-        </div>
+      <div className="sm:hidden relative bg-[#0f0f0f] flex items-center justify-center overflow-hidden" style={{ height: '360px' }}>
+        <img src={photos[current].src} alt={photos[current].alt}
+          className="h-full w-auto max-w-full object-contain transition-opacity duration-300" />
         <button onClick={prev} aria-label="Previous"
           className="absolute left-2 top-1/2 -translate-y-1/2 z-10 w-9 h-9 bg-black/60 hover:bg-red-600 text-white flex items-center justify-center transition-colors text-xl">‹</button>
         <button onClick={next} aria-label="Next"
