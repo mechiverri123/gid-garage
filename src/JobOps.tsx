@@ -5485,7 +5485,7 @@ function InvoiceExport() {
         <p style="font-size:10px;color:#444;margin-top:12px;">Remit TPT at AZTaxes.gov by the 20th of the following month. EIN: 42-2687870 · TPT License: 21663074</p>
       </div>`;
 
-    const fullHtml = `<!DOCTYPE html><html><head><title>GID Garage Invoices — ${periodLabel}</title><style>*{box-sizing:border-box;}body{margin:0;background:#0f0f0f;}@media print{@page{margin:0;size:letter;}body{-webkit-print-color-adjust:exact;print-color-adjust:exact;}}</style></head><body>${invoiceHtml}${summaryHtml}</body></html>`;
+    const fullHtml = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>GID Garage Invoices — ${periodLabel}</title><style>*{box-sizing:border-box;}body{margin:0;background:#0f0f0f;}@media print{@page{margin:0;size:letter;}body{-webkit-print-color-adjust:exact;print-color-adjust:exact;}}</style></head><body>${invoiceHtml}${summaryHtml}</body></html>`;
 
     // Show it in-page first — this always works, regardless of what the
     // device/browser does or doesn't support for printing/downloading/sharing.
@@ -5499,7 +5499,7 @@ function InvoiceExport() {
     setSharing(true);
     setShareError(null);
     try {
-      await shareOrDownloadFile(previewFilename, 'text/html', previewHtml);
+      await shareOrDownloadFile(previewFilename, 'text/html;charset=utf-8', previewHtml);
     } catch (e: any) {
       setShareError(e?.message ?? 'Share failed — you can still scroll and screenshot the preview below.');
     }
@@ -5609,7 +5609,7 @@ function JobsCSVExport() {
     setSharing(true);
     setShareError(null);
     try {
-      await shareOrDownloadFile(csvFilename, 'text/csv', csvContent);
+      await shareOrDownloadFile(csvFilename, 'text/csv;charset=utf-8', csvContent);
     } catch (e: any) {
       setShareError(e?.message ?? 'Share failed — tap into the text below, Select All, and copy instead.');
     }
@@ -5685,7 +5685,7 @@ function JobsCSVExport() {
         '', '',
       ];
 
-      const csv = [headers, ...rows, totalsRow]
+      const csv = '\uFEFF' + [headers, ...rows, totalsRow]
         .map(r => r.map(csvCell).join(','))
         .join('\r\n');
 
