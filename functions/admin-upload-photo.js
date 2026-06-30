@@ -40,6 +40,11 @@ export async function onRequestPost(context) {
     return new Response(JSON.stringify({ error: 'No file provided' }), { status: 400, headers: { 'Content-Type': 'application/json' } });
   }
 
+  const MAX_BYTES = 20 * 1024 * 1024; // 20MB — covers PDFs/HEIC receipts, not just photos
+  if (file.size > MAX_BYTES) {
+    return new Response(JSON.stringify({ error: 'File too large (20MB max)' }), { status: 413, headers: { 'Content-Type': 'application/json' } });
+  }
+
   // Sanitize filename
   const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
   const key = `bookings/${bookingId}/${Date.now()}-${safeName}`;

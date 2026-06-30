@@ -127,16 +127,14 @@ export async function onRequestPost({ request, env }) {
     // If there was a prior partial payment, log this charge as its own entry
     // so revenue-by-month tracking (which sums individual payment dates) sees
     // it, instead of just collapsing into a single opaque total.
-    const updatedPayments = amountPaidSoFar > 0
-      ? [...existingPayments, {
+    const updatedPayments = [...existingPayments, {
           id: Math.random().toString(36).slice(2),
           amount: chargedAmount,
           method: 'Card (Self-Pay)',
-          note: 'Remaining balance',
+          note: amountPaidSoFar > 0 ? 'Remaining balance' : '',
           at: new Date().toISOString(),
           stripeId: charge.id,
-        }]
-      : existingPayments;
+        }];
 
     const paidAt = new Date().toISOString();
     await fetch(`${base}/bookings?id=eq.${encodeURIComponent(bookingId)}`, {

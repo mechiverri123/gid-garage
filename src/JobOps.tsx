@@ -111,6 +111,14 @@ export interface Payment {
   stripeId?: string;
 }
 
+export interface PartsReceipt {
+  key: string;
+  url: string;
+  name: string;
+  type: string;
+  uploadedAt: string;
+}
+
 export interface Job {
   id: string;
   service: string;
@@ -153,6 +161,9 @@ export interface Job {
   // be recorded against an invoice without marking the whole job PAID.
   amountPaid: number | null;
   payments: Payment[];
+  // parts cost + receipts — admin-only, used for the net profit calculator
+  partsCost: number | null;
+  partsReceipts: PartsReceipt[];
   // photos
   jobPhotos: JobPhoto[];
   jobVideos: JobVideo[];
@@ -247,6 +258,8 @@ function mapJob(b: any): Job {
     invoiceLastSentAt: b.invoice_last_sent_at ?? null,
     amountPaid: b.amount_paid ?? null,
     payments: b.payments ? (typeof b.payments === 'string' ? JSON.parse(b.payments) : b.payments) : [],
+    partsCost: b.parts_cost ?? null,
+    partsReceipts: b.parts_receipts ? (typeof b.parts_receipts === 'string' ? JSON.parse(b.parts_receipts) : b.parts_receipts) : [],
     jobPhotos: b.job_photos ? (typeof b.job_photos === 'string' ? JSON.parse(b.job_photos) : b.job_photos) : [],
     jobVideos: b.job_videos ? (typeof b.job_videos === 'string' ? JSON.parse(b.job_videos) : b.job_videos) : [],
     adminPhotos: b.admin_photos ? (typeof b.admin_photos === 'string' ? JSON.parse(b.admin_photos) : b.admin_photos) : [],
@@ -1035,6 +1048,178 @@ function AdminPhotoPanel({ entityId, onSave, initialPhotos, onPhotosChange }: {
           {savingNotes ? 'Saving…' : notesSaved ? '✓ Notes Saved' : hasNoteChanges ? 'Save Notes' : '✓ Saved'}
         </button>
       )}
+    </div>
+  );
+}
+
+function PartsCostPanel({ job, onUpdate }: { job: Job; onUpdate: (j: Job) => void }) {
+  const [costInput, setCostInput] = useState(job.partsCost != null ? String(job.partsCost) : '');
+  const [savingCost, setSavingCost] = useState(false);
+  const [costSaved, setCostSaved] = useState(false);
+  const [receipts, setReceipts] = useState(job.partsReceipts || []);
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const prevJobId = useRef(job.id);
+
+  // Re-sync local state when switching to a different job's panel.
+  useEffect(() => {
+    if (job.id !== prevJobId.current) {
+      prevJobId.current = job.id;
+      setCostInput(job.partsCost != null ? String(job.partsCost) : '');
+      setReceipts(job.partsReceipts || []);
+      setCostSaved(false);
+    } else if (receipts.length === 0 && (job.partsReceipts || []).length > 0) {
+      setReceipts(job.partsReceipts || []);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [job.id, job.partsReceipts]);
+
+  async function saveCost() {
+    const amt = costInput.trim() === '' ? null : Math.round(parseFloat(costInput) * 100) / 100;
+    if (costInput.trim() !== '' && (amt === null || isNaN(amt) || amt < 0)) return;
+    setSavingCost(true);
+    try {
+      await patchJob(job.id, { parts_cost: amt });
+      onUpdate({ ...job, partsCost: amt });
+      setCostSaved(true);
+    } finally {
+      setSavingCost(false);
+    }
+  }
+
+  async function saveReceiptsToDb(updated: PartsReceipt[]) {
+    await patchJob(job.id, { parts_receipts: JSON.stringify(updated) });
+    onUpdate({ ...job, partsReceipts: updated });
+  }
+
+  async function handleUpload(file: File) {
+    setUploading(true);
+    setUploadError(null);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('bookingId', job.id);
+      const res = await fetch('/admin-upload-photo', { method: 'POST', body: formData });
+      if (!res.ok) throw new Error(await res.text());
+      const data = await res.json() as any;
+      const newReceipt: PartsReceipt = {
+        key: data.key,
+        url: data.url,
+        name: file.name,
+        type: file.type || '',
+        uploadedAt: new Date().toISOString(),
+      };
+      const updated = [...receipts, newReceipt];
+      setReceipts(updated);
+      await saveReceiptsToDb(updated);
+    } catch (e: any) {
+      setUploadError(e.message ?? 'Upload failed');
+    }
+    setUploading(false);
+  }
+
+  async function deleteReceipt(key: string) {
+    const updated = receipts.filter(r => r.key !== key);
+    setReceipts(updated);
+    await saveReceiptsToDb(updated);
+  }
+
+  function isViewableImage(r: PartsReceipt) {
+    const isImg = /^image\//.test(r.type) || /\.(jpe?g|png|gif|webp)$/i.test(r.name);
+    const isHeic = /heic|heif/i.test(r.type) || /\.hei[cf]$/i.test(r.name);
+    return isImg && !isHeic;
+  }
+  function fileIcon(r: PartsReceipt) {
+    if (/\.pdf$/i.test(r.name) || /pdf/i.test(r.type)) return '📄';
+    if (/heic|heif/i.test(r.type) || /\.hei[cf]$/i.test(r.name)) return '🖼️';
+    return '📎';
+  }
+
+  const totalPaid = job.amountPaid || (job.jobStatus === 'PAID' ? (job.invoiceAmount || 0) + (job.taxAmount || 0) : 0);
+  const partsCostVal = job.partsCost || 0;
+  const netProfit = Math.round((totalPaid - partsCostVal) * 100) / 100;
+
+  return (
+    <div className="border-t border-gray-800 pt-4 mt-2">
+      <p className="text-yellow-600 text-xs font-bold uppercase tracking-widest mb-1">🔒 Parts Cost & Profit</p>
+      <p className="text-gray-600 text-[10px] mb-3">Admin only — never shown to the customer.</p>
+
+      <label className="block text-gray-500 text-[10px] font-bold uppercase tracking-wider mb-1">Amount Paid for Parts</label>
+      <div className="flex gap-2 mb-1">
+        <div className="flex items-center gap-1 bg-gray-900 border border-gray-700 px-2.5 flex-1">
+          <span className="text-gray-500 text-xs font-bold">$</span>
+          <input
+            type="number"
+            min="0"
+            step="0.01"
+            value={costInput}
+            onChange={e => { setCostInput(e.target.value); setCostSaved(false); }}
+            placeholder="0.00"
+            className="bg-transparent text-white py-2 text-sm font-mono w-full outline-none placeholder-gray-700"
+          />
+        </div>
+        <button
+          onClick={saveCost}
+          disabled={savingCost}
+          className={`px-4 text-xs font-bold uppercase tracking-wider border transition-colors ${
+            costSaved ? 'border-emerald-800 text-emerald-600' : 'border-yellow-700 text-yellow-600 hover:bg-yellow-900/20'
+          }`}
+        >
+          {savingCost ? 'Saving…' : costSaved ? '✓ Saved' : 'Save'}
+        </button>
+      </div>
+
+      {/* Receipt upload */}
+      <input ref={fileRef} type="file" accept="image/*,.heic,.heif,application/pdf,.pdf" multiple className="hidden"
+        onChange={async e => {
+          const files = Array.from(e.target.files || []);
+          for (const f of files) await handleUpload(f);
+          e.target.value = '';
+        }}
+      />
+      <button onClick={() => fileRef.current?.click()} disabled={uploading}
+        className={`w-full mt-3 border border-dashed border-gray-700 text-gray-500 hover:border-yellow-700 hover:text-yellow-600 text-xs font-bold uppercase tracking-wider py-3 transition-colors ${uploading ? 'opacity-50 cursor-not-allowed' : ''}`}>
+        {uploading ? '⏳ Uploading…' : '+ Upload Parts Receipt (HEIC, JPG, PDF)'}
+      </button>
+      {uploadError && <p className="text-red-400 text-xs mt-2">{uploadError}</p>}
+
+      {receipts.length > 0 && (
+        <div className="mt-3 space-y-2">
+          {receipts.map(r => (
+            <div key={r.key} className="flex items-center gap-2 bg-gray-900 border border-gray-800 p-2">
+              {isViewableImage(r) ? (
+                <a href={r.url} target="_blank" rel="noopener noreferrer" className="flex-shrink-0">
+                  <img src={r.url} alt={r.name} className="w-10 h-10 object-cover" />
+                </a>
+              ) : (
+                <span className="w-10 h-10 flex items-center justify-center text-lg flex-shrink-0 bg-gray-800">{fileIcon(r)}</span>
+              )}
+              <span className="flex-1 min-w-0 text-gray-400 text-xs truncate">{r.name}</span>
+              <a href={r.url} target="_blank" rel="noopener noreferrer"
+                className="text-[10px] font-bold uppercase tracking-wider text-gray-500 hover:text-yellow-500 flex-shrink-0 transition-colors">View</a>
+              <button onClick={() => deleteReceipt(r.key)}
+                className="text-gray-600 hover:text-red-500 transition-colors flex-shrink-0" title="Delete">×</button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Net profit calculator */}
+      <div className="mt-4 border border-gray-800 bg-gray-900/40 p-3 space-y-1.5">
+        <div className="flex justify-between text-xs">
+          <span className="text-gray-500">Total Paid (by customer)</span>
+          <span className="text-emerald-400 font-mono">${totalPaid.toFixed(2)}</span>
+        </div>
+        <div className="flex justify-between text-xs">
+          <span className="text-gray-500">Parts Cost</span>
+          <span className="text-red-400 font-mono">-${partsCostVal.toFixed(2)}</span>
+        </div>
+        <div className="flex justify-between text-sm pt-1.5 border-t border-gray-800">
+          <span className="text-gray-300 font-bold uppercase tracking-wider text-xs">Net Profit</span>
+          <span className={`font-mono font-black ${netProfit >= 0 ? 'text-emerald-400' : 'text-red-500'}`}>${netProfit.toFixed(2)}</span>
+        </div>
+      </div>
     </div>
   );
 }
@@ -2233,16 +2418,14 @@ function PaymentPanel({ job, onUpdate, onRequote }: { job: Job; onUpdate: (j: Jo
       // covering the remainder — log it as its own payment entry so revenue-by-
       // month tracking (which sums job.payments, not just paidAt) actually sees
       // this charge instead of only the earlier partial entries.
-      const updatedPayments = amountPaidSoFar > 0
-        ? [...(job.payments || []), {
+      const updatedPayments = [...(job.payments || []), {
             id: Math.random().toString(36).slice(2),
             amount: amountToCharge,
             method: 'Card (Stripe)',
-            note: 'Remaining balance',
+            note: amountPaidSoFar > 0 ? 'Remaining balance' : '',
             at: paidAt,
             stripeId: data.chargeId,
-          } as Payment]
-        : (job.payments || []);
+          } as Payment];
       const updated = {
         ...job,
         invoiceAmount: confirmedAmount,
@@ -2292,16 +2475,14 @@ function PaymentPanel({ job, onUpdate, onRequote }: { job: Job; onUpdate: (j: Jo
     // Same reasoning as chargeCardOnFile — if there were prior partial
     // payments, log this manual entry's remaining-balance amount so
     // revenue-by-month tracking actually sees it.
-    const updatedPayments = amountPaidSoFar > 0
-      ? [...(job.payments || []), {
+    const updatedPayments = [...(job.payments || []), {
           id: Math.random().toString(36).slice(2),
           amount: balanceDue,
           method: 'Manual Entry',
-          note: 'Remaining balance',
+          note: amountPaidSoFar > 0 ? 'Remaining balance' : '',
           at: paidAt,
           stripeId,
-        } as Payment]
-      : (job.payments || []);
+        } as Payment];
     await patchJob(job.id, {
       invoice_amount: finalAmount,
       tax_amount: taxForAmount(finalAmount),
@@ -2320,6 +2501,33 @@ function PaymentPanel({ job, onUpdate, onRequote }: { job: Job; onUpdate: (j: Jo
     // Send receipt email so customer gets confirmation even when paid manually
     await sendReceiptEmail(paidJob);
     setSaving(false);
+  }
+
+  // Fallback for jobs marked PAID before per-row payment tracking existed (or
+  // any PAID job whose payments array is empty for another reason) — lets a
+  // refund or mistaken "mark paid" be reversed even without a granular
+  // payment record to edit/delete individually via renderPaymentRow.
+  const [undoingPayment, setUndoingPayment] = useState(false);
+  async function undoFullPayment() {
+    if (!window.confirm('Remove this payment and revert the job to Invoiced? Use this for a refund or a mistaken "mark paid". This cannot be undone.')) return;
+    setUndoingPayment(true);
+    try {
+      await patchJob(job.id, {
+        job_status: 'INVOICED',
+        paid_at: null,
+        amount_paid: 0,
+        stripe_transaction_id: '',
+      });
+      onUpdate({
+        ...job,
+        jobStatus: 'INVOICED' as JobStatus,
+        paidAt: null,
+        amountPaid: 0,
+        stripeTransactionId: '',
+      });
+    } finally {
+      setUndoingPayment(false);
+    }
   }
 
   async function markInvoiced() {
@@ -2356,11 +2564,16 @@ function PaymentPanel({ job, onUpdate, onRequote }: { job: Job; onUpdate: (j: Jo
           <span className="text-gray-600">AZ TPT (9.386%)</span>
           <span className="text-yellow-600 font-mono">${(job.taxAmount || 0).toFixed(2)}</span>
         </div>
-        {job.payments?.length > 0 && (
+        {job.payments?.length > 0 ? (
           <div className="mt-3 pt-3 border-t border-emerald-800/50 space-y-1.5">
             <p className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-1">Payments Received</p>
             {job.payments.map(p => renderPaymentRow(p, 'text-emerald-400'))}
           </div>
+        ) : (
+          <button onClick={undoFullPayment} disabled={undoingPayment}
+            className="mt-3 w-full border border-red-900 text-red-700 hover:border-red-600 hover:text-red-400 text-xs font-bold uppercase tracking-wider py-2 transition-colors disabled:opacity-40">
+            {undoingPayment ? 'Reverting…' : '↩ Remove Payment / Refund'}
+          </button>
         )}
         <p className="text-gray-500 text-xs font-mono">{job.stripeTransactionId}</p>
         <p className="text-gray-600 text-xs">{job.paidAt ? new Date(job.paidAt).toLocaleString('en-US', { timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone }) : ''}</p>
@@ -3185,6 +3398,9 @@ function JobDetailPanel({ job: initialJob, onClose, onJobUpdate }: {
                   />
                 </div>
               </div>
+
+              {/* Parts cost, receipts, and net profit calculator — admin only */}
+              <PartsCostPanel job={job} onUpdate={handleUpdate} />
 
               {/* Videos — shown to customer on the invoice page */}
               <div className="border-t border-gray-800 pt-4">
@@ -5286,6 +5502,111 @@ function InvoiceExport() {
   );
 }
 
+// ── CSV EXPORT (all jobs — for taxes / bookkeeping) ────────────────────────────
+function csvCell(val: any): string {
+  const s = val === null || val === undefined ? '' : String(val);
+  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}
+
+function JobsCSVExport() {
+  const [exporting, setExporting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function exportCsv() {
+    setExporting(true);
+    setError(null);
+    try {
+      const data = await adminPost('list-bookings', { limit: 5000 });
+      const jobs: Job[] = (data || []).map(mapJob);
+      // Oldest first reads naturally in a spreadsheet / for a bookkeeper.
+      jobs.sort((a, b) => new Date(a.date || a.createdAt).getTime() - new Date(b.date || b.createdAt).getTime());
+
+      const headers = [
+        'Date', 'Customer', 'Vehicle', 'Service', 'Status',
+        'Subtotal', 'Tax Collected', 'Total Charged', 'Amount Paid',
+        'Parts Cost', 'Net Profit', 'Date Paid', 'Transaction ID',
+      ];
+
+      const rows = jobs.map(j => {
+        const subtotal = j.invoiceAmount ?? j.estimateAmount ?? 0;
+        const tax = j.taxAmount ?? 0;
+        const totalCharged = subtotal + tax;
+        const amountPaid = j.amountPaid ?? (j.jobStatus === 'PAID' ? totalCharged : 0);
+        const partsCost = j.partsCost ?? 0;
+        const netProfit = Math.round((amountPaid - partsCost) * 100) / 100;
+        return [
+          j.date || '',
+          `${j.fname || ''} ${j.lname || ''}`.trim(),
+          j.vehicle || '',
+          j.service || '',
+          j.jobStatus,
+          subtotal.toFixed(2),
+          tax.toFixed(2),
+          totalCharged.toFixed(2),
+          amountPaid.toFixed(2),
+          partsCost.toFixed(2),
+          netProfit.toFixed(2),
+          j.paidAt ? new Date(j.paidAt).toLocaleDateString('en-US') : '',
+          j.stripeTransactionId || '',
+        ];
+      });
+
+      const totals = jobs.reduce((acc, j) => {
+        const subtotal = j.invoiceAmount ?? j.estimateAmount ?? 0;
+        const tax = j.taxAmount ?? 0;
+        const amountPaid = j.amountPaid ?? (j.jobStatus === 'PAID' ? subtotal + tax : 0);
+        const partsCost = j.partsCost ?? 0;
+        return {
+          subtotal: acc.subtotal + subtotal,
+          tax: acc.tax + tax,
+          amountPaid: acc.amountPaid + amountPaid,
+          partsCost: acc.partsCost + partsCost,
+        };
+      }, { subtotal: 0, tax: 0, amountPaid: 0, partsCost: 0 });
+      const totalsRow = [
+        'TOTALS', '', '', '', '',
+        totals.subtotal.toFixed(2),
+        totals.tax.toFixed(2),
+        (totals.subtotal + totals.tax).toFixed(2),
+        totals.amountPaid.toFixed(2),
+        totals.partsCost.toFixed(2),
+        (totals.amountPaid - totals.partsCost).toFixed(2),
+        '', '',
+      ];
+
+      const csv = [headers, ...rows, totalsRow]
+        .map(r => r.map(csvCell).join(','))
+        .join('\r\n');
+
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      const today = new Date().toISOString().slice(0, 10);
+      a.href = url;
+      a.download = `gid-garage-jobs-export-${today}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (e: any) {
+      setError(e.message ?? 'Export failed');
+    }
+    setExporting(false);
+  }
+
+  return (
+    <div className="mt-6 border border-gray-800 bg-gray-900/30 p-4">
+      <p className="text-gray-400 text-xs font-bold uppercase tracking-widest mb-1">📑 Export All Jobs (CSV)</p>
+      <p className="text-gray-600 text-[10px] mb-3">Every job with revenue, tax, parts cost, and net profit — opens in Excel/Sheets. Hand this to a bookkeeper or use it for Schedule C.</p>
+      <button onClick={exportCsv} disabled={exporting}
+        className="w-full py-3 border border-gray-700 hover:border-yellow-700 hover:text-yellow-500 text-gray-300 text-xs font-bold uppercase tracking-widest transition-colors disabled:opacity-40">
+        {exporting ? 'Exporting…' : '⬇ Download CSV'}
+      </button>
+      {error && <p className="text-red-400 text-xs mt-2">{error}</p>}
+    </div>
+  );
+}
+
 // ── TAX SUMMARY (live from Supabase) ──────────────────────────────────────────
 function TaxSummary() {
   const [rows, setRows] = useState<{ month: string; subtotal: number; tax: number; total: number }[]>([]);
@@ -5427,6 +5748,7 @@ function HubCategoryPanel({ cat }: { cat: HubCategory }) {
 
       {/* Tax summary auto-embedded in taxes tab */}
       {cat.id === 'taxes' && <TaxSummary />}
+      {cat.id === 'taxes' && <JobsCSVExport />}
       {cat.id === 'taxes' && <InvoiceExport />}
 
       {/* Add note */}

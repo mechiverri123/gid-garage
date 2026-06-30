@@ -84,7 +84,7 @@ export async function onRequestPost({ request, env }) {
           'estimate_amount', 'tax_amount', 'customer_agreed', 'signed_at',
           'invoice_amount', 'stripe_transaction_id', 'stripe_customer_id',
           'stripe_last4', 'paid_at', 'adjustment_amount', 'amount_paid', 'payments',
-          'invoice_sent_count', 'invoice_last_sent_at',
+          'invoice_sent_count', 'invoice_last_sent_at', 'parts_cost', 'parts_receipts',
         ].join(',');
         const res = await fetch(
           `${base}/bookings?select=${listColumns}&order=date.desc,time.desc&limit=${limit}`,
