@@ -5311,8 +5311,8 @@ function usePersistentNotes(categoryId: string) {
 // mechanism Apple does support in that mode: it opens the native share sheet
 // (Save to Files, Print, AirDrop, Mail, etc.). Falls back to a normal
 // download for desktop browsers / anywhere Web Share isn't available.
-async function shareOrDownloadFile(filename: string, mimeType: string, content: string) {
-  const blob = new Blob([content], { type: mimeType });
+async function shareOrDownloadFile(filename: string, mimeType: string, content: string | Blob) {
+  const blob = content instanceof Blob ? content : new Blob([content], { type: mimeType });
   const file = new File([blob], filename, { type: mimeType });
 
   if (typeof navigator.canShare === 'function' && navigator.canShare({ files: [file] })) {
@@ -5335,6 +5335,196 @@ async function shareOrDownloadFile(filename: string, mimeType: string, content: 
   URL.revokeObjectURL(url);
 }
 
+// Loads the jsPDF library from a CDN at runtime instead of an npm package —
+// keeps this a single drop-in file with no package.json/dependency changes
+// required to deploy it. Cached on window after the first load.
+let jsPdfLoadPromise: Promise<any> | null = null;
+function loadJsPDF(): Promise<any> {
+  const w = window as any;
+  if (w.jspdf?.jsPDF) return Promise.resolve(w.jspdf.jsPDF);
+  if (jsPdfLoadPromise) return jsPdfLoadPromise;
+  jsPdfLoadPromise = new Promise((resolve, reject) => {
+    const script = document.createElement('script');
+    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
+    script.onload = () => {
+      if (w.jspdf?.jsPDF) resolve(w.jspdf.jsPDF);
+      else reject(new Error('PDF library loaded but jsPDF was not found.'));
+    };
+    script.onerror = () => reject(new Error('Could not load the PDF library — check your connection and try again.'));
+    document.head.appendChild(script);
+  });
+  return jsPdfLoadPromise;
+}
+
+// Builds an actual PDF (not an HTML printout) for a set of paid invoices —
+// one page per job, plus a closing tax-summary page. Clean black-on-white
+// layout since this is meant to be printed/filed, not viewed on a dark UI.
+function buildInvoicesPdf(JsPDF: any, jobs: Job[], periodLabel: string): any {
+  const doc = new JsPDF({ unit: 'pt', format: 'letter' });
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+  const marginX = 48;
+  const rightX = pageWidth - marginX;
+
+  function money(n: number) {
+    return `$${n.toFixed(2)}`;
+  }
+
+  function labelValueRow(y: number, label: string, value: string) {
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8);
+    doc.setTextColor(120);
+    doc.text(label.toUpperCase(), marginX, y);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(10.5);
+    doc.setTextColor(20);
+    doc.text(value || '—', rightX, y, { align: 'right' });
+    doc.setDrawColor(225);
+    doc.line(marginX, y + 7, rightX, y + 7);
+    return y + 24;
+  }
+
+  jobs.forEach((job, i) => {
+    if (i > 0) doc.addPage();
+    let y = 56;
+
+    // Header
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9);
+    doc.setTextColor(140);
+    doc.text('RECEIPT', marginX, y);
+    doc.setTextColor(22, 163, 74);
+    doc.text('PAID', rightX, y, { align: 'right' });
+    y += 16;
+    const invoiceNum = job.id?.startsWith('GID-') ? job.id : `GID-${(job.id || '').slice(0, 8).toUpperCase()}`;
+    doc.setFont('courier', 'normal');
+    doc.setFontSize(10);
+    doc.setTextColor(20);
+    doc.text(invoiceNum, marginX, y);
+    y += 28;
+
+    // GID Garage / total
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(13);
+    doc.setTextColor(20);
+    doc.text('GID Garage', marginX, y);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8.5);
+    doc.setTextColor(120);
+    doc.text('EIN: 42-2687870  ·  TPT: 21663074', marginX, y + 13);
+    const total = (job.invoiceAmount || 0) + (job.taxAmount || 0);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(22);
+    doc.setTextColor(22, 163, 74);
+    doc.text(money(total), rightX, y + 4, { align: 'right' });
+    y += 34;
+    doc.setDrawColor(20);
+    doc.setLineWidth(1);
+    doc.line(marginX, y, rightX, y);
+    y += 22;
+
+    // Details
+    const svcDate = job.date ? new Date(job.date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }) : '';
+    const paidDate = job.paidAt ? new Date(job.paidAt).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : '';
+    y = labelValueRow(y, 'Customer', `${job.fname || ''} ${job.lname || ''}`.trim());
+    y = labelValueRow(y, 'Vehicle', job.vehicle || '');
+    y = labelValueRow(y, 'Service Date', svcDate);
+    y = labelValueRow(y, 'Date Paid', paidDate);
+    if (job.stripeTransactionId) y = labelValueRow(y, 'Transaction ID', job.stripeTransactionId);
+    y += 12;
+
+    // Line items
+    if (job.lineItems?.length) {
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(8);
+      doc.setTextColor(150);
+      doc.text('SERVICES', marginX, y);
+      y += 16;
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(10);
+      job.lineItems.forEach(li => {
+        if (y > pageHeight - 140) { doc.addPage(); y = 56; }
+        doc.setTextColor(40);
+        const label = doc.splitTextToSize(li.label, 320);
+        doc.text(label, marginX, y);
+        doc.setTextColor(20);
+        const amtStr = li.amount === 0 ? 'FREE' : (li.amount < 0 ? `-${money(Math.abs(li.amount))}` : money(li.amount));
+        doc.text(amtStr, rightX, y, { align: 'right' });
+        y += 14 * label.length + 4;
+      });
+      y += 8;
+    }
+
+    // Totals
+    if (y > pageHeight - 110) { doc.addPage(); y = 56; }
+    doc.setDrawColor(20);
+    doc.line(marginX, y, rightX, y);
+    y += 18;
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9.5);
+    doc.setTextColor(110);
+    doc.text('Subtotal', marginX, y);
+    doc.setTextColor(20);
+    doc.text(money(job.invoiceAmount || 0), rightX, y, { align: 'right' });
+    y += 16;
+    doc.setTextColor(180, 83, 9);
+    doc.text('AZ TPT (9.386%)', marginX, y);
+    doc.text(money(job.taxAmount || 0), rightX, y, { align: 'right' });
+    y += 18;
+    doc.setDrawColor(20);
+    doc.line(marginX, y - 8, rightX, y - 8);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(12);
+    doc.setTextColor(20);
+    doc.text('Total', marginX, y);
+    doc.setTextColor(22, 163, 74);
+    doc.text(money(total), rightX, y, { align: 'right' });
+  });
+
+  // Closing tax-summary page
+  doc.addPage();
+  let sy = 64;
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(15);
+  doc.setTextColor(20);
+  doc.text(`${periodLabel} — Tax Summary`, marginX, sy);
+  sy += 30;
+
+  const totals = jobs.reduce((acc, j) => ({
+    subtotal: acc.subtotal + (j.invoiceAmount || 0),
+    tax: acc.tax + (j.taxAmount || 0),
+  }), { subtotal: 0, tax: 0 });
+
+  const summaryRows: [string, string][] = [
+    ['Invoices', String(jobs.length)],
+    ['Subtotal', money(totals.subtotal)],
+    ['AZ TPT Collected', money(totals.tax)],
+    ['Total Revenue', money(totals.subtotal + totals.tax)],
+  ];
+  summaryRows.forEach(([label, value], i) => {
+    doc.setFillColor(i === summaryRows.length - 1 ? 240 : 248, i === summaryRows.length - 1 ? 253 : 248, i === summaryRows.length - 1 ? 244 : 248);
+    doc.rect(marginX, sy - 14, rightX - marginX, 26, 'F');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9.5);
+    doc.setTextColor(90);
+    doc.text(label.toUpperCase(), marginX + 10, sy + 3);
+    doc.setFont('helvetica', i === summaryRows.length - 1 ? 'bold' : 'normal');
+    doc.setTextColor(i === summaryRows.length - 1 ? 22 : 20, i === summaryRows.length - 1 ? 163 : 20, i === summaryRows.length - 1 ? 74 : 20);
+    doc.setFontSize(11);
+    doc.text(value, rightX - 10, sy + 3, { align: 'right' });
+    sy += 30;
+  });
+
+  sy += 10;
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8.5);
+  doc.setTextColor(140);
+  doc.text('Remit TPT at AZTaxes.gov by the 20th of the following month.', marginX, sy);
+  doc.text('EIN: 42-2687870  ·  TPT License: 21663074', marginX, sy + 12);
+
+  return doc;
+}
+
 function InvoiceExport() {
   const [allJobs, setAllJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(true);
@@ -5349,6 +5539,8 @@ function InvoiceExport() {
   const [showPreview, setShowPreview] = useState(false);
   const [previewHtml, setPreviewHtml] = useState('');
   const [previewFilename, setPreviewFilename] = useState('');
+  const [previewJobs, setPreviewJobs] = useState<Job[]>([]);
+  const [previewPeriodLabel, setPreviewPeriodLabel] = useState('');
   const [sharing, setSharing] = useState(false);
   const [shareError, setShareError] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -5490,7 +5682,9 @@ function InvoiceExport() {
     // Show it in-page first — this always works, regardless of what the
     // device/browser does or doesn't support for printing/downloading/sharing.
     setPreviewHtml(fullHtml);
-    setPreviewFilename(`gid-garage-invoices-${periodLabel.replace(/\s+/g, '-').toLowerCase()}.html`);
+    setPreviewJobs(filteredJobs);
+    setPreviewPeriodLabel(periodLabel);
+    setPreviewFilename(`gid-garage-invoices-${periodLabel.replace(/\s+/g, '-').toLowerCase()}.pdf`);
     setShareError(null);
     setShowPreview(true);
   }
@@ -5499,7 +5693,10 @@ function InvoiceExport() {
     setSharing(true);
     setShareError(null);
     try {
-      await shareOrDownloadFile(previewFilename, 'text/html;charset=utf-8', previewHtml);
+      const JsPDF = await loadJsPDF();
+      const pdf = buildInvoicesPdf(JsPDF, previewJobs, previewPeriodLabel);
+      const pdfBlob = pdf.output('blob');
+      await shareOrDownloadFile(previewFilename, 'application/pdf', pdfBlob);
     } catch (e: any) {
       setShareError(e?.message ?? 'Share failed — you can still scroll and screenshot the preview below.');
     }
@@ -5518,7 +5715,7 @@ function InvoiceExport() {
   return (
     <div className="mt-6 border border-gray-800 bg-gray-900/30 p-4">
       <p className="text-gray-400 text-xs font-bold uppercase tracking-widest mb-1">🖨 Print Invoices</p>
-      <p className="text-gray-600 text-[10px] mb-3">Preview on screen, then Share/Save (PDF, Print, AirDrop, etc.) from there.</p>
+      <p className="text-gray-600 text-[10px] mb-3">Preview on screen, then Share/Save as a real PDF file (Print, AirDrop, etc. from there).</p>
       <div className="flex gap-2 mb-4">
         <button onClick={() => setMode('year')} className={`flex-1 text-xs font-bold uppercase tracking-wider py-2.5 border transition-colors ${mode === 'year' ? 'border-red-600 text-white bg-red-900/20' : 'border-gray-700 text-gray-500 hover:text-gray-300'}`}>By Year</button>
         <button onClick={() => setMode('month')} className={`flex-1 text-xs font-bold uppercase tracking-wider py-2.5 border transition-colors ${mode === 'month' ? 'border-red-600 text-white bg-red-900/20' : 'border-gray-700 text-gray-500 hover:text-gray-300'}`}>By Month</button>
@@ -5570,7 +5767,7 @@ function InvoiceExport() {
             <div className="flex gap-2 flex-shrink-0">
               <button onClick={shareInvoicePreview} disabled={sharing}
                 className="text-xs font-bold uppercase tracking-wider px-3 py-2 border border-emerald-700 text-emerald-400 hover:bg-emerald-900/30 transition-colors disabled:opacity-40">
-                {sharing ? 'Sharing…' : '📤 Share / Save'}
+                {sharing ? 'Generating PDF…' : '📤 Share / Save PDF'}
               </button>
               <button onClick={() => setShowPreview(false)}
                 className="text-xs font-bold uppercase tracking-wider px-3 py-2 border border-gray-700 text-gray-400 hover:border-white hover:text-white transition-colors">
