@@ -5442,11 +5442,41 @@ function InvoiceExport() {
         <p style="font-size:10px;color:#444;margin-top:12px;">Remit TPT at AZTaxes.gov by the 20th of the following month. EIN: 42-2687870 · TPT License: 21663074</p>
       </div>`;
 
-    const win = window.open('', '_blank');
-    if (!win) { alert('Pop-up blocked — allow pop-ups for this site and try again.'); return; }
-    win.document.write(`<!DOCTYPE html><html><head><title>GID Garage Invoices — ${periodLabel}</title><style>*{box-sizing:border-box;}body{margin:0;background:#0f0f0f;}@media print{@page{margin:0;size:letter;}body{-webkit-print-color-adjust:exact;print-color-adjust:exact;}}</style></head><body>${invoiceHtml}${summaryHtml}</body></html>`);
-    win.document.close();
-    setTimeout(() => win.print(), 400);
+    const fullHtml = `<!DOCTYPE html><html><head><title>GID Garage Invoices — ${periodLabel}</title><style>*{box-sizing:border-box;}body{margin:0;background:#0f0f0f;}@media print{@page{margin:0;size:letter;}body{-webkit-print-color-adjust:exact;print-color-adjust:exact;}}</style></head><body>${invoiceHtml}${summaryHtml}</body></html>`;
+
+    // Use a hidden iframe instead of window.open('_blank') — when the site is
+    // added to the home screen (standalone/PWA mode, which this app supports),
+    // window.open silently no-ops since there's no tab chrome to open a new
+    // window into. That's why "Print / Save" did nothing on mobile. Printing
+    // from an iframe's own window works in both standalone and regular tabs.
+    const printFrame = document.createElement('iframe');
+    printFrame.style.position = 'fixed';
+    printFrame.style.right = '0';
+    printFrame.style.bottom = '0';
+    printFrame.style.width = '0';
+    printFrame.style.height = '0';
+    printFrame.style.border = '0';
+    document.body.appendChild(printFrame);
+
+    const frameDoc = printFrame.contentWindow?.document;
+    if (!frameDoc) {
+      alert('Could not prepare the print view — try again.');
+      document.body.removeChild(printFrame);
+      return;
+    }
+    frameDoc.open();
+    frameDoc.write(fullHtml);
+    frameDoc.close();
+
+    function triggerPrint() {
+      printFrame.contentWindow?.focus();
+      printFrame.contentWindow?.print();
+    }
+    printFrame.onload = triggerPrint;
+    // Fallback in case onload doesn't fire (some browsers treat doc.write() as already-loaded)
+    setTimeout(triggerPrint, 400);
+    // Remove the iframe well after the print/share sheet would have appeared
+    setTimeout(() => { if (printFrame.parentNode) document.body.removeChild(printFrame); }, 60000);
   }
 
   if (loading) return <p className="text-gray-600 text-xs py-4">Loading invoice data…</p>;
@@ -5517,9 +5547,16 @@ function JobsCSVExport() {
     setError(null);
     try {
       const data = await adminPost('list-bookings', { limit: 5000 });
-      const jobs: Job[] = (data || []).map(mapJob);
+      const jobs: Job[] = (data || []).map(mapJob).filter(j => j.jobStatus === 'PAID');
       // Oldest first reads naturally in a spreadsheet / for a bookkeeper.
-      jobs.sort((a, b) => new Date(a.date || a.createdAt).getTime() - new Date(b.date || b.createdAt).getTime());
+      // Sort by paid date — taxes care about when income was received, not booked.
+      jobs.sort((a, b) => new Date(a.paidAt || a.date || a.createdAt).getTime() - new Date(b.paidAt || b.date || b.createdAt).getTime());
+
+      if (!jobs.length) {
+        setError('No paid jobs to export yet.');
+        setExporting(false);
+        return;
+      }
 
       const headers = [
         'Date', 'Customer', 'Vehicle', 'Service', 'Status',
