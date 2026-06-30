@@ -5341,6 +5341,16 @@ function InvoiceExport() {
   const [mode, setMode] = useState<'year' | 'month'>('year');
   const [selectedYear, setSelectedYear] = useState<string>('');
   const [selectedMonth, setSelectedMonth] = useState<string>('');
+  // In-app preview is the guaranteed fallback — window.print(), window.open(),
+  // <a download>, and even the Web Share API can all silently no-op depending
+  // on the device/browser (especially iOS standalone/home-screen mode), so
+  // rendering the report directly in the page is the one thing that always
+  // shows something. Share/Save is offered as a bonus action from there.
+  const [showPreview, setShowPreview] = useState(false);
+  const [previewHtml, setPreviewHtml] = useState('');
+  const [previewFilename, setPreviewFilename] = useState('');
+  const [sharing, setSharing] = useState(false);
+  const [shareError, setShareError] = useState<string | null>(null);
 
   useEffect(() => {
     adminPost('paid-bookings')
@@ -5476,14 +5486,23 @@ function InvoiceExport() {
 
     const fullHtml = `<!DOCTYPE html><html><head><title>GID Garage Invoices — ${periodLabel}</title><style>*{box-sizing:border-box;}body{margin:0;background:#0f0f0f;}@media print{@page{margin:0;size:letter;}body{-webkit-print-color-adjust:exact;print-color-adjust:exact;}}</style></head><body>${invoiceHtml}${summaryHtml}</body></html>`;
 
-    // Plain <a download> on a blob also silently fails in iOS standalone/PWA
-    // mode — shareOrDownloadFile uses the Web Share API there instead, which
-    // opens the native share sheet (Save to Files as PDF, Print, AirDrop…).
-    await shareOrDownloadFile(
-      `gid-garage-invoices-${periodLabel.replace(/\s+/g, '-').toLowerCase()}.html`,
-      'text/html',
-      fullHtml
-    );
+    // Show it in-page first — this always works, regardless of what the
+    // device/browser does or doesn't support for printing/downloading/sharing.
+    setPreviewHtml(fullHtml);
+    setPreviewFilename(`gid-garage-invoices-${periodLabel.replace(/\s+/g, '-').toLowerCase()}.html`);
+    setShareError(null);
+    setShowPreview(true);
+  }
+
+  async function shareInvoicePreview() {
+    setSharing(true);
+    setShareError(null);
+    try {
+      await shareOrDownloadFile(previewFilename, 'text/html', previewHtml);
+    } catch (e: any) {
+      setShareError(e?.message ?? 'Share failed — you can still scroll and screenshot the preview below.');
+    }
+    setSharing(false);
   }
 
   if (loading) return <p className="text-gray-600 text-xs py-4">Loading invoice data…</p>;
@@ -5492,7 +5511,7 @@ function InvoiceExport() {
   return (
     <div className="mt-6 border border-gray-800 bg-gray-900/30 p-4">
       <p className="text-gray-400 text-xs font-bold uppercase tracking-widest mb-1">🖨 Print Invoices</p>
-      <p className="text-gray-600 text-[10px] mb-3">Opens your Share sheet — Save to Files (as PDF), Print, AirDrop, etc.</p>
+      <p className="text-gray-600 text-[10px] mb-3">Preview on screen, then Share/Save (PDF, Print, AirDrop, etc.) from there.</p>
       <div className="flex gap-2 mb-4">
         <button onClick={() => setMode('year')} className={`flex-1 text-xs font-bold uppercase tracking-wider py-2.5 border transition-colors ${mode === 'year' ? 'border-red-600 text-white bg-red-900/20' : 'border-gray-700 text-gray-500 hover:text-gray-300'}`}>By Year</button>
         <button onClick={() => setMode('month')} className={`flex-1 text-xs font-bold uppercase tracking-wider py-2.5 border transition-colors ${mode === 'month' ? 'border-red-600 text-white bg-red-900/20' : 'border-gray-700 text-gray-500 hover:text-gray-300'}`}>By Month</button>
@@ -5530,11 +5549,33 @@ function InvoiceExport() {
       )}
       {filteredJobs.length > 0 && (
         <button onClick={printInvoices} className="w-full py-3 bg-red-600 hover:bg-red-500 active:bg-red-700 text-white text-xs font-bold uppercase tracking-widest transition-colors">
-          📤 Share {filteredJobs.length} Invoice{filteredJobs.length !== 1 ? 's' : ''}
+          👁 Preview {filteredJobs.length} Invoice{filteredJobs.length !== 1 ? 's' : ''}
         </button>
       )}
       {filteredJobs.length === 0 && (mode === 'year' ? selectedYear : selectedMonth) && (
         <p className="text-gray-600 text-xs text-center py-2">No paid invoices for this period.</p>
+      )}
+
+      {showPreview && (
+        <div className="fixed inset-0 z-50 bg-black/90 flex flex-col p-3">
+          <div className="flex items-center justify-between gap-2 mb-2 flex-shrink-0">
+            <p className="text-white text-xs font-bold uppercase tracking-wider truncate">Invoice Preview</p>
+            <div className="flex gap-2 flex-shrink-0">
+              <button onClick={shareInvoicePreview} disabled={sharing}
+                className="text-xs font-bold uppercase tracking-wider px-3 py-2 border border-emerald-700 text-emerald-400 hover:bg-emerald-900/30 transition-colors disabled:opacity-40">
+                {sharing ? 'Sharing…' : '📤 Share / Save'}
+              </button>
+              <button onClick={() => setShowPreview(false)}
+                className="text-xs font-bold uppercase tracking-wider px-3 py-2 border border-gray-700 text-gray-400 hover:border-white hover:text-white transition-colors">
+                ✕ Close
+              </button>
+            </div>
+          </div>
+          {shareError && (
+            <p className="text-red-400 text-xs mb-2 flex-shrink-0">{shareError}</p>
+          )}
+          <iframe title="Invoice preview" srcDoc={previewHtml} className="flex-1 w-full bg-[#0f0f0f] border border-gray-800" />
+        </div>
       )}
     </div>
   );
@@ -5549,6 +5590,23 @@ function csvCell(val: any): string {
 function JobsCSVExport() {
   const [exporting, setExporting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showPreview, setShowPreview] = useState(false);
+  const [csvContent, setCsvContent] = useState('');
+  const [csvFilename, setCsvFilename] = useState('');
+  const [sharing, setSharing] = useState(false);
+  const [shareError, setShareError] = useState<string | null>(null);
+  const csvRef = useRef<HTMLTextAreaElement>(null);
+
+  async function shareCsv() {
+    setSharing(true);
+    setShareError(null);
+    try {
+      await shareOrDownloadFile(csvFilename, 'text/csv', csvContent);
+    } catch (e: any) {
+      setShareError(e?.message ?? 'Share failed — tap into the text below, Select All, and copy instead.');
+    }
+    setSharing(false);
+  }
 
   async function exportCsv() {
     setExporting(true);
@@ -5624,7 +5682,10 @@ function JobsCSVExport() {
         .join('\r\n');
 
       const today = new Date().toISOString().slice(0, 10);
-      await shareOrDownloadFile(`gid-garage-jobs-export-${today}.csv`, 'text/csv', csv);
+      setCsvContent(csv);
+      setCsvFilename(`gid-garage-jobs-export-${today}.csv`);
+      setShareError(null);
+      setShowPreview(true);
     } catch (e: any) {
       setError(e.message ?? 'Export failed');
     }
@@ -5634,12 +5695,38 @@ function JobsCSVExport() {
   return (
     <div className="mt-6 border border-gray-800 bg-gray-900/30 p-4">
       <p className="text-gray-400 text-xs font-bold uppercase tracking-widest mb-1">📑 Export Paid Jobs (CSV)</p>
-      <p className="text-gray-600 text-[10px] mb-3">Paid jobs only — revenue, tax, parts cost, and net profit. Opens your Share sheet (Save to Files, AirDrop, Mail, etc.) — open the file in Excel/Sheets or hand it to a bookkeeper.</p>
+      <p className="text-gray-600 text-[10px] mb-3">Paid jobs only — revenue, tax, parts cost, and net profit. Preview on screen, then Share/Save or copy the text.</p>
       <button onClick={exportCsv} disabled={exporting}
         className="w-full py-3 border border-gray-700 hover:border-yellow-700 hover:text-yellow-500 text-gray-300 text-xs font-bold uppercase tracking-widest transition-colors disabled:opacity-40">
-        {exporting ? 'Exporting…' : '📤 Share CSV'}
+        {exporting ? 'Exporting…' : '👁 Preview CSV'}
       </button>
       {error && <p className="text-red-400 text-xs mt-2">{error}</p>}
+
+      {showPreview && (
+        <div className="fixed inset-0 z-50 bg-black/90 flex flex-col p-3">
+          <div className="flex items-center justify-between gap-2 mb-2 flex-shrink-0">
+            <p className="text-white text-xs font-bold uppercase tracking-wider truncate">CSV Preview</p>
+            <div className="flex gap-2 flex-shrink-0">
+              <button onClick={shareCsv} disabled={sharing}
+                className="text-xs font-bold uppercase tracking-wider px-3 py-2 border border-emerald-700 text-emerald-400 hover:bg-emerald-900/30 transition-colors disabled:opacity-40">
+                {sharing ? 'Sharing…' : '📤 Share / Save'}
+              </button>
+              <button onClick={() => csvRef.current?.select()}
+                className="text-xs font-bold uppercase tracking-wider px-3 py-2 border border-gray-700 text-gray-400 hover:border-white hover:text-white transition-colors">
+                Select All
+              </button>
+              <button onClick={() => setShowPreview(false)}
+                className="text-xs font-bold uppercase tracking-wider px-3 py-2 border border-gray-700 text-gray-400 hover:border-white hover:text-white transition-colors">
+                ✕ Close
+              </button>
+            </div>
+          </div>
+          {shareError && <p className="text-red-400 text-xs mb-2 flex-shrink-0">{shareError}</p>}
+          <p className="text-gray-600 text-[10px] mb-2 flex-shrink-0">If Share doesn't open anything, tap Select All, copy, and paste into Notes/Sheets/Excel.</p>
+          <textarea ref={csvRef} readOnly value={csvContent}
+            className="flex-1 w-full bg-[#0f0f0f] border border-gray-800 text-gray-300 text-[10px] font-mono p-3 outline-none resize-none" />
+        </div>
+      )}
     </div>
   );
 }
