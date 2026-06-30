@@ -5470,9 +5470,10 @@ function buildInvoicesPdf(JsPDF: any, jobs: Job[], periodLabel: string): any {
     doc.setTextColor(180, 83, 9);
     doc.text('AZ TPT (9.386%)', marginX, y);
     doc.text(money(job.taxAmount || 0), rightX, y, { align: 'right' });
-    y += 18;
+    y += 14;
     doc.setDrawColor(20);
-    doc.line(marginX, y - 8, rightX, y - 8);
+    doc.line(marginX, y, rightX, y);
+    y += 22;
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(12);
     doc.setTextColor(20);
