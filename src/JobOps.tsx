@@ -5444,39 +5444,21 @@ function InvoiceExport() {
 
     const fullHtml = `<!DOCTYPE html><html><head><title>GID Garage Invoices — ${periodLabel}</title><style>*{box-sizing:border-box;}body{margin:0;background:#0f0f0f;}@media print{@page{margin:0;size:letter;}body{-webkit-print-color-adjust:exact;print-color-adjust:exact;}}</style></head><body>${invoiceHtml}${summaryHtml}</body></html>`;
 
-    // Use a hidden iframe instead of window.open('_blank') — when the site is
-    // added to the home screen (standalone/PWA mode, which this app supports),
-    // window.open silently no-ops since there's no tab chrome to open a new
-    // window into. That's why "Print / Save" did nothing on mobile. Printing
-    // from an iframe's own window works in both standalone and regular tabs.
-    const printFrame = document.createElement('iframe');
-    printFrame.style.position = 'fixed';
-    printFrame.style.right = '0';
-    printFrame.style.bottom = '0';
-    printFrame.style.width = '0';
-    printFrame.style.height = '0';
-    printFrame.style.border = '0';
-    document.body.appendChild(printFrame);
-
-    const frameDoc = printFrame.contentWindow?.document;
-    if (!frameDoc) {
-      alert('Could not prepare the print view — try again.');
-      document.body.removeChild(printFrame);
-      return;
-    }
-    frameDoc.open();
-    frameDoc.write(fullHtml);
-    frameDoc.close();
-
-    function triggerPrint() {
-      printFrame.contentWindow?.focus();
-      printFrame.contentWindow?.print();
-    }
-    printFrame.onload = triggerPrint;
-    // Fallback in case onload doesn't fire (some browsers treat doc.write() as already-loaded)
-    setTimeout(triggerPrint, 400);
-    // Remove the iframe well after the print/share sheet would have appeared
-    setTimeout(() => { if (printFrame.parentNode) document.body.removeChild(printFrame); }, 60000);
+    // iOS has no working print() when the site is added to the home screen
+    // (standalone/PWA mode) — neither window.open nor an iframe's print()
+    // trigger the system print sheet there, that's a WebKit limitation, not
+    // a bug in this code. Downloading the file instead always works (same
+    // pattern as the CSV export below) — open the downloaded file and use
+    // the share-sheet "Print" or "Save to Files" (as PDF) from there.
+    const blob = new Blob([fullHtml], { type: 'text/html;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `gid-garage-invoices-${periodLabel.replace(/\s+/g, '-').toLowerCase()}.html`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
   }
 
   if (loading) return <p className="text-gray-600 text-xs py-4">Loading invoice data…</p>;
@@ -5484,7 +5466,8 @@ function InvoiceExport() {
 
   return (
     <div className="mt-6 border border-gray-800 bg-gray-900/30 p-4">
-      <p className="text-gray-400 text-xs font-bold uppercase tracking-widest mb-4">🖨 Print Invoices</p>
+      <p className="text-gray-400 text-xs font-bold uppercase tracking-widest mb-1">🖨 Print Invoices</p>
+      <p className="text-gray-600 text-[10px] mb-3">Downloads as a file — open it, then use Share → Print or Save to Files (PDF).</p>
       <div className="flex gap-2 mb-4">
         <button onClick={() => setMode('year')} className={`flex-1 text-xs font-bold uppercase tracking-wider py-2.5 border transition-colors ${mode === 'year' ? 'border-red-600 text-white bg-red-900/20' : 'border-gray-700 text-gray-500 hover:text-gray-300'}`}>By Year</button>
         <button onClick={() => setMode('month')} className={`flex-1 text-xs font-bold uppercase tracking-wider py-2.5 border transition-colors ${mode === 'month' ? 'border-red-600 text-white bg-red-900/20' : 'border-gray-700 text-gray-500 hover:text-gray-300'}`}>By Month</button>
@@ -5522,7 +5505,7 @@ function InvoiceExport() {
       )}
       {filteredJobs.length > 0 && (
         <button onClick={printInvoices} className="w-full py-3 bg-red-600 hover:bg-red-500 active:bg-red-700 text-white text-xs font-bold uppercase tracking-widest transition-colors">
-          🖨 Print / Save {filteredJobs.length} Invoice{filteredJobs.length !== 1 ? 's' : ''}
+          ⬇ Download {filteredJobs.length} Invoice{filteredJobs.length !== 1 ? 's' : ''}
         </button>
       )}
       {filteredJobs.length === 0 && (mode === 'year' ? selectedYear : selectedMonth) && (
