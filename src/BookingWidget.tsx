@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback, type Dispatch, type SetStateAction } from 'react';
+import { useState, useEffect, useRef, type Dispatch, type SetStateAction } from 'react';
 import { JobsTab, BusinessHub } from './JobOps';
 import { getEngines } from './engineData';
 import { getTrims } from './trimData';
@@ -6,33 +6,9 @@ import { getTrims } from './trimData';
 const PHONE = '480-757-0476';
 
 // ── CONFIG ─────────────────────────────────────────────────────────────────
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string;
-const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
 // Emails sent server-side via workers — BREVO_API_KEY removed from client bundle
 const ADMIN_PASSWORD = '0000';
 // ───────────────────────────────────────────────────────────────────────────
-
-// ── SUPABASE HELPERS ────────────────────────────────────────────────────────
-async function sbFetch(path: string, options: RequestInit = {}) {
-  const isPatch = options.method === 'PATCH' || options.method === 'DELETE';
-  const res = await fetch(`${SUPABASE_URL}/rest/v1${path}`, {
-    ...options,
-    headers: {
-      'apikey': SUPABASE_ANON_KEY,
-      'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-      'Content-Type': 'application/json',
-      'Prefer': isPatch ? 'return=minimal' : 'return=representation',
-      ...(options.headers || {}),
-    },
-  });
-  if (!res.ok) {
-    const err = await res.text();
-    throw new Error(err);
-  }
-  if (isPatch) return null;
-  const text = await res.text();
-  return text ? JSON.parse(text) : null;
-}
 
 // ── SECURE WORKER HELPERS ────────────────────────────────────────────────────
 // Admin reads/writes go through /admin-api/data (service key, behind Cloudflare
@@ -240,7 +216,7 @@ interface Booking {
   status: 'pending' | 'confirmed' | 'completed' | 'cancelled';
   stripeCustomerId?: string;
   createdAt: string;
-  adminPhotos: { key: string; url: string; name: string; note: string }[];
+  adminPhotos?: { key: string; url: string; name: string; note: string }[];
 }
 
 interface FormData {
@@ -594,12 +570,7 @@ function updateLocalGarageNotes(id: string, garageNotes: string) {
 }
 
 // ── BOOKING WIDGET ──────────────────────────────────────────────────────────
-// Services that require parts sourcing — these get a deposit step
-const PARTS_HEAVY_SERVICES = ['audio', 'suspension'];
-// Services where card-on-file makes sense (charged after work)
-const CARD_ON_FILE_SERVICES = ['oil', 'brakes', 'diag', 'full'];
-
-function requiresDeposit(service: string | null, audioPackage: string | null): boolean {
+function requiresDeposit(service: string | null): boolean {
   if (service === 'audio') return true;
   if (service === 'suspension') return true;
   return false;
@@ -862,7 +833,6 @@ const STRIPE_PK = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY as string;
 
 interface CardStepProps {
   serviceId: string | null;
-  audioPackage: string | null;
   bookingId: string | null;
   customerName: string;
   customerEmail: string;
@@ -870,7 +840,7 @@ interface CardStepProps {
 
 }
 
-function CardOnFileStep({ serviceId, audioPackage, bookingId, customerName, customerEmail, onCardSaved }: CardStepProps) {
+function CardOnFileStep({ serviceId, bookingId, customerName, customerEmail, onCardSaved }: CardStepProps) {
   const mountRef = useRef<HTMLDivElement>(null);
   const [stripe, setStripe] = useState<any>(null);
   const [card, setCard] = useState<any>(null);
@@ -878,7 +848,7 @@ function CardOnFileStep({ serviceId, audioPackage, bookingId, customerName, cust
   const [saving, setSaving] = useState(false);
   const [cardComplete, setCardComplete] = useState(false);
   const [consented, setConsented] = useState(false);
-  const isPartsJob = requiresDeposit(serviceId, audioPackage);
+  const isPartsJob = requiresDeposit(serviceId);
 
   useEffect(() => {
     if (!STRIPE_PK) return;
@@ -1690,7 +1660,6 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
                   <div className="border-t border-gray-800 my-6" />
                   <CardOnFileStep
                     serviceId={s.service}
-                    audioPackage={s.audioPackage}
                     bookingId={s.bookingId}
                     customerName={`${form.fname} ${form.lname}`.trim()}
                     customerEmail={form.email}

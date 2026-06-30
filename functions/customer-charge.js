@@ -66,6 +66,20 @@ export async function onRequestPost({ request, env }) {
     if (!r.ok) console.error('Brevo send failed:', r.status, await r.text());
   }
 
+  // Current AZ TPT rate as a decimal — only used as a fallback if the client
+  // didn't send an explicit taxAmount. Falls back to the historical Flagstaff
+  // rate if the settings row is ever missing.
+  async function fetchCurrentTaxRate() {
+    try {
+      const r = await fetch(`${base}/business_settings?id=eq.default&select=tax_rate`, { headers });
+      if (!r.ok) return 0.09386;
+      const rows = await r.json();
+      return rows?.[0]?.tax_rate != null ? Number(rows[0].tax_rate) : 0.09386;
+    } catch {
+      return 0.09386;
+    }
+  }
+
   try {
     // Pull current state — needed to detect prior partial payments and to
     // build the receipt email.
@@ -121,7 +135,7 @@ export async function onRequestPost({ request, env }) {
     // didn't send a tax figure at all.
     const finalTaxAmount = taxAmount != null
       ? Math.round(Number(taxAmount) * 100) / 100
-      : (subtotal != null ? Math.round(Number(subtotal) * 0.09386 * 100) / 100 : 0);
+      : (subtotal != null ? Math.round(Number(subtotal) * (await fetchCurrentTaxRate()) * 100) / 100 : 0);
     const newAmountPaid = Math.round((amountPaidSoFar + chargedAmount) * 100) / 100;
 
     // If there was a prior partial payment, log this charge as its own entry

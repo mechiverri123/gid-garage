@@ -21,14 +21,23 @@ function loadStripe(publishableKey: string): Promise<any> {
   });
 }
 
-// ── AZ TPT — Flagstaff combined rate (updated July 2025 to 9.386%)
-const TAX_RATE = 0.09386; // 9.386%
+// ── AZ TPT — Flagstaff combined rate. Default below is used until the saved
+// rate loads from Supabase (see initTaxRate()); editable in Hub → Taxes.
+let TAX_RATE = 0.09386; // 9.386%
+function setTaxRate(rate: number) { if (rate > 0 && rate < 1) TAX_RATE = rate; }
+function taxRatePercentLabel(): string { return (TAX_RATE * 100).toFixed(3); }
+// For an already-priced job, show the rate actually applied to it (derived from
+// its own stored subtotal/tax) rather than today's rate — old invoices stay
+// accurate even after the rate is changed going forward.
+function jobTaxPercent(job: Job): string {
+  const sub = job.invoiceAmount || job.estimateAmount || 0;
+  return sub > 0 ? (((job.taxAmount || 0) / sub) * 100).toFixed(3) : taxRatePercentLabel();
+}
 // AZ TPT does NOT apply to labor or the mobile service/travel fee. Everything else
 // (parts, flat service charges, misc add-on lines) is taxable. calcTax(subtotal) is a
 // legacy fallback that taxes the whole amount; prefer taxFromItems() with line items.
 const TAX_EXEMPT_TYPES: LineItem['type'][] = ['labor', 'mobile', 'discount'];
 function calcTax(subtotal: number) { return Math.round(subtotal * TAX_RATE * 100) / 100; }
-function calcTotal(subtotal: number) { return Math.round((subtotal + calcTax(subtotal)) * 100) / 100; }
 
 // Convert "14:30" (native <input type="time"> value) → "2:30 PM" (display format used everywhere else)
 function to12h(t: string): string {
@@ -144,6 +153,7 @@ export interface Job {
   customerAgreed: boolean;
   customerSignature: string;
   signedAt: string | null;
+  signedIp: string;
   // payment
   invoiceAmount: number | null;
   stripeTransactionId: string;
@@ -247,6 +257,7 @@ function mapJob(b: any): Job {
     customerAgreed: b.customer_agreed || false,
     customerSignature: b.customer_signature || '',
     signedAt: b.signed_at || null,
+    signedIp: b.signed_ip || '',
     invoiceAmount: b.invoice_amount ?? null,
     stripeTransactionId: b.stripe_transaction_id || '',
     stripeCustomerId: b.stripe_customer_id || '',
@@ -453,9 +464,6 @@ const PARTS_MARKUP = 0.20;
 
 type VehicleTier = 1 | 2 | 3 | 4;
 
-const SMALL_MAKES = ['honda','toyota','nissan','hyundai','kia','mazda','subaru','mitsubishi','vw','volkswagen','mini','fiat','smart'];
-const MID_MAKES   = ['honda','toyota','nissan','hyundai','kia','mazda','subaru','ford','chevrolet','chevy','gmc','dodge','chrysler','jeep','buick','acura','infiniti','lexus','lincoln','cadillac','volvo','audi','bmw','mercedes','mercedes-benz','genesis','volkswagen','vw'];
-
 // Small car models (subset of mid makes that are small)
 const SMALL_MODELS = ['civic','corolla','sentra','fit','elantra','accent','rio','yaris','versa','mirage','spark','sonic','aveo','focus','fiesta','impreza','juke','mini','fiat','smart','200','dart'];
 
@@ -511,11 +519,6 @@ function getShopAvg(serviceKey: string, vehicleStr: string): number {
   if (!row) return 0;
   return row[tier - 1];
 }
-
-// Flat legacy alias for audio/fixed services that don't vary by vehicle
-const SHOP_AVERAGES: Record<string, number> = Object.fromEntries(
-  Object.entries(SHOP_AVERAGES_TIERED).map(([k, v]) => [k, v[1]]) // default to tier 2
-);
 
 const LABOR_HOURS: Record<string, number> = {
   oil:                    0.5,
@@ -744,7 +747,6 @@ function QuoteCalculator({ job, onApply }: { job: Job; onApply: (items: LineItem
   }
 
   const { items, total, shopTotal } = buildLineItems();
-  const savings = shopTotal > 0 ? shopTotal - total : 0;
   const canApply = items.length > 1 && total > 0;
 
   const SERVICE_OPTIONS = [
@@ -1840,27 +1842,32 @@ function EstimatePanel({ job, onUpdate }: { job: Job; onUpdate: (j: Job) => void
   const total = lineItems.reduce((s, i) => s + i.amount, 0);
   const [rawAmounts, setRawAmounts] = useState<Record<string, string>>({});
 
-  function handleApplyCalc(items: LineItem[], calcTotal: number, calcShopAvg: number) {
+  function handleApplyCalc(items: LineItem[], _total: number, calcShopAvg: number) {
     hasLocalEdits.current = true;
     setLineItems(items);
     setShopAvg(calcShopAvg);
     setShowCalc(false);
   }
 
-  function updateLineItem(id: string, field: 'label' | 'amount' | 'taxable', value: string | boolean) {
+  function updateLineItemLabel(id: string, label: string) {
+    hasLocalEdits.current = true;
+    setLineItems(prev => prev.map(i => i.id === id ? { ...i, label } : i));
+  }
+
+  function updateLineItemAmount(id: string, amountStr: string) {
+    hasLocalEdits.current = true;
+    setLineItems(prev => prev.map(i => i.id === id ? { ...i, amount: parseFloat(amountStr) || 0 } : i));
+  }
+
+  function updateLineItemTaxable(id: string, taxable: boolean) {
     hasLocalEdits.current = true;
     setLineItems(prev => prev.map(i => {
       if (i.id !== id) return i;
-      if (field === 'amount') return { ...i, amount: parseFloat(value as string) || 0 };
-      if (field === 'taxable') {
-        // Toggle type between taxable (parts/other/fixed) and exempt (labor/mobile)
-        const taxable = value as boolean;
-        const newType = taxable
-          ? (i.type === 'labor' || i.type === 'mobile' ? 'parts' : i.type)
-          : (i.id === 'mobile' ? 'mobile' : 'labor');
-        return { ...i, type: newType };
-      }
-      return { ...i, [field]: value };
+      // Toggle type between taxable (parts/other/fixed) and exempt (labor/mobile)
+      const newType = taxable
+        ? (i.type === 'labor' || i.type === 'mobile' ? 'parts' : i.type)
+        : (i.id === 'mobile' ? 'mobile' : 'labor');
+      return { ...i, type: newType };
     }));
   }
 
@@ -1944,7 +1951,7 @@ function EstimatePanel({ job, onUpdate }: { job: Job; onUpdate: (j: Job) => void
                 <input
                   type="text"
                   value={item.label}
-                  onChange={e => updateLineItem(item.id, 'label', e.target.value)}
+                  onChange={e => updateLineItemLabel(item.id, e.target.value)}
                   placeholder="Description"
                   className="flex-1 bg-gray-800 border border-gray-700 text-white px-2 py-1.5 text-xs focus:border-red-600 outline-none disabled:opacity-50"
                 />
@@ -1956,7 +1963,7 @@ function EstimatePanel({ job, onUpdate }: { job: Job; onUpdate: (j: Job) => void
                     onChange={e => {
                       setRawAmounts(prev => ({ ...prev, [item.id]: e.target.value }));
                       const n = parseFloat(e.target.value);
-                      if (!isNaN(n)) updateLineItem(item.id, 'amount', e.target.value);
+                      if (!isNaN(n)) updateLineItemAmount(item.id, e.target.value);
                     }}
                     onBlur={e => {
                       if (e.target.value === '') {
@@ -1964,7 +1971,7 @@ function EstimatePanel({ job, onUpdate }: { job: Job; onUpdate: (j: Job) => void
                         return;
                       }
                       const n = parseFloat(e.target.value) || 0;
-                      updateLineItem(item.id, 'amount', String(n));
+                      updateLineItemAmount(item.id, String(n));
                       setRawAmounts(prev => { const next = { ...prev }; delete next[item.id]; return next; });
                     }}
                     className="w-20 bg-gray-800 border border-gray-700 text-white px-2 py-1.5 text-xs font-mono focus:border-red-600 outline-none disabled:opacity-50"
@@ -1975,7 +1982,7 @@ function EstimatePanel({ job, onUpdate }: { job: Job; onUpdate: (j: Job) => void
                   <input
                     type="checkbox"
                     checked={isTaxable}
-                    onChange={e => updateLineItem(item.id, 'taxable', e.target.checked)}
+                    onChange={e => updateLineItemTaxable(item.id, e.target.checked)}
                     className="accent-yellow-500 w-3 h-3 disabled:opacity-30"
                   />
                   <span className={`text-[10px] font-bold ${isTaxable ? 'text-yellow-600' : 'text-gray-700'}`}>Tax</span>
@@ -1993,7 +2000,7 @@ function EstimatePanel({ job, onUpdate }: { job: Job; onUpdate: (j: Job) => void
             <span className="text-gray-300 text-xs font-mono">${total.toFixed(2)}</span>
           </div>
           <div className="flex justify-between">
-            <span className="text-gray-500 text-xs uppercase tracking-wider">AZ TPT (9.386%)</span>
+            <span className="text-gray-500 text-xs uppercase tracking-wider">AZ TPT ({taxRatePercentLabel()}%)</span>
             <span className="text-yellow-500 text-xs font-mono">${taxFromItems(lineItems).toFixed(2)}</span>
           </div>
           <div className="flex justify-between border-t border-gray-700 pt-1.5">
@@ -2561,7 +2568,7 @@ function PaymentPanel({ job, onUpdate, onRequote }: { job: Job; onUpdate: (j: Jo
           <span className="text-gray-400 font-mono">${(job.invoiceAmount || 0).toFixed(2)}</span>
         </div>
         <div className="flex justify-between text-xs">
-          <span className="text-gray-600">AZ TPT (9.386%)</span>
+          <span className="text-gray-600">AZ TPT ({jobTaxPercent(job)}%)</span>
           <span className="text-yellow-600 font-mono">${(job.taxAmount || 0).toFixed(2)}</span>
         </div>
         {job.payments?.length > 0 ? (
@@ -2667,7 +2674,7 @@ function PaymentPanel({ job, onUpdate, onRequote }: { job: Job; onUpdate: (j: Jo
               </div>
             )}
             <div className="flex justify-between text-xs">
-              <span className="text-gray-600">AZ TPT (9.386%)</span>
+              <span className="text-gray-600">AZ TPT ({taxRatePercentLabel()}%)</span>
               <span className="text-yellow-600 font-mono">+${taxForAmount(finalAmount).toFixed(2)}</span>
             </div>
             <div className="flex justify-between text-xs border-t border-gray-800 pt-1">
@@ -2872,6 +2879,7 @@ function SignedDocSection({ job }: { job: Job }) {
             <p className="text-white text-sm font-bold">{job.customerSignature}</p>
             {job.preExistingDamage && <p className="text-gray-400 text-xs">Pre-existing damage: {job.preExistingDamage}</p>}
             {job.signedAt && <p className="text-gray-600 text-xs">{signedDate}</p>}
+            {job.signedIp && <p className="text-gray-700 text-[10px] font-mono">IP: {job.signedIp}</p>}
           </div>
           <button
             onClick={() => setOpen(true)}
@@ -3757,7 +3765,7 @@ function ExternalLeadModal({ onClose, onAdded }: { onClose: () => void; onAdded:
                 <span className="font-mono">${subtotal.toFixed(2)}</span>
               </div>
               <div className="flex justify-between text-xs text-gray-500">
-                <span>AZ TPT (9.386%)</span>
+                <span>AZ TPT ({taxRatePercentLabel()}%)</span>
                 <span className="font-mono">${tax.toFixed(2)}</span>
               </div>
               <div className="flex justify-between text-sm font-bold text-white pt-1">
@@ -4056,6 +4064,14 @@ export function JobsTab() {
   const seenEventIds = useRef<Set<string>>(
     new Set(JSON.parse(localStorage.getItem('seenPaymentEventIds') ?? '[]'))
   );
+
+  // Load the saved AZ TPT rate once per admin session — falls back to the
+  // built-in default if the settings row doesn't exist yet or the fetch fails.
+  useEffect(() => {
+    adminPost('get-tax-rate')
+      .then((data: any) => { if (data?.taxRate) setTaxRate(Number(data.taxRate)); })
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     // Paint instantly from whatever was loaded last time — Supabase's free
@@ -4690,7 +4706,7 @@ export function InvoicePage() {
               <span className="text-white text-sm font-mono">${amount?.toFixed(2)}</span>
             </div>
             <div className="flex justify-between px-6 py-3 border-t border-white/5">
-              <span className="text-gray-500 text-xs font-bold uppercase tracking-wider">AZ TPT (9.386%)</span>
+              <span className="text-gray-500 text-xs font-bold uppercase tracking-wider">AZ TPT ({jobTaxPercent(job)}%)</span>
               <span className="text-white text-sm font-mono">${(job.taxAmount || 0).toFixed(2)}</span>
             </div>
             {isPartiallyPaid && (
@@ -4954,7 +4970,7 @@ export function EstimatePage() {
       signerIp = data.ip || '';
     } catch { /* non-critical */ }
     try {
-      await apiPost('sign', { id: job.id, signature: signature.trim(), damage });
+      await apiPost('sign', { id: job.id, signature: signature.trim(), damage, signerIp });
       setDone(true);
     } catch (err) {
       console.error('Sign failed', err);
@@ -5049,7 +5065,7 @@ export function EstimatePage() {
                 <span className="text-white text-sm font-mono">${job.estimateAmount?.toFixed(2)}</span>
               </div>
               <div className="flex justify-between px-4 py-3 border-t border-white/5">
-                <span className="text-gray-500 text-xs font-bold uppercase tracking-wider">AZ TPT (9.386%)</span>
+                <span className="text-gray-500 text-xs font-bold uppercase tracking-wider">AZ TPT ({taxRatePercentLabel()}%)</span>
                 <span className="text-white text-sm font-mono">${taxFromItems(job.lineItems).toFixed(2)}</span>
               </div>
               <div className="flex justify-between px-4 py-4 border-t border-white/10">
@@ -5468,7 +5484,7 @@ function buildInvoicesPdf(JsPDF: any, jobs: Job[], periodLabel: string): any {
     doc.text(money(job.invoiceAmount || 0), rightX, y, { align: 'right' });
     y += 16;
     doc.setTextColor(180, 83, 9);
-    doc.text('AZ TPT (9.386%)', marginX, y);
+    doc.text(`AZ TPT (${jobTaxPercent(job)}%)`, marginX, y);
     doc.text(money(job.taxAmount || 0), rightX, y, { align: 'right' });
     y += 14;
     doc.setDrawColor(20);
@@ -5550,36 +5566,7 @@ function InvoiceExport() {
     adminPost('paid-bookings')
       .then((data: any[]) => {
         if (!data?.length) { setLoading(false); return; }
-        const jobs = data
-          .filter(b => b.paid_at)
-          .map(b => ({
-            id: b.id,
-            fname: b.fname,
-            lname: b.lname,
-            vehicle: b.vehicle,
-            date: b.date,
-            paidAt: b.paid_at,
-            invoiceAmount: Number(b.invoice_amount) || 0,
-            taxAmount: Number(b.tax_amount) || 0,
-            lineItems: b.line_items ? (typeof b.line_items === 'string' ? JSON.parse(b.line_items) : b.line_items) : [],
-            stripeTransactionId: b.stripe_transaction_id,
-            jobStatus: 'PAID' as JobStatus,
-            phone: b.phone,
-            email: b.email,
-            serviceType: b.service_type,
-            status: b.status,
-            time: b.time,
-            notes: b.notes,
-            adjustmentAmount: b.adjustment_amount,
-            adjustmentReason: b.adjustment_reason,
-            estimateAmount: b.estimate_amount,
-            estimateNotes: b.estimate_notes,
-            signedAt: b.signed_at,
-            signedIp: b.signed_ip,
-            stripeCustomerId: b.stripe_customer_id,
-            stripePaymentMethodId: b.stripe_payment_method_id,
-            cancelToken: b.cancel_token,
-          } as Job));
+        const jobs = data.filter(b => b.paid_at).map(mapJob);
         jobs.sort((a, b) => new Date(a.paidAt!).getTime() - new Date(b.paidAt!).getTime());
         setAllJobs(jobs);
         setLoading(false);
@@ -5653,7 +5640,7 @@ function InvoiceExport() {
             <div style="border-top:1px solid #333;padding:12px 20px;">
               <table style="width:100%;">
                 <tr><td style="padding:4px 0;font-size:11px;color:#666;">Subtotal</td><td style="text-align:right;font-family:monospace;font-size:12px;color:#fff;">$${(job.invoiceAmount||0).toFixed(2)}</td></tr>
-                <tr><td style="padding:4px 0;font-size:11px;color:#b45309;">AZ TPT (9.386%)</td><td style="text-align:right;font-family:monospace;font-size:12px;color:#fbbf24;">$${(job.taxAmount||0).toFixed(2)}</td></tr>
+                <tr><td style="padding:4px 0;font-size:11px;color:#b45309;">AZ TPT (${jobTaxPercent(job)}%)</td><td style="text-align:right;font-family:monospace;font-size:12px;color:#fbbf24;">$${(job.taxAmount||0).toFixed(2)}</td></tr>
                 <tr style="border-top:1px solid #333;"><td style="padding:8px 0 4px;font-size:12px;color:#fff;font-weight:700;">Total</td><td style="text-align:right;font-family:monospace;font-size:14px;color:#4ade80;font-weight:900;">$${total}</td></tr>
               </table>
             </div>
@@ -5958,6 +5945,82 @@ function JobsCSVExport() {
   );
 }
 
+// ── TAX RATE SETTINGS (editable, saved to Supabase, applies going forward) ─────
+function TaxRateSettings() {
+  const [savedRate, setSavedRate] = useState<number | null>(null);
+  const [input, setInput] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    adminPost('get-tax-rate')
+      .then((data: any) => {
+        const rate = Number(data?.taxRate) || 0.09386;
+        setSavedRate(rate);
+        setInput((rate * 100).toFixed(3));
+        setTaxRate(rate); // keep the in-memory rate in sync too
+        setLoading(false);
+      })
+      .catch(() => { setError('Failed to load current rate'); setLoading(false); });
+  }, []);
+
+  async function save() {
+    const pct = parseFloat(input);
+    if (!pct || pct <= 0 || pct >= 100) { setError('Enter a valid percentage, e.g. 9.386'); return; }
+    const rate = Math.round((pct / 100) * 1e6) / 1e6; // keep enough precision for e.g. 9.386%
+    setSaving(true);
+    setError(null);
+    try {
+      await adminPost('set-tax-rate', { taxRate: rate });
+      setTaxRate(rate); // applies immediately, site-wide, for the rest of this session
+      setSavedRate(rate);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    } catch (e: any) {
+      setError(e.message ?? 'Failed to save');
+    }
+    setSaving(false);
+  }
+
+  if (loading) return <p className="text-gray-600 text-xs py-4">Loading tax rate…</p>;
+
+  return (
+    <div className="border border-gray-800 bg-gray-900/30 p-4">
+      <p className="text-gray-400 text-xs font-bold uppercase tracking-widest mb-1">⚙️ AZ TPT Rate</p>
+      <p className="text-gray-600 text-[10px] mb-3">
+        Flagstaff's published combined rate (state 5.6% + Coconino County 1.3% + city 2.486%) is currently <strong className="text-gray-400">9.386%</strong>, per the AZ Dept. of Revenue rate tables — confirmed January 2026. This app can't auto-detect future changes, so update it here if AZ ever changes it. Saving applies to every <em>new</em> estimate/invoice from then on — past paid jobs keep whatever rate was actually charged.
+      </p>
+      <div className="flex gap-2 mb-1">
+        <div className="flex items-center gap-1 bg-gray-900 border border-gray-700 px-2.5 flex-1">
+          <input
+            type="number"
+            step="0.001"
+            value={input}
+            onChange={e => { setInput(e.target.value); setSaved(false); }}
+            className="bg-transparent text-white py-2 text-sm font-mono w-full outline-none"
+          />
+          <span className="text-gray-500 text-xs font-bold">%</span>
+        </div>
+        <button
+          onClick={save}
+          disabled={saving}
+          className={`px-4 text-xs font-bold uppercase tracking-wider border transition-colors ${
+            saved ? 'border-emerald-800 text-emerald-600' : 'border-yellow-700 text-yellow-600 hover:bg-yellow-900/20'
+          }`}
+        >
+          {saving ? 'Saving…' : saved ? '✓ Saved' : 'Save'}
+        </button>
+      </div>
+      {savedRate != null && (
+        <p className="text-gray-700 text-[10px]">Currently saved: {(savedRate * 100).toFixed(3)}%</p>
+      )}
+      {error && <p className="text-red-400 text-xs mt-2">{error}</p>}
+    </div>
+  );
+}
+
 // ── TAX SUMMARY (live from Supabase) ──────────────────────────────────────────
 function TaxSummary() {
   const [rows, setRows] = useState<{ month: string; subtotal: number; tax: number; total: number }[]>([]);
@@ -6098,6 +6161,7 @@ function HubCategoryPanel({ cat }: { cat: HubCategory }) {
       </div>
 
       {/* Tax summary auto-embedded in taxes tab */}
+      {cat.id === 'taxes' && <TaxRateSettings />}
       {cat.id === 'taxes' && <TaxSummary />}
       {cat.id === 'taxes' && <JobsCSVExport />}
       {cat.id === 'taxes' && <InvoiceExport />}
@@ -6126,13 +6190,11 @@ function HubCategoryPanel({ cat }: { cat: HubCategory }) {
 // ── BUSINESS HUB MAIN ─────────────────────────────────────────────────────────
 export function BusinessHub() {
   const [activeId, setActiveId] = useState<string>('taxes');
-  const [showPicker, setShowPicker] = useState(false);
   const [resetting, setResetting] = useState(false);
   const activeCat = HUB_CATEGORIES.find(c => c.id === activeId)!;
 
   function selectCat(id: string) {
     setActiveId(id);
-    setShowPicker(false);
   }
 
   async function resetAllNotes() {

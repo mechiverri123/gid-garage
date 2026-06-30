@@ -177,7 +177,7 @@ export async function onRequestPost({ request, env }) {
 
       // ---- Customer e-signs the estimate -----------------------------------
       case 'sign': {
-        const { id, signature, damage } = payload;
+        const { id, signature, damage, signerIp } = payload;
         if (!id || !signature) return json({ error: 'Missing id or signature' }, 400);
         const res = await fetch(
           `${base}/bookings?id=eq.${encodeURIComponent(id)}`,
@@ -190,6 +190,7 @@ export async function onRequestPost({ request, env }) {
               signed_at: new Date().toISOString(),
               job_status: 'SIGNED',
               ...(damage !== undefined ? { pre_existing_damage: String(damage).slice(0, 2000) } : {}),
+              ...(signerIp ? { signed_ip: String(signerIp).slice(0, 64) } : {}),
             }),
           }
         );

@@ -128,7 +128,7 @@ function Hero({ openBooking }: { openBooking: () => void }) {
         </div>
         <div className="max-w-5xl mx-auto px-5 md:px-8">
           <p className="text-red-400 text-xs font-bold uppercase tracking-[0.25em] mb-6">Get It Done Garage · Flagstaff, AZ</p>
-          <div className="text-5xl sm:text-6xl md:text-7xl font-extrabold text-white leading-tight tracking-tight mb-6" role="heading" aria-level="1">Mobile Car Care<br />at 7,000 Feet</div>
+          <h1 className="text-5xl sm:text-6xl md:text-7xl font-extrabold text-white leading-tight tracking-tight mb-6">Mobile Car Care<br />at 7,000 Feet</h1>
           <div className="text-white/80 text-lg md:text-xl max-w-2xl mx-auto mb-10 leading-relaxed font-light">We come to you — Flagstaff, Bellemont, Kachina, Fort Valley &amp; beyond. Honest pricing, expert work, no shop wait.</div>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <button onClick={openBooking} className="btn-primary text-sm px-8 py-4">Get a Quote</button>
@@ -664,7 +664,6 @@ export default function App() {
   const cancelId = params.get('cancel');
   const cancelToken = params.get('token');
   const isAdmin = window.location.pathname === '/admin' || window.location.hash === '#admin';
-  const isBookingsRoute = window.location.pathname === '/bookings';
   const isEstimate = window.location.pathname === '/estimate';
   const isInvoice = window.location.pathname === '/invoice';
   const isGames = window.location.pathname === '/games';

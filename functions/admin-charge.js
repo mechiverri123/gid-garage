@@ -18,7 +18,6 @@ export async function onRequestPost({ request, env }) {
 
   try {
     const { customerId, amountCents, subtotal, taxAmount, description, bookingId } = await request.json();
-    console.log('admin-charge received:', { bookingId, amountCents, subtotal });
 
     if (!customerId || !amountCents || !bookingId) {
       return new Response(JSON.stringify({ error: 'Missing required fields' }), {
@@ -35,6 +34,21 @@ export async function onRequestPost({ request, env }) {
     const supabaseUrl = env.SUPABASE_URL ?? env.VITE_SUPABASE_URL;
     const stripeKey = env.STRIPE_SECRET_KEY;
     const supabaseKey = env.SUPABASE_SERVICE_KEY;
+    const supabaseHeaders = { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}`, 'Content-Type': 'application/json' };
+
+    // Current AZ TPT rate as a decimal — only used as a fallback if the
+    // client didn't send an explicit taxAmount. Falls back to the historical
+    // Flagstaff rate if the settings row is ever missing.
+    async function fetchCurrentTaxRate() {
+      try {
+        const r = await fetch(`${supabaseUrl}/rest/v1/business_settings?id=eq.default&select=tax_rate`, { headers: supabaseHeaders });
+        if (!r.ok) return 0.09386;
+        const rows = await r.json();
+        return rows?.[0]?.tax_rate != null ? Number(rows[0].tax_rate) : 0.09386;
+      } catch {
+        return 0.09386;
+      }
+    }
 
     // Check if already paid
     const checkRes = await fetch(`${supabaseUrl}/rest/v1/bookings?id=eq.${bookingId}&select=job_status,stripe_transaction_id`, {
@@ -90,7 +104,7 @@ export async function onRequestPost({ request, env }) {
         // flat-rate fallback overcharges tax whenever any line item is exempt.
         tax_amount: taxAmount != null
           ? Math.round(Number(taxAmount) * 100) / 100
-          : (subtotal != null ? Math.round(subtotal * 0.09386 * 100) / 100 : 0),
+          : (subtotal != null ? Math.round(subtotal * (await fetchCurrentTaxRate()) * 100) / 100 : 0),
         paid_at: new Date().toISOString(),
         job_status: 'PAID',
         status: 'completed',

@@ -60,6 +60,19 @@ export async function onRequestPost({ request, env }) {
     'Content-Type': 'application/json',
   };
 
+  // Current AZ TPT rate as a decimal (e.g. 0.09386 for 9.386%) — falls back
+  // to the historical Flagstaff rate if the settings row is ever missing.
+  async function fetchCurrentTaxRate() {
+    try {
+      const r = await fetch(`${base}/business_settings?id=eq.default&select=tax_rate`, { headers });
+      if (!r.ok) return 0.09386;
+      const rows = await r.json();
+      return rows?.[0]?.tax_rate != null ? Number(rows[0].tax_rate) : 0.09386;
+    } catch {
+      return 0.09386;
+    }
+  }
+
   let payload;
   try {
     payload = await request.json();
@@ -204,6 +217,32 @@ export async function onRequestPost({ request, env }) {
       }
 
       // ---- Paid bookings (tax/revenue summary) -----------------------------
+      // ---- AZ TPT tax rate (editable, applies going forward only) ----------
+      case 'get-tax-rate': {
+        const res = await fetch(
+          `${base}/business_settings?id=eq.default&select=tax_rate`,
+          { headers }
+        );
+        if (!res.ok) return json({ error: await res.text() }, 502);
+        const rows = await res.json();
+        const taxRate = rows?.[0]?.tax_rate != null ? Number(rows[0].tax_rate) : 0.09386;
+        return json({ taxRate });
+      }
+
+      case 'set-tax-rate': {
+        const { taxRate } = payload;
+        if (typeof taxRate !== 'number' || !(taxRate >= 0) || taxRate > 1) {
+          return json({ error: 'Invalid tax rate — expected a decimal like 0.09386 for 9.386%' }, 400);
+        }
+        const res = await fetch(`${base}/business_settings`, {
+          method: 'POST',
+          headers: { ...headers, Prefer: 'resolution=merge-duplicates,return=minimal' },
+          body: JSON.stringify({ id: 'default', tax_rate: taxRate, updated_at: new Date().toISOString() }),
+        });
+        if (!res.ok) return json({ error: await res.text() }, 502);
+        return json({ ok: true, taxRate });
+      }
+
       case 'paid-bookings': {
         const res = await fetch(
           `${base}/bookings?job_status=eq.PAID&select=*&order=paid_at.desc`,
@@ -274,6 +313,9 @@ export async function onRequestPost({ request, env }) {
         const { job, shopAvg } = payload;
         if (!job) return json({ error: 'Missing job' }, 400);
         const savings = shopAvg > 0 ? shopAvg - (job.estimateAmount || 0) : 0;
+        const estTaxPct = job.estimateAmount > 0
+          ? ((Number(job.taxAmount || 0) / Number(job.estimateAmount)) * 100).toFixed(3)
+          : ((await fetchCurrentTaxRate()) * 100).toFixed(3);
         // Shop comparison block — moved to bottom, shows "They'd charge ~$X / You save $Y"
         const savingsHtml = savings > 10 ? `
           <table style="width:100%;background:#052e16;border:1px solid #166534;border-collapse:collapse;margin-bottom:0;"><tr><td style="padding:16px 20px;">
@@ -306,7 +348,7 @@ export async function onRequestPost({ request, env }) {
           subject: `Your GID Garage Estimate — ${job.vehicle}`,
           htmlContent: `<div style="font-family:sans-serif;max-width:560px;margin:0 auto;background:#0f0f0f;color:#fff;padding:0;overflow:hidden;"><img src="https://gidgarage.com/banner.PNG" alt="GID Garage" style="width:100%;display:block;height:auto;"/><div style="padding:28px 32px 32px;"><h2 style="color:#fff;font-size:22px;margin:0 0 8px;">Your Estimate is Ready</h2><p style="color:#9ca3af;margin:0 0 20px;">Hi ${job.fname}, here's your quote for the upcoming appointment.</p><table style="width:100%;border-collapse:collapse;margin-bottom:8px;">${lineItemsHtml}</table><table style="width:100%;border-collapse:collapse;margin-bottom:20px;">
               <tr style="border-top:2px solid #374151;"><td style="padding:12px 0 4px;color:#9ca3af;font-size:13px;">Subtotal</td><td style="padding:12px 0 4px;color:#fff;font-size:13px;text-align:right;">$${Number(job.estimateAmount||0).toFixed(2)}</td></tr>
-              <tr><td style="padding:4px 0;color:#9ca3af;font-size:13px;">AZ TPT (9.386%)</td><td style="padding:4px 0;color:#fff;font-size:13px;text-align:right;">$${Number(job.taxAmount||0).toFixed(2)}</td></tr>
+              <tr><td style="padding:4px 0;color:#9ca3af;font-size:13px;">AZ TPT (${estTaxPct}%)</td><td style="padding:4px 0;color:#fff;font-size:13px;text-align:right;">$${Number(job.taxAmount||0).toFixed(2)}</td></tr>
               <tr style="background:#111827;"><td style="padding:10px 0 10px 0;color:#fff;font-size:14px;font-weight:700;border-top:1px solid #374151;">Total</td><td style="padding:10px 0;color:#fff;font-size:15px;font-weight:900;text-align:right;border-top:1px solid #374151;">$${(Number(job.estimateAmount||0)+Number(job.taxAmount||0)).toFixed(2)}</td></tr>
             </table><p style="margin:20px 0;"><a href="${estimateUrl}" style="display:inline-block;background:#dc2626;color:#fff;text-decoration:none;font-weight:bold;font-size:13px;padding:14px 28px;letter-spacing:0.05em;text-transform:uppercase;">REVIEW &amp; APPROVE ESTIMATE →</a></p>${savingsHtml}<p style="color:#4b5563;font-size:11px;margin-top:24px;">Questions? Call or text <strong style="color:#9ca3af;">480-757-0476</strong> — GID Garage, Flagstaff AZ</p></div></div>`,
         });
@@ -322,8 +364,10 @@ export async function onRequestPost({ request, env }) {
         // exact bug this was missing before.
         const invoiceUrl = `https://gidgarage.com/invoice?id=${job.id}&action=pay`;
         const subtotalInv = job.lineItems?.reduce((s, i) => s + Number(i.amount || 0), 0) || Number(job.estimateAmount || 0);
-        const taxInv = job.taxAmount ? Number(job.taxAmount) : Math.round(subtotalInv * 0.09386 * 100) / 100;
+        const currentRateForInvoice = job.taxAmount ? null : await fetchCurrentTaxRate();
+        const taxInv = job.taxAmount ? Number(job.taxAmount) : Math.round(subtotalInv * currentRateForInvoice * 100) / 100;
         const totalInv = subtotalInv + taxInv;
+        const taxPctInv = subtotalInv > 0 ? ((taxInv / subtotalInv) * 100).toFixed(3) : ((currentRateForInvoice ?? 0.09386) * 100).toFixed(3);
         const lineItemsHtml = job.lineItems?.length
           ? job.lineItems.map(i => `<tr><td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#9ca3af;font-size:13px;">${i.label}</td><td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#fff;font-size:13px;text-align:right;font-family:monospace;white-space:nowrap;">${i.amount === 0 ? 'FREE' : (i.amount < 0 ? '-$' + Math.abs(Number(i.amount)).toFixed(2) : '$' + Number(i.amount).toFixed(2))}</td></tr>`).join('')
           : '';
@@ -353,7 +397,7 @@ export async function onRequestPost({ request, env }) {
                 <tr><td colspan="2" style="padding:0 0 8px;color:#6b7280;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;border-bottom:1px solid #374151;">Services &amp; Parts</td></tr>
                 ${lineItemsHtml}
                 <tr><td style="padding:10px 0 6px;color:#9ca3af;font-size:13px;">Subtotal</td><td style="padding:10px 0 6px;color:#fff;font-size:13px;text-align:right;font-family:monospace;">$${subtotalInv.toFixed(2)}</td></tr>
-                <tr><td style="padding:4px 0;color:#9ca3af;font-size:13px;">AZ TPT (9.386%)</td><td style="padding:4px 0;color:#fff;font-size:13px;text-align:right;font-family:monospace;">$${taxInv.toFixed(2)}</td></tr>
+                <tr><td style="padding:4px 0;color:#9ca3af;font-size:13px;">AZ TPT (${taxPctInv}%)</td><td style="padding:4px 0;color:#fff;font-size:13px;text-align:right;font-family:monospace;">$${taxInv.toFixed(2)}</td></tr>
                 <tr style="border-top:2px solid #374151;"><td style="padding:14px 0 0;color:#fff;font-size:16px;font-weight:900;">Total Due</td><td style="padding:14px 0 0;color:#dc2626;font-size:22px;font-weight:900;text-align:right;font-family:monospace;">$${totalInv.toFixed(2)}</td></tr>
               </table>
 
@@ -379,6 +423,7 @@ export async function onRequestPost({ request, env }) {
         const subtotal = Number(job.invoiceAmount || 0);
         const tax = Number(job.taxAmount || 0);
         const total = subtotal + tax;
+        const taxPctRcpt = subtotal > 0 ? ((tax / subtotal) * 100).toFixed(3) : ((await fetchCurrentTaxRate()) * 100).toFixed(3);
         const hasAdjustment = adjustmentReason && adjustmentAmount !== undefined && Math.abs(adjustmentAmount) > 0.001;
         const adjustmentHtml = hasAdjustment
           ? `<tr style="background:#1a1a2e;"><td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#818cf8;font-size:13px;font-style:italic;">Price Adjustment — ${adjustmentReason}</td><td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#818cf8;font-size:13px;text-align:right;font-weight:700;font-family:monospace;">${Number(adjustmentAmount) < 0 ? '-' : '+'}$${Math.abs(Number(adjustmentAmount)).toFixed(2)}</td></tr>`
@@ -412,7 +457,7 @@ export async function onRequestPost({ request, env }) {
                 <tr><td colspan="2" style="padding:0 0 8px;color:#6b7280;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;border-bottom:1px solid #374151;">Services &amp; Parts</td></tr>
                 ${lineItemsHtml}${adjustmentHtml}
                 <tr><td style="padding:10px 0 6px;color:#9ca3af;font-size:13px;">Subtotal</td><td style="padding:10px 0 6px;color:#fff;font-size:13px;text-align:right;font-family:monospace;">$${subtotal.toFixed(2)}</td></tr>
-                <tr><td style="padding:4px 0;color:#9ca3af;font-size:13px;">AZ TPT (9.386%)</td><td style="padding:4px 0;color:#fff;font-size:13px;text-align:right;font-family:monospace;">$${tax.toFixed(2)}</td></tr>
+                <tr><td style="padding:4px 0;color:#9ca3af;font-size:13px;">AZ TPT (${taxPctRcpt}%)</td><td style="padding:4px 0;color:#fff;font-size:13px;text-align:right;font-family:monospace;">$${tax.toFixed(2)}</td></tr>
                 <tr style="border-top:2px solid #374151;"><td style="padding:14px 0 0;color:#fff;font-size:16px;font-weight:900;">Total Paid</td><td style="padding:14px 0 0;color:#4ade80;font-size:22px;font-weight:900;text-align:right;font-family:monospace;">$${total.toFixed(2)}</td></tr>
               </table>
 
