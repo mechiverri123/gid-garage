@@ -444,6 +444,19 @@ export async function onRequestPost({ request, env }) {
         return json({ ok: true });
       }
 
+      // ---- Push notification subscriptions (admin device registering for alerts) ----
+      case 'add-push-subscription': {
+        const { endpoint, subscription } = payload;
+        if (!endpoint || !subscription) return json({ error: 'Missing endpoint or subscription' }, 400);
+        const res = await fetch(`${base}/push_subscriptions`, {
+          method: 'POST',
+          headers: { ...headers, Prefer: 'resolution=merge-duplicates,return=minimal' },
+          body: JSON.stringify({ endpoint, subscription }),
+        });
+        if (!res.ok) return json({ error: await res.text() }, 502);
+        return json({ ok: true });
+      }
+
       default:
         return json({ error: `Unknown action: ${action}` }, 400);
     }

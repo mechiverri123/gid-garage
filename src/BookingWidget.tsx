@@ -2304,14 +2304,18 @@ export function AdminSchedule() {
 
       if (!subscription) { alert('Push subscription failed — browser returned null.'); return; }
 
-      // Save subscription endpoint to Supabase
-      await sbFetch('/push_subscriptions', {
+      // Save subscription endpoint to Supabase — goes through admin-api-data
+      // (service key) since the anon key has no INSERT policy on this table.
+      await fetch('/admin-api-data', {
         method: 'POST',
-        headers: { 'Prefer': 'resolution=merge-duplicates' },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          action: 'add-push-subscription',
           endpoint: subscription.endpoint,
           subscription: JSON.stringify(subscription),
         }),
+      }).then(async r => {
+        if (!r.ok) throw new Error(await r.text());
       });
 
       // Only show confirmation notification the first time (new subscription)
