@@ -5303,6 +5303,38 @@ function usePersistentNotes(categoryId: string) {
 }
 
 // ── INVOICE EXPORT ────────────────────────────────────────────────────────────
+// iOS apps added to the home screen (standalone/PWA mode — what this admin
+// panel runs as) execute in a stripped-down WebKit container that silently
+// no-ops on window.print(), window.open(), and the <a download> attribute on
+// blob URLs — none of those work there, which is why earlier attempts at
+// Print Invoices appeared to do nothing. The Web Share API is the one
+// mechanism Apple does support in that mode: it opens the native share sheet
+// (Save to Files, Print, AirDrop, Mail, etc.). Falls back to a normal
+// download for desktop browsers / anywhere Web Share isn't available.
+async function shareOrDownloadFile(filename: string, mimeType: string, content: string) {
+  const blob = new Blob([content], { type: mimeType });
+  const file = new File([blob], filename, { type: mimeType });
+
+  if (typeof navigator.canShare === 'function' && navigator.canShare({ files: [file] })) {
+    try {
+      await navigator.share({ files: [file], title: filename });
+      return;
+    } catch (e: any) {
+      if (e?.name === 'AbortError') return; // user cancelled the share sheet — not an error
+      // fall through to the download fallback below
+    }
+  }
+
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
 function InvoiceExport() {
   const [allJobs, setAllJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(true);
@@ -5366,7 +5398,7 @@ function InvoiceExport() {
     return false;
   });
 
-  function printInvoices() {
+  async function printInvoices() {
     if (!filteredJobs.length) return;
     const periodLabel = mode === 'year'
       ? `Year ${selectedYear}`
@@ -5444,21 +5476,14 @@ function InvoiceExport() {
 
     const fullHtml = `<!DOCTYPE html><html><head><title>GID Garage Invoices — ${periodLabel}</title><style>*{box-sizing:border-box;}body{margin:0;background:#0f0f0f;}@media print{@page{margin:0;size:letter;}body{-webkit-print-color-adjust:exact;print-color-adjust:exact;}}</style></head><body>${invoiceHtml}${summaryHtml}</body></html>`;
 
-    // iOS has no working print() when the site is added to the home screen
-    // (standalone/PWA mode) — neither window.open nor an iframe's print()
-    // trigger the system print sheet there, that's a WebKit limitation, not
-    // a bug in this code. Downloading the file instead always works (same
-    // pattern as the CSV export below) — open the downloaded file and use
-    // the share-sheet "Print" or "Save to Files" (as PDF) from there.
-    const blob = new Blob([fullHtml], { type: 'text/html;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `gid-garage-invoices-${periodLabel.replace(/\s+/g, '-').toLowerCase()}.html`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(url);
+    // Plain <a download> on a blob also silently fails in iOS standalone/PWA
+    // mode — shareOrDownloadFile uses the Web Share API there instead, which
+    // opens the native share sheet (Save to Files as PDF, Print, AirDrop…).
+    await shareOrDownloadFile(
+      `gid-garage-invoices-${periodLabel.replace(/\s+/g, '-').toLowerCase()}.html`,
+      'text/html',
+      fullHtml
+    );
   }
 
   if (loading) return <p className="text-gray-600 text-xs py-4">Loading invoice data…</p>;
@@ -5467,7 +5492,7 @@ function InvoiceExport() {
   return (
     <div className="mt-6 border border-gray-800 bg-gray-900/30 p-4">
       <p className="text-gray-400 text-xs font-bold uppercase tracking-widest mb-1">🖨 Print Invoices</p>
-      <p className="text-gray-600 text-[10px] mb-3">Downloads as a file — open it, then use Share → Print or Save to Files (PDF).</p>
+      <p className="text-gray-600 text-[10px] mb-3">Opens your Share sheet — Save to Files (as PDF), Print, AirDrop, etc.</p>
       <div className="flex gap-2 mb-4">
         <button onClick={() => setMode('year')} className={`flex-1 text-xs font-bold uppercase tracking-wider py-2.5 border transition-colors ${mode === 'year' ? 'border-red-600 text-white bg-red-900/20' : 'border-gray-700 text-gray-500 hover:text-gray-300'}`}>By Year</button>
         <button onClick={() => setMode('month')} className={`flex-1 text-xs font-bold uppercase tracking-wider py-2.5 border transition-colors ${mode === 'month' ? 'border-red-600 text-white bg-red-900/20' : 'border-gray-700 text-gray-500 hover:text-gray-300'}`}>By Month</button>
@@ -5505,7 +5530,7 @@ function InvoiceExport() {
       )}
       {filteredJobs.length > 0 && (
         <button onClick={printInvoices} className="w-full py-3 bg-red-600 hover:bg-red-500 active:bg-red-700 text-white text-xs font-bold uppercase tracking-widest transition-colors">
-          ⬇ Download {filteredJobs.length} Invoice{filteredJobs.length !== 1 ? 's' : ''}
+          📤 Share {filteredJobs.length} Invoice{filteredJobs.length !== 1 ? 's' : ''}
         </button>
       )}
       {filteredJobs.length === 0 && (mode === 'year' ? selectedYear : selectedMonth) && (
@@ -5530,7 +5555,7 @@ function JobsCSVExport() {
     setError(null);
     try {
       const data = await adminPost('list-bookings', { limit: 5000 });
-      const jobs: Job[] = (data || []).map(mapJob).filter(j => j.jobStatus === 'PAID');
+      const jobs: Job[] = (data || []).map(mapJob).filter((j: Job) => j.jobStatus === 'PAID');
       // Oldest first reads naturally in a spreadsheet / for a bookkeeper.
       // Sort by paid date — taxes care about when income was received, not booked.
       jobs.sort((a, b) => new Date(a.paidAt || a.date || a.createdAt).getTime() - new Date(b.paidAt || b.date || b.createdAt).getTime());
@@ -5598,16 +5623,8 @@ function JobsCSVExport() {
         .map(r => r.map(csvCell).join(','))
         .join('\r\n');
 
-      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
       const today = new Date().toISOString().slice(0, 10);
-      a.href = url;
-      a.download = `gid-garage-jobs-export-${today}.csv`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
+      await shareOrDownloadFile(`gid-garage-jobs-export-${today}.csv`, 'text/csv', csv);
     } catch (e: any) {
       setError(e.message ?? 'Export failed');
     }
@@ -5616,11 +5633,11 @@ function JobsCSVExport() {
 
   return (
     <div className="mt-6 border border-gray-800 bg-gray-900/30 p-4">
-      <p className="text-gray-400 text-xs font-bold uppercase tracking-widest mb-1">📑 Export All Jobs (CSV)</p>
-      <p className="text-gray-600 text-[10px] mb-3">Every job with revenue, tax, parts cost, and net profit — opens in Excel/Sheets. Hand this to a bookkeeper or use it for Schedule C.</p>
+      <p className="text-gray-400 text-xs font-bold uppercase tracking-widest mb-1">📑 Export Paid Jobs (CSV)</p>
+      <p className="text-gray-600 text-[10px] mb-3">Paid jobs only — revenue, tax, parts cost, and net profit. Opens your Share sheet (Save to Files, AirDrop, Mail, etc.) — open the file in Excel/Sheets or hand it to a bookkeeper.</p>
       <button onClick={exportCsv} disabled={exporting}
         className="w-full py-3 border border-gray-700 hover:border-yellow-700 hover:text-yellow-500 text-gray-300 text-xs font-bold uppercase tracking-widest transition-colors disabled:opacity-40">
-        {exporting ? 'Exporting…' : '⬇ Download CSV'}
+        {exporting ? 'Exporting…' : '📤 Share CSV'}
       </button>
       {error && <p className="text-red-400 text-xs mt-2">{error}</p>}
     </div>
