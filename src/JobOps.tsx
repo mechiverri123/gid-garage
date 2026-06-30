@@ -5351,6 +5351,7 @@ function InvoiceExport() {
   const [previewFilename, setPreviewFilename] = useState('');
   const [sharing, setSharing] = useState(false);
   const [shareError, setShareError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
     adminPost('paid-bookings')
@@ -5367,7 +5368,7 @@ function InvoiceExport() {
             paidAt: b.paid_at,
             invoiceAmount: Number(b.invoice_amount) || 0,
             taxAmount: Number(b.tax_amount) || 0,
-            lineItems: b.line_items ?? [],
+            lineItems: b.line_items ? (typeof b.line_items === 'string' ? JSON.parse(b.line_items) : b.line_items) : [],
             stripeTransactionId: b.stripe_transaction_id,
             jobStatus: 'PAID' as JobStatus,
             phone: b.phone,
@@ -5390,7 +5391,7 @@ function InvoiceExport() {
         setAllJobs(jobs);
         setLoading(false);
       })
-      .catch(() => setLoading(false));
+      .catch((e: any) => { setLoadError(e?.message ?? 'Failed to load paid jobs'); setLoading(false); });
   }, []);
 
   const years = [...new Set(allJobs.map(j => new Date(j.paidAt!).getFullYear().toString()))].sort();
@@ -5506,6 +5507,12 @@ function InvoiceExport() {
   }
 
   if (loading) return <p className="text-gray-600 text-xs py-4">Loading invoice data…</p>;
+  if (loadError) return (
+    <div className="bg-red-900/10 border border-red-800 px-4 py-3 mt-4">
+      <p className="text-red-400 text-xs font-bold mb-1">Couldn't load paid jobs</p>
+      <p className="text-gray-500 text-xs">{loadError}</p>
+    </div>
+  );
   if (!allJobs.length) return null;
 
   return (
@@ -5593,9 +5600,10 @@ function JobsCSVExport() {
   const [showPreview, setShowPreview] = useState(false);
   const [csvContent, setCsvContent] = useState('');
   const [csvFilename, setCsvFilename] = useState('');
+  const [previewHeaders, setPreviewHeaders] = useState<string[]>([]);
+  const [previewRows, setPreviewRows] = useState<string[][]>([]);
   const [sharing, setSharing] = useState(false);
   const [shareError, setShareError] = useState<string | null>(null);
-  const csvRef = useRef<HTMLTextAreaElement>(null);
 
   async function shareCsv() {
     setSharing(true);
@@ -5682,6 +5690,8 @@ function JobsCSVExport() {
         .join('\r\n');
 
       const today = new Date().toISOString().slice(0, 10);
+      setPreviewHeaders(headers);
+      setPreviewRows([...rows, totalsRow]);
       setCsvContent(csv);
       setCsvFilename(`gid-garage-jobs-export-${today}.csv`);
       setShareError(null);
@@ -5705,15 +5715,11 @@ function JobsCSVExport() {
       {showPreview && (
         <div className="fixed inset-0 z-50 bg-black/90 flex flex-col p-3">
           <div className="flex items-center justify-between gap-2 mb-2 flex-shrink-0">
-            <p className="text-white text-xs font-bold uppercase tracking-wider truncate">CSV Preview</p>
+            <p className="text-white text-xs font-bold uppercase tracking-wider truncate">Paid Jobs — {previewRows.length - 1} job{previewRows.length - 1 !== 1 ? 's' : ''}</p>
             <div className="flex gap-2 flex-shrink-0">
               <button onClick={shareCsv} disabled={sharing}
                 className="text-xs font-bold uppercase tracking-wider px-3 py-2 border border-emerald-700 text-emerald-400 hover:bg-emerald-900/30 transition-colors disabled:opacity-40">
                 {sharing ? 'Sharing…' : '📤 Share / Save'}
-              </button>
-              <button onClick={() => csvRef.current?.select()}
-                className="text-xs font-bold uppercase tracking-wider px-3 py-2 border border-gray-700 text-gray-400 hover:border-white hover:text-white transition-colors">
-                Select All
               </button>
               <button onClick={() => setShowPreview(false)}
                 className="text-xs font-bold uppercase tracking-wider px-3 py-2 border border-gray-700 text-gray-400 hover:border-white hover:text-white transition-colors">
@@ -5722,9 +5728,32 @@ function JobsCSVExport() {
             </div>
           </div>
           {shareError && <p className="text-red-400 text-xs mb-2 flex-shrink-0">{shareError}</p>}
-          <p className="text-gray-600 text-[10px] mb-2 flex-shrink-0">If Share doesn't open anything, tap Select All, copy, and paste into Notes/Sheets/Excel.</p>
-          <textarea ref={csvRef} readOnly value={csvContent}
-            className="flex-1 w-full bg-[#0f0f0f] border border-gray-800 text-gray-300 text-[10px] font-mono p-3 outline-none resize-none" />
+          <p className="text-gray-600 text-[10px] mb-2 flex-shrink-0">Swipe sideways to see all columns. Share/Save exports the full file (CSV).</p>
+          <div className="flex-1 overflow-auto border border-gray-800">
+            <table className="min-w-full text-[11px] border-collapse">
+              <thead className="sticky top-0 bg-gray-900">
+                <tr>
+                  {previewHeaders.map(h => (
+                    <th key={h} className="text-left text-gray-400 font-bold uppercase tracking-wider px-3 py-2 border-b border-gray-700 whitespace-nowrap">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {previewRows.map((row, i) => {
+                  const isTotals = row[0] === 'TOTALS';
+                  return (
+                    <tr key={i} className={isTotals ? 'bg-gray-900 font-bold' : i % 2 === 0 ? 'bg-black/20' : ''}>
+                      {row.map((cell, j) => (
+                        <td key={j} className={`px-3 py-2 whitespace-nowrap border-b border-gray-900 ${isTotals ? 'text-white' : 'text-gray-300'} ${j >= 5 ? 'font-mono text-right' : ''}`}>
+                          {cell || '—'}
+                        </td>
+                      ))}
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
     </div>

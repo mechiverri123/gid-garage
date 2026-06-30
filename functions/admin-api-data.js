@@ -205,16 +205,8 @@ export async function onRequestPost({ request, env }) {
 
       // ---- Paid bookings (tax/revenue summary) -----------------------------
       case 'paid-bookings': {
-        const paidColumns = [
-          'id', 'fname', 'lname', 'vehicle', 'date', 'paid_at',
-          'invoice_amount', 'tax_amount', 'line_items', 'stripe_transaction_id',
-          'phone', 'email', 'status', 'time', 'notes',
-          'adjustment_amount', 'adjustment_reason', 'estimate_amount', 'estimate_notes',
-          'signed_at', 'stripe_customer_id', 'cancel_token', 'service',
-          'parts_cost', 'amount_paid', 'payments', 'job_status',
-        ].join(',');
         const res = await fetch(
-          `${base}/bookings?job_status=eq.PAID&select=${paidColumns}&order=paid_at.desc`,
+          `${base}/bookings?job_status=eq.PAID&select=*&order=paid_at.desc`,
           { headers }
         );
         if (!res.ok) return json({ error: await res.text() }, 502);
