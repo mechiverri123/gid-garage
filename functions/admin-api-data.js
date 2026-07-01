@@ -19,6 +19,15 @@
 //   list-blackout-dates {}                 -> BlackoutDate[]   (requires a `blackout_dates` table: date text PK, reason text)
 //   add-blackout-date   { date, reason? }  -> BlackoutDate
 //   remove-blackout-date{ date }           -> { ok }
+//   run-backup           {}                -> BackupStatus     (manual "Run Backup Now" from Hub → Recovery)
+//   backup-status         {}                -> BackupStatus | null
+
+import { runBackup, readBackupStatus } from './_lib/backup.js';
+import { reportError } from './_lib/sentry.js';
+
+const GBP_REVIEW_URL = 'https://g.page/r/CdERSypGqVdlEBM/review';
+
+
 
 function json(body, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -98,6 +107,7 @@ export async function onRequestPost({ request, env }) {
           'invoice_amount', 'stripe_transaction_id', 'stripe_customer_id',
           'stripe_last4', 'paid_at', 'adjustment_amount', 'amount_paid', 'payments',
           'invoice_sent_count', 'invoice_last_sent_at', 'parts_cost', 'parts_receipts',
+          'review_left_at',
         ].join(',');
         const res = await fetch(
           `${base}/bookings?select=${listColumns}&order=date.desc,time.desc&limit=${limit}`,
@@ -250,6 +260,16 @@ export async function onRequestPost({ request, env }) {
         );
         if (!res.ok) return json({ error: await res.text() }, 502);
         return json(await res.json());
+      }
+
+      // ---- Recovery / backups (Hub → Recovery) ------------------------------
+      case 'run-backup': {
+        const status = await runBackup(env);
+        return json(status);
+      }
+      case 'backup-status': {
+        const status = await readBackupStatus(env);
+        return json(status);
       }
 
       // ---- Business Hub notes (admin-only) ---------------------------------
@@ -465,6 +485,10 @@ export async function onRequestPost({ request, env }) {
                 <a href="${invoiceUrl}" style="display:inline-block;background:#1f2937;color:#fff;text-decoration:none;font-weight:700;font-size:12px;padding:14px 32px;letter-spacing:0.08em;text-transform:uppercase;border:1px solid #374151;">🧾 VIEW / SAVE RECEIPT →</a>
               </p>
               ${job.stripeTransactionId ? `<p style="color:#4b5563;font-size:11px;text-align:center;margin:8px 0 0;">Transaction ID: ${job.stripeTransactionId}</p>` : ''}
+              <div style="margin-top:24px;padding-top:20px;border-top:1px solid #1f2937;text-align:center;">
+                <p style="color:#9ca3af;font-size:12px;margin:0 0 10px;">Happy with the work? A quick review helps a lot:</p>
+                <a href="${GBP_REVIEW_URL}" style="display:inline-block;background:#16a34a;color:#fff;text-decoration:none;font-weight:700;font-size:11px;padding:10px 24px;letter-spacing:0.05em;text-transform:uppercase;">⭐ Leave a Review</a>
+              </div>
             </div>
             <div style="background:#111827;padding:20px 32px;border-top:1px solid #1f2937;">
               <p style="color:#4b5563;font-size:11px;margin:0;">Questions? Call or text <strong style="color:#9ca3af;">480-757-0476</strong> or reply to this email.</p>
@@ -506,6 +530,7 @@ export async function onRequestPost({ request, env }) {
         return json({ error: `Unknown action: ${action}` }, 400);
     }
   } catch (err) {
+    await reportError(env, err, { source: 'admin-api-data', action: payload?.action });
     return json({ error: err.message ?? 'Unknown error' }, 500);
   }
 }

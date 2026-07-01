@@ -162,6 +162,12 @@ export interface Job {
   paidAt: string | null;
   adjustmentReason: string;
   adjustmentAmount: number | null;
+  // review tracking — when the customer is confirmed to have left a Google
+  // review (marked manually, since there's no automated GBP review API
+  // wired up). Excludes them from future review-request follow-up emails —
+  // for this job, and for any other job under the same email, since asking
+  // an already-reviewed repeat customer again is just annoying.
+  reviewLeftAt: string | null;
   // how many times the invoice email has been sent, and when last — surfaced
   // on the Payment tab so it's obvious whether a customer was ever notified
   invoiceSentCount: number;
@@ -207,6 +213,53 @@ interface InspectionData {
 
 // ── SUPABASE HELPERS ─────────────────────────────────────────────────────────
 
+
+// ── ERROR MONITORING ─────────────────────────────────────────────────────────
+// Minimal Sentry reporter — raw envelope POST, no @sentry/* SDK dependency
+// (keeps bundle size down). Mirrors functions/_lib/sentry.js on the server
+// side. Set VITE_SENTRY_DSN (Cloudflare Pages → env vars, build-time) to a
+// Sentry project DSN to turn this on; no-ops silently if unset.
+const SENTRY_DSN = (import.meta as any).env?.VITE_SENTRY_DSN as string | undefined;
+
+async function reportError(error: unknown, extra: Record<string, any> = {}) {
+  try {
+    if (!SENTRY_DSN) return;
+    const m = SENTRY_DSN.match(/^https:\/\/([^@]+)@([^/]+)\/(.+)$/);
+    if (!m) return;
+    const [, publicKey, host, projectId] = m;
+    const eventId = crypto.randomUUID().replace(/-/g, '');
+    const err = error instanceof Error ? error : new Error(String(error));
+    const payload = {
+      event_id: eventId,
+      timestamp: new Date().toISOString(),
+      platform: 'javascript',
+      exception: { values: [{ type: err.name || 'Error', value: err.message, stacktrace: err.stack ? { frames: [{ filename: 'client', function: 'unknown', context_line: err.stack }] } : undefined }] },
+      extra: { ...extra, url: typeof location !== 'undefined' ? location.href : '', ua: typeof navigator !== 'undefined' ? navigator.userAgent : '' },
+    };
+    const envelopeHeader = JSON.stringify({ event_id: eventId, sent_at: new Date().toISOString() });
+    const itemHeader = JSON.stringify({ type: 'event' });
+    const body = `${envelopeHeader}\n${itemHeader}\n${JSON.stringify(payload)}`;
+    await fetch(`https://${host}/api/${projectId}/envelope/?sentry_key=${publicKey}&sentry_version=7`, {
+      method: 'POST', headers: { 'Content-Type': 'application/x-sentry-envelope' }, body,
+    });
+  } catch { /* error reporting must never itself break the UI */ }
+}
+
+// Catches anything that slips past a local try/catch — installed once per
+// page (admin dashboard + the public invoice/pay page).
+function useGlobalErrorReporting(context: Record<string, any> = {}) {
+  useEffect(() => {
+    if (!SENTRY_DSN) return;
+    const onError = (e: ErrorEvent) => reportError(e.error ?? e.message, { source: 'window.onerror', ...context });
+    const onRejection = (e: PromiseRejectionEvent) => reportError(e.reason, { source: 'unhandledrejection', ...context });
+    window.addEventListener('error', onError);
+    window.addEventListener('unhandledrejection', onRejection);
+    return () => {
+      window.removeEventListener('error', onError);
+      window.removeEventListener('unhandledrejection', onRejection);
+    };
+  }, []);
+}
 
 // ── SECURE WORKER HELPERS ────────────────────────────────────────────────────
 // Admin ops -> /admin-api/data (service key, behind Cloudflare Access).
@@ -265,6 +318,7 @@ function mapJob(b: any): Job {
     paidAt: b.paid_at || null,
     adjustmentReason: b.adjustment_reason || '',
     adjustmentAmount: b.adjustment_amount ?? null,
+    reviewLeftAt: b.review_left_at || null,
     invoiceSentCount: b.invoice_sent_count ?? 0,
     invoiceLastSentAt: b.invoice_last_sent_at ?? null,
     amountPaid: b.amount_paid ?? null,
@@ -2106,6 +2160,44 @@ function EstimatePanel({ job, onUpdate }: { job: Job; onUpdate: (j: Job) => void
 
 // ── PAYMENT PANEL ─────────────────────────────────────────────────────────────
 
+// Marks whether this customer has actually left a Google review — no GBP
+// review API is wired up, so this is a manual toggle Michael flips when he
+// sees one come in. Excludes the job (and, via email match, this customer's
+// other jobs) from future review-request follow-up emails.
+function ReviewStatusToggle({ job, onUpdate }: { job: Job; onUpdate: (j: Job) => void }) {
+  const [saving, setSaving] = useState(false);
+  const reviewed = !!job.reviewLeftAt;
+
+  async function toggle() {
+    setSaving(true);
+    const value = reviewed ? null : new Date().toISOString();
+    try {
+      await patchJob(job.id, { review_left_at: value });
+      onUpdate({ ...job, reviewLeftAt: value });
+    } catch (e: any) {
+      await reportError(e, { source: 'ReviewStatusToggle', jobId: job.id });
+    }
+    setSaving(false);
+  }
+
+  return (
+    <button
+      onClick={toggle}
+      disabled={saving}
+      className={`w-full flex items-center justify-center gap-2 text-xs font-bold uppercase tracking-wider py-2 mt-1 border transition-colors disabled:opacity-40 ${
+        reviewed
+          ? 'border-emerald-700 text-emerald-400 bg-emerald-900/20 hover:bg-emerald-900/10'
+          : 'border-gray-700 text-gray-500 hover:text-gray-300 hover:border-gray-500'
+      }`}
+      title={reviewed ? 'Customer confirmed to have left a review — click to undo' : 'Mark that this customer left a Google review'}
+    >
+      {saving ? 'Saving…' : reviewed
+        ? `⭐ Review Left${job.reviewLeftAt ? ' — ' + new Date(job.reviewLeftAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : ''}`
+        : '☆ Mark Review Left'}
+    </button>
+  );
+}
+
 function PaymentPanel({ job, onUpdate, onRequote }: { job: Job; onUpdate: (j: Job) => void; onRequote?: () => void }) {
   const [invoiceAmt, setInvoiceAmt] = useState(job.invoiceAmount?.toString() ?? job.estimateAmount?.toString() ?? '');
   const [stripeId, setStripeId] = useState(job.stripeTransactionId);
@@ -2217,6 +2309,7 @@ function PaymentPanel({ job, onUpdate, onRequote }: { job: Job; onUpdate: (j: Jo
       setPaymentNote('');
       setPaymentStripeId('');
     } catch (e: any) {
+      await reportError(e, { source: 'recordPayment', jobId: job.id, amount: paymentAmt });
       setRecordError(e.message ?? 'Failed to record payment');
     }
     setRecordingPayment(false);
@@ -2483,6 +2576,7 @@ function PaymentPanel({ job, onUpdate, onRequote }: { job: Job; onUpdate: (j: Jo
       onUpdate(updated);
     } catch (e: any) {
       await writePaymentEvent(job.id, 'declined', chargedAmount, e.message ?? 'Charge failed');
+      await reportError(e, { source: 'chargeCardOnFile', jobId: job.id, amount: chargedAmount });
       setChargeError(e.message ?? 'Charge failed. Try again or use manual entry.');
       // Send decline email to customer
       try {
@@ -2496,41 +2590,50 @@ function PaymentPanel({ job, onUpdate, onRequote }: { job: Job; onUpdate: (j: Jo
   async function markPaid() {
     if (!stripeId) return;
     setSaving(true);
+    setChargeError(null);
     const paidAt = new Date().toISOString();
     const reconciledAmountPaid = totalForAmount(finalAmount); // manual entry covers whatever balance remained
-    let invoiceBump: { count: number; lastSentAt: string } | null = null;
-    if (job.jobStatus !== 'INVOICED') {
-      await patchJob(job.id, { job_status: 'INVOICED', invoice_amount: finalAmount, tax_amount: taxForAmount(finalAmount) });
-      invoiceBump = await sendInvoiceEmail({ ...job, jobStatus: 'INVOICED' as JobStatus, invoiceAmount: finalAmount, taxAmount: taxForAmount(finalAmount) });
+    try {
+      let invoiceBump: { count: number; lastSentAt: string } | null = null;
+      if (job.jobStatus !== 'INVOICED') {
+        await patchJob(job.id, { job_status: 'INVOICED', invoice_amount: finalAmount, tax_amount: taxForAmount(finalAmount) });
+        invoiceBump = await sendInvoiceEmail({ ...job, jobStatus: 'INVOICED' as JobStatus, invoiceAmount: finalAmount, taxAmount: taxForAmount(finalAmount) });
+      }
+      // Same reasoning as chargeCardOnFile — if there were prior partial
+      // payments, log this manual entry's remaining-balance amount so
+      // revenue-by-month tracking actually sees it.
+      const updatedPayments = [...(job.payments || []), {
+            id: Math.random().toString(36).slice(2),
+            amount: balanceDue,
+            method: 'Manual Entry',
+            note: amountPaidSoFar > 0 ? 'Remaining balance' : '',
+            at: paidAt,
+            stripeId,
+          } as Payment];
+      await patchJob(job.id, {
+        invoice_amount: finalAmount,
+        tax_amount: taxForAmount(finalAmount),
+        stripe_transaction_id: stripeId,
+        paid_at: paidAt,
+        job_status: 'PAID',
+        status: 'completed',
+        amount_paid: reconciledAmountPaid,
+        payments: JSON.stringify(updatedPayments),
+      });
+      const paidJob = {
+        ...job, invoiceAmount: finalAmount, taxAmount: taxForAmount(finalAmount), stripeTransactionId: stripeId, paidAt, jobStatus: 'PAID' as JobStatus, status: 'completed', amountPaid: reconciledAmountPaid, payments: updatedPayments,
+        ...(invoiceBump ? { invoiceSentCount: invoiceBump.count, invoiceLastSentAt: invoiceBump.lastSentAt } : {}),
+      };
+      onUpdate(paidJob);
+      // Send receipt email so customer gets confirmation even when paid manually
+      await sendReceiptEmail(paidJob);
+    } catch (e: any) {
+      // This is the Tap to Pay / payment-link close-out path — previously any
+      // failure here (bad network, Supabase hiccup, etc.) threw unhandled
+      // with no feedback at all, silently leaving the job un-closed.
+      await reportError(e, { source: 'markPaid', jobId: job.id, amount: finalAmount, stripeId });
+      setChargeError(e.message ?? 'Failed to mark paid. Try again.');
     }
-    // Same reasoning as chargeCardOnFile — if there were prior partial
-    // payments, log this manual entry's remaining-balance amount so
-    // revenue-by-month tracking actually sees it.
-    const updatedPayments = [...(job.payments || []), {
-          id: Math.random().toString(36).slice(2),
-          amount: balanceDue,
-          method: 'Manual Entry',
-          note: amountPaidSoFar > 0 ? 'Remaining balance' : '',
-          at: paidAt,
-          stripeId,
-        } as Payment];
-    await patchJob(job.id, {
-      invoice_amount: finalAmount,
-      tax_amount: taxForAmount(finalAmount),
-      stripe_transaction_id: stripeId,
-      paid_at: paidAt,
-      job_status: 'PAID',
-      status: 'completed',
-      amount_paid: reconciledAmountPaid,
-      payments: JSON.stringify(updatedPayments),
-    });
-    const paidJob = {
-      ...job, invoiceAmount: finalAmount, taxAmount: taxForAmount(finalAmount), stripeTransactionId: stripeId, paidAt, jobStatus: 'PAID' as JobStatus, status: 'completed', amountPaid: reconciledAmountPaid, payments: updatedPayments,
-      ...(invoiceBump ? { invoiceSentCount: invoiceBump.count, invoiceLastSentAt: invoiceBump.lastSentAt } : {}),
-    };
-    onUpdate(paidJob);
-    // Send receipt email so customer gets confirmation even when paid manually
-    await sendReceiptEmail(paidJob);
     setSaving(false);
   }
 
@@ -2642,6 +2745,7 @@ function PaymentPanel({ job, onUpdate, onRequote }: { job: Job; onUpdate: (j: Jo
             </button>
           )}
         </div>
+        <ReviewStatusToggle job={job} onUpdate={onUpdate} />
       </div>
     );
   }
@@ -4075,6 +4179,7 @@ function AddJobModal({ onClose, onAdded }: { onClose: () => void; onAdded: (job:
 const JOBS_CACHE_KEY = 'gid_jobs_cache_v1';
 
 export function JobsTab() {
+  useGlobalErrorReporting({ page: 'admin-jobs' });
   const [jobs, setJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -4085,6 +4190,7 @@ export function JobsTab() {
   const [showAddJob, setShowAddJob] = useState(false);
   const [showExternalLead, setShowExternalLead] = useState(false);
   const [revenueView, setRevenueView] = useState<'month' | 'year'>('month');
+  const [netProfitView, setNetProfitView] = useState<'month' | 'year'>('month');
 
   const seenEventIds = useRef<Set<string>>(
     new Set(JSON.parse(localStorage.getItem('seenPaymentEventIds') ?? '[]'))
@@ -4272,6 +4378,16 @@ export function JobsTab() {
   }, 0);
   const monthRevenue = revenueFor(isThisMonth);
   const yearRevenue = revenueFor(isThisYear);
+  // Net profit = revenue collected minus parts cost, attributed to the job's
+  // close-out date (paidAt) — parts cost is a lump sum per job, not something
+  // that splits across payment entries the way revenue can.
+  const netProfitFor = (inWindow: (iso: string) => boolean) => jobs.reduce((sum, j) => {
+    if (j.jobStatus !== 'PAID' || !j.paidAt || !inWindow(j.paidAt)) return sum;
+    const paid = j.amountPaid ?? ((j.invoiceAmount || 0) + (j.taxAmount || 0));
+    return sum + (paid - (j.partsCost || 0));
+  }, 0);
+  const monthNetProfit = netProfitFor(isThisMonth);
+  const yearNetProfit = netProfitFor(isThisYear);
 
   const JOB_STATUS_ORDER: Record<string, number> = {
     BOOKED: 0, ESTIMATE_SENT: 1, SIGNED: 2, IN_PROGRESS: 3,
@@ -4292,7 +4408,7 @@ export function JobsTab() {
   return (
     <div>
       {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8">
         {[
           ['Unpaid / Due', unpaid, 'text-yellow-400'],
           ['Awaiting Signature', awaitingSign, 'text-purple-400'],
@@ -4314,6 +4430,19 @@ export function JobsTab() {
           </div>
           <div className="text-gray-600 text-xs font-bold uppercase tracking-wider">
             {revenueView === 'month' ? 'Revenue This Month' : `${now.getFullYear()} Revenue`}
+          </div>
+        </button>
+        <button
+          type="button"
+          onClick={() => setNetProfitView(v => v === 'month' ? 'year' : 'month')}
+          className="bg-gray-900 border border-gray-800 p-5 text-left hover:border-cyan-800 active:bg-gray-800 transition-colors"
+          title="Tap to toggle Month / Year"
+        >
+          <div className={`text-2xl font-black mb-1 ${(netProfitView === 'month' ? monthNetProfit : yearNetProfit) >= 0 ? 'text-cyan-400' : 'text-red-500'}`}>
+            ${(netProfitView === 'month' ? monthNetProfit : yearNetProfit).toFixed(2)}
+          </div>
+          <div className="text-gray-600 text-xs font-bold uppercase tracking-wider">
+            {netProfitView === 'month' ? 'Net Profit This Month' : `${now.getFullYear()} Net Profit`}
           </div>
         </button>
       </div>
@@ -4540,6 +4669,7 @@ function SelfPayForm({ job, onPaid }: { job: Job; onPaid: (updated: Job) => void
       setDone(true);
       onPaid(updated);
     } catch (e: any) {
+      await reportError(e, { source: 'SelfPayForm.handlePay', jobId: job.id, amount: balanceDue });
       setCardError(e.message ?? 'Payment failed. Please try again.');
     }
     setPaying(false);
@@ -4576,6 +4706,7 @@ function SelfPayForm({ job, onPaid }: { job: Job; onPaid: (updated: Job) => void
 }
 
 export function InvoicePage() {
+  useGlobalErrorReporting({ page: 'public-invoice' });
   const params = new URLSearchParams(window.location.search);
   const jobId = params.get('id');
   const showPayForm = params.get('action') === 'pay';
@@ -5249,6 +5380,7 @@ interface HubCategory {
 
 const HUB_CATEGORIES: HubCategory[] = [
   { id: 'revenue',  icon: '📈', label: 'Revenue',             color: 'text-emerald-400', border: 'border-emerald-800', bg: 'bg-emerald-900/10' },
+  { id: 'recovery', icon: '🛟', label: 'Recovery',            color: 'text-red-400',     border: 'border-red-800',    bg: 'bg-red-900/10'    },
   { id: 'taxes',    icon: '🧾', label: 'Taxes & TPT',        color: 'text-yellow-400',  border: 'border-yellow-800', bg: 'bg-yellow-900/10' },
   { id: 'ops',      icon: '⚙️', label: 'Operations',         color: 'text-blue-400',    border: 'border-blue-800',   bg: 'bg-blue-900/10'   },
   { id: 'legal',    icon: '⚖️', label: 'Legal & Licensing',  color: 'text-purple-400',  border: 'border-purple-800', bg: 'bg-purple-900/10' },
@@ -6318,6 +6450,100 @@ function RevenuePanel() {
   );
 }
 
+// ── RECOVERY PANEL (Hub) ─────────────────────────────────────────────────────
+function RecoveryPanel() {
+  const [status, setStatus] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [running, setRunning] = useState(false);
+  const [runError, setRunError] = useState<string | null>(null);
+
+  function load() {
+    setLoading(true);
+    adminPost('backup-status')
+      .then(s => { setStatus(s); setLoading(false); })
+      .catch(() => setLoading(false));
+  }
+  useEffect(load, []);
+
+  async function runNow() {
+    setRunning(true);
+    setRunError(null);
+    try {
+      const s = await adminPost('run-backup');
+      setStatus(s);
+    } catch (e: any) {
+      setRunError(e.message ?? 'Backup failed');
+    }
+    setRunning(false);
+  }
+
+  const hoursAgo = status?.lastBackupAt ? (Date.now() - new Date(status.lastBackupAt).getTime()) / 3600000 : null;
+  // Clear-as-day status: green if backed up in the last day, yellow within 2
+  // days (probably just hasn't run yet today), red/never otherwise.
+  const state: 'ok' | 'warn' | 'bad' = hoursAgo == null ? 'bad' : hoursAgo <= 26 ? 'ok' : hoursAgo <= 50 ? 'warn' : 'bad';
+  const STATE_STYLE = {
+    ok:   { bg: 'bg-emerald-900/20', border: 'border-emerald-700', text: 'text-emerald-400', label: '✅ Backed Up' },
+    warn: { bg: 'bg-yellow-900/20',  border: 'border-yellow-700',  text: 'text-yellow-400',  label: '⚠️ Overdue' },
+    bad:  { bg: 'bg-red-900/20',     border: 'border-red-700',     text: 'text-red-400',     label: hoursAgo == null ? '🚨 Never Backed Up' : '🚨 Backup Failing' },
+  }[state];
+
+  return (
+    <div>
+      {/* Big, unmissable status card */}
+      <div className={`border-2 ${STATE_STYLE.border} ${STATE_STYLE.bg} p-5 mb-4`}>
+        {loading ? (
+          <p className="text-gray-500 text-sm animate-pulse">Checking backup status…</p>
+        ) : (
+          <>
+            <p className={`text-lg font-black ${STATE_STYLE.text} mb-1`}>{STATE_STYLE.label}</p>
+            {status?.lastBackupAt ? (
+              <>
+                <p className="text-gray-300 text-sm mb-0.5">
+                  Last backup: <span className="font-mono">{new Date(status.lastBackupAt).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })}</span>
+                  {' '}({hoursAgo! < 1 ? '<1 hr' : `${Math.round(hoursAgo!)} hr${Math.round(hoursAgo!) === 1 ? '' : 's'}`} ago)
+                </p>
+                <p className="text-gray-500 text-xs">
+                  {status.totalRows} rows saved ({Object.entries(status.rowCounts || {}).map(([t, n]) => `${t}: ${n}`).join(', ')}) — {(status.sizeBytes / 1024).toFixed(0)} KB
+                </p>
+              </>
+            ) : (
+              <p className="text-gray-400 text-sm">No backup has ever run. Set up the scheduled job below, or run one now.</p>
+            )}
+          </>
+        )}
+      </div>
+
+      <button
+        onClick={runNow}
+        disabled={running}
+        className="w-full py-3 mb-2 bg-red-600 hover:bg-red-500 active:bg-red-700 disabled:opacity-40 text-white text-xs font-bold uppercase tracking-widest transition-colors"
+      >
+        {running ? 'Running Backup…' : '🛟 Run Backup Now'}
+      </button>
+      {runError && <p className="text-red-400 text-xs mb-2">{runError}</p>}
+      <button onClick={load} className="w-full py-2 text-[11px] font-bold uppercase tracking-wider text-gray-600 hover:text-gray-300 transition-colors">↺ Refresh Status</button>
+
+      <div className="mt-6 border-t border-gray-800 pt-4 space-y-2">
+        <p className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-1">One-time setup for daily auto-backups</p>
+        <p className="text-gray-500 text-xs leading-relaxed">
+          Cloudflare Pages Functions can't run on their own schedule, so a free external
+          scheduler has to trigger it — this only needs to be set up once:
+        </p>
+        <ol className="text-gray-500 text-xs leading-relaxed list-decimal list-inside space-y-1">
+          <li>Cloudflare Pages → Settings → Environment variables → add <span className="text-gray-300 font-mono">CRON_SECRET</span> (any long random string).</li>
+          <li>At a free service like cron-job.org, create a daily job hitting:<br/>
+            <span className="text-gray-300 font-mono break-all">https://gidgarage.com/cron-backup-database?key=YOUR_SECRET</span>
+          </li>
+          <li>Come back here after a day to confirm it went green.</li>
+        </ol>
+        <p className="text-gray-600 text-[10px] mt-2">
+          Backups are stored as JSON in the same R2 bucket your job photos live in, under a <span className="font-mono">backups/</span> prefix, and kept for 30 days.
+        </p>
+      </div>
+    </div>
+  );
+}
+
 // ── CATEGORY PANEL ────────────────────────────────────────────────────────────
 function HubCategoryPanel({ cat }: { cat: HubCategory }) {
   const { notes, loading, addNote, deleteNote, editNote } = usePersistentNotes(cat.id);
@@ -6346,6 +6572,7 @@ function HubCategoryPanel({ cat }: { cat: HubCategory }) {
   if (loading) return <p className="text-gray-600 text-xs py-8 text-center animate-pulse">Loading…</p>;
 
   if (cat.id === 'revenue') return <RevenuePanel />;
+  if (cat.id === 'recovery') return <RecoveryPanel />;
 
   return (
     <div>

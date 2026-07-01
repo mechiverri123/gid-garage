@@ -12,6 +12,10 @@
 // by customers, and does the entire DB write here instead of depending on
 // further Access-gated calls afterward.
 
+import { reportError } from './_lib/sentry.js';
+
+const GBP_REVIEW_URL = 'https://g.page/r/CdERSypGqVdlEBM/review';
+
 function corsHeaders() {
   return {
     'Access-Control-Allow-Origin': '*',
@@ -213,7 +217,7 @@ export async function onRequestPost({ request, env }) {
         sender: { name: 'GID Garage', email: 'bookings@gidgarage.com' },
         to: [{ email: existing.email, name: customerName }],
         subject: `Payment Received — ${existing.vehicle || 'Your Vehicle'} — GID Garage`,
-        htmlContent: `<div style="font-family:sans-serif;max-width:560px;margin:0 auto;background:#0f0f0f;color:#fff;padding:32px;"><img src="https://gidgarage.com/banner.PNG" alt="GID Garage" style="width:100%;display:block;height:auto;margin-bottom:24px;"/><h2 style="color:#22c55e;font-size:22px;margin:0 0 8px;">✅ Payment Received</h2><p style="color:#9ca3af;margin:0 0 16px;">Hi ${existing.fname || ''}, thanks — we've received your payment of $${newAmountPaid.toFixed(2)} for ${existing.vehicle || 'your vehicle'}.</p><p style="color:#4b5563;font-size:11px;margin-top:24px;">Questions? Call or text <strong style="color:#9ca3af;">480-757-0476</strong> — GID Garage, Flagstaff AZ</p></div>`,
+        htmlContent: `<div style="font-family:sans-serif;max-width:560px;margin:0 auto;background:#0f0f0f;color:#fff;padding:32px;"><img src="https://gidgarage.com/banner.PNG" alt="GID Garage" style="width:100%;display:block;height:auto;margin-bottom:24px;"/><h2 style="color:#22c55e;font-size:22px;margin:0 0 8px;">✅ Payment Received</h2><p style="color:#9ca3af;margin:0 0 16px;">Hi ${existing.fname || ''}, thanks — we've received your payment of $${newAmountPaid.toFixed(2)} for ${existing.vehicle || 'your vehicle'}.</p><div style="margin:24px 0;padding-top:20px;border-top:1px solid #1f2937;text-align:center;"><p style="color:#9ca3af;font-size:12px;margin:0 0 10px;">Happy with the work? A quick review helps a lot:</p><a href="${GBP_REVIEW_URL}" style="display:inline-block;background:#16a34a;color:#fff;text-decoration:none;font-weight:700;font-size:11px;padding:10px 24px;letter-spacing:0.05em;text-transform:uppercase;">⭐ Leave a Review</a></div><p style="color:#4b5563;font-size:11px;margin-top:24px;">Questions? Call or text <strong style="color:#9ca3af;">480-757-0476</strong> — GID Garage, Flagstaff AZ</p></div>`,
       });
     } catch (e) { console.error('Receipt email failed:', e.message); }
 
@@ -227,6 +231,7 @@ export async function onRequestPost({ request, env }) {
 
   } catch (err) {
     console.error('customer-charge error:', err);
+    await reportError(env, err, { source: 'customer-charge', bookingId });
     // Best-effort decline event so it surfaces in the admin notification poll
     try {
       await fetch(`${base}/payment_events`, {

@@ -2,6 +2,8 @@
 // POST /charge-card  { customerId, amountCents, description, bookingId }
 // → Charges the Stripe customer's saved card, updates Supabase
 
+import { reportError } from './_lib/sentry.js';
+
 export async function onRequestPost({ request, env }) {
   const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
@@ -122,6 +124,7 @@ export async function onRequestPost({ request, env }) {
 
   } catch (err) {
     console.error('charge-card error:', err);
+    await reportError(env, err, { source: 'admin-charge' });
     return new Response(JSON.stringify({ error: err.message ?? 'Charge failed' }), {
       status: 500, headers: { 'Content-Type': 'application/json', ...corsHeaders },
     });
