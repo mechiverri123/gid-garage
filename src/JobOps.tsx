@@ -4084,6 +4084,7 @@ export function JobsTab() {
   const [filterStatus, setFilterStatus] = useState<JobStatus | 'ALL'>('ALL');
   const [showAddJob, setShowAddJob] = useState(false);
   const [showExternalLead, setShowExternalLead] = useState(false);
+  const [revenueView, setRevenueView] = useState<'month' | 'year'>('month');
 
   const seenEventIds = useRef<Set<string>>(
     new Set(JSON.parse(localStorage.getItem('seenPaymentEventIds') ?? '[]'))
@@ -4245,30 +4246,32 @@ export function JobsTab() {
     const d = new Date(iso);
     return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
   };
+  const isThisYear = (iso: string) => new Date(iso).getFullYear() === now.getFullYear();
   const paidThisMonth = jobs.filter(j => j.jobStatus === 'PAID' && j.paidAt && isThisMonth(j.paidAt));
-  // Revenue collected this month — two payment paths don't overlap:
+  // Revenue collected in a given window — two payment paths don't overlap:
   // (1) a single full Stripe charge never gets logged into job.payments, so for
-  //     those count the job's total when its paidAt falls this month;
+  //     those count the job's total when its paidAt falls in the window;
   // (2) anything recorded via "Record a Payment" (manual/partial — cash, Zelle,
   //     a card charge that only covered part of the balance, etc.) lives in
   //     job.payments regardless of whether the job has reached PAID yet, so sum
-  //     whichever individual entries landed this month instead of gating on
-  //     job-level status. This is what was missing — partial payments on a job
-  //     still sitting at INVOICED were invisible to the old paidAt-only filter.
-  const monthRevenue = jobs.reduce((sum, j) => {
-    const loggedThisMonth = (j.payments || []).filter(p => isThisMonth(p.at)).reduce((s, p) => s + p.amount, 0);
+  //     whichever individual entries landed in the window instead of gating on
+  //     job-level status.
+  // Don't trust payments[] alone: a Stripe idempotent-retry can close a job
+  // (jobStatus PAID, paidAt set) without ever appending its closing entry to
+  // payments — logged entries would then under-report what's actually owed.
+  // If logged payments don't add up to the invoice total, fall back to
+  // paidAt/invoiceTotal for this job instead of just what's logged.
+  const revenueFor = (inWindow: (iso: string) => boolean) => jobs.reduce((sum, j) => {
+    const loggedInWindow = (j.payments || []).filter(p => inWindow(p.at)).reduce((s, p) => s + p.amount, 0);
     const loggedTotal = (j.payments || []).reduce((s, p) => s + p.amount, 0);
     const invoiceTotal = (j.invoiceAmount || 0) + (j.taxAmount || 0);
-    // Don't trust payments[] alone: a Stripe idempotent-retry can close a job
-    // (jobStatus PAID, paidAt set) without ever appending its closing entry to
-    // payments — logged entries would then under-report what's actually owed.
-    // If logged payments don't add up to the invoice total, fall back to
-    // paidAt/invoiceTotal for this job instead of just what's logged.
-    if (j.jobStatus === 'PAID' && j.paidAt && isThisMonth(j.paidAt) && loggedTotal < invoiceTotal - 0.01) {
+    if (j.jobStatus === 'PAID' && j.paidAt && inWindow(j.paidAt) && loggedTotal < invoiceTotal - 0.01) {
       return sum + invoiceTotal;
     }
-    return sum + loggedThisMonth;
+    return sum + loggedInWindow;
   }, 0);
+  const monthRevenue = revenueFor(isThisMonth);
+  const yearRevenue = revenueFor(isThisYear);
 
   const JOB_STATUS_ORDER: Record<string, number> = {
     BOOKED: 0, ESTIMATE_SENT: 1, SIGNED: 2, IN_PROGRESS: 3,
@@ -4294,13 +4297,25 @@ export function JobsTab() {
           ['Unpaid / Due', unpaid, 'text-yellow-400'],
           ['Awaiting Signature', awaitingSign, 'text-purple-400'],
           ['Jobs This Month', paidThisMonth.length, 'text-green-400'],
-          ['Revenue This Month', `$${monthRevenue.toFixed(2)}`, 'text-emerald-400'],
         ].map(([label, val, cls]) => (
           <div key={label as string} className="bg-gray-900 border border-gray-800 p-5">
             <div className={`text-2xl font-black ${cls} mb-1`}>{val}</div>
             <div className="text-gray-600 text-xs font-bold uppercase tracking-wider">{label}</div>
           </div>
         ))}
+        <button
+          type="button"
+          onClick={() => setRevenueView(v => v === 'month' ? 'year' : 'month')}
+          className="bg-gray-900 border border-gray-800 p-5 text-left hover:border-emerald-800 active:bg-gray-800 transition-colors"
+          title="Tap to toggle Month / Year"
+        >
+          <div className="text-2xl font-black text-emerald-400 mb-1">
+            ${(revenueView === 'month' ? monthRevenue : yearRevenue).toFixed(2)}
+          </div>
+          <div className="text-gray-600 text-xs font-bold uppercase tracking-wider">
+            {revenueView === 'month' ? 'Revenue This Month' : `${now.getFullYear()} Revenue`}
+          </div>
+        </button>
       </div>
 
       {/* Filters + Add Job */}
@@ -5233,6 +5248,7 @@ interface HubCategory {
 }
 
 const HUB_CATEGORIES: HubCategory[] = [
+  { id: 'revenue',  icon: '📈', label: 'Revenue',             color: 'text-emerald-400', border: 'border-emerald-800', bg: 'bg-emerald-900/10' },
   { id: 'taxes',    icon: '🧾', label: 'Taxes & TPT',        color: 'text-yellow-400',  border: 'border-yellow-800', bg: 'bg-yellow-900/10' },
   { id: 'ops',      icon: '⚙️', label: 'Operations',         color: 'text-blue-400',    border: 'border-blue-800',   bg: 'bg-blue-900/10'   },
   { id: 'legal',    icon: '⚖️', label: 'Legal & Licensing',  color: 'text-purple-400',  border: 'border-purple-800', bg: 'bg-purple-900/10' },
@@ -6127,6 +6143,181 @@ function TaxSummary() {
   );
 }
 
+// ── REVENUE PANEL (Hub) ──────────────────────────────────────────────────────
+// Same payments-aware, fallback-to-paidAt accounting as JobsTab's monthRevenue,
+// generalized to per-entry {date, amount} so it can be bucketed by day or month.
+function revenueEntriesFor(b: any): { date: string; amount: number }[] {
+  const payments = b.payments
+    ? (typeof b.payments === 'string' ? JSON.parse(b.payments) : b.payments)
+    : [];
+  const loggedTotal = payments.reduce((s: number, p: any) => s + (Number(p.amount) || 0), 0);
+  const invoiceTotal = (Number(b.invoice_amount) || 0) + (Number(b.tax_amount) || 0);
+  // If what's logged in payments[] actually covers the invoice, trust it
+  // (preserves the real dates of partial payments split across periods).
+  // Otherwise (missing/incomplete payments — e.g. the Stripe idempotent-retry
+  // gap) fall back to a single entry on paid_at for the full invoice total.
+  if (payments.length && loggedTotal >= invoiceTotal - 0.01) {
+    return payments.map((p: any) => ({ date: p.at, amount: Number(p.amount) || 0 }));
+  }
+  if (b.paid_at) return [{ date: b.paid_at, amount: invoiceTotal }];
+  return [];
+}
+
+function LineGraph({ points, valueFmt }: { points: { label: string; value: number }[]; valueFmt: (n: number) => string }) {
+  const [hover, setHover] = useState<number | null>(null);
+  const W = 600, H = 220, PAD_L = 8, PAD_R = 8, PAD_T = 16, PAD_B = 28;
+  const innerW = W - PAD_L - PAD_R, innerH = H - PAD_T - PAD_B;
+  const max = Math.max(1, ...points.map(p => p.value));
+  const n = points.length;
+  const x = (i: number) => PAD_L + (n <= 1 ? innerW / 2 : (innerW * i) / (n - 1));
+  const y = (v: number) => PAD_T + innerH - (innerH * v) / max;
+  const linePath = points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${x(i).toFixed(1)} ${y(p.value).toFixed(1)}`).join(' ');
+  const areaPath = `${linePath} L ${x(n - 1).toFixed(1)} ${(PAD_T + innerH).toFixed(1)} L ${x(0).toFixed(1)} ${(PAD_T + innerH).toFixed(1)} Z`;
+  // Show every label if there are few points (months), thin them out for days
+  const labelStep = n <= 12 ? 1 : Math.ceil(n / 8);
+
+  return (
+    <div className="relative">
+      <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto touch-none" preserveAspectRatio="none">
+        {/* horizontal gridlines */}
+        {[0, 0.25, 0.5, 0.75, 1].map(f => (
+          <line key={f} x1={PAD_L} x2={W - PAD_R} y1={PAD_T + innerH * (1 - f)} y2={PAD_T + innerH * (1 - f)} stroke="#1f2937" strokeWidth="1" />
+        ))}
+        <path d={areaPath} fill="url(#revGrad)" opacity="0.25" />
+        <path d={linePath} fill="none" stroke="#34d399" strokeWidth="2.5" />
+        <defs>
+          <linearGradient id="revGrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#34d399" stopOpacity="0.8" />
+            <stop offset="100%" stopColor="#34d399" stopOpacity="0" />
+          </linearGradient>
+        </defs>
+        {points.map((p, i) => (
+          <g key={i}>
+            <circle cx={x(i)} cy={y(p.value)} r={hover === i ? 5 : 3} fill="#34d399" stroke="#052e21" strokeWidth="1.5" />
+            {/* invisible wide hit area for touch/hover */}
+            <rect
+              x={x(i) - (innerW / n) / 2} y={PAD_T} width={innerW / n || innerW} height={innerH}
+              fill="transparent"
+              onMouseEnter={() => setHover(i)}
+              onMouseLeave={() => setHover(null)}
+              onTouchStart={() => setHover(i)}
+            />
+          </g>
+        ))}
+        {points.map((p, i) => (
+          i % labelStep === 0 || i === n - 1 ? (
+            <text key={i} x={x(i)} y={H - 8} textAnchor="middle" fontSize="10" fill="#4b5563">{p.label}</text>
+          ) : null
+        ))}
+      </svg>
+      {hover !== null && points[hover] && (
+        <div className="absolute top-1 right-1 bg-gray-950 border border-emerald-800 px-2.5 py-1.5 text-right pointer-events-none">
+          <p className="text-gray-500 text-[10px] font-bold uppercase tracking-wider">{points[hover].label}</p>
+          <p className="text-emerald-400 text-sm font-mono font-bold">{valueFmt(points[hover].value)}</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function RevenuePanel() {
+  const [rows, setRows] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [mode, setMode] = useState<'month' | 'year'>('month');
+  const [monthOffset, setMonthOffset] = useState(0); // 0 = current month
+  const [yearOffset, setYearOffset] = useState(0);    // 0 = current year
+
+  useEffect(() => {
+    adminPost('paid-bookings')
+      .then((data: any[]) => { setRows(data || []); setLoading(false); })
+      .catch(() => setLoading(false));
+  }, []);
+
+  if (loading) return <p className="text-gray-600 text-xs py-8 text-center animate-pulse">Loading revenue…</p>;
+
+  const allEntries = rows.flatMap(revenueEntriesFor).filter(e => e.date);
+
+  const now = new Date();
+  const targetMonthDate = new Date(now.getFullYear(), now.getMonth() + monthOffset, 1);
+  const targetYear = now.getFullYear() + yearOffset;
+
+  let points: { label: string; value: number }[] = [];
+  let periodLabel = '';
+  let periodTotal = 0;
+
+  if (mode === 'month') {
+    const y = targetMonthDate.getFullYear(), m = targetMonthDate.getMonth();
+    const daysInMonth = new Date(y, m + 1, 0).getDate();
+    const dailyTotals = new Array(daysInMonth).fill(0);
+    for (const e of allEntries) {
+      const d = new Date(e.date);
+      if (d.getFullYear() === y && d.getMonth() === m) dailyTotals[d.getDate() - 1] += e.amount;
+    }
+    let running = 0;
+    points = dailyTotals.map((amt, i) => { running += amt; return { label: String(i + 1), value: Math.round(running * 100) / 100 }; });
+    periodLabel = targetMonthDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+    periodTotal = running;
+  } else {
+    const monthTotals = new Array(12).fill(0);
+    for (const e of allEntries) {
+      const d = new Date(e.date);
+      if (d.getFullYear() === targetYear) monthTotals[d.getMonth()] += e.amount;
+    }
+    let running = 0;
+    const MONTH_ABBR = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    points = monthTotals.map((amt, i) => { running += amt; return { label: MONTH_ABBR[i], value: Math.round(running * 100) / 100 }; });
+    periodLabel = String(targetYear);
+    periodTotal = running;
+  }
+
+  const hasAnyData = points.some(p => p.value > 0);
+
+  return (
+    <div>
+      {/* Month / Year toggle */}
+      <div className="flex gap-2 mb-4">
+        <button
+          onClick={() => setMode('month')}
+          className={`flex-1 py-2.5 text-xs font-bold uppercase tracking-wider border transition-colors ${mode === 'month' ? 'bg-emerald-900/20 border-emerald-800 text-emerald-400' : 'border-gray-800 text-gray-500 hover:text-gray-300'}`}
+        >By Month</button>
+        <button
+          onClick={() => setMode('year')}
+          className={`flex-1 py-2.5 text-xs font-bold uppercase tracking-wider border transition-colors ${mode === 'year' ? 'bg-emerald-900/20 border-emerald-800 text-emerald-400' : 'border-gray-800 text-gray-500 hover:text-gray-300'}`}
+        >By Year</button>
+      </div>
+
+      {/* Period nav */}
+      <div className="flex items-center justify-between mb-3">
+        <button
+          onClick={() => mode === 'month' ? setMonthOffset(o => o - 1) : setYearOffset(o => o - 1)}
+          className="w-8 h-8 flex items-center justify-center border border-gray-800 text-gray-500 hover:text-white hover:border-gray-600 transition-colors"
+        >‹</button>
+        <div className="text-center">
+          <p className="text-white text-sm font-black">{periodLabel}</p>
+          <p className="text-emerald-400 text-lg font-mono font-black">${periodTotal.toFixed(2)}</p>
+        </div>
+        <button
+          onClick={() => mode === 'month' ? setMonthOffset(o => Math.min(0, o + 1)) : setYearOffset(o => Math.min(0, o + 1))}
+          disabled={mode === 'month' ? monthOffset === 0 : yearOffset === 0}
+          className="w-8 h-8 flex items-center justify-center border border-gray-800 text-gray-500 hover:text-white hover:border-gray-600 transition-colors disabled:opacity-30 disabled:hover:text-gray-500 disabled:hover:border-gray-800"
+        >›</button>
+      </div>
+
+      {/* Graph */}
+      <div className="border border-gray-800 bg-gray-900/40 p-3">
+        {hasAnyData ? (
+          <LineGraph points={points} valueFmt={n => `$${n.toFixed(2)}`} />
+        ) : (
+          <p className="text-gray-700 text-xs italic py-16 text-center">No paid revenue in this period.</p>
+        )}
+      </div>
+      <p className="text-gray-700 text-[10px] mt-2">
+        {mode === 'month' ? 'Cumulative revenue by day of month.' : 'Cumulative revenue by month of year.'} Tap/hover a point for that day/month's running total.
+      </p>
+    </div>
+  );
+}
+
 // ── CATEGORY PANEL ────────────────────────────────────────────────────────────
 function HubCategoryPanel({ cat }: { cat: HubCategory }) {
   const { notes, loading, addNote, deleteNote, editNote } = usePersistentNotes(cat.id);
@@ -6153,6 +6344,8 @@ function HubCategoryPanel({ cat }: { cat: HubCategory }) {
   }
 
   if (loading) return <p className="text-gray-600 text-xs py-8 text-center animate-pulse">Loading…</p>;
+
+  if (cat.id === 'revenue') return <RevenuePanel />;
 
   return (
     <div>
