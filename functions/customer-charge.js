@@ -93,6 +93,37 @@ export async function onRequestPost({ request, env }) {
     if (!existing) return json({ error: 'Booking not found' }, 404);
 
     if (existing.job_status === 'PAID') {
+      // The charge already succeeded on a prior attempt (that's why we hit
+      // this branch on retry) — but if that first attempt's response never
+      // made it back to the client, its closing entry never got appended to
+      // payments, and revenue-by-month tracking (which sums payments[]) would
+      // silently miss it for any booking that already had a partial payment.
+      // Back-fill it here if it's missing.
+      const existingPayments = existing.payments
+        ? (typeof existing.payments === 'string' ? JSON.parse(existing.payments) : existing.payments)
+        : [];
+      const chargeId = existing.stripe_transaction_id;
+      const alreadyLogged = existingPayments.some(p => p.stripeId === chargeId);
+      if (!alreadyLogged && chargeId) {
+        const amountPaidSoFar = Number(existing.amount_paid) || 0;
+        const backfillAmount = subtotal != null ? Number(subtotal) - amountPaidSoFar : amountCents / 100;
+        const updatedPayments = [...existingPayments, {
+          id: Math.random().toString(36).slice(2),
+          amount: Math.round(backfillAmount * 100) / 100,
+          method: 'Card (Self-Pay)',
+          note: amountPaidSoFar > 0 ? 'Remaining balance' : '',
+          at: new Date().toISOString(),
+          stripeId: chargeId,
+        }];
+        await fetch(`${base}/bookings?id=eq.${encodeURIComponent(bookingId)}`, {
+          method: 'PATCH',
+          headers: { ...headers, Prefer: 'return=minimal' },
+          body: JSON.stringify({
+            amount_paid: Math.round((amountPaidSoFar + backfillAmount) * 100) / 100,
+            payments: JSON.stringify(updatedPayments),
+          }),
+        }).catch(e => console.error('already_paid payments backfill failed:', e.message));
+      }
       return json({
         error: 'already_paid',
         chargeId: existing.stripe_transaction_id,

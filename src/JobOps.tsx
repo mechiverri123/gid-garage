@@ -2398,16 +2398,40 @@ function PaymentPanel({ job, onUpdate, onRequote }: { job: Job; onUpdate: (j: Jo
       if ((!res.ok || data.error) && data.error !== 'already_paid') throw new Error(data.error ?? `HTTP ${res.status}`);
       if (data.error === 'already_paid') {
         const alreadyPaidAmount = data.amount ?? chargedAmount;
-        onUpdate({
+        const paidAt = job.paidAt ?? new Date().toISOString();
+        // The server-side charge already succeeded on a prior attempt (that's
+        // why we're in this branch), but that first attempt's response never
+        // made it back to append this charge to job.payments — so revenue-by-
+        // month tracking (which sums job.payments) would silently miss it for
+        // any job that already had a prior partial payment. Log it now so the
+        // record matches what actually got charged.
+        const alreadyLogged = (job.payments || []).some(p => p.stripeId === data.chargeId);
+        const updatedPayments = alreadyLogged ? (job.payments || []) : [...(job.payments || []), {
+          id: Math.random().toString(36).slice(2),
+          amount: amountToCharge,
+          method: 'Card (Stripe)',
+          note: amountPaidSoFar > 0 ? 'Remaining balance' : '',
+          at: paidAt,
+          stripeId: data.chargeId,
+        } as Payment];
+        const updated = {
           ...job,
           invoiceAmount: alreadyPaidAmount,
           taxAmount: taxForAmount(chargedAmount),
           stripeTransactionId: data.chargeId,
-          paidAt: job.paidAt ?? new Date().toISOString(),
+          paidAt,
           jobStatus: 'PAID' as JobStatus,
           status: 'completed',
           amountPaid: totalForAmount(alreadyPaidAmount),
-        });
+          payments: updatedPayments,
+        };
+        if (!alreadyLogged) {
+          await adminPost('patch-booking', { id: job.id, fields: {
+            amount_paid: updated.amountPaid,
+            payments: JSON.stringify(updatedPayments),
+          }});
+        }
+        onUpdate(updated);
         setCharging(false);
         setChargeConfirm(false);
         return;
@@ -4232,13 +4256,18 @@ export function JobsTab() {
   //     job-level status. This is what was missing — partial payments on a job
   //     still sitting at INVOICED were invisible to the old paidAt-only filter.
   const monthRevenue = jobs.reduce((sum, j) => {
-    if (j.payments?.length) {
-      return sum + j.payments.filter(p => isThisMonth(p.at)).reduce((s, p) => s + p.amount, 0);
+    const loggedThisMonth = (j.payments || []).filter(p => isThisMonth(p.at)).reduce((s, p) => s + p.amount, 0);
+    const loggedTotal = (j.payments || []).reduce((s, p) => s + p.amount, 0);
+    const invoiceTotal = (j.invoiceAmount || 0) + (j.taxAmount || 0);
+    // Don't trust payments[] alone: a Stripe idempotent-retry can close a job
+    // (jobStatus PAID, paidAt set) without ever appending its closing entry to
+    // payments — logged entries would then under-report what's actually owed.
+    // If logged payments don't add up to the invoice total, fall back to
+    // paidAt/invoiceTotal for this job instead of just what's logged.
+    if (j.jobStatus === 'PAID' && j.paidAt && isThisMonth(j.paidAt) && loggedTotal < invoiceTotal - 0.01) {
+      return sum + invoiceTotal;
     }
-    if (j.jobStatus === 'PAID' && j.paidAt && isThisMonth(j.paidAt)) {
-      return sum + (j.invoiceAmount || 0) + (j.taxAmount || 0);
-    }
-    return sum;
+    return sum + loggedThisMonth;
   }, 0);
 
   const JOB_STATUS_ORDER: Record<string, number> = {
