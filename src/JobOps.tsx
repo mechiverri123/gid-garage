@@ -6457,13 +6457,29 @@ function RecoveryPanel() {
   const [running, setRunning] = useState(false);
   const [runError, setRunError] = useState<string | null>(null);
 
+  const [backups, setBackups] = useState<{ key: string; uploaded: string; sizeBytes: number }[]>([]);
+  const [backupsLoading, setBackupsLoading] = useState(true);
+  const [selectedKey, setSelectedKey] = useState<string>('');
+  const [restoreMode, setRestoreMode] = useState<'merge' | 'replace'>('merge');
+  const [confirmText, setConfirmText] = useState('');
+  const [restoring, setRestoring] = useState(false);
+  const [restoreError, setRestoreError] = useState<string | null>(null);
+  const [restoreResult, setRestoreResult] = useState<any>(null);
+
   function load() {
     setLoading(true);
     adminPost('backup-status')
       .then(s => { setStatus(s); setLoading(false); })
       .catch(() => setLoading(false));
   }
+  function loadBackups() {
+    setBackupsLoading(true);
+    adminPost('list-backups')
+      .then(list => { setBackups(list || []); setBackupsLoading(false); if (list?.length) setSelectedKey(list[0].key); })
+      .catch(() => setBackupsLoading(false));
+  }
   useEffect(load, []);
+  useEffect(loadBackups, []);
 
   async function runNow() {
     setRunning(true);
@@ -6471,10 +6487,33 @@ function RecoveryPanel() {
     try {
       const s = await adminPost('run-backup');
       setStatus(s);
+      loadBackups();
     } catch (e: any) {
       setRunError(e.message ?? 'Backup failed');
     }
     setRunning(false);
+  }
+
+  async function runRestore() {
+    if (!selectedKey) return;
+    if (restoreMode === 'replace' && confirmText.trim().toUpperCase() !== 'REPLACE') return;
+    if (!confirm(
+      restoreMode === 'replace'
+        ? `This will DELETE everything currently in the database and replace it with the ${new Date(backups.find(b => b.key === selectedKey)?.uploaded ?? '').toLocaleString()} backup. This cannot be undone. Continue?`
+        : `This will restore jobs/notes/settings from the ${new Date(backups.find(b => b.key === selectedKey)?.uploaded ?? '').toLocaleString()} backup, without deleting anything created since. Continue?`
+    )) return;
+    setRestoring(true);
+    setRestoreError(null);
+    setRestoreResult(null);
+    try {
+      const result = await adminPost('restore-backup', { key: selectedKey, mode: restoreMode, confirm: true });
+      setRestoreResult(result);
+      setConfirmText('');
+    } catch (e: any) {
+      await reportError(e, { source: 'RecoveryPanel.runRestore', key: selectedKey, mode: restoreMode });
+      setRestoreError(e.message ?? 'Restore failed');
+    }
+    setRestoring(false);
   }
 
   const hoursAgo = status?.lastBackupAt ? (Date.now() - new Date(status.lastBackupAt).getTime()) / 3600000 : null;
@@ -6523,6 +6562,75 @@ function RecoveryPanel() {
       {runError && <p className="text-red-400 text-xs mb-2">{runError}</p>}
       <button onClick={load} className="w-full py-2 text-[11px] font-bold uppercase tracking-wider text-gray-600 hover:text-gray-300 transition-colors">↺ Refresh Status</button>
 
+      {/* Restore from a backup */}
+      <div className="mt-6 border-t border-gray-800 pt-4">
+        <p className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-3">Restore From Backup</p>
+
+        {backupsLoading ? (
+          <p className="text-gray-600 text-xs animate-pulse">Loading backups…</p>
+        ) : backups.length === 0 ? (
+          <p className="text-gray-700 text-xs italic">No backups available yet.</p>
+        ) : (
+          <>
+            <select
+              value={selectedKey}
+              onChange={e => { setSelectedKey(e.target.value); setRestoreResult(null); setRestoreError(null); setConfirmText(''); }}
+              className="w-full bg-gray-950 border border-gray-700 text-white text-sm px-3 py-2.5 outline-none focus:border-red-600 mb-3"
+            >
+              {backups.map(b => (
+                <option key={b.key} value={b.key}>
+                  {new Date(b.uploaded).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })} — {(b.sizeBytes / 1024).toFixed(0)} KB
+                </option>
+              ))}
+            </select>
+
+            <div className="flex gap-2 mb-3">
+              <button
+                onClick={() => { setRestoreMode('merge'); setConfirmText(''); }}
+                className={`flex-1 py-2 text-[11px] font-bold uppercase tracking-wider border transition-colors ${restoreMode === 'merge' ? 'bg-emerald-900/20 border-emerald-700 text-emerald-400' : 'border-gray-800 text-gray-500 hover:text-gray-300'}`}
+              >Merge (safe)</button>
+              <button
+                onClick={() => { setRestoreMode('replace'); setConfirmText(''); }}
+                className={`flex-1 py-2 text-[11px] font-bold uppercase tracking-wider border transition-colors ${restoreMode === 'replace' ? 'bg-red-900/20 border-red-700 text-red-400' : 'border-gray-800 text-gray-500 hover:text-gray-300'}`}
+              >Full Replace (danger)</button>
+            </div>
+
+            <p className="text-gray-600 text-[10px] mb-3 leading-relaxed">
+              {restoreMode === 'merge'
+                ? 'Restores every row from this backup, filling in anything missing or reverting anything changed — but never deletes jobs created after this backup ran.'
+                : 'DELETES everything currently in the database, then loads exactly what was in this backup. Anything created after this backup was taken — new bookings, payments, notes — is gone permanently.'}
+            </p>
+
+            {restoreMode === 'replace' && (
+              <input
+                type="text"
+                value={confirmText}
+                onChange={e => setConfirmText(e.target.value)}
+                placeholder='Type REPLACE to enable this button'
+                className="w-full bg-gray-950 border border-red-800 text-white text-sm px-3 py-2.5 outline-none focus:border-red-600 mb-3 placeholder-gray-700"
+              />
+            )}
+
+            <button
+              onClick={runRestore}
+              disabled={restoring || !selectedKey || (restoreMode === 'replace' && confirmText.trim().toUpperCase() !== 'REPLACE')}
+              className={`w-full py-3 text-xs font-bold uppercase tracking-widest transition-colors disabled:opacity-30 ${restoreMode === 'replace' ? 'bg-red-700 hover:bg-red-600 text-white' : 'bg-emerald-700 hover:bg-emerald-600 text-white'}`}
+            >
+              {restoring ? 'Restoring…' : restoreMode === 'replace' ? '⚠️ Wipe & Restore' : '↩ Restore (Merge)'}
+            </button>
+            {restoreError && <p className="text-red-400 text-xs mt-2">{restoreError}</p>}
+            {restoreResult && (
+              <div className="mt-2 border border-emerald-800 bg-emerald-900/10 px-3 py-2">
+                <p className="text-emerald-400 text-xs font-bold">✅ Restore complete ({restoreResult.mode})</p>
+                <p className="text-gray-500 text-[11px] mt-0.5">
+                  {Object.entries(restoreResult.rowCounts || {}).map(([t, n]) => `${t}: ${n}`).join(', ')}
+                </p>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+
       <div className="mt-6 border-t border-gray-800 pt-4 space-y-2">
         <p className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-1">One-time setup for daily auto-backups</p>
         <p className="text-gray-500 text-xs leading-relaxed">
@@ -6538,6 +6646,12 @@ function RecoveryPanel() {
         </ol>
         <p className="text-gray-600 text-[10px] mt-2">
           Backups are stored as JSON in the same R2 bucket your job photos live in, under a <span className="font-mono">backups/</span> prefix, and kept for 30 days.
+        </p>
+        <p className="text-gray-600 text-[10px] mt-2">
+          <strong className="text-gray-500">If the site itself is down/broken</strong> and you can't reach this panel: log into
+          Cloudflare dashboard → R2 → your photos bucket → <span className="font-mono">backups/</span> folder, download the JSON
+          file for the date you want, and hand it to me (or paste its contents) — I can restore it directly via Supabase's SQL
+          editor as a last resort.
         </p>
       </div>
     </div>

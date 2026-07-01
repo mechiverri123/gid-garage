@@ -21,8 +21,10 @@
 //   remove-blackout-date{ date }           -> { ok }
 //   run-backup           {}                -> BackupStatus     (manual "Run Backup Now" from Hub → Recovery)
 //   backup-status         {}                -> BackupStatus | null
+//   list-backups          {}                -> { key, uploaded, sizeBytes }[]
+//   restore-backup        { key, mode, confirm } -> RestoreResult  (mode: 'merge' | 'replace', confirm: true required)
 
-import { runBackup, readBackupStatus } from './_lib/backup.js';
+import { runBackup, readBackupStatus, listBackups, restoreBackup } from './_lib/backup.js';
 import { reportError } from './_lib/sentry.js';
 
 const GBP_REVIEW_URL = 'https://g.page/r/CdERSypGqVdlEBM/review';
@@ -270,6 +272,17 @@ export async function onRequestPost({ request, env }) {
       case 'backup-status': {
         const status = await readBackupStatus(env);
         return json(status);
+      }
+      case 'list-backups': {
+        const list = await listBackups(env);
+        return json(list);
+      }
+      case 'restore-backup': {
+        const { key, mode, confirm } = payload;
+        if (!key) return json({ error: 'Missing key' }, 400);
+        if (confirm !== true) return json({ error: 'Missing confirmation' }, 400);
+        const result = await restoreBackup(env, key, mode === 'replace' ? 'replace' : 'merge');
+        return json(result);
       }
 
       // ---- Business Hub notes (admin-only) ---------------------------------
