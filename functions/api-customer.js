@@ -72,6 +72,20 @@ export async function onRequestPost({ request, env }) {
     'Content-Type': 'application/json',
   };
 
+  // Current AZ TPT rate as a decimal (e.g. 0.09386 for 9.386%) — same source of
+  // truth as the admin Hub → Taxes setting. Falls back to the historical
+  // Flagstaff rate if the settings row is ever missing.
+  async function fetchCurrentTaxRate() {
+    try {
+      const r = await fetch(`${base}/business_settings?id=eq.default&select=tax_rate`, { headers });
+      if (!r.ok) return 0.09386;
+      const rows = await r.json();
+      return rows?.[0]?.tax_rate != null ? Number(rows[0].tax_rate) : 0.09386;
+    } catch {
+      return 0.09386;
+    }
+  }
+
   let payload;
   try {
     payload = await request.json();
@@ -172,7 +186,10 @@ export async function onRequestPost({ request, env }) {
         );
         if (!res.ok) return json({ error: await res.text() }, 502);
         const rows = await res.json();
-        return json(rows[0] ?? null);
+        const booking = rows[0] ?? null;
+        if (!booking) return json(null);
+        booking.currentTaxRate = await fetchCurrentTaxRate();
+        return json(booking);
       }
 
       // ---- Customer e-signs the estimate -----------------------------------

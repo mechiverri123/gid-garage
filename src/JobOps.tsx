@@ -26,13 +26,6 @@ function loadStripe(publishableKey: string): Promise<any> {
 let TAX_RATE = 0.09386; // 9.386%
 function setTaxRate(rate: number) { if (rate > 0 && rate < 1) TAX_RATE = rate; }
 function taxRatePercentLabel(): string { return (TAX_RATE * 100).toFixed(3); }
-// For an already-priced job, show the rate actually applied to it (derived from
-// its own stored subtotal/tax) rather than today's rate — old invoices stay
-// accurate even after the rate is changed going forward.
-function jobTaxPercent(job: Job): string {
-  const sub = job.invoiceAmount || job.estimateAmount || 0;
-  return sub > 0 ? (((job.taxAmount || 0) / sub) * 100).toFixed(3) : taxRatePercentLabel();
-}
 // AZ TPT does NOT apply to labor or the mobile service/travel fee. Everything else
 // (parts, flat service charges, misc add-on lines) is taxable. calcTax(subtotal) is a
 // legacy fallback that taxes the whole amount; prefer taxFromItems() with line items.
@@ -364,7 +357,9 @@ export async function getJobById(id: string): Promise<Job | null> {
 // PUBLIC read for the customer-facing estimate / invoice pages
 export async function getJobByIdPublic(id: string): Promise<Job | null> {
   const row = await apiPost('get-job', { id });
-  return row ? mapJob(row) : null;
+  if (!row) return null;
+  if (row.currentTaxRate) setTaxRate(Number(row.currentTaxRate));
+  return mapJob(row);
 }
 
 // ADMIN mutations (behind Cloudflare Access)
@@ -2695,7 +2690,7 @@ function PaymentPanel({ job, onUpdate, onRequote }: { job: Job; onUpdate: (j: Jo
           <span className="text-gray-400 font-mono">${(job.invoiceAmount || 0).toFixed(2)}</span>
         </div>
         <div className="flex justify-between text-xs">
-          <span className="text-gray-600">AZ TPT ({jobTaxPercent(job)}%)</span>
+          <span className="text-gray-600">AZ TPT ({taxRatePercentLabel()}%)</span>
           <span className="text-yellow-600 font-mono">${(job.taxAmount || 0).toFixed(2)}</span>
         </div>
         {job.payments?.length > 0 ? (
@@ -4881,7 +4876,7 @@ export function InvoicePage() {
               <span className="text-white text-sm font-mono">${amount?.toFixed(2)}</span>
             </div>
             <div className="flex justify-between px-6 py-3 border-t border-white/5">
-              <span className="text-gray-500 text-xs font-bold uppercase tracking-wider">AZ TPT ({jobTaxPercent(job)}%)</span>
+              <span className="text-gray-500 text-xs font-bold uppercase tracking-wider">AZ TPT ({taxRatePercentLabel()}%)</span>
               <span className="text-white text-sm font-mono">${(job.taxAmount || 0).toFixed(2)}</span>
             </div>
             {isPartiallyPaid && (
@@ -5661,7 +5656,7 @@ function buildInvoicesPdf(JsPDF: any, jobs: Job[], periodLabel: string): any {
     doc.text(money(job.invoiceAmount || 0), rightX, y, { align: 'right' });
     y += 16;
     doc.setTextColor(180, 83, 9);
-    doc.text(`AZ TPT (${jobTaxPercent(job)}%)`, marginX, y);
+    doc.text(`AZ TPT (${taxRatePercentLabel()}%)`, marginX, y);
     doc.text(money(job.taxAmount || 0), rightX, y, { align: 'right' });
     y += 14;
     doc.setDrawColor(20);
@@ -5817,7 +5812,7 @@ function InvoiceExport() {
             <div style="border-top:1px solid #333;padding:12px 20px;">
               <table style="width:100%;">
                 <tr><td style="padding:4px 0;font-size:11px;color:#666;">Subtotal</td><td style="text-align:right;font-family:monospace;font-size:12px;color:#fff;">$${(job.invoiceAmount||0).toFixed(2)}</td></tr>
-                <tr><td style="padding:4px 0;font-size:11px;color:#b45309;">AZ TPT (${jobTaxPercent(job)}%)</td><td style="text-align:right;font-family:monospace;font-size:12px;color:#fbbf24;">$${(job.taxAmount||0).toFixed(2)}</td></tr>
+                <tr><td style="padding:4px 0;font-size:11px;color:#b45309;">AZ TPT (${taxRatePercentLabel()}%)</td><td style="text-align:right;font-family:monospace;font-size:12px;color:#fbbf24;">$${(job.taxAmount||0).toFixed(2)}</td></tr>
                 <tr style="border-top:1px solid #333;"><td style="padding:8px 0 4px;font-size:12px;color:#fff;font-weight:700;">Total</td><td style="text-align:right;font-family:monospace;font-size:14px;color:#4ade80;font-weight:900;">$${total}</td></tr>
               </table>
             </div>

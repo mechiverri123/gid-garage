@@ -346,9 +346,7 @@ export async function onRequestPost({ request, env }) {
         const { job, shopAvg } = payload;
         if (!job) return json({ error: 'Missing job' }, 400);
         const savings = shopAvg > 0 ? shopAvg - (job.estimateAmount || 0) : 0;
-        const estTaxPct = job.estimateAmount > 0
-          ? ((Number(job.taxAmount || 0) / Number(job.estimateAmount)) * 100).toFixed(3)
-          : ((await fetchCurrentTaxRate()) * 100).toFixed(3);
+        const estTaxPct = ((await fetchCurrentTaxRate()) * 100).toFixed(3);
         // Shop comparison block — moved to bottom, shows "They'd charge ~$X / You save $Y"
         const savingsHtml = savings > 10 ? `
           <table style="width:100%;background:#052e16;border:1px solid #166534;border-collapse:collapse;margin-bottom:0;"><tr><td style="padding:16px 20px;">
@@ -397,10 +395,10 @@ export async function onRequestPost({ request, env }) {
         // exact bug this was missing before.
         const invoiceUrl = `https://gidgarage.com/invoice?id=${job.id}&action=pay`;
         const subtotalInv = job.lineItems?.reduce((s, i) => s + Number(i.amount || 0), 0) || Number(job.estimateAmount || 0);
-        const currentRateForInvoice = job.taxAmount ? null : await fetchCurrentTaxRate();
+        const currentRateForInvoice = await fetchCurrentTaxRate();
         const taxInv = job.taxAmount ? Number(job.taxAmount) : Math.round(subtotalInv * currentRateForInvoice * 100) / 100;
         const totalInv = subtotalInv + taxInv;
-        const taxPctInv = subtotalInv > 0 ? ((taxInv / subtotalInv) * 100).toFixed(3) : ((currentRateForInvoice ?? 0.09386) * 100).toFixed(3);
+        const taxPctInv = (currentRateForInvoice * 100).toFixed(3);
         const lineItemsHtml = job.lineItems?.length
           ? job.lineItems.map(i => `<tr><td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#9ca3af;font-size:13px;">${i.label}</td><td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#fff;font-size:13px;text-align:right;font-family:monospace;white-space:nowrap;">${i.amount === 0 ? 'FREE' : (i.amount < 0 ? '-$' + Math.abs(Number(i.amount)).toFixed(2) : '$' + Number(i.amount).toFixed(2))}</td></tr>`).join('')
           : '';
@@ -456,7 +454,7 @@ export async function onRequestPost({ request, env }) {
         const subtotal = Number(job.invoiceAmount || 0);
         const tax = Number(job.taxAmount || 0);
         const total = subtotal + tax;
-        const taxPctRcpt = subtotal > 0 ? ((tax / subtotal) * 100).toFixed(3) : ((await fetchCurrentTaxRate()) * 100).toFixed(3);
+        const taxPctRcpt = ((await fetchCurrentTaxRate()) * 100).toFixed(3);
         const hasAdjustment = adjustmentReason && adjustmentAmount !== undefined && Math.abs(adjustmentAmount) > 0.001;
         const adjustmentHtml = hasAdjustment
           ? `<tr style="background:#1a1a2e;"><td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#818cf8;font-size:13px;font-style:italic;">Price Adjustment — ${adjustmentReason}</td><td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#818cf8;font-size:13px;text-align:right;font-weight:700;font-family:monospace;">${Number(adjustmentAmount) < 0 ? '-' : '+'}$${Math.abs(Number(adjustmentAmount)).toFixed(2)}</td></tr>`
