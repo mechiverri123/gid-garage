@@ -548,10 +548,7 @@ function PhotoGallery() {
       .then(res => (res.ok ? res.json() : null))
       .then(data => {
         if (data?.keys?.length) {
-          setPhotos([
-            fallbackPhotos[0],
-            ...data.keys.map((key: string) => ({ src: img(key), alt: 'GID Garage work' })),
-          ]);
+          setPhotos(data.keys.map((key: string) => ({ src: img(key), alt: 'GID Garage work' })));
         }
       })
       .catch(() => {}); // keep fallbackPhotos on failure
