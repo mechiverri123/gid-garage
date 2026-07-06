@@ -60,6 +60,7 @@ export async function onRequestGet({ env }) {
     } catch { /* treat as no cache */ }
   }
 
+  let fetchError = null;
   const isStale = !cached || (Date.now() - new Date(cached.fetchedAt).getTime() > CACHE_TTL_MS);
   if (isStale) {
     try {
@@ -67,15 +68,18 @@ export async function onRequestGet({ env }) {
       if (fresh) {
         cached = fresh;
         if (bucket) await bucket.put(CACHE_KEY, JSON.stringify(fresh), { httpMetadata: { contentType: 'application/json' } });
+      } else {
+        fetchError = 'Missing GOOGLE_PLACES_API_KEY or GOOGLE_PLACE_ID env var';
       }
     } catch (err) {
       console.error('google-reviews fetch failed:', err.message);
+      fetchError = err.message;
       // Fall through and serve the stale cache (if any) rather than nothing
     }
   }
 
   if (!cached) {
-    return new Response(JSON.stringify({ configured: false }), { status: 200, headers });
+    return new Response(JSON.stringify({ configured: false, error: fetchError }), { status: 200, headers });
   }
   return new Response(JSON.stringify({ configured: true, ...cached }), { status: 200, headers });
 }
