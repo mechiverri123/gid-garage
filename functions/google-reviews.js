@@ -69,7 +69,7 @@ export async function onRequestGet({ env }) {
         cached = fresh;
         if (bucket) await bucket.put(CACHE_KEY, JSON.stringify(fresh), { httpMetadata: { contentType: 'application/json' } });
       } else {
-        fetchError = 'Missing GOOGLE_PLACES_API_KEY or GOOGLE_PLACE_ID env var';
+        fetchError = `Missing GOOGLE_PLACES_API_KEY or GOOGLE_PLACE_ID env var. Env keys present: ${Object.keys(env).join(', ') || '(none)'}`;
       }
     } catch (err) {
       console.error('google-reviews fetch failed:', err.message);
