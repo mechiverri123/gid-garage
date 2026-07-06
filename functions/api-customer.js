@@ -15,6 +15,9 @@
 //   estimate-decline    { id }                    -> { ok }   (customer declines estimate)
 //   returning-customer  { fname,lname,email,phone}-> { stripeCustomerId, last4 } | null
 
+//   send-inquiry        {...}                    -> { ok }    (existing inquiry-form email)
+//   quick-quote         { name, phone, issue }    -> { ok }    (homepage fast-path form — texts the owner directly)
+
 function json(body, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
@@ -63,6 +66,21 @@ export async function onRequestPost({ request, env }) {
       body: JSON.stringify(payload),
     });
     if (!r.ok) console.error('Brevo send failed:', r.status, await r.text());
+  }
+
+  // Sends a text via Brevo's transactional SMS API. Requires a Brevo account
+  // with SMS credits + an approved sender name (Brevo → Transactional →
+  // SMS → Senders) — separate setup from the email side, even though it's
+  // the same account/API key.
+  async function brevoSendSms(to, content) {
+    if (!brevoKey) { console.warn('BREVO_API_KEY not set'); return false; }
+    const r = await fetch('https://api.brevo.com/v3/transactionalSMS/sms', {
+      method: 'POST',
+      headers: { 'api-key': brevoKey, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sender: 'GIDGarage', recipient: to, content, type: 'transactional' }),
+    });
+    if (!r.ok) { console.error('Brevo SMS failed:', r.status, await r.text()); return false; }
+    return true;
   }
 
   const base = `${supabaseUrl}/rest/v1`;
@@ -429,6 +447,28 @@ export async function onRequestPost({ request, env }) {
             htmlContent: `<div style="font-family:sans-serif;max-width:520px;margin:0 auto;background:#0f0f0f;color:#fff;padding:32px;border-top:4px solid #dc2626;"><h2 style="margin:0 0 20px;font-size:22px;font-weight:900;">New Customer Inquiry</h2><table style="width:100%;border-collapse:collapse;font-size:13px;"><tr><td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#9ca3af;width:35%;">Name</td><td style="padding:8px 0;border-bottom:1px solid #1f2937;font-weight:600;">${esc(fname)} ${esc(lname)}</td></tr><tr><td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#9ca3af;">Phone</td><td style="padding:8px 0;border-bottom:1px solid #1f2937;">${esc(phone)}</td></tr>${email ? `<tr><td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#9ca3af;">Email</td><td style="padding:8px 0;border-bottom:1px solid #1f2937;">${esc(email)}</td></tr>` : ''}${vehicle ? `<tr><td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#9ca3af;">Vehicle</td><td style="padding:8px 0;border-bottom:1px solid #1f2937;">${esc(vehicle)}</td></tr>` : ''}</table><div style="margin-top:20px;background:#1a1a1a;border-left:3px solid #dc2626;padding:14px 16px;"><p style="color:#9ca3af;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;margin:0 0 8px;">Problem Description</p><p style="margin:0;font-size:14px;line-height:1.6;color:#e5e7eb;">${esc(notes)}</p></div><p style="margin-top:20px;font-size:12px;color:#6b7280;">Job ID: ${esc(bookingId)} · Submitted ${new Date().toLocaleString()}</p></div>`,
           });
         } catch (e) { console.error('Inquiry email failed:', e.message); }
+        return json({ ok: true });
+      }
+
+      // ---- Quick Quote (homepage fast-path form) ----------------------------
+      // Deliberately lighter than send-inquiry/insert-booking — 3 fields, no
+      // DB row, texts the owner directly so a fast-moving lead doesn't sit in
+      // an inbox. Falls back to email if SMS isn't configured or fails, so a
+      // lead is never silently dropped.
+      case 'quick-quote': {
+        const { name, phone, issue, hp } = payload; // hp = honeypot field, humans never fill it
+        if (hp) return json({ ok: true }); // silently drop bot submissions
+        if (!name || !phone) return json({ error: 'Missing name or phone' }, 400);
+        const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+
+        try {
+          await brevoSend({
+            sender: { name: 'GID Garage Bookings', email: 'bookings@gidgarage.com' },
+            to: [{ email: 'gidgarageaz@hotmail.com', name: 'GID Garage' }],
+            subject: `⚡ Quick Quote Request: ${esc(name)}`,
+            htmlContent: `<div style="font-family:sans-serif;max-width:520px;margin:0 auto;background:#0f0f0f;color:#fff;padding:32px;border-top:4px solid #dc2626;"><h2 style="margin:0 0 20px;font-size:22px;font-weight:900;">⚡ Quick Quote Request</h2><table style="width:100%;border-collapse:collapse;font-size:13px;"><tr><td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#9ca3af;width:35%;">Name</td><td style="padding:8px 0;border-bottom:1px solid #1f2937;font-weight:600;">${esc(name)}</td></tr><tr><td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#9ca3af;">Phone</td><td style="padding:8px 0;border-bottom:1px solid #1f2937;">${esc(phone)}</td></tr></table><div style="margin-top:20px;background:#1a1a1a;border-left:3px solid #dc2626;padding:14px 16px;"><p style="color:#9ca3af;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;margin:0 0 8px;">What's going on</p><p style="margin:0;font-size:14px;line-height:1.6;color:#e5e7eb;">${esc(issue || '(nothing entered)')}</p></div><p style="margin-top:20px;font-size:12px;color:#6b7280;">Submitted ${new Date().toLocaleString()}</p></div>`,
+          });
+        } catch (e) { console.error('quick-quote email failed:', e.message); }
         return json({ ok: true });
       }
 

@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from 'react';
-import { Phone, Mail, Menu, X } from 'lucide-react';
+import { Phone, Mail, Menu, X, MessageCircle } from 'lucide-react';
 import BookingWidget, { AdminSchedule, verifyCancelToken, deleteLocalBooking, sendCancellationNotification } from './BookingWidget';
 import { EstimatePage, InvoicePage } from './JobOps';
 import GamesPage from './GamesPage';
@@ -210,6 +210,76 @@ function ServiceCard({ s, onBookService }: { s: typeof services[0]; onBookServic
   );
 }
 
+function QuickQuoteForm() {
+  const [name, setName] = useState('');
+  const [phone, setPhone] = useState('');
+  const [issue, setIssue] = useState('');
+  const [hp, setHp] = useState(''); // honeypot — hidden from real users via CSS
+  const [status, setStatus] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!name.trim() || !phone.trim()) return;
+    setStatus('sending');
+    try {
+      const res = await fetch('/api-customer', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'quick-quote', name, phone, issue, hp }),
+      });
+      if (!res.ok) throw new Error('Request failed');
+      setStatus('sent');
+    } catch {
+      setStatus('error');
+    }
+  }
+
+  if (status === 'sent') {
+    return (
+      <section className="py-12 bg-dark border-t border-white/5">
+        <div className="max-w-xl mx-auto px-5 text-center">
+          <p className="text-red-500 text-xs font-bold uppercase tracking-[0.25em] mb-2">Got It</p>
+          <p className="text-white text-xl font-bold mb-1">Thanks, {name.split(' ')[0]}!</p>
+          <p className="text-white/60 text-sm">We'll text you back shortly — usually same day.</p>
+        </div>
+      </section>
+    );
+  }
+
+  return (
+    <section className="py-16 md:py-20 bg-dark border-t border-white/5">
+      <div className="max-w-xl mx-auto px-5 md:px-8">
+        <div className="text-center mb-8">
+          <p className="text-red-500 text-xs font-bold uppercase tracking-[0.25em] mb-2">Not Ready To Book Yet?</p>
+          <div className="text-3xl md:text-4xl font-extrabold text-white tracking-tight">Get a Fast Quote</div>
+          <div className="text-white/50 text-sm mt-2">Tell us what's going on — we'll text you back, usually same day.</div>
+        </div>
+        <form onSubmit={submit} className="bg-white/5 border border-white/10 p-6 md:p-8 space-y-4">
+          {/* Honeypot — invisible to real users, bots tend to fill every field */}
+          <input type="text" value={hp} onChange={e => setHp(e.target.value)} tabIndex={-1} autoComplete="off"
+            style={{ position: 'absolute', left: '-9999px', width: '1px', height: '1px', opacity: 0 }} aria-hidden="true" />
+          <input
+            type="text" placeholder="Your name" value={name} onChange={e => setName(e.target.value)} required
+            className="w-full bg-black/30 border border-white/15 text-white placeholder-white/30 px-4 py-3 text-sm outline-none focus:border-red-600 transition-colors"
+          />
+          <input
+            type="tel" placeholder="Phone number" value={phone} onChange={e => setPhone(e.target.value)} required
+            className="w-full bg-black/30 border border-white/15 text-white placeholder-white/30 px-4 py-3 text-sm outline-none focus:border-red-600 transition-colors"
+          />
+          <textarea
+            placeholder="What's going on with your vehicle? (optional)" value={issue} onChange={e => setIssue(e.target.value)} rows={3}
+            className="w-full bg-black/30 border border-white/15 text-white placeholder-white/30 px-4 py-3 text-sm outline-none focus:border-red-600 transition-colors resize-none"
+          />
+          <button type="submit" disabled={status === 'sending'} className="btn-primary w-full text-xs py-4 disabled:opacity-40">
+            {status === 'sending' ? 'Sending…' : 'Text Me A Quote'}
+          </button>
+          {status === 'error' && <p className="text-red-400 text-xs text-center">Something went wrong — call or text us directly at {PHONE} instead.</p>}
+        </form>
+      </div>
+    </section>
+  );
+}
+
 function Services({ onBookService }: { onBookService: (id: string) => void }) {
   return (
     <section id="services" className="py-20 md:py-28 bg-dark">
@@ -285,16 +355,92 @@ function WhyUs() {
   );
 }
 
+// ── GOOGLE REVIEWS ───────────────────────────────────────────────────────────
+const GBP_REVIEW_URL = 'https://g.page/r/CdERSypGqVdlEBM/review';
+
+function Stars({ rating }: { rating: number }) {
+  return (
+    <div className="flex gap-0.5">
+      {[1, 2, 3, 4, 5].map(i => (
+        <span key={i} className={i <= Math.round(rating) ? 'text-yellow-400' : 'text-white/15'}>★</span>
+      ))}
+    </div>
+  );
+}
+
+function GoogleReviewsSection() {
+  const [data, setData] = useState<any>(null);
+
+  useEffect(() => {
+    fetch('/google-reviews').then(r => r.json()).then(setData).catch(() => setData(null));
+  }, []);
+
+  // Not configured yet, or nothing to show — don't render a broken/empty section
+  if (!data?.configured || !data.reviews?.length) return null;
+
+  return (
+    <section className="py-20 md:py-28 bg-dark border-t border-white/5">
+      <div className="max-w-7xl mx-auto px-5 md:px-8">
+        <div className="text-center mb-10">
+          <p className="text-red-500 text-xs font-bold uppercase tracking-[0.25em] mb-2">Google Reviews</p>
+          <div className="text-4xl md:text-5xl font-extrabold text-white tracking-tight mb-3">What Customers Say</div>
+          {data.rating != null && (
+            <div className="flex items-center justify-center gap-2">
+              <Stars rating={data.rating} />
+              <span className="text-white font-bold">{data.rating.toFixed(1)}</span>
+              {data.totalReviews != null && <span className="text-white/40 text-sm">({data.totalReviews} reviews)</span>}
+            </div>
+          )}
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          {data.reviews.slice(0, 3).map((r: any, i: number) => (
+            <div key={i} className="bg-white/5 border border-white/10 p-6 flex flex-col">
+              <Stars rating={r.rating} />
+              <p className="text-white/70 text-sm leading-relaxed mt-3 flex-1 line-clamp-6">{r.text}</p>
+              <div className="mt-4 pt-4 border-t border-white/10 flex items-center justify-between">
+                <span className="text-white text-xs font-bold">{r.author}</span>
+                <span className="text-white/30 text-[10px]">{r.relativeTime}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div className="text-center mt-8">
+          <a href={GBP_REVIEW_URL} target="_blank" rel="noopener noreferrer" className="text-red-400 hover:text-red-300 text-sm font-bold underline underline-offset-4">
+            See all reviews on Google →
+          </a>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 // ── SERVICE AREA MAP ─────────────────────────────────────────────────────────
 // Real coordinates from Google Maps / Places API
 const SERVICE_AREAS = [
-  { name: 'Flagstaff',       lat: 35.1983, lng: -111.6513, isHome: true,  miles: 0 },
-  { name: 'Fort Valley',     lat: 35.2300, lng: -111.6800, isHome: false, miles: 2.7 },
-  { name: 'Kachina Village', lat: 35.0970, lng: -111.6927, isHome: false, miles: 7.4 },
-  { name: 'Mountainaire',    lat: 35.0855, lng: -111.6656, isHome: false, miles: 7.8 },
-  { name: 'Doney Park',      lat: 35.2695, lng: -111.5140, isHome: false, miles: 9.2 },
-  { name: 'Bellemont',       lat: 35.2381, lng: -111.8335, isHome: false, miles: 10.6 },
-  { name: 'Winona',          lat: 35.2045, lng: -111.4051, isHome: false, miles: 13.9 },
+  { name: 'Flagstaff',       slug: 'flagstaff',       lat: 35.1983, lng: -111.6513, isHome: true,  miles: 0,
+    blurb: 'Home base. Same-day and next-day mobile appointments are usually available anywhere in town.' },
+  { name: 'Fort Valley',     slug: 'fort-valley',      lat: 35.2300, lng: -111.6800, isHome: false, miles: 2.7,
+    blurb: 'Just northwest of downtown — one of our quickest response areas.' },
+  { name: 'Kachina Village', slug: 'kachina-village',  lat: 35.0970, lng: -111.6927, isHome: false, miles: 7.4,
+    blurb: 'A quick drive south off I-17 — we\'re out to Kachina Village regularly.' },
+  { name: 'Mountainaire',    slug: 'mountainaire',     lat: 35.0855, lng: -111.6656, isHome: false, miles: 7.8,
+    blurb: 'Right next to Kachina Village along I-17 — easy reach for mobile appointments.' },
+  { name: 'Doney Park',      slug: 'doney-park',       lat: 35.2695, lng: -111.5140, isHome: false, miles: 9.2,
+    blurb: 'East of Flagstaff off Townsend-Winona Road — a regular stop for us.' },
+  { name: 'Bellemont',       slug: 'bellemont',        lat: 35.2381, lng: -111.8335, isHome: false, miles: 10.6,
+    blurb: 'Out along old Route 66/I-40 west of town — happy to make the drive.' },
+  { name: 'Munds Park',      slug: 'munds-park',       lat: 35.0219, lng: -111.6291, isHome: false, miles: 12.5,
+    blurb: 'The I-17 mountain community south of Flagstaff — a straightforward trip down the interstate.' },
+  { name: 'Winona',          slug: 'winona',           lat: 35.2045, lng: -111.4051, isHome: false, miles: 13.9,
+    blurb: 'East on old Route 66 near Walnut Canyon — we make it out this way regularly.' },
+  { name: 'Parks',           slug: 'parks',            lat: 35.2636, lng: -111.9505, isHome: false, miles: 17.0,
+    blurb: 'Out I-40 west toward Williams — a familiar drive for us.' },
+  { name: 'Sedona',          slug: 'sedona',           lat: 34.8697, lng: -111.7610, isHome: false, miles: 28.0,
+    blurb: 'Down 89A through Oak Creek Canyon — mobile repair without the drive up to Flagstaff.' },
+  { name: 'Winslow',         slug: 'winslow',          lat: 35.0242, lng: -110.6974, isHome: false, miles: 58.0,
+    blurb: 'Further east off I-40 — reach out ahead of time so we can build it into the schedule.' },
 ];
 
 function ServiceMap() {
@@ -327,14 +473,21 @@ function ServiceMap() {
         </div>
 
         {/* Distance cards */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-3 mb-8">
-          {SERVICE_AREAS.map(area => (
-            <div key={area.name} className={`p-3 text-center border ${area.isHome ? 'border-red-600 bg-red-600/10' : 'border-white/10 bg-white/5'}`}>
-              {area.isHome && <div className="w-2 h-2 bg-red-600 rounded-full mx-auto mb-1.5 animate-pulse" />}
-              <p className={`text-xs font-bold ${area.isHome ? 'text-red-400' : 'text-white'}`}>{area.name}</p>
-              <p className="text-white/40 text-[10px] mt-0.5">{area.isHome ? 'Home Base' : `~${area.miles} mi`}</p>
-            </div>
-          ))}
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-8">
+          {SERVICE_AREAS.map(area => {
+            const Card = (
+              <>
+                {area.isHome && <div className="w-2 h-2 bg-red-600 rounded-full mx-auto mb-1.5 animate-pulse" />}
+                <p className={`text-xs font-bold ${area.isHome ? 'text-red-400' : 'text-white'}`}>{area.name}</p>
+                <p className="text-white/40 text-[10px] mt-0.5">{area.isHome ? 'Home Base' : `~${area.miles} mi`}</p>
+              </>
+            );
+            return area.isHome ? (
+              <div key={area.name} className="p-3 text-center border border-red-600 bg-red-600/10">{Card}</div>
+            ) : (
+              <a key={area.name} href={`/service-area?town=${area.slug}`} className="p-3 text-center border border-white/10 bg-white/5 hover:border-red-600/50 hover:bg-white/10 transition-colors">{Card}</a>
+            );
+          })}
         </div>
 
         <div className="bg-white/5 border border-white/10 p-4 overflow-x-auto">
@@ -484,6 +637,46 @@ function BookingSection({ openBooking }: { openBooking: () => void }) {
   );
 }
 
+// ── FAQ ───────────────────────────────────────────────────────────────────────
+const FAQ_ITEMS = [
+  { q: 'Do you actually come to me?', a: 'Yes — GID Garage is 100% mobile. Home, work, roadside, wherever your vehicle is, that\'s where we work on it.' },
+  { q: 'What areas do you cover?', a: `Flagstaff and the surrounding communities — ${SERVICE_AREAS.filter(a => !a.isHome).map(a => a.name).join(', ')}. Not sure if you're in range? Just call or text — ${PHONE}.` },
+  { q: 'How fast can you get to me?', a: 'Same-day or next-day appointments are usually available, depending on the schedule. Text us your details and we\'ll give you a real answer, not a runaround.' },
+  { q: 'What kind of work do you do?', a: 'Oil changes, brakes, diagnostics, suspension, and most general maintenance and repair. A few specialty jobs — wheel alignments, A/C system work, transmission overhauls, welding — we\'ll point you to a shop that specializes in it, no charge for the honesty.' },
+  { q: 'How do I pay?', a: 'Card on file, tap-to-pay in person, or a secure payment link sent to your phone — whatever\'s easiest for you.' },
+  { q: 'Do I need to be there while you work?', a: 'Not necessarily — as long as we can access the vehicle and get in touch if anything comes up, plenty of customers have us come by while they\'re at work or running errands.' },
+];
+
+function FAQ() {
+  const [open, setOpen] = useState<number | null>(0);
+  return (
+    <section id="faq" className="py-20 md:py-28 bg-dark border-t border-white/5">
+      <div className="max-w-3xl mx-auto px-5 md:px-8">
+        <div className="text-center mb-10">
+          <p className="text-red-500 text-xs font-bold uppercase tracking-[0.25em] mb-2">FAQ</p>
+          <div className="text-4xl md:text-5xl font-extrabold text-white tracking-tight">Common Questions</div>
+        </div>
+        <div className="space-y-3">
+          {FAQ_ITEMS.map((item, i) => (
+            <div key={i} className="bg-white/5 border border-white/10 overflow-hidden">
+              <button
+                onClick={() => setOpen(open === i ? null : i)}
+                className="w-full flex items-center justify-between text-left px-5 py-4"
+              >
+                <span className="text-white font-semibold text-sm md:text-base pr-4">{item.q}</span>
+                <span className={`text-red-500 text-xl flex-shrink-0 transition-transform ${open === i ? 'rotate-45' : ''}`}>+</span>
+              </button>
+              {open === i && (
+                <div className="px-5 pb-4 text-white/60 text-sm leading-relaxed">{item.a}</div>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function ContactBar({ openBooking }: { openBooking: () => void }) {
   return (
     <section className="bg-red-600 py-12">
@@ -509,7 +702,7 @@ function Footer() {
           <div>
             <img src={img('website_logo.png')} alt="GID Garage" className="h-16 w-auto mb-4" />
             <p className="text-white/70 text-sm max-w-xs leading-relaxed">Mobile automotive repair and car audio in Flagstaff, AZ. Honest work. Fair prices. We come to you.</p>
-            <p className="text-white/50 text-xs mt-2 leading-relaxed">Based in Flagstaff, AZ · Serving Bellemont, Kachina Village, Fort Valley, Doney Park, Winona &amp; Mountainaire</p>
+            <p className="text-white/50 text-xs mt-2 leading-relaxed">Based in Flagstaff, AZ · Serving Sedona, Munds Park, Parks, Bellemont, Kachina Village, Fort Valley, Doney Park, Winona, Mountainaire &amp; Winslow</p>
           </div>
           <div className="flex flex-col gap-3">
             <div className="text-white/50 text-xs uppercase tracking-widest font-semibold mb-1">Hours</div>
@@ -540,6 +733,87 @@ function Footer() {
         </div>
       </div>
     </footer>
+  );
+}
+
+// ── SERVICE AREA LANDING PAGES ────────────────────────────────────────────────
+function ServiceAreaPage({ slug }: { slug: string }) {
+  const [modalOpen, setModalOpen] = useState(false);
+  const area = SERVICE_AREAS.find(a => a.slug === slug);
+
+  useEffect(() => {
+    if (!area) return;
+    const title = `Mobile Mechanic in ${area.name}, AZ | GID Garage`;
+    const desc = `GID Garage brings mobile auto repair to ${area.name}, AZ — oil changes, brakes, diagnostics, suspension & more. We come to you. Call ${PHONE} or book online.`;
+    document.title = title;
+    let meta = document.querySelector('meta[name="description"]');
+    if (meta) meta.setAttribute('content', desc);
+  }, [area]);
+
+  if (!area) {
+    return (
+      <div className="bg-dark text-dark min-h-screen font-sans flex items-center justify-center px-5">
+        <div className="text-center">
+          <p className="text-white text-xl font-bold mb-3">Service area not found</p>
+          <a href="/" className="text-red-400 underline text-sm">Back to homepage</a>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="bg-dark text-dark min-h-screen font-sans pb-16 md:pb-0">
+      <Nav openBooking={() => setModalOpen(true)} />
+      <section className="pt-32 pb-16 md:pt-40 md:pb-20">
+        <div className="max-w-4xl mx-auto px-5 md:px-8 text-center">
+          <p className="text-red-500 text-xs font-bold uppercase tracking-[0.25em] mb-3">Mobile Mechanic · {area.name}, AZ</p>
+          <h1 className="text-4xl md:text-6xl font-extrabold text-white tracking-tight mb-5">We Come To You In {area.name}</h1>
+          <p className="text-white/60 text-lg max-w-2xl mx-auto mb-8">{area.blurb}</p>
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+            <button onClick={() => setModalOpen(true)} className="btn-primary text-xs px-8 py-4">Get a Quote</button>
+            <a href={`tel:${PHONE}`} className="inline-flex items-center justify-center gap-2 border-2 border-white text-white font-bold px-7 py-3 text-sm uppercase tracking-wide hover:bg-white/10 transition-colors duration-200"><Phone className="w-4 h-4" />{PHONE}</a>
+          </div>
+          {!area.isHome && <p className="text-white/30 text-xs mt-4">~{area.miles} miles from our Flagstaff home base</p>}
+        </div>
+      </section>
+
+      <section className="py-16 md:py-20 bg-white/5 border-t border-white/10">
+        <div className="max-w-6xl mx-auto px-5 md:px-8">
+          <div className="text-center mb-10">
+            <div className="text-3xl md:text-4xl font-extrabold text-white tracking-tight">What We Handle in {area.name}</div>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {services.slice(0, 6).map(s => (
+              <div key={s.id} className="bg-black/20 border border-white/10 p-6">
+                <h3 className="text-white font-bold text-lg mb-2">{s.title}</h3>
+                <p className="text-white/60 text-sm leading-relaxed">{s.desc}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <FAQ />
+      <Footer />
+      {!modalOpen && <StickyMobileCTA openBooking={() => setModalOpen(true)} />}
+      {modalOpen && <BookingWidget autoOpen onClose={() => setModalOpen(false)} />}
+    </div>
+  );
+}
+
+// ── STICKY MOBILE CTA ─────────────────────────────────────────────────────────
+// Persistent bottom bar on small screens only — catches people who'd otherwise
+// bail before scrolling all the way down to a CTA.
+function StickyMobileCTA({ openBooking }: { openBooking: () => void }) {
+  return (
+    <div className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-[#0f0f0f] border-t border-white/10 flex" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
+      <a href={`tel:${PHONE}`} className="flex-1 flex items-center justify-center gap-2 py-3.5 text-white font-bold text-sm border-r border-white/10 active:bg-white/10">
+        <Phone className="w-4 h-4" /> Call
+      </a>
+      <button onClick={openBooking} className="flex-1 flex items-center justify-center gap-2 py-3.5 bg-red-600 text-white font-bold text-sm active:bg-red-700">
+        <MessageCircle className="w-4 h-4" /> Get a Quote
+      </button>
+    </div>
   );
 }
 
@@ -668,6 +942,7 @@ export default function App() {
   const isInvoice = window.location.pathname === '/invoice';
   const isGames = window.location.pathname === '/games';
   const isGameRedeem = window.location.pathname === '/game-redeem';
+  const isServiceArea = window.location.pathname === '/service-area';
 
   function handleBookService(id: string) {
     setBookingServiceId(id);
@@ -684,19 +959,24 @@ export default function App() {
   if (isInvoice) return <InvoicePage />;
   if (isGames) return <GamesPage />;
   if (isGameRedeem) return <GameRedeem />;
+  if (isServiceArea) return <ServiceAreaPage slug={params.get('town') ?? ''} />;
   if (cancelId && cancelToken) return <CancelPage bookingId={cancelId} token={cancelToken} />;
 
   return (
-    <div className="bg-dark text-dark min-h-screen font-sans">
+    <div className="bg-dark text-dark min-h-screen font-sans pb-16 md:pb-0">
       <Nav openBooking={openBooking} />
       <Hero openBooking={openBooking} />
+      <QuickQuoteForm />
       <Services onBookService={handleBookService} />
       <WhyUs />
+      <GoogleReviewsSection />
       <ServiceMap />
       <PhotoGallery />
       <BookingSection openBooking={openBooking} />
+      <FAQ />
       <ContactBar openBooking={openBooking} />
       <Footer />
+      {!modalOpen && <StickyMobileCTA openBooking={openBooking} />}
       {modalOpen && (
         <BookingWidget
           autoOpen
