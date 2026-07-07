@@ -180,6 +180,9 @@ export interface Job {
   // pre/post health scan documents (optional links shown on the invoice)
   preScan: ScanDoc | null;
   postScan: ScanDoc | null;
+  // optional external payment link (e.g. pay.bluevine.com/...) shown on the
+  // customer invoice as a "Pay Now" button, instead of/alongside card-on-file
+  paymentLink: string | null;
   // inspection
   inspectionData: InspectionData | null;
 }
@@ -323,6 +326,7 @@ function mapJob(b: any): Job {
     adminPhotos: b.admin_photos ? (typeof b.admin_photos === 'string' ? JSON.parse(b.admin_photos) : b.admin_photos) : [],
     preScan: b.pre_scan ? (typeof b.pre_scan === 'string' ? JSON.parse(b.pre_scan) : b.pre_scan) : null,
     postScan: b.post_scan ? (typeof b.post_scan === 'string' ? JSON.parse(b.post_scan) : b.post_scan) : null,
+    paymentLink: b.payment_link || null,
     inspectionData: b.inspection_data ? (typeof b.inspection_data === 'string' ? JSON.parse(b.inspection_data) : b.inspection_data) : null,
   };
 }
@@ -1003,17 +1007,63 @@ function AdminPhotoPanel({ entityId, onSave, initialPhotos, onPhotosChange }: {
     } catch {}
   }
 
+  // Resize + re-encode in the browser before upload, same as the customer
+  // photo panel. Phone camera photos are often 3-8MB uploaded full-res over
+  // cell signal in a driveway, which is why admin uploads felt much slower
+  // than the customer-facing panel. Caps the longest edge at 2000px (higher
+  // than the customer panel's 1600px, since VIN/plate photos need to stay
+  // legible) and re-encodes as JPEG q0.85. Skips HEIC/non-standard types the
+  // canvas can't decode — those still upload full-size.
+  function compressPhoto(file: File, maxDim = 2000, quality = 0.85): Promise<Blob> {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const img = new Image();
+        img.onload = () => {
+          let { width, height } = img;
+          if (width > maxDim || height > maxDim) {
+            if (width > height) { height = Math.round((height * maxDim) / width); width = maxDim; }
+            else { width = Math.round((width * maxDim) / height); height = maxDim; }
+          }
+          const canvas = document.createElement('canvas');
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) { reject(new Error('Canvas not supported')); return; }
+          ctx.drawImage(img, 0, 0, width, height);
+          canvas.toBlob(blob => blob ? resolve(blob) : reject(new Error('Compression failed')), 'image/jpeg', quality);
+        };
+        img.onerror = () => reject(new Error('Image failed to load'));
+        img.src = reader.result as string;
+      };
+      reader.onerror = () => reject(new Error('File read failed'));
+      reader.readAsDataURL(file);
+    });
+  }
+
   async function handleUpload(file: File) {
     setUploading(true);
     setUploadError(null);
     try {
+      const isHeic = /heic|heif/i.test(file.type) || /\.hei[cf]$/i.test(file.name);
+      const isImage = /^image\//.test(file.type) && !isHeic;
+      let uploadBody: Blob = file;
+      let uploadName = file.name;
+      if (isImage) {
+        try {
+          uploadBody = await compressPhoto(file);
+          uploadName = file.name.replace(/\.\w+$/, '') + '.jpg';
+        } catch {
+          // Fall back to the original file if compression fails for any reason.
+        }
+      }
       const formData = new FormData();
-      formData.append('file', file);
+      formData.append('file', uploadBody, uploadName);
       formData.append('bookingId', entityId);
       const res = await fetch('/admin-upload-photo', { method: 'POST', body: formData });
       if (!res.ok) throw new Error(await res.text());
       const data = await res.json() as any;
-      const newPhoto = { key: data.key, url: data.url, name: file.name, note: '' };
+      const newPhoto = { key: data.key, url: data.url, name: uploadName, note: '' };
       const updated = [...photos, newPhoto];
       setPhotos(updated);
       await savePhotosToDb(updated);
@@ -3225,6 +3275,89 @@ function ScanUploadBox({ job, stage, onUpdate }: { job: Job; stage: 'pre' | 'pos
   );
 }
 
+// ── PAYMENT LINK (e.g. pay.bluevine.com) ─────────────────────────────────────
+// Optional external payment link — admin pastes a Bluevine (or other) pay
+// link here; it shows up as a "Pay Now" button on the customer invoice page,
+// letting the customer pay without card-on-file / Stripe.
+function PaymentLinkBox({ job, onUpdate }: { job: Job; onUpdate: (j: Job) => void }) {
+  const [editing, setEditing] = useState(false);
+  const [linkUrl, setLinkUrl] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleSave() {
+    const url = linkUrl.trim();
+    if (!url) return;
+    setSaving(true);
+    setError(null);
+    try {
+      // eslint-disable-next-line no-new
+      new URL(url); // throws on garbage input before it ever hits the DB
+      await patchJob(job.id, { payment_link: url });
+      onUpdate({ ...job, paymentLink: url });
+      setEditing(false);
+      setLinkUrl('');
+    } catch {
+      setError('Enter a valid link (must start with https://)');
+    }
+    setSaving(false);
+  }
+
+  async function handleRemove() {
+    await patchJob(job.id, { payment_link: null });
+    onUpdate({ ...job, paymentLink: null });
+  }
+
+  return (
+    <div className="bg-gray-900 border border-gray-800 p-3">
+      <p className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-2">💳 Payment Link</p>
+      {job.paymentLink && !editing ? (
+        <div className="space-y-2">
+          <a href={job.paymentLink} target="_blank" rel="noopener noreferrer" className="block text-indigo-400 hover:text-indigo-300 text-xs truncate underline">
+            {job.paymentLink}
+          </a>
+          <p className="text-gray-600 text-[10px]">Shown to the customer as a "Pay Now" button on their invoice.</p>
+          <div className="flex gap-3">
+            <button onClick={() => { setLinkUrl(job.paymentLink || ''); setEditing(true); }} className="text-gray-500 hover:text-gray-300 text-[10px] font-bold uppercase tracking-wider transition-colors">
+              Edit
+            </button>
+            <button onClick={handleRemove} className="text-gray-600 hover:text-red-500 text-[10px] font-bold uppercase tracking-wider transition-colors">
+              Remove
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div className="space-y-1.5">
+          <input
+            type="text"
+            value={linkUrl}
+            onChange={e => setLinkUrl(e.target.value)}
+            placeholder="https://pay.bluevine.com/…"
+            className="w-full bg-gray-800 border border-gray-700 text-white px-2 py-1.5 text-xs outline-none focus:border-yellow-700 placeholder-gray-600"
+          />
+          <div className="flex gap-1.5">
+            <button
+              onClick={handleSave}
+              disabled={!linkUrl.trim() || saving}
+              className="flex-1 bg-yellow-700 hover:bg-yellow-600 disabled:opacity-40 text-white text-[10px] font-bold uppercase tracking-wider py-1.5 transition-colors"
+            >
+              {saving ? 'Saving…' : 'Save Link'}
+            </button>
+            {editing && (
+              <button onClick={() => { setEditing(false); setLinkUrl(''); setError(null); }}
+                className="px-3 border border-gray-700 text-gray-400 text-[10px] font-bold uppercase tracking-wider hover:border-gray-500 transition-colors">
+                Cancel
+              </button>
+            )}
+          </div>
+          <p className="text-gray-600 text-[10px]">Paste your pay.bluevine.com link for this customer.</p>
+        </div>
+      )}
+      {error && <p className="text-red-400 text-[10px] mt-1">{error}</p>}
+    </div>
+  );
+}
+
 // ── JOB DETAIL PANEL ──────────────────────────────────────────────────────────
 
 const JOB_PIPELINE: JobStatus[] = ['BOOKED', 'ESTIMATE_SENT', 'SIGNED', 'IN_PROGRESS', 'COMPLETED', 'INVOICED', 'PAID'];
@@ -3367,6 +3500,9 @@ function JobDetailPanel({ job: initialJob, onClose, onJobUpdate }: {
                 <ScanUploadBox job={job} stage="pre" onUpdate={handleUpdate} />
                 <ScanUploadBox job={job} stage="post" onUpdate={handleUpdate} />
               </div>
+
+              {/* External payment link (e.g. pay.bluevine.com) — shown to the customer as a Pay Now button */}
+              <PaymentLinkBox job={job} onUpdate={handleUpdate} />
 
               {/* Customer & Job info */}
               {!editingAppt ? (
@@ -4986,6 +5122,20 @@ export function InvoicePage() {
                 </a>
               )}
             </div>
+          </div>
+        )}
+
+        {/* External payment link (e.g. pay.bluevine.com) — admin-provided alternative to card-on-file */}
+        {job.paymentLink && !isPaid && (
+          <div className="mt-4 no-print">
+            <a
+              href={job.paymentLink}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="block text-center bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-bold uppercase tracking-widest px-6 py-4 transition-colors"
+            >
+              💳 Pay {isPartiallyPaid ? 'Balance' : 'Now'} — ${isPartiallyPaid ? balanceDue.toFixed(2) : totalDue.toFixed(2)}
+            </a>
           </div>
         )}
 
