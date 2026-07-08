@@ -12,6 +12,7 @@
 // Body: { action: string, ...args }
 //   list-bookings                          -> Booking[]   (full rows)
 //   get-booking         { id }             -> Booking | null
+//   search-job-hours    { query }          -> { id, service, vehicle, date, actual_hours }[]  (Time Lookup in Quote Calculator)
 //   patch-booking       { id, fields }     -> { ok }
 //   patch-by-customer   { customerId, fields } -> { ok }   (e.g. update stripe_last4 on all rows)
 //   list-payment-events { limit? }         -> PaymentEvent[]
@@ -109,10 +110,25 @@ export async function onRequestPost({ request, env }) {
           'invoice_amount', 'stripe_transaction_id', 'stripe_customer_id',
           'stripe_last4', 'paid_at', 'adjustment_amount', 'amount_paid', 'payments',
           'invoice_sent_count', 'invoice_last_sent_at', 'parts_cost', 'parts_receipts',
-          'review_left_at',
+          'review_left_at', 'actual_hours',
         ].join(',');
         const res = await fetch(
           `${base}/bookings?select=${listColumns}&order=date.desc,time.desc&limit=${limit}`,
+          { headers }
+        );
+        if (!res.ok) return json({ error: await res.text() }, 502);
+        return json(await res.json());
+      }
+
+      // ---- Time Lookup (Quote Calculator) — real hours from past jobs whose
+      // service/vehicle text matches the search term, so quotes can be based
+      // on what jobs actually took rather than a guess ---------------------
+      case 'search-job-hours': {
+        const q = String(payload.query || '').trim();
+        if (q.length < 2) return json([]);
+        const escaped = q.replace(/[(),]/g, ''); // keep the PostgREST or=() filter simple/safe
+        const res = await fetch(
+          `${base}/bookings?select=id,service,vehicle,date,actual_hours&actual_hours=not.is.null&or=(service.ilike.*${encodeURIComponent(escaped)}*,vehicle.ilike.*${encodeURIComponent(escaped)}*)&order=date.desc&limit=25`,
           { headers }
         );
         if (!res.ok) return json({ error: await res.text() }, 502);
