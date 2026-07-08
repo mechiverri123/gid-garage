@@ -3942,6 +3942,22 @@ function ExternalLeadModal({ onClose, onAdded }: { onClose: () => void; onAdded:
     setRawAmounts(prev => { const next = { ...prev }; delete next[id]; return next; });
   }
 
+  // Time Lookup hands back suggested hours — apply straight to the Labor line,
+  // adding one if there isn't one yet, at the standard $75/hr rate.
+  function applySuggestedHours(hrsStr: string) {
+    const hrs = parseFloat(hrsStr);
+    if (isNaN(hrs) || hrs <= 0) return;
+    const amount = Math.round(hrs * LABOR_RATE * 100) / 100;
+    const label = `Labor (${hrs}hr @ $${LABOR_RATE}/hr)`;
+    setLineItems(prev => {
+      const existing = prev.find(li => li.type === 'labor');
+      if (existing) {
+        return prev.map(li => li.id === existing.id ? { ...li, label, amount } : li);
+      }
+      return [...prev, { id: `li-labor-${Date.now()}`, label, amount, type: 'labor' }];
+    });
+  }
+
   const subtotal = lineItems.reduce((s, i) => s + (i.amount || 0), 0);
   const tax = taxFromItems(lineItems);
   const total = subtotal + tax;
@@ -4146,6 +4162,10 @@ function ExternalLeadModal({ onClose, onAdded }: { onClose: () => void; onAdded:
           <>
             <h2 className="text-xl font-black text-white mb-1">Build {docType === 'estimate' ? 'Estimate' : 'Invoice'}</h2>
             <p className="text-gray-500 text-xs mb-5">{f.fname} {f.lname} · {f.vehicle}</p>
+
+            <div className="mb-4">
+              <TimeLookup vehicle={f.vehicle} onUseHours={applySuggestedHours} />
+            </div>
 
             <div className="space-y-2 mb-3">
               {lineItems.map(item => (
