@@ -185,11 +185,6 @@ export interface Job {
   paymentLink: string | null;
   // inspection
   inspectionData: InspectionData | null;
-  // real time-on-job tracking — logged via clock in/out, used to build an
-  // accurate-to-you time-estimate lookup for future quotes (separate from
-  // estimateAmount/laborHours, which are what was quoted, not what happened)
-  actualHours: number | null;
-  clockInAt: string | null;
 }
 
 export interface ScanDoc {
@@ -333,8 +328,6 @@ function mapJob(b: any): Job {
     postScan: b.post_scan ? (typeof b.post_scan === 'string' ? JSON.parse(b.post_scan) : b.post_scan) : null,
     paymentLink: b.payment_link || null,
     inspectionData: b.inspection_data ? (typeof b.inspection_data === 'string' ? JSON.parse(b.inspection_data) : b.inspection_data) : null,
-    actualHours: b.actual_hours != null ? Number(b.actual_hours) : null,
-    clockInAt: b.clock_in_at || null,
   };
 }
 
@@ -710,83 +703,6 @@ function AxleSchematic({ config, onChange, defaultHours }: {
   );
 }
 
-// ── TIME LOOKUP ────────────────────────────────────────────────────────────
-// Searches past jobs' REAL logged hours (from JobTimerBox), not what was
-// quoted — since jobs almost always run longer than the estimate, the
-// suggestion applies a buffer on top of your own historical average.
-interface JobHoursResult { id: string; service: string; vehicle: string; date: string; actual_hours: number }
-
-function TimeLookup({ vehicle, onUseHours }: { vehicle: string; onUseHours: (hrs: string) => void }) {
-  const [query, setQuery] = useState('');
-  const [results, setResults] = useState<JobHoursResult[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [searched, setSearched] = useState(false);
-
-  // Pre-fill with a guess at the vehicle's make/model so a first search is one tap away
-  useEffect(() => {
-    const guess = (vehicle || '').split(' ').slice(1, 3).join(' ').trim(); // skip year, grab make+model
-    if (guess) setQuery(guess);
-  }, [vehicle]);
-
-  useEffect(() => {
-    const q = query.trim();
-    if (q.length < 2) { setResults([]); setSearched(false); return; }
-    setLoading(true);
-    const t = setTimeout(async () => {
-      try {
-        const rows = await adminPost('search-job-hours', { query: q });
-        setResults(Array.isArray(rows) ? rows : []);
-      } catch { setResults([]); }
-      setSearched(true);
-      setLoading(false);
-    }, 400);
-    return () => clearTimeout(t);
-  }, [query]);
-
-  const hours = results.map(r => Number(r.actual_hours)).filter(h => !isNaN(h) && h > 0);
-  const avg = hours.length ? hours.reduce((a, b) => a + b, 0) / hours.length : 0;
-  const suggested = avg * 1.3; // you've said jobs almost always run longer than quoted
-
-  return (
-    <div className="bg-gray-900 border border-gray-800 p-3">
-      <p className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-2">🔍 Time Lookup — real hours from past jobs</p>
-      <input
-        type="text"
-        value={query}
-        onChange={e => setQuery(e.target.value)}
-        placeholder="Search by vehicle or service (e.g. Colorado or water pump)"
-        className="w-full bg-gray-800 border border-gray-700 text-white px-2 py-1.5 text-xs outline-none focus:border-yellow-700 placeholder-gray-600 mb-2"
-      />
-      {loading && <p className="text-gray-600 text-[10px]">Searching…</p>}
-      {!loading && searched && results.length === 0 && (
-        <p className="text-gray-600 text-[10px]">No matching jobs with logged hours yet — clock in/out on jobs to build this up.</p>
-      )}
-      {!loading && results.length > 0 && (
-        <div className="space-y-2">
-          <div className="max-h-32 overflow-y-auto space-y-1">
-            {results.map(r => (
-              <div key={r.id} className="flex justify-between text-[10px] text-gray-500 border-b border-gray-800 pb-1">
-                <span className="truncate pr-2">{r.vehicle} — {r.service}</span>
-                <span className="text-gray-400 font-mono flex-shrink-0">{Number(r.actual_hours).toFixed(2)} hrs</span>
-              </div>
-            ))}
-          </div>
-          <div className="flex items-center justify-between bg-gray-800 px-2 py-1.5">
-            <div>
-              <p className="text-gray-500 text-[10px] uppercase tracking-wider">Avg {avg.toFixed(2)} hrs · +30% buffer</p>
-              <p className="text-white text-sm font-black">{suggested.toFixed(2)} hrs suggested</p>
-            </div>
-            <button onClick={() => onUseHours(suggested.toFixed(2))}
-              className="bg-yellow-700 hover:bg-yellow-600 text-white text-[10px] font-bold uppercase tracking-wider px-3 py-2 transition-colors">
-              Use This
-            </button>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
 // ── QUOTE CALCULATOR ──────────────────────────────────────────────────────────
 
 function QuoteCalculator({ job, onApply }: { job: Job; onApply: (items: LineItem[], total: number, shopTotal: number) => void }) {
@@ -972,9 +888,6 @@ function QuoteCalculator({ job, onApply }: { job: Job; onApply: (items: LineItem
           </div>
         </div>
       )}
-
-      {/* Time Lookup — search real logged hours from past jobs before guessing */}
-      {!isFixed && <TimeLookup vehicle={job.vehicle} onUseHours={setLaborHours} />}
 
       {/* Line items preview */}
       {items.length > 1 && (
@@ -3445,97 +3358,6 @@ function PaymentLinkBox({ job, onUpdate }: { job: Job; onUpdate: (j: Job) => voi
   );
 }
 
-// ── JOB TIMER (real hours-on-job tracker) ────────────────────────────────────
-// Feeds the Time Lookup search in QuoteCalculator with actual-to-you hours,
-// separate from whatever labor hours were quoted on the estimate.
-function JobTimerBox({ job, onUpdate }: { job: Job; onUpdate: (j: Job) => void }) {
-  const [now, setNow] = useState(Date.now());
-  const [busy, setBusy] = useState(false);
-  const [manualEdit, setManualEdit] = useState(false);
-  const [manualHours, setManualHours] = useState(job.actualHours != null ? String(job.actualHours) : '');
-
-  useEffect(() => {
-    if (!job.clockInAt) return;
-    const t = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(t);
-  }, [job.clockInAt]);
-
-  const runningHours = job.clockInAt ? (now - new Date(job.clockInAt).getTime()) / 3_600_000 : 0;
-  const totalHours = (job.actualHours || 0) + runningHours;
-
-  async function handleStart() {
-    setBusy(true);
-    const clockInAt = new Date().toISOString();
-    try {
-      await patchJob(job.id, { clock_in_at: clockInAt });
-      onUpdate({ ...job, clockInAt });
-    } finally { setBusy(false); }
-  }
-
-  async function handleStop() {
-    if (!job.clockInAt) return;
-    setBusy(true);
-    const elapsed = (Date.now() - new Date(job.clockInAt).getTime()) / 3_600_000;
-    const newTotal = Math.round(((job.actualHours || 0) + elapsed) * 100) / 100;
-    try {
-      await patchJob(job.id, { actual_hours: newTotal, clock_in_at: null });
-      onUpdate({ ...job, actualHours: newTotal, clockInAt: null });
-      setManualHours(String(newTotal));
-    } finally { setBusy(false); }
-  }
-
-  async function handleManualSave() {
-    const val = parseFloat(manualHours);
-    if (isNaN(val) || val < 0) return;
-    setBusy(true);
-    try {
-      await patchJob(job.id, { actual_hours: val });
-      onUpdate({ ...job, actualHours: val });
-      setManualEdit(false);
-    } finally { setBusy(false); }
-  }
-
-  return (
-    <div className="bg-gray-900 border border-gray-800 p-3">
-      <p className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-2">⏱ Time On Job</p>
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="text-white text-xl font-black tabular-nums">
-            {totalHours.toFixed(2)} <span className="text-gray-500 text-xs font-normal">hrs</span>
-          </p>
-          {job.clockInAt && <p className="text-green-500 text-[10px] font-bold uppercase tracking-wider mt-0.5">● Running</p>}
-        </div>
-        {!job.clockInAt ? (
-          <button onClick={handleStart} disabled={busy}
-            className="bg-green-700 hover:bg-green-600 disabled:opacity-40 text-white text-[10px] font-bold uppercase tracking-wider px-4 py-2 transition-colors">
-            Start
-          </button>
-        ) : (
-          <button onClick={handleStop} disabled={busy}
-            className="bg-red-700 hover:bg-red-600 disabled:opacity-40 text-white text-[10px] font-bold uppercase tracking-wider px-4 py-2 transition-colors">
-            Stop
-          </button>
-        )}
-      </div>
-      {!job.clockInAt && (
-        manualEdit ? (
-          <div className="flex gap-1.5 mt-2">
-            <input type="number" step="0.1" min="0" value={manualHours} onChange={e => setManualHours(e.target.value)}
-              className="w-20 bg-gray-800 border border-gray-700 text-white px-2 py-1 text-xs outline-none focus:border-yellow-700" />
-            <button onClick={handleManualSave} disabled={busy} className="text-gray-400 hover:text-white text-[10px] font-bold uppercase tracking-wider">Save</button>
-            <button onClick={() => setManualEdit(false)} className="text-gray-600 hover:text-gray-400 text-[10px] font-bold uppercase tracking-wider">Cancel</button>
-          </div>
-        ) : (
-          <button onClick={() => { setManualHours(job.actualHours != null ? String(job.actualHours) : ''); setManualEdit(true); }}
-            className="text-gray-600 hover:text-gray-400 text-[10px] font-bold uppercase tracking-wider mt-2 transition-colors">
-            Forgot to clock in? Enter manually
-          </button>
-        )
-      )}
-      <p className="text-gray-600 text-[10px] mt-1.5">Real hours, separate from the quoted estimate — feeds the Time Lookup on future quotes.</p>
-    </div>
-  );
-}
 
 // ── JOB DETAIL PANEL ──────────────────────────────────────────────────────────
 
@@ -3682,9 +3504,6 @@ function JobDetailPanel({ job: initialJob, onClose, onJobUpdate }: {
 
               {/* External payment link (e.g. pay.bluevine.com) — shown to the customer as a Pay Now button */}
               <PaymentLinkBox job={job} onUpdate={handleUpdate} />
-
-              {/* Real time-on-job tracker — feeds the Time Lookup in the Quote Calculator */}
-              <JobTimerBox job={job} onUpdate={handleUpdate} />
 
               {/* Customer & Job info */}
               {!editingAppt ? (
@@ -3942,22 +3761,6 @@ function ExternalLeadModal({ onClose, onAdded }: { onClose: () => void; onAdded:
     setRawAmounts(prev => { const next = { ...prev }; delete next[id]; return next; });
   }
 
-  // Time Lookup hands back suggested hours — apply straight to the Labor line,
-  // adding one if there isn't one yet, at the standard $75/hr rate.
-  function applySuggestedHours(hrsStr: string) {
-    const hrs = parseFloat(hrsStr);
-    if (isNaN(hrs) || hrs <= 0) return;
-    const amount = Math.round(hrs * LABOR_RATE * 100) / 100;
-    const label = `Labor (${hrs}hr @ $${LABOR_RATE}/hr)`;
-    setLineItems(prev => {
-      const existing = prev.find(li => li.type === 'labor');
-      if (existing) {
-        return prev.map(li => li.id === existing.id ? { ...li, label, amount } : li);
-      }
-      return [...prev, { id: `li-labor-${Date.now()}`, label, amount, type: 'labor' }];
-    });
-  }
-
   const subtotal = lineItems.reduce((s, i) => s + (i.amount || 0), 0);
   const tax = taxFromItems(lineItems);
   const total = subtotal + tax;
@@ -4162,10 +3965,6 @@ function ExternalLeadModal({ onClose, onAdded }: { onClose: () => void; onAdded:
           <>
             <h2 className="text-xl font-black text-white mb-1">Build {docType === 'estimate' ? 'Estimate' : 'Invoice'}</h2>
             <p className="text-gray-500 text-xs mb-5">{f.fname} {f.lname} · {f.vehicle}</p>
-
-            <div className="mb-4">
-              <TimeLookup vehicle={f.vehicle} onUseHours={applySuggestedHours} />
-            </div>
 
             <div className="space-y-2 mb-3">
               {lineItems.map(item => (
