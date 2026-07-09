@@ -3106,7 +3106,7 @@ function SignedDocSection({ job }: { job: Job }) {
               {/* Scope notes */}
               {job.estimateNotes && (
                 <div className="bg-white/5 border-l-4 border-red-600 px-4 py-3">
-                  <p className="text-gray-400 text-sm leading-relaxed">{job.estimateNotes}</p>
+                  <p className="text-gray-400 text-sm leading-relaxed whitespace-pre-wrap">{job.estimateNotes}</p>
                 </div>
               )}
 
@@ -3518,7 +3518,7 @@ function JobDetailPanel({ job: initialJob, onClose, onJobUpdate }: {
                   ].map(([label, val]) => (
                     <div key={label} className="flex gap-4 border-b border-gray-800 py-2">
                       <span className="text-gray-600 text-xs font-bold uppercase tracking-wider w-32 flex-shrink-0 pt-0.5">{label}</span>
-                      <span className="text-white text-sm">{val}</span>
+                      <span className="text-white text-sm whitespace-pre-wrap">{val}</span>
                     </div>
                   ))}
                   <button onClick={startEditAppt}
@@ -5002,7 +5002,7 @@ export function InvoicePage() {
           {job.estimateNotes && (
             <div className="px-6 py-4 border-t border-white/10">
               <p className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-1.5">Scope of Work</p>
-              <p className="text-gray-300 text-sm leading-relaxed">{job.estimateNotes}</p>
+              <p className="text-gray-300 text-sm leading-relaxed whitespace-pre-wrap">{job.estimateNotes}</p>
             </div>
           )}
 
@@ -5063,7 +5063,7 @@ export function InvoicePage() {
         {job.garageNotes && (
           <div className="mt-4 border border-white/10 bg-white/5 px-6 py-4">
             <p className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-1.5">Technician Notes</p>
-            <p className="text-gray-300 text-sm leading-relaxed">{job.garageNotes}</p>
+            <p className="text-gray-300 text-sm leading-relaxed whitespace-pre-wrap">{job.garageNotes}</p>
           </div>
         )}
 
@@ -5398,7 +5398,7 @@ export function EstimatePage() {
             {/* Scope notes */}
             {job.estimateNotes && (
               <div className="bg-white/5 border-l-4 border-l-red-600 px-4 py-3">
-                <p className="text-gray-400 text-sm leading-relaxed">{job.estimateNotes}</p>
+                <p className="text-gray-400 text-sm leading-relaxed whitespace-pre-wrap">{job.estimateNotes}</p>
               </div>
             )}
 

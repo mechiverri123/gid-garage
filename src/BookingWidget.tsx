@@ -1133,6 +1133,7 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
     if (!form.vehicleMake) errors.vehicleMake = 'Select a make';
     if (!form.vehicleModel) errors.vehicleModel = 'Select a model';
     if (!form.vehicleTrim) errors.vehicleTrim = 'Enter trim (e.g. LE, Sport, XLT)';
+    if (s.service === 'diag' && (!form.notes || form.notes.trim().length < 5)) errors.notes = 'Please describe what the vehicle is doing';
     if (form.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) errors.email = 'Enter a valid email address';
     if (Object.keys(errors).length > 0) { setFieldErrors(errors); return; }
     setFieldErrors({});
@@ -1636,11 +1637,25 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
                       {fieldErrors.serviceAddress && <p className="text-red-500 text-xs mt-1">{fieldErrors.serviceAddress}</p>}
                     </div>
                     <div className="col-span-2">
-                      <label className="block text-gray-500 text-xs font-bold uppercase tracking-wider mb-1.5">Notes (optional)</label>
-                      <textarea placeholder="Gate code, building/unit #, parking notes, preferred date/time, specific concern..." value={form.notes}
-                        onChange={e => setForm(p => ({ ...p, notes: e.target.value }))} rows={3}
-                        className="w-full bg-gray-900 border border-gray-800 text-white text-sm px-3 py-2.5 outline-none focus:border-red-600 transition-colors resize-y" />
-                      <p className="text-gray-600 text-xs mt-1">💡 Include a preferred date &amp; time — we'll confirm availability. Note: we may need to assess your vehicle first before finalizing the scope of work.</p>
+                      <label className={`block text-xs font-bold uppercase tracking-wider mb-1.5 ${fieldErrors.notes ? 'text-red-500' : 'text-gray-500'}`}>
+                        {s.service === 'diag'
+                          ? <>What Is the Vehicle Doing? <span className="text-red-500">*</span></>
+                          : 'Notes (optional)'}
+                      </label>
+                      <textarea
+                        placeholder={s.service === 'diag'
+                          ? 'Please describe the symptom(s) you\u2019re experiencing \u2014 e.g. a warning light, unusual noise, stalling, rough idle, or reduced performance \u2014 and when it tends to occur.'
+                          : 'Gate code, building/unit #, parking notes, preferred date/time, specific concern...'}
+                        value={form.notes}
+                        onChange={e => { setForm(p => ({ ...p, notes: e.target.value })); setFieldErrors(p => ({ ...p, notes: '' })); }}
+                        rows={3}
+                        className={`w-full bg-gray-900 text-white text-sm px-3 py-2.5 outline-none transition-colors resize-y border ${fieldErrors.notes ? 'border-red-500 focus:border-red-400' : 'border-gray-800 focus:border-red-600'}`} />
+                      {fieldErrors.notes && <p className="text-red-500 text-xs mt-1">{fieldErrors.notes}</p>}
+                      <p className="text-gray-600 text-xs mt-1">
+                        {s.service === 'diag'
+                          ? 'The more detail you can provide, the more accurately we can scope the diagnostic.'
+                          : <>💡 Include a preferred date &amp; time — we'll confirm availability. Note: we may need to assess your vehicle first before finalizing the scope of work.</>}
+                      </p>
                     </div>
                   </div>
                   <p className="text-gray-600 text-xs mt-3">By booking, you agree to our <button type="button" onClick={() => setShowCancelPolicy(true)} className="text-red-500 hover:text-red-400 underline underline-offset-2 transition-colors">cancellation policy</button>. Please cancel at least 24 hours in advance to avoid a cancellation fee.</p>
