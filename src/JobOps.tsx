@@ -11,6 +11,56 @@ const STRIPE_PK = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY as string;
 const R2 = (import.meta.env.VITE_R2_PUBLIC_URL as string | undefined)?.replace(/\/$/, '') ?? '';
 function img(filename: string) { return R2 ? `${R2}/${filename}` : `/${filename}`; }
 
+// ── In-app document/image viewer ─────────────────────────────────────────
+// Photos/scans/receipts used to open via <a target="_blank">, which counts
+// as a real navigation. On mobile home-screen installs (and some desktop
+// back gestures) that navigation replaces the current page instead of
+// opening a true new tab, so swiping/clicking "back" lands on the very
+// first history entry — the admin job list — instead of returning into
+// the job panel. Viewing inline means no navigation ever happens, so
+// back/swipe-back just closes the viewer and you're still on the job.
+function useDocViewer() {
+  const [doc, setDocState] = useState<{ url: string; name: string } | null>(null);
+
+  useEffect(() => {
+    function onPop() { setDocState(null); }
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+  }, []);
+
+  function open(d: { url: string; name: string }) {
+    window.history.pushState({ gidDocViewer: true }, '');
+    setDocState(d);
+  }
+  function close() {
+    if (doc) window.history.back();
+    else setDocState(null);
+  }
+  return { doc, open, close };
+}
+
+function DocViewerModal({ doc, onClose }: { doc: { url: string; name: string } | null; onClose: () => void }) {
+  if (!doc) return null;
+  const isPdf = /\.pdf(\?|$)/i.test(doc.url);
+  return (
+    <div className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="absolute top-3 right-3 flex gap-2 z-10">
+        <a href={doc.url} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}
+          className="text-gray-300 hover:text-white text-[10px] font-bold uppercase tracking-wider bg-black/70 px-3 py-2 transition-colors">
+          Open Original
+        </a>
+        <button onClick={onClose}
+          className="text-gray-300 hover:text-white text-xl leading-none bg-black/70 w-9 h-9 flex items-center justify-center transition-colors">×</button>
+      </div>
+      {isPdf ? (
+        <iframe src={doc.url} title={doc.name} className="w-full h-full max-w-4xl bg-white" onClick={e => e.stopPropagation()} />
+      ) : (
+        <img src={doc.url} alt={doc.name} className="max-w-full max-h-full object-contain" onClick={e => e.stopPropagation()} />
+      )}
+    </div>
+  );
+}
+
 function loadStripe(publishableKey: string): Promise<any> {
   return new Promise((resolve) => {
     if ((window as any).Stripe) { resolve((window as any).Stripe(publishableKey)); return; }
@@ -978,6 +1028,7 @@ function AdminPhotoPanel({ entityId, onSave, initialPhotos, onPhotosChange }: {
   onPhotosChange?: (photos: { key: string; url: string; name: string; note: string }[]) => void;
 }) {
   const [photos, setPhotos] = useState(initialPhotos);
+  const viewer = useDocViewer();
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [savingNotes, setSavingNotes] = useState(false);
@@ -1117,9 +1168,9 @@ function AdminPhotoPanel({ entityId, onSave, initialPhotos, onPhotosChange }: {
           {photos.map(p => (
             <div key={p.key} className="bg-gray-900 border border-gray-800">
               <div className="relative">
-                <a href={p.url} target="_blank" rel="noopener noreferrer">
+                <button onClick={() => viewer.open({ url: p.url, name: p.name })} className="block w-full">
                   <img src={p.url} alt={p.name} className="w-full max-h-48 object-cover" />
-                </a>
+                </button>
                 <button onClick={() => deletePhoto(p.key)}
                   className="absolute top-2 right-2 w-7 h-7 bg-black/70 text-red-500 hover:bg-red-900/80 flex items-center justify-center text-sm transition-colors">×</button>
                 <span className="absolute bottom-2 left-2 text-[10px] text-gray-400 bg-black/60 px-1.5 py-0.5">{p.name}</span>
@@ -1150,6 +1201,7 @@ function AdminPhotoPanel({ entityId, onSave, initialPhotos, onPhotosChange }: {
           {savingNotes ? 'Saving…' : notesSaved ? '✓ Notes Saved' : hasNoteChanges ? 'Save Notes' : '✓ Saved'}
         </button>
       )}
+      <DocViewerModal doc={viewer.doc} onClose={viewer.close} />
     </div>
   );
 }
@@ -1161,6 +1213,7 @@ function PartsCostPanel({ job, onUpdate }: { job: Job; onUpdate: (j: Job) => voi
   const [receipts, setReceipts] = useState(job.partsReceipts || []);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const viewer = useDocViewer();
   const fileRef = useRef<HTMLInputElement>(null);
   const prevJobId = useRef(job.id);
 
@@ -1291,15 +1344,15 @@ function PartsCostPanel({ job, onUpdate }: { job: Job; onUpdate: (j: Job) => voi
           {receipts.map(r => (
             <div key={r.key} className="flex items-center gap-2 bg-gray-900 border border-gray-800 p-2">
               {isViewableImage(r) ? (
-                <a href={r.url} target="_blank" rel="noopener noreferrer" className="flex-shrink-0">
+                <button onClick={() => viewer.open({ url: r.url, name: r.name })} className="flex-shrink-0">
                   <img src={r.url} alt={r.name} className="w-10 h-10 object-cover" />
-                </a>
+                </button>
               ) : (
                 <span className="w-10 h-10 flex items-center justify-center text-lg flex-shrink-0 bg-gray-800">{fileIcon(r)}</span>
               )}
               <span className="flex-1 min-w-0 text-gray-400 text-xs truncate">{r.name}</span>
-              <a href={r.url} target="_blank" rel="noopener noreferrer"
-                className="text-[10px] font-bold uppercase tracking-wider text-gray-500 hover:text-yellow-500 flex-shrink-0 transition-colors">View</a>
+              <button onClick={() => viewer.open({ url: r.url, name: r.name })}
+                className="text-[10px] font-bold uppercase tracking-wider text-gray-500 hover:text-yellow-500 flex-shrink-0 transition-colors">View</button>
               <button onClick={() => deleteReceipt(r.key)}
                 className="text-gray-600 hover:text-red-500 transition-colors flex-shrink-0" title="Delete">×</button>
             </div>
@@ -1322,6 +1375,7 @@ function PartsCostPanel({ job, onUpdate }: { job: Job; onUpdate: (j: Job) => voi
           <span className={`font-mono font-black ${netProfit >= 0 ? 'text-emerald-400' : 'text-red-500'}`}>${netProfit.toFixed(2)}</span>
         </div>
       </div>
+      <DocViewerModal doc={viewer.doc} onClose={viewer.close} />
     </div>
   );
 }
@@ -3164,6 +3218,7 @@ function ScanUploadBox({ job, stage, onUpdate }: { job: Job; stage: 'pre' | 'pos
   const [savingLink, setSavingLink] = useState(false);
   const doc = stage === 'pre' ? job.preScan : job.postScan;
   const label = stage === 'pre' ? 'Pre-Scan' : 'Post-Scan';
+  const viewer = useDocViewer();
 
   async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -3220,9 +3275,9 @@ function ScanUploadBox({ job, stage, onUpdate }: { job: Job; stage: 'pre' | 'pos
       <p className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-2">{stage === 'pre' ? '🔍' : '✅'} {label}</p>
       {doc ? (
         <div className="space-y-2">
-          <a href={doc.url} target="_blank" rel="noopener noreferrer" className="block text-indigo-400 hover:text-indigo-300 text-xs truncate underline">
+          <button onClick={() => viewer.open({ url: doc.url, name: doc.name })} className="block text-indigo-400 hover:text-indigo-300 text-xs truncate underline text-left">
             {doc.name}
-          </a>
+          </button>
           <button onClick={handleRemove} className="text-gray-600 hover:text-red-500 text-[10px] font-bold uppercase tracking-wider transition-colors">
             Remove
           </button>
@@ -3272,6 +3327,7 @@ function ScanUploadBox({ job, stage, onUpdate }: { job: Job; stage: 'pre' | 'pos
         </div>
       )}
       {error && <p className="text-red-400 text-[10px] mt-1">{error}</p>}
+      <DocViewerModal doc={viewer.doc} onClose={viewer.close} />
     </div>
   );
 }
