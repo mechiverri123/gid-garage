@@ -456,7 +456,7 @@ export async function onRequestPost({ request, env }) {
       // an inbox. Falls back to email if SMS isn't configured or fails, so a
       // lead is never silently dropped.
       case 'quick-quote': {
-        const { name, phone, issue, hp } = payload; // hp = honeypot field, humans never fill it
+        const { name, phone, year, make, model, engine, issue, hp } = payload; // hp = honeypot field, humans never fill it
         if (hp) return json({ ok: true }); // silently drop bot submissions
         if (!name || !phone) return json({ error: 'Missing name or phone' }, 400);
         const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
@@ -468,6 +468,7 @@ export async function onRequestPost({ request, env }) {
         const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Phoenix' });
         const nowTime = new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'America/Phoenix' });
         const submittedStr = new Date().toLocaleString('en-US', { timeZone: 'America/Phoenix' });
+        const vehicle = [year, make, model, engine].map(v => (v || '').trim()).filter(Boolean).join(' ') || 'Not specified';
 
         // Insert as a real job row (status confirmed / job_status BOOKED) so it
         // shows up in admin > Jobs alongside everything else — a quick-quote
@@ -485,7 +486,7 @@ export async function onRequestPost({ request, env }) {
               fname, lname,
               phone,
               email: '',
-              vehicle: 'Not specified',
+              vehicle,
               notes: issue || '(nothing entered)',
               garage_notes: '',
               status: 'confirmed',
@@ -501,7 +502,7 @@ export async function onRequestPost({ request, env }) {
             sender: { name: 'GID Garage Bookings', email: 'bookings@gidgarage.com' },
             to: [{ email: 'gidgarageaz@hotmail.com', name: 'GID Garage' }],
             subject: `⚡ Quick Quote Request: ${esc(name)}`,
-            htmlContent: `<div style="font-family:sans-serif;max-width:520px;margin:0 auto;background:#0f0f0f;color:#fff;padding:32px;border-top:4px solid #dc2626;"><h2 style="margin:0 0 20px;font-size:22px;font-weight:900;">⚡ Quick Quote Request</h2><table style="width:100%;border-collapse:collapse;font-size:13px;"><tr><td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#9ca3af;width:35%;">Name</td><td style="padding:8px 0;border-bottom:1px solid #1f2937;font-weight:600;">${esc(name)}</td></tr><tr><td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#9ca3af;">Phone</td><td style="padding:8px 0;border-bottom:1px solid #1f2937;">${esc(phone)}</td></tr></table><div style="margin-top:20px;background:#1a1a1a;border-left:3px solid #dc2626;padding:14px 16px;"><p style="color:#9ca3af;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;margin:0 0 8px;">What's going on</p><p style="margin:0;font-size:14px;line-height:1.6;color:#e5e7eb;">${esc(issue || '(nothing entered)')}</p></div><p style="margin-top:20px;font-size:12px;color:#6b7280;">Job ID: ${esc(bookingId)} · Submitted ${submittedStr}</p></div>`,
+            htmlContent: `<div style="font-family:sans-serif;max-width:520px;margin:0 auto;background:#0f0f0f;color:#fff;padding:32px;border-top:4px solid #dc2626;"><h2 style="margin:0 0 20px;font-size:22px;font-weight:900;">⚡ Quick Quote Request</h2><table style="width:100%;border-collapse:collapse;font-size:13px;"><tr><td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#9ca3af;width:35%;">Name</td><td style="padding:8px 0;border-bottom:1px solid #1f2937;font-weight:600;">${esc(name)}</td></tr><tr><td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#9ca3af;">Phone</td><td style="padding:8px 0;border-bottom:1px solid #1f2937;">${esc(phone)}</td></tr><tr><td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#9ca3af;">Vehicle</td><td style="padding:8px 0;border-bottom:1px solid #1f2937;">${esc(vehicle)}</td></tr></table><div style="margin-top:20px;background:#1a1a1a;border-left:3px solid #dc2626;padding:14px 16px;"><p style="color:#9ca3af;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;margin:0 0 8px;">What's going on</p><p style="margin:0;font-size:14px;line-height:1.6;color:#e5e7eb;">${esc(issue || '(nothing entered)')}</p></div><p style="margin-top:20px;font-size:12px;color:#6b7280;">Job ID: ${esc(bookingId)} · Submitted ${submittedStr}</p></div>`,
           });
         } catch (e) { console.error('quick-quote email failed:', e.message); }
         return json({ ok: true });

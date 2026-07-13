@@ -213,6 +213,10 @@ function ServiceCard({ s, onBookService }: { s: typeof services[0]; onBookServic
 function QuickQuoteForm() {
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
+  const [year, setYear] = useState('');
+  const [make, setMake] = useState('');
+  const [model, setModel] = useState('');
+  const [engine, setEngine] = useState('');
   const [issue, setIssue] = useState('');
   const [hp, setHp] = useState(''); // honeypot — hidden from real users via CSS
   const [status, setStatus] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
@@ -225,7 +229,7 @@ function QuickQuoteForm() {
       const res = await fetch('/api-customer', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'quick-quote', name, phone, issue, hp }),
+        body: JSON.stringify({ action: 'quick-quote', name, phone, year, make, model, engine, issue, hp }),
       });
       if (!res.ok) throw new Error('Request failed');
       setStatus('sent');
@@ -266,6 +270,24 @@ function QuickQuoteForm() {
             type="tel" placeholder="Phone number" value={phone} onChange={e => setPhone(e.target.value)} required
             className="w-full bg-black/30 border border-white/15 text-white placeholder-white/30 px-4 py-3 text-sm outline-none focus:border-red-600 transition-colors"
           />
+          <div className="grid grid-cols-2 gap-3">
+            <input
+              type="text" placeholder="Year" value={year} onChange={e => setYear(e.target.value)}
+              className="w-full bg-black/30 border border-white/15 text-white placeholder-white/30 px-4 py-3 text-sm outline-none focus:border-red-600 transition-colors"
+            />
+            <input
+              type="text" placeholder="Make" value={make} onChange={e => setMake(e.target.value)}
+              className="w-full bg-black/30 border border-white/15 text-white placeholder-white/30 px-4 py-3 text-sm outline-none focus:border-red-600 transition-colors"
+            />
+            <input
+              type="text" placeholder="Model" value={model} onChange={e => setModel(e.target.value)}
+              className="w-full bg-black/30 border border-white/15 text-white placeholder-white/30 px-4 py-3 text-sm outline-none focus:border-red-600 transition-colors"
+            />
+            <input
+              type="text" placeholder="Engine size (e.g. 2.4L)" value={engine} onChange={e => setEngine(e.target.value)}
+              className="w-full bg-black/30 border border-white/15 text-white placeholder-white/30 px-4 py-3 text-sm outline-none focus:border-red-600 transition-colors"
+            />
+          </div>
           <textarea
             placeholder="What's going on with your vehicle? (optional)" value={issue} onChange={e => setIssue(e.target.value)} rows={3}
             className="w-full bg-black/30 border border-white/15 text-white placeholder-white/30 px-4 py-3 text-sm outline-none focus:border-red-600 transition-colors resize-none"
