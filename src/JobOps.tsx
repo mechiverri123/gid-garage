@@ -348,7 +348,7 @@ async function writePaymentEvent(
 }
 
 export async function getAllJobs(): Promise<Job[]> {
-  const data = (await adminPost('list-bookings') || []).filter((b: any) => b.status !== 'pending' && b.status !== 'cancelled');
+  const data = (await adminPost('list-bookings') || []).filter((b: any) => b.status !== 'cancelled');
   return data.map(mapJob);
 }
 
@@ -447,6 +447,7 @@ const SERVICE_NAMES: Record<string, string> = {
   audio:      'Car Audio',
   full:       'Full Service',
   other:      'General Inquiry',
+  quote:      'Quick Quote',
 };
 
 const BRAKE_LABELS: Record<string, string> = {
@@ -4657,6 +4658,8 @@ export function JobsTab() {
               </div>
               <div className="flex items-center gap-2 flex-shrink-0">
                 {job.service === 'other' && <span className="text-purple-400 text-[10px] font-bold uppercase bg-purple-900/30 px-2 py-0.5">Inquiry</span>}
+                {job.service === 'quote' && <span className="text-blue-400 text-[10px] font-bold uppercase bg-blue-900/30 px-2 py-0.5">Quick Quote</span>}
+                {job.status === 'pending' && <span className="text-amber-400 text-[10px] font-bold uppercase bg-amber-900/30 px-2 py-0.5">No Card</span>}
                 {isOverdue && <span className="text-yellow-600 text-[10px] font-bold uppercase">Overdue</span>}
                 <StatusBadge status={job.jobStatus} />
               </div>

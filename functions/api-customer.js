@@ -444,7 +444,7 @@ export async function onRequestPost({ request, env }) {
             sender: { name: 'GID Garage Bookings', email: 'bookings@gidgarage.com' },
             to: [{ email: 'gidgarageaz@hotmail.com', name: 'GID Garage' }],
             subject: `💬 New Inquiry: ${esc(fname)} ${esc(lname)}`,
-            htmlContent: `<div style="font-family:sans-serif;max-width:520px;margin:0 auto;background:#0f0f0f;color:#fff;padding:32px;border-top:4px solid #dc2626;"><h2 style="margin:0 0 20px;font-size:22px;font-weight:900;">New Customer Inquiry</h2><table style="width:100%;border-collapse:collapse;font-size:13px;"><tr><td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#9ca3af;width:35%;">Name</td><td style="padding:8px 0;border-bottom:1px solid #1f2937;font-weight:600;">${esc(fname)} ${esc(lname)}</td></tr><tr><td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#9ca3af;">Phone</td><td style="padding:8px 0;border-bottom:1px solid #1f2937;">${esc(phone)}</td></tr>${email ? `<tr><td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#9ca3af;">Email</td><td style="padding:8px 0;border-bottom:1px solid #1f2937;">${esc(email)}</td></tr>` : ''}${vehicle ? `<tr><td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#9ca3af;">Vehicle</td><td style="padding:8px 0;border-bottom:1px solid #1f2937;">${esc(vehicle)}</td></tr>` : ''}</table><div style="margin-top:20px;background:#1a1a1a;border-left:3px solid #dc2626;padding:14px 16px;"><p style="color:#9ca3af;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;margin:0 0 8px;">Problem Description</p><p style="margin:0;font-size:14px;line-height:1.6;color:#e5e7eb;">${esc(notes)}</p></div><p style="margin-top:20px;font-size:12px;color:#6b7280;">Job ID: ${esc(bookingId)} · Submitted ${new Date().toLocaleString()}</p></div>`,
+            htmlContent: `<div style="font-family:sans-serif;max-width:520px;margin:0 auto;background:#0f0f0f;color:#fff;padding:32px;border-top:4px solid #dc2626;"><h2 style="margin:0 0 20px;font-size:22px;font-weight:900;">New Customer Inquiry</h2><table style="width:100%;border-collapse:collapse;font-size:13px;"><tr><td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#9ca3af;width:35%;">Name</td><td style="padding:8px 0;border-bottom:1px solid #1f2937;font-weight:600;">${esc(fname)} ${esc(lname)}</td></tr><tr><td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#9ca3af;">Phone</td><td style="padding:8px 0;border-bottom:1px solid #1f2937;">${esc(phone)}</td></tr>${email ? `<tr><td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#9ca3af;">Email</td><td style="padding:8px 0;border-bottom:1px solid #1f2937;">${esc(email)}</td></tr>` : ''}${vehicle ? `<tr><td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#9ca3af;">Vehicle</td><td style="padding:8px 0;border-bottom:1px solid #1f2937;">${esc(vehicle)}</td></tr>` : ''}</table><div style="margin-top:20px;background:#1a1a1a;border-left:3px solid #dc2626;padding:14px 16px;"><p style="color:#9ca3af;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;margin:0 0 8px;">Problem Description</p><p style="margin:0;font-size:14px;line-height:1.6;color:#e5e7eb;">${esc(notes)}</p></div><p style="margin-top:20px;font-size:12px;color:#6b7280;">Job ID: ${esc(bookingId)} · Submitted ${new Date().toLocaleString('en-US', { timeZone: 'America/Phoenix' })}</p></div>`,
           });
         } catch (e) { console.error('Inquiry email failed:', e.message); }
         return json({ ok: true });
@@ -461,12 +461,47 @@ export async function onRequestPost({ request, env }) {
         if (!name || !phone) return json({ error: 'Missing name or phone' }, 400);
         const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 
+        const nameParts = name.trim().split(/\s+/);
+        const fname = nameParts[0] || name;
+        const lname = nameParts.slice(1).join(' ') || '';
+        const bookingId = `GID-${Date.now()}`;
+        const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Phoenix' });
+        const nowTime = new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'America/Phoenix' });
+        const submittedStr = new Date().toLocaleString('en-US', { timeZone: 'America/Phoenix' });
+
+        // Insert as a real job row (status confirmed / job_status BOOKED) so it
+        // shows up in admin > Jobs alongside everything else — a quick-quote
+        // lead should never depend on an email/SMS landing to be visible.
+        try {
+          const res = await fetch(`${base}/bookings`, {
+            method: 'POST',
+            headers: { ...headers, Prefer: 'return=minimal' },
+            body: JSON.stringify({
+              id: bookingId,
+              service: 'quote',
+              service_icon: '⚡',
+              date: today,
+              time: nowTime,
+              fname, lname,
+              phone,
+              email: '',
+              vehicle: 'Not specified',
+              notes: issue || '(nothing entered)',
+              garage_notes: '',
+              status: 'confirmed',
+              job_status: 'BOOKED',
+              created_at: new Date().toISOString(),
+            }),
+          });
+          if (!res.ok) console.error('quick-quote booking insert failed:', await res.text());
+        } catch (e) { console.error('quick-quote booking insert failed:', e.message); }
+
         try {
           await brevoSend({
             sender: { name: 'GID Garage Bookings', email: 'bookings@gidgarage.com' },
             to: [{ email: 'gidgarageaz@hotmail.com', name: 'GID Garage' }],
             subject: `⚡ Quick Quote Request: ${esc(name)}`,
-            htmlContent: `<div style="font-family:sans-serif;max-width:520px;margin:0 auto;background:#0f0f0f;color:#fff;padding:32px;border-top:4px solid #dc2626;"><h2 style="margin:0 0 20px;font-size:22px;font-weight:900;">⚡ Quick Quote Request</h2><table style="width:100%;border-collapse:collapse;font-size:13px;"><tr><td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#9ca3af;width:35%;">Name</td><td style="padding:8px 0;border-bottom:1px solid #1f2937;font-weight:600;">${esc(name)}</td></tr><tr><td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#9ca3af;">Phone</td><td style="padding:8px 0;border-bottom:1px solid #1f2937;">${esc(phone)}</td></tr></table><div style="margin-top:20px;background:#1a1a1a;border-left:3px solid #dc2626;padding:14px 16px;"><p style="color:#9ca3af;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;margin:0 0 8px;">What's going on</p><p style="margin:0;font-size:14px;line-height:1.6;color:#e5e7eb;">${esc(issue || '(nothing entered)')}</p></div><p style="margin-top:20px;font-size:12px;color:#6b7280;">Submitted ${new Date().toLocaleString()}</p></div>`,
+            htmlContent: `<div style="font-family:sans-serif;max-width:520px;margin:0 auto;background:#0f0f0f;color:#fff;padding:32px;border-top:4px solid #dc2626;"><h2 style="margin:0 0 20px;font-size:22px;font-weight:900;">⚡ Quick Quote Request</h2><table style="width:100%;border-collapse:collapse;font-size:13px;"><tr><td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#9ca3af;width:35%;">Name</td><td style="padding:8px 0;border-bottom:1px solid #1f2937;font-weight:600;">${esc(name)}</td></tr><tr><td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#9ca3af;">Phone</td><td style="padding:8px 0;border-bottom:1px solid #1f2937;">${esc(phone)}</td></tr></table><div style="margin-top:20px;background:#1a1a1a;border-left:3px solid #dc2626;padding:14px 16px;"><p style="color:#9ca3af;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;margin:0 0 8px;">What's going on</p><p style="margin:0;font-size:14px;line-height:1.6;color:#e5e7eb;">${esc(issue || '(nothing entered)')}</p></div><p style="margin-top:20px;font-size:12px;color:#6b7280;">Job ID: ${esc(bookingId)} · Submitted ${submittedStr}</p></div>`,
           });
         } catch (e) { console.error('quick-quote email failed:', e.message); }
         return json({ ok: true });

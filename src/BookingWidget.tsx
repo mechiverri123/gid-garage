@@ -38,7 +38,7 @@ async function apiPost(action: string, args: Record<string, any> = {}) {
 
 async function getSupabaseBookings(): Promise<Booking[]> {
   try {
-    const data = (await adminPost('list-bookings') || []).filter((b: any) => b.status !== 'pending');
+    const data = (await adminPost('list-bookings') || []);
     return (data || []).map((b: any) => ({
       id: b.id,
       service: b.service,
