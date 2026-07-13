@@ -289,7 +289,7 @@ function QuickQuoteForm() {
             />
           </div>
           <textarea
-            placeholder="What's going on with your vehicle? (optional)" value={issue} onChange={e => setIssue(e.target.value)} rows={3}
+            placeholder="What's going on with your vehicle?" value={issue} onChange={e => setIssue(e.target.value)} rows={3}
             className="w-full bg-black/30 border border-white/15 text-white placeholder-white/30 px-4 py-3 text-sm outline-none focus:border-red-600 transition-colors resize-none"
           />
           <button type="submit" disabled={status === 'sending'} className="btn-primary w-full text-xs py-4 disabled:opacity-40">
