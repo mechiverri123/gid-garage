@@ -1026,6 +1026,7 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
   const [bookedTimes, setBookedTimes] = useState<string[]>([]);
   const [unavailableDates, setUnavailableDates] = useState<Set<string>>(new Set());
   const [blackoutDates, setBlackoutDates] = useState<Set<string>>(new Set());
+  const backdropDown = useRef(false);
 
   const svc = SERVICES.find(x => x.id === s.service);
   const timeSlots = getSlotsForDate(s.date ?? '');
@@ -1287,7 +1288,8 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
 
       {open && (
         <div className="fixed inset-0 z-[9999] bg-black/85 overflow-y-auto flex items-start justify-center p-4 md:p-8"
-          onClick={(e) => { if (e.target === e.currentTarget) closeModal(); }}>
+          onMouseDown={(e) => { backdropDown.current = e.target === e.currentTarget; }}
+          onClick={(e) => { if (e.target === e.currentTarget && backdropDown.current) closeModal(); backdropDown.current = false; }}>
           <div className="bg-dark w-full max-w-2xl relative p-8 md:p-10 my-4">
             <button onClick={closeModal} className="absolute top-4 right-4 w-8 h-8 border border-gray-700 text-gray-500 hover:border-red-600 hover:text-white flex items-center justify-center text-lg transition-colors" aria-label="Close">✕</button>
 
@@ -1791,6 +1793,7 @@ function BookingDetailModal({ booking, onClose, onUpdate, onBookingPatched }: {
   const [editMode, setEditMode] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const backdropDown = useRef(false);
 
   const [editDate, setEditDate] = useState(booking.date);
   const [editTime, setEditTime] = useState(booking.time);
@@ -1882,7 +1885,11 @@ function BookingDetailModal({ booking, onClose, onUpdate, onBookingPatched }: {
   const labelCls = 'block text-gray-500 text-[10px] font-bold uppercase tracking-wider mb-1';
 
   return (
-    <div className="fixed inset-0 z-[9999] bg-black/80 flex items-start justify-center p-4 overflow-y-auto" onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
+    <div
+      className="fixed inset-0 z-[9999] bg-black/80 flex items-start justify-center p-4 overflow-y-auto"
+      onMouseDown={e => { backdropDown.current = e.target === e.currentTarget; }}
+      onClick={e => { if (e.target === e.currentTarget && backdropDown.current) onClose(); backdropDown.current = false; }}
+    >
       <div className="bg-[#0f0f0f] border border-gray-800 w-full max-w-lg p-7 relative my-4">
         <button onClick={onClose} className="absolute top-4 right-4 w-8 h-8 border border-gray-700 text-gray-500 hover:border-red-600 hover:text-white flex items-center justify-center transition-colors">✕</button>
         <p className="text-red-600 text-xs font-bold uppercase tracking-[0.25em] mb-1">Appointment</p>

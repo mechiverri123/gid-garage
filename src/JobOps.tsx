@@ -3788,6 +3788,7 @@ function ExternalLeadModal({ onClose, onAdded }: { onClose: () => void; onAdded:
   const [sentOk, setSentOk] = useState(false);
   const [markingPaid, setMarkingPaid] = useState(false);
   const [paidMethod, setPaidMethod] = useState('Cash');
+  const backdropDown = useRef(false);
   const [paidRef, setPaidRef] = useState('');
   const [isPaid, setIsPaid] = useState(false);
   const [docType, setDocType] = useState<'estimate' | 'invoice'>('invoice');
@@ -3945,7 +3946,11 @@ function ExternalLeadModal({ onClose, onAdded }: { onClose: () => void; onAdded:
   );
 
   return (
-    <div className="fixed inset-0 z-[9999] bg-black/80 flex items-center justify-center p-4" onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
+    <div
+      className="fixed inset-0 z-[9999] bg-black/80 flex items-center justify-center p-4"
+      onMouseDown={e => { backdropDown.current = e.target === e.currentTarget; }}
+      onClick={e => { if (e.target === e.currentTarget && backdropDown.current) onClose(); backdropDown.current = false; }}
+    >
       <div className="bg-[#0f0f0f] border border-gray-800 w-full max-w-lg p-7 relative overflow-y-auto max-h-[90vh]">
         <button onClick={onClose} className="absolute top-4 right-4 w-8 h-8 border border-gray-700 text-gray-500 hover:border-red-600 hover:text-white flex items-center justify-center transition-colors">✕</button>
         <div className="w-8 h-1 bg-indigo-500 mb-4" />
@@ -4215,6 +4220,7 @@ function AddJobModal({ onClose, onAdded }: { onClose: () => void; onAdded: (job:
     fname: '', lname: '', phone: '', email: '',
     vehicle: '', service: 'other', date: '', time: '', notes: '',
   });
+  const backdropDown = useRef(false);
 
   function set(k: string, v: string) { setF(p => ({ ...p, [k]: v })); setFieldErr(p => ({ ...p, [k]: '' })); }
 
@@ -4284,7 +4290,11 @@ function AddJobModal({ onClose, onAdded }: { onClose: () => void; onAdded: (job:
   );
 
   return (
-    <div className="fixed inset-0 z-[9999] bg-black/80 flex items-center justify-center p-4" onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
+    <div
+      className="fixed inset-0 z-[9999] bg-black/80 flex items-center justify-center p-4"
+      onMouseDown={e => { backdropDown.current = e.target === e.currentTarget; }}
+      onClick={e => { if (e.target === e.currentTarget && backdropDown.current) onClose(); backdropDown.current = false; }}
+    >
       <div className="bg-[#0f0f0f] border border-gray-800 w-full max-w-lg p-7 relative overflow-y-auto max-h-[90vh]">
         <button onClick={onClose} className="absolute top-4 right-4 w-8 h-8 border border-gray-700 text-gray-500 hover:border-red-600 hover:text-white flex items-center justify-center transition-colors">✕</button>
         <div className="w-8 h-1 bg-red-600 mb-4" />
