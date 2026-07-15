@@ -242,7 +242,7 @@ export async function onRequestPost({ request, env }) {
           try {
             await brevoSend({
               sender: { name: 'GID Garage', email: 'bookings@gidgarage.com' },
-              to: [{ email: 'gidgarageaz@hotmail.com', name: 'GID Garage' }],
+              to: [{ email: 'info@gidgarage.com', name: 'GID Garage' }],
               subject: `✅ Estimate Signed — ${customerName} — $${total.toFixed(2)}`,
               htmlContent: `<div style="font-family:sans-serif;padding:24px;background:#0f0f0f;color:#fff;"><h2 style="color:#22c55e;">Estimate Signed</h2><p><strong>${customerName}</strong><br>${booking.phone || ''}<br>${booking.email || ''}</p><p><strong>${booking.vehicle || ''}</strong><br>${booking.service || ''}</p><p style="font-size:20px;font-weight:bold;color:#22c55e;">$${total.toFixed(2)}</p>${damage ? `<p>Pre-existing damage noted: ${String(damage).slice(0, 300)}</p>` : ''}</div>`,
             });
@@ -332,7 +332,7 @@ export async function onRequestPost({ request, env }) {
         try {
           await brevoSend({
             sender: { name: 'GID Garage Bookings', email: 'bookings@gidgarage.com' },
-            to: [{ email: 'gidgarageaz@hotmail.com', name: 'GID Garage' }],
+            to: [{ email: 'info@gidgarage.com', name: 'GID Garage' }],
             subject: `New Booking: ${customerName} — ${serviceName} on ${dateStr}`,
             htmlContent: `<div style="font-family:sans-serif;padding:24px;background:#0f0f0f;color:#fff;"><h2 style="color:#ef4444;">New Booking</h2><p><strong>${customerName}</strong><br>${booking.phone}<br>${booking.email}</p><p><strong>${serviceName}</strong><br>${dateStr} at ${booking.time}<br>${booking.vehicle}</p>${booking.notes ? `<p>Notes: ${booking.notes}</p>` : ''}</div>`,
           });
@@ -373,7 +373,7 @@ export async function onRequestPost({ request, env }) {
         try {
           await brevoSend({
             sender: { name: 'GID Garage Bookings', email: 'bookings@gidgarage.com' },
-            to: [{ email: 'gidgarageaz@hotmail.com', name: 'GID Garage' }],
+            to: [{ email: 'info@gidgarage.com', name: 'GID Garage' }],
             subject: `❌ Cancellation: ${customerName} — ${svcName} on ${dateStr}`,
             htmlContent: `<div style="font-family:sans-serif;padding:24px;background:#0f0f0f;color:#fff;"><h2 style="color:#ef4444;">❌ Booking Cancelled</h2><p><strong>${customerName}</strong><br>${booking.phone}<br>${booking.email}</p><p>${svcName}<br>${apptLine}<br>${booking.vehicle}</p></div>`,
           });
@@ -442,7 +442,7 @@ export async function onRequestPost({ request, env }) {
         try {
           await brevoSend({
             sender: { name: 'GID Garage Bookings', email: 'bookings@gidgarage.com' },
-            to: [{ email: 'gidgarageaz@hotmail.com', name: 'GID Garage' }],
+            to: [{ email: 'info@gidgarage.com', name: 'GID Garage' }],
             subject: `💬 New Inquiry: ${esc(fname)} ${esc(lname)}`,
             htmlContent: `<div style="font-family:sans-serif;max-width:520px;margin:0 auto;background:#0f0f0f;color:#fff;padding:32px;border-top:4px solid #dc2626;"><h2 style="margin:0 0 20px;font-size:22px;font-weight:900;">New Customer Inquiry</h2><table style="width:100%;border-collapse:collapse;font-size:13px;"><tr><td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#9ca3af;width:35%;">Name</td><td style="padding:8px 0;border-bottom:1px solid #1f2937;font-weight:600;">${esc(fname)} ${esc(lname)}</td></tr><tr><td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#9ca3af;">Phone</td><td style="padding:8px 0;border-bottom:1px solid #1f2937;">${esc(phone)}</td></tr>${email ? `<tr><td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#9ca3af;">Email</td><td style="padding:8px 0;border-bottom:1px solid #1f2937;">${esc(email)}</td></tr>` : ''}${vehicle ? `<tr><td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#9ca3af;">Vehicle</td><td style="padding:8px 0;border-bottom:1px solid #1f2937;">${esc(vehicle)}</td></tr>` : ''}</table><div style="margin-top:20px;background:#1a1a1a;border-left:3px solid #dc2626;padding:14px 16px;"><p style="color:#9ca3af;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;margin:0 0 8px;">Problem Description</p><p style="margin:0;font-size:14px;line-height:1.6;color:#e5e7eb;">${esc(notes)}</p></div><p style="margin-top:20px;font-size:12px;color:#6b7280;">Job ID: ${esc(bookingId)} · Submitted ${new Date().toLocaleString('en-US', { timeZone: 'America/Phoenix' })}</p></div>`,
           });
@@ -500,7 +500,7 @@ export async function onRequestPost({ request, env }) {
         try {
           await brevoSend({
             sender: { name: 'GID Garage Bookings', email: 'bookings@gidgarage.com' },
-            to: [{ email: 'gidgarageaz@hotmail.com', name: 'GID Garage' }],
+            to: [{ email: 'info@gidgarage.com', name: 'GID Garage' }],
             subject: `⚡ Quick Quote Request: ${esc(name)}`,
             htmlContent: `<div style="font-family:sans-serif;max-width:520px;margin:0 auto;background:#0f0f0f;color:#fff;padding:32px;border-top:4px solid #dc2626;"><h2 style="margin:0 0 20px;font-size:22px;font-weight:900;">⚡ Quick Quote Request</h2><table style="width:100%;border-collapse:collapse;font-size:13px;"><tr><td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#9ca3af;width:35%;">Name</td><td style="padding:8px 0;border-bottom:1px solid #1f2937;font-weight:600;">${esc(name)}</td></tr><tr><td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#9ca3af;">Phone</td><td style="padding:8px 0;border-bottom:1px solid #1f2937;">${esc(phone)}</td></tr><tr><td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#9ca3af;">Vehicle</td><td style="padding:8px 0;border-bottom:1px solid #1f2937;">${esc(vehicle)}</td></tr></table><div style="margin-top:20px;background:#1a1a1a;border-left:3px solid #dc2626;padding:14px 16px;"><p style="color:#9ca3af;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;margin:0 0 8px;">What's going on</p><p style="margin:0;font-size:14px;line-height:1.6;color:#e5e7eb;">${esc(issue || '(nothing entered)')}</p></div><p style="margin-top:20px;font-size:12px;color:#6b7280;">Job ID: ${esc(bookingId)} · Submitted ${submittedStr}</p></div>`,
           });

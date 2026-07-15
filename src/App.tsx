@@ -18,7 +18,7 @@ async function apiPost(action: string, args: Record<string, any> = {}) {
 }
 
 const PHONE = '480-757-0476';
-const EMAIL = 'gidgarageaz@hotmail.com';
+const EMAIL = 'info@gidgarage.com';
 
 // R2 public image URL — falls back to local /public in dev
 const R2 = (import.meta.env.VITE_R2_PUBLIC_URL as string | undefined)?.replace(/\/$/, '') ?? '';

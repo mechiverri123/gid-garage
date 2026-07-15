@@ -1355,8 +1355,8 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
                         <a href={`tel:${PHONE.replace(/-/g,'')}`} onClick={e => e.stopPropagation()} className="flex items-center gap-1.5 text-red-500 hover:text-red-400 text-xs font-bold transition-colors whitespace-nowrap">
                           <span>📞</span> {PHONE}
                         </a>
-                        <a href="mailto:gidgarageaz@hotmail.com" onClick={e => e.stopPropagation()} className="flex items-center gap-1.5 text-gray-400 hover:text-gray-300 text-xs font-bold transition-colors whitespace-nowrap">
-                          <span>✉️</span> gidgarageaz@hotmail.com
+                        <a href="mailto:info@gidgarage.com" onClick={e => e.stopPropagation()} className="flex items-center gap-1.5 text-gray-400 hover:text-gray-300 text-xs font-bold transition-colors whitespace-nowrap">
+                          <span>✉️</span> info@gidgarage.com
                         </a>
                       </div>
                     </div>
@@ -1367,7 +1367,7 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
                 {s.service === 'other' && (
                   <div className="mt-3 space-y-4">
                     <div className="bg-gray-900/80 border border-gray-800 border-l-4 border-l-red-600 px-4 py-3">
-                      <p className="text-gray-300 text-xs leading-relaxed">We'll review your message and get back to you with a quote — usually same day. You can also call or text us directly at <a href={`tel:${PHONE.replace(/-/g,'')}`} className="text-red-500 font-bold">{PHONE}</a> or email <a href="mailto:gidgarageaz@hotmail.com" className="text-red-500 font-bold">gidgarageaz@hotmail.com</a>.</p>
+                      <p className="text-gray-300 text-xs leading-relaxed">We'll review your message and get back to you with a quote — usually same day. You can also call or text us directly at <a href={`tel:${PHONE.replace(/-/g,'')}`} className="text-red-500 font-bold">{PHONE}</a> or email <a href="mailto:info@gidgarage.com" className="text-red-500 font-bold">info@gidgarage.com</a>.</p>
                     </div>
 
                     {/* Contact fields */}
