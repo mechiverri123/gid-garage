@@ -60,13 +60,17 @@ export async function onRequestPost({ request, env }) {
 
   // Shared Brevo sender helper
   async function brevoSend(payload) {
-    if (!brevoKey) { console.warn('BREVO_API_KEY not set — skipping email'); return; }
+    if (!brevoKey) { throw new Error('BREVO_API_KEY not set on the server — email was not sent.'); }
     const r = await fetch('https://api.brevo.com/v3/smtp/email', {
       method: 'POST',
       headers: { 'api-key': brevoKey, 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
     });
-    if (!r.ok) console.error('Brevo send failed:', r.status, await r.text());
+    if (!r.ok) {
+      const detail = await r.text();
+      console.error('Brevo send failed:', r.status, detail);
+      throw new Error(`Brevo rejected the email (${r.status}): ${detail}`);
+    }
   }
 
   const base = `${supabaseUrl}/rest/v1`;
