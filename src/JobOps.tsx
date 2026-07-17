@@ -263,16 +263,24 @@ interface InspectionData {
 // table so it can't collide with revenue/job-status accounting.
 export type PPIItemStatus = 'pass' | 'fail' | 'na' | '';
 
+export interface PPIPhoto {
+  key: string;
+  url: string;
+  name: string;
+}
+
 export interface PPIChecklistItem {
   id: string;
   category: string;
   label: string;
   status: PPIItemStatus;
   note: string;
+  photos: PPIPhoto[];
 }
 
 export interface PPIRecord {
   id: string;
+  name: string;
   vin: string;
   fname: string;
   lname: string;
@@ -304,20 +312,22 @@ function defaultPPIChecklist(): PPIChecklistItem[] {
   ];
   let seq = 0;
   return groups.flatMap(([category, items]) =>
-    items.map(label => ({ id: `ppi-${Date.now()}-${seq++}`, category, label, status: '' as PPIItemStatus, note: '' }))
+    items.map(label => ({ id: `ppi-${Date.now()}-${seq++}`, category, label, status: '' as PPIItemStatus, note: '', photos: [] as PPIPhoto[] }))
   );
 }
 
 function mapPPI(row: any): PPIRecord {
+  const rawChecklist = Array.isArray(row.checklist) ? row.checklist : (typeof row.checklist === 'string' ? JSON.parse(row.checklist || '[]') : []);
   return {
     id: row.id,
+    name: row.name || '',
     vin: row.vin || '',
     fname: row.fname || '',
     lname: row.lname || '',
     phone: row.phone || '',
     email: row.email || '',
     vehicle: row.vehicle || '',
-    checklist: Array.isArray(row.checklist) ? row.checklist : (typeof row.checklist === 'string' ? JSON.parse(row.checklist || '[]') : []),
+    checklist: rawChecklist.map((it: any) => ({ photos: [], note: '', status: '', ...it })),
     overallNotes: row.overall_notes || '',
     status: row.status === 'COMPLETE' ? 'COMPLETE' : 'DRAFT',
     createdAt: row.created_at || '',
@@ -326,8 +336,8 @@ function mapPPI(row: any): PPIRecord {
   };
 }
 
-async function listDraftPPIs(): Promise<PPIRecord[]> {
-  const rows = await adminPost('list-ppi', { status: 'DRAFT' });
+async function listAllPPIs(): Promise<PPIRecord[]> {
+  const rows = await adminPost('list-ppi', {});
   return (rows || []).map(mapPPI);
 }
 async function insertPPI(row: Record<string, any>): Promise<PPIRecord> {
@@ -339,6 +349,17 @@ async function patchPPI(id: string, fields: Record<string, any>): Promise<void> 
 }
 async function sendPPIEmail(record: PPIRecord, toEmail: string): Promise<void> {
   await adminPost('send-ppi', { record, toEmail });
+}
+// Reuses the same R2 upload endpoint job/admin photos go through — folders
+// under bookings/{ppiId}/... same as a normal job's admin photos would.
+async function uploadPPIPhoto(ppiId: string, file: File): Promise<PPIPhoto> {
+  const formData = new FormData();
+  formData.append('file', file, file.name);
+  formData.append('bookingId', ppiId);
+  const res = await fetch('/admin-upload-photo', { method: 'POST', body: formData });
+  if (!res.ok) throw new Error(await res.text());
+  const data = await res.json() as any;
+  return { key: data.key, url: data.url, name: file.name };
 }
 export async function getPPIPublic(id: string): Promise<PPIRecord | null> {
   const row = await apiPost('get-ppi', { id });
@@ -4302,12 +4323,14 @@ function ExternalLeadModal({ onClose, onAdded }: { onClose: () => void; onAdded:
 
 
 // ── PRE-PURCHASE INSPECTION MODAL ─────────────────────────────────────────────
-// Standalone flow — not a job. Picker for in-progress drafts -> form/checklist
-// with Save & Close (resume later) -> Complete -> copy link / send email,
-// mirroring ExternalLeadModal's step-3 pattern.
+// Standalone flow — not a job. Picker shows every PPI (searchable by name,
+// VIN, customer, phone, or email) -> form/checklist with Save & Close
+// (resume later) -> Complete -> copy link / send email, mirroring
+// ExternalLeadModal's step-3 pattern.
 function PrePIModal({ onClose }: { onClose: () => void }) {
   const [mode, setMode] = useState<'loading' | 'picker' | 'form' | 'done'>('loading');
-  const [drafts, setDrafts] = useState<PPIRecord[]>([]);
+  const [allPPIs, setAllPPIs] = useState<PPIRecord[]>([]);
+  const [search, setSearch] = useState('');
   const [record, setRecord] = useState<PPIRecord | null>(null);
   const [saving, setSaving] = useState(false);
   const [completing, setCompleting] = useState(false);
@@ -4318,18 +4341,21 @@ function PrePIModal({ onClose }: { onClose: () => void }) {
   const [sendTo, setSendTo] = useState('');
   const [sending, setSending] = useState(false);
   const [sentOk, setSentOk] = useState(false);
+  const [uploadingItemId, setUploadingItemId] = useState<string | null>(null);
   const backdropDown = useRef(false);
+  const photoInputRef = useRef<HTMLInputElement>(null);
+  const photoInputItemId = useRef<string | null>(null);
 
   useEffect(() => {
-    listDraftPPIs()
-      .then(list => { setDrafts(list); setMode('picker'); })
-      .catch(() => { setDrafts([]); setMode('picker'); });
+    listAllPPIs()
+      .then(list => { setAllPPIs(list); setMode('picker'); })
+      .catch(() => { setAllPPIs([]); setMode('picker'); });
   }, []);
 
   function startNew() {
     setRecord({
       id: `PPI-${Date.now()}`,
-      vin: '', fname: '', lname: '', phone: '', email: '', vehicle: '',
+      name: '', vin: '', fname: '', lname: '', phone: '', email: '', vehicle: '',
       checklist: defaultPPIChecklist(),
       overallNotes: '',
       status: 'DRAFT',
@@ -4337,7 +4363,7 @@ function PrePIModal({ onClose }: { onClose: () => void }) {
     });
     setMode('form');
   }
-  function resumeDraft(d: PPIRecord) {
+  function openRecord(d: PPIRecord) {
     setRecord(d);
     setMode('form');
   }
@@ -4350,6 +4376,31 @@ function PrePIModal({ onClose }: { onClose: () => void }) {
   function setItem(id: string, patch: Partial<PPIChecklistItem>) {
     if (!record) return;
     setRecord({ ...record, checklist: record.checklist.map(it => it.id === id ? { ...it, ...patch } : it) });
+  }
+
+  function triggerPhotoPicker(itemId: string) {
+    photoInputItemId.current = itemId;
+    photoInputRef.current?.click();
+  }
+  async function handlePhotoFileChosen(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    const itemId = photoInputItemId.current;
+    e.target.value = '';
+    if (!file || !itemId || !record) return;
+    setUploadingItemId(itemId);
+    setErr(null);
+    try {
+      const photo = await uploadPPIPhoto(record.id, file);
+      setRecord(prev => prev ? { ...prev, checklist: prev.checklist.map(it => it.id === itemId ? { ...it, photos: [...it.photos, photo] } : it) } : prev);
+    } catch (e: any) {
+      setErr(e.message ?? 'Photo upload failed. Try again.');
+    } finally {
+      setUploadingItemId(null);
+    }
+  }
+  function removeItemPhoto(itemId: string, key: string) {
+    if (!record) return;
+    setRecord({ ...record, checklist: record.checklist.map(it => it.id === itemId ? { ...it, photos: it.photos.filter(p => p.key !== key) } : it) });
   }
 
   function validate(): boolean {
@@ -4366,6 +4417,7 @@ function PrePIModal({ onClose }: { onClose: () => void }) {
     const now = new Date().toISOString();
     return {
       id: rec.id,
+      name: rec.name,
       vin: rec.vin,
       fname: rec.fname,
       lname: rec.lname,
@@ -4446,7 +4498,7 @@ function PrePIModal({ onClose }: { onClose: () => void }) {
     window.open(docUrl, '_blank', 'noopener,noreferrer');
   }
 
-  const inp = (k: 'vin' | 'fname' | 'lname' | 'phone' | 'email' | 'vehicle', label: string, opts: { placeholder?: string; uppercase?: boolean; type?: string } = {}) => (
+  const inp = (k: 'name' | 'vin' | 'fname' | 'lname' | 'phone' | 'email' | 'vehicle', label: string, opts: { placeholder?: string; uppercase?: boolean; type?: string } = {}) => (
     <div>
       <label className={`block text-xs font-bold uppercase tracking-wider mb-1 ${fieldErr[k] ? 'text-red-500' : 'text-gray-500'}`}>{label}</label>
       <input
@@ -4467,6 +4519,18 @@ function PrePIModal({ onClose }: { onClose: () => void }) {
     }, {})
   ) : [];
 
+  const filteredList = allPPIs.filter(p => {
+    if (!search.trim()) return true;
+    const q = search.trim().toLowerCase();
+    return (
+      p.name.toLowerCase().includes(q) ||
+      p.vin.toLowerCase().includes(q) ||
+      `${p.fname} ${p.lname}`.toLowerCase().includes(q) ||
+      p.phone.toLowerCase().includes(q) ||
+      p.email.toLowerCase().includes(q)
+    );
+  });
+
   return (
     <div
       className="fixed inset-0 z-[9999] bg-black/80 flex items-center justify-center p-4"
@@ -4477,6 +4541,9 @@ function PrePIModal({ onClose }: { onClose: () => void }) {
         <button onClick={onClose} className="absolute top-4 right-4 w-8 h-8 border border-gray-700 text-gray-500 hover:border-blue-600 hover:text-white flex items-center justify-center transition-colors">✕</button>
         <div className="w-8 h-1 bg-blue-500 mb-4" />
 
+        {/* hidden file input shared by every checklist item's photo button */}
+        <input ref={photoInputRef} type="file" accept="image/*" className="hidden" onChange={handlePhotoFileChosen} />
+
         {mode === 'loading' && (
           <p className="text-gray-600 text-xs font-bold uppercase tracking-widest py-8 text-center">Loading…</p>
         )}
@@ -4484,7 +4551,7 @@ function PrePIModal({ onClose }: { onClose: () => void }) {
         {mode === 'picker' && (
           <>
             <h2 className="text-xl font-black text-white mb-1">Pre-Purchase Inspection</h2>
-            <p className="text-gray-500 text-xs mb-5">Standard PPI checklist for any vehicle — VIN, customer info, and a full pass/fail walkthrough.</p>
+            <p className="text-gray-500 text-xs mb-5">Standard PPI checklist for any vehicle — VIN, customer info, and a full pass/fail walkthrough with notes and photos per item.</p>
 
             <button
               onClick={startNew}
@@ -4493,21 +4560,35 @@ function PrePIModal({ onClose }: { onClose: () => void }) {
               <span className="text-base leading-none">+</span> Start New Inspection
             </button>
 
-            {drafts.length > 0 && (
+            {allPPIs.length > 0 && (
               <>
-                <p className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-2">Resume a saved inspection</p>
-                <div className="space-y-1.5">
-                  {drafts.map(d => (
+                <input
+                  type="text"
+                  value={search}
+                  onChange={e => setSearch(e.target.value)}
+                  placeholder="Search by name, VIN, customer, phone, or email…"
+                  className="w-full bg-gray-900 border border-gray-700 text-white px-3 py-2 text-sm focus:border-blue-600 outline-none mb-3"
+                />
+                <div className="space-y-1.5 max-h-[40vh] overflow-y-auto">
+                  {filteredList.length === 0 && (
+                    <p className="text-gray-700 text-xs italic text-center py-6">No matching inspections.</p>
+                  )}
+                  {filteredList.map(d => (
                     <button
                       key={d.id}
-                      onClick={() => resumeDraft(d)}
+                      onClick={() => openRecord(d)}
                       className="w-full text-left bg-gray-900 border border-gray-800 hover:border-blue-700 px-4 py-3 transition-colors flex items-center justify-between gap-3"
                     >
                       <div className="min-w-0">
-                        <p className="text-white text-sm font-bold truncate">{d.fname} {d.lname} {d.vin && <span className="text-gray-500 font-mono text-xs ml-1">{d.vin}</span>}</p>
-                        <p className="text-gray-500 text-xs truncate">{d.vehicle || 'No vehicle info yet'}</p>
+                        <p className="text-white text-sm font-bold truncate">
+                          {d.name || `${d.fname} ${d.lname}`.trim() || 'Untitled Inspection'}
+                          {d.vin && <span className="text-gray-500 font-mono text-xs ml-2">{d.vin}</span>}
+                        </p>
+                        <p className="text-gray-500 text-xs truncate">{d.vehicle || 'No vehicle info yet'} {(d.fname || d.lname) && d.name && `· ${d.fname} ${d.lname}`}</p>
                       </div>
-                      <span className="text-gray-600 text-[10px] font-bold uppercase tracking-wider flex-shrink-0">Resume →</span>
+                      <span className={`text-[10px] font-bold uppercase tracking-wider flex-shrink-0 px-2 py-1 ${d.status === 'COMPLETE' ? 'bg-blue-900/30 text-blue-400' : 'bg-gray-800 text-gray-500'}`}>
+                        {d.status === 'COMPLETE' ? 'Complete' : 'Draft'}
+                      </span>
                     </button>
                   ))}
                 </div>
@@ -4521,15 +4602,18 @@ function PrePIModal({ onClose }: { onClose: () => void }) {
             <h2 className="text-xl font-black text-white mb-1">Pre-Purchase Inspection</h2>
             <p className="text-gray-500 text-xs mb-5">Fill out what you can now — save and come back anytime before completing.</p>
 
-            <div className="grid grid-cols-2 gap-3 mb-3">
-              {inp('vin', 'VIN', { placeholder: '1FTFW1E5...', uppercase: true })}
-              {inp('vehicle', 'Vehicle (Year / Make / Model)', { placeholder: '2019 Ford F-150' })}
+            <div className="mb-3">
+              {inp('name', 'Name This Inspection', { placeholder: 'e.g. "2019 F-150 — Smith"' })}
             </div>
-            <div className="grid grid-cols-2 gap-3 mb-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
+              {inp('vin', 'VIN', { placeholder: '1FTFW1E5...', uppercase: true })}
+              {inp('vehicle', 'Vehicle (Year/Make/Model)', { placeholder: '2019 Ford F-150' })}
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
               {inp('fname', 'Customer First Name')}
               {inp('lname', 'Customer Last Name')}
             </div>
-            <div className="grid grid-cols-2 gap-3 mb-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6">
               {inp('phone', 'Phone', { type: 'tel', placeholder: '(555) 555-5555' })}
               {inp('email', 'Email', { type: 'email', placeholder: 'customer@email.com' })}
             </div>
@@ -4541,7 +4625,7 @@ function PrePIModal({ onClose }: { onClose: () => void }) {
                   <div className="space-y-2">
                     {items.map(it => (
                       <div key={it.id} className="bg-gray-900/60 border border-gray-800 px-3 py-2.5">
-                        <div className="flex items-center justify-between gap-3 mb-1.5">
+                        <div className="flex items-center justify-between gap-3 mb-2">
                           <p className="text-gray-300 text-xs flex-1">{it.label}</p>
                           <div className="flex gap-1 flex-shrink-0">
                             {(['pass', 'fail', 'na'] as PPIItemStatus[]).map(s => (
@@ -4562,15 +4646,38 @@ function PrePIModal({ onClose }: { onClose: () => void }) {
                             ))}
                           </div>
                         </div>
-                        {it.status === 'fail' && (
-                          <input
-                            type="text"
-                            value={it.note}
-                            onChange={e => setItem(it.id, { note: e.target.value })}
-                            placeholder="Note what's wrong…"
-                            className="w-full bg-gray-950 border border-red-900/50 text-white text-xs px-2.5 py-1.5 outline-none focus:border-red-600"
-                          />
-                        )}
+
+                        <input
+                          type="text"
+                          value={it.note}
+                          onChange={e => setItem(it.id, { note: e.target.value })}
+                          placeholder="Note (optional)…"
+                          className={`w-full bg-gray-950 border text-white text-xs px-2.5 py-1.5 outline-none mb-2 ${it.status === 'fail' ? 'border-red-900/50 focus:border-red-600' : 'border-gray-800 focus:border-blue-600'}`}
+                        />
+
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          {it.photos.map(p => (
+                            <div key={p.key} className="relative group flex-shrink-0">
+                              <a href={p.url} target="_blank" rel="noopener noreferrer">
+                                <img src={p.url} alt={p.name} className="w-10 h-10 object-cover border border-gray-700" />
+                              </a>
+                              <button
+                                type="button"
+                                onClick={() => removeItemPhoto(it.id, p.key)}
+                                className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-red-600 hover:bg-red-500 text-white text-[9px] flex items-center justify-center leading-none"
+                              >✕</button>
+                            </div>
+                          ))}
+                          <button
+                            type="button"
+                            onClick={() => triggerPhotoPicker(it.id)}
+                            disabled={uploadingItemId === it.id}
+                            className="w-10 h-10 flex-shrink-0 border border-dashed border-gray-700 text-gray-600 hover:border-blue-600 hover:text-blue-400 text-base flex items-center justify-center transition-colors disabled:opacity-40"
+                            title="Add photo"
+                          >
+                            {uploadingItemId === it.id ? '…' : '📷'}
+                          </button>
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -4611,7 +4718,7 @@ function PrePIModal({ onClose }: { onClose: () => void }) {
         {mode === 'done' && record && (
           <>
             <h2 className="text-xl font-black text-white mb-1">✓ Inspection Complete</h2>
-            <p className="text-gray-500 text-xs mb-5">{record.fname} {record.lname} · {record.vehicle} · <span className="font-mono">{record.vin}</span></p>
+            <p className="text-gray-500 text-xs mb-5">{record.name || `${record.fname} ${record.lname}`} · {record.vehicle} · <span className="font-mono">{record.vin}</span></p>
 
             <label className="block text-xs font-bold uppercase tracking-wider mb-1 text-gray-500">PrePI Link</label>
             <div className="flex gap-2 mb-3">
@@ -6029,7 +6136,7 @@ export function PPIPage() {
           <div className="p-8">
             <div className="flex items-start justify-between mb-6 flex-wrap gap-2">
               <div>
-                <h1 className="text-white text-2xl font-black mb-1">Pre-Purchase Inspection</h1>
+                <h1 className="text-white text-2xl font-black mb-1">{record.name || 'Pre-Purchase Inspection'}</h1>
                 <p className="text-gray-500 text-xs">{record.status === 'COMPLETE' ? `Completed ${completedDateStr}` : 'In Progress — not yet finalized'}</p>
               </div>
               {record.status === 'COMPLETE' && (
@@ -6056,13 +6163,22 @@ export function PPIPage() {
                   <p className="text-blue-400 text-xs font-bold uppercase tracking-widest mb-2 border-b border-gray-800 pb-1.5">{category}</p>
                   <div className="space-y-1.5">
                     {items.map(it => (
-                      <div key={it.id}>
+                      <div key={it.id} className="page-break-avoid">
                         <div className="flex items-center justify-between gap-3 py-1">
                           <p className="text-gray-300 text-xs flex-1">{it.label}</p>
                           {statusPill(it.status)}
                         </div>
-                        {it.status === 'fail' && it.note && (
-                          <p className="text-red-400 text-xs pl-3 pb-1.5 italic">— {it.note}</p>
+                        {it.note && (
+                          <p className={`text-xs pl-3 pb-1 italic ${it.status === 'fail' ? 'text-red-400' : 'text-gray-500'}`}>— {it.note}</p>
+                        )}
+                        {it.photos && it.photos.length > 0 && (
+                          <div className="flex items-center gap-1.5 flex-wrap pl-3 pb-2">
+                            {it.photos.map(p => (
+                              <a key={p.key} href={p.url} target="_blank" rel="noopener noreferrer">
+                                <img src={p.url} alt={p.name} className="w-14 h-14 object-cover border border-gray-700" />
+                              </a>
+                            ))}
+                          </div>
                         )}
                       </div>
                     ))}
