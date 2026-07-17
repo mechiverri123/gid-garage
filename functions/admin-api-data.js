@@ -23,6 +23,11 @@
 //   backup-status         {}                -> BackupStatus | null
 //   list-backups          {}                -> { key, uploaded, sizeBytes }[]
 //   restore-backup        { key, mode, confirm } -> RestoreResult  (mode: 'merge' | 'replace', confirm: true required)
+//   list-ppi              { status? }            -> PPIRecord[]   (pre-purchase inspections, own table)
+//   get-ppi               { id }                  -> PPIRecord | null
+//   insert-ppi            { row }                 -> PPIRecord
+//   patch-ppi             { id, fields }          -> { ok }
+//   send-ppi              { record, toEmail }     -> { ok }        (emails the PrePI link)
 
 import { runBackup, readBackupStatus, listBackups, restoreBackup } from './_lib/backup.js';
 import { reportError } from './_lib/sentry.js';
@@ -226,6 +231,90 @@ export async function onRequestPost({ request, env }) {
         if (!res.ok) return json({ error: await res.text() }, 502);
         const rows = await res.json();
         return json(Array.isArray(rows) ? rows[0] : rows);
+      }
+
+      // ---- Pre-Purchase Inspections (PrePI) — own table, own lifecycle ------
+      // Deliberately separate from `bookings` so a PPI never has to become a
+      // job and can't collide with revenue/job-status accounting.
+      case 'list-ppi': {
+        const { status } = payload;
+        const filter = status ? `&status=eq.${encodeURIComponent(status)}` : '';
+        const res = await fetch(
+          `${base}/ppi_inspections?select=*&order=updated_at.desc${filter}`,
+          { headers }
+        );
+        if (!res.ok) return json({ error: await res.text() }, 502);
+        return json(await res.json());
+      }
+
+      case 'get-ppi': {
+        const { id } = payload;
+        if (!id) return json({ error: 'Missing id' }, 400);
+        const res = await fetch(
+          `${base}/ppi_inspections?id=eq.${encodeURIComponent(id)}&select=*`,
+          { headers }
+        );
+        if (!res.ok) return json({ error: await res.text() }, 502);
+        const rows = await res.json();
+        return json(rows[0] ?? null);
+      }
+
+      case 'insert-ppi': {
+        const { row } = payload;
+        if (!row) return json({ error: 'Missing row' }, 400);
+        const res = await fetch(`${base}/ppi_inspections`, {
+          method: 'POST',
+          headers: { ...headers, Prefer: 'return=representation' },
+          body: JSON.stringify({ created_at: new Date().toISOString(), ...row }),
+        });
+        if (!res.ok) return json({ error: await res.text() }, 502);
+        const rows = await res.json();
+        return json(Array.isArray(rows) ? rows[0] : rows);
+      }
+
+      case 'patch-ppi': {
+        const { id, fields } = payload;
+        if (!id || !fields) return json({ error: 'Missing id or fields' }, 400);
+        const res = await fetch(
+          `${base}/ppi_inspections?id=eq.${encodeURIComponent(id)}`,
+          { method: 'PATCH', headers: { ...headers, Prefer: 'return=minimal' }, body: JSON.stringify(fields) }
+        );
+        if (!res.ok) return json({ error: await res.text() }, 502);
+        return json({ ok: true });
+      }
+
+      case 'send-ppi': {
+        const { record, toEmail } = payload;
+        if (!record || !toEmail) return json({ error: 'Missing record or toEmail' }, 400);
+        const ppiUrl = `https://gidgarage.com/ppi?id=${record.id}`;
+        await brevoSend({
+          sender: { name: 'GID Garage', email: 'bookings@gidgarage.com' },
+          to: [{ email: toEmail, name: `${record.fname || ''} ${record.lname || ''}`.trim() }],
+          subject: `Pre-Purchase Inspection — ${record.vehicle || 'Vehicle'} — GID Garage`,
+          htmlContent: `<div style="font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;max-width:580px;margin:0 auto;background:#0f0f0f;color:#fff;">
+            <div style="background:#111827;border-bottom:3px solid #2563eb;">
+              <img src="https://gidgarage.com/banner.PNG" alt="GID Garage" style="width:100%;display:block;height:auto;"/>
+            </div>
+            <div style="padding:32px;">
+              <h2 style="color:#fff;font-size:24px;font-weight:900;margin:0 0 6px;letter-spacing:-0.5px;">Pre-Purchase Inspection</h2>
+              <p style="color:#6b7280;font-size:14px;margin:0 0 28px;">Hi ${record.fname || ''} — here's the inspection report for ${record.vehicle || 'the vehicle'}.</p>
+              <div style="background:#1f2937;border:1px solid #374151;border-left:4px solid #2563eb;padding:16px 20px;margin-bottom:28px;">
+                <table style="width:100%;border-collapse:collapse;">
+                  ${record.vin ? `<tr><td style="color:#6b7280;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;padding:3px 0;">VIN</td><td style="color:#fff;font-size:13px;text-align:right;padding:3px 0;font-family:monospace;">${record.vin}</td></tr>` : ''}
+                  ${record.vehicle ? `<tr><td style="color:#6b7280;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;padding:3px 0;">Vehicle</td><td style="color:#fff;font-size:13px;text-align:right;padding:3px 0;">${record.vehicle}</td></tr>` : ''}
+                </table>
+              </div>
+              <p style="margin:28px 0 8px;text-align:center;">
+                <a href="${ppiUrl}" style="display:inline-block;background:#2563eb;color:#fff;text-decoration:none;font-weight:700;font-size:13px;padding:16px 36px;letter-spacing:0.08em;text-transform:uppercase;">View Inspection →</a>
+              </p>
+            </div>
+            <div style="background:#111827;padding:20px 32px;border-top:1px solid #1f2937;">
+              <p style="color:#4b5563;font-size:11px;margin:0;">Questions? Call or text <strong style="color:#9ca3af;">480-757-0476</strong> or reply to this email.</p>
+              <p style="color:#374151;font-size:11px;margin:4px 0 0;">GID Garage · Mobile Auto Repair &amp; Car Audio · Flagstaff, AZ</p>
+            </div>
+          </div>`,
+        });
+        return json({ ok: true });
       }
 
       // ---- Paid bookings (tax/revenue summary) -----------------------------

@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { Phone, Mail, Menu, X, MessageCircle } from 'lucide-react';
 import BookingWidget, { AdminSchedule, verifyCancelToken, deleteLocalBooking, sendCancellationNotification } from './BookingWidget';
-import { EstimatePage, InvoicePage } from './JobOps';
+import { EstimatePage, InvoicePage, PPIPage } from './JobOps';
 import GamesPage from './GamesPage';
 import GameRedeem from './GameRedeem';
 
@@ -959,6 +959,7 @@ export default function App() {
   const isAdmin = window.location.pathname === '/admin' || window.location.hash === '#admin';
   const isEstimate = window.location.pathname === '/estimate';
   const isInvoice = window.location.pathname === '/invoice';
+  const isPPI = window.location.pathname === '/ppi';
   const isGames = window.location.pathname === '/games';
   const isGameRedeem = window.location.pathname === '/game-redeem';
   const isServiceArea = window.location.pathname === '/service-area';
@@ -976,6 +977,7 @@ export default function App() {
   if (isAdmin) return <AdminSchedule />;
   if (isEstimate) return <EstimatePage />;
   if (isInvoice) return <InvoicePage />;
+  if (isPPI) return <PPIPage />;
   if (isGames) return <GamesPage />;
   if (isGameRedeem) return <GameRedeem />;
   if (isServiceArea) return <ServiceAreaPage slug={params.get('town') ?? ''} />;

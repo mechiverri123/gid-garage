@@ -11,6 +11,7 @@
 //   cancel-verify       { id, token }             -> { valid, booking? }
 //   cancel              { id, token }             -> { ok, booking? }
 //   get-job             { id }                    -> Booking | null  (for estimate/invoice pages)
+//   get-ppi             { id }                    -> PPIRecord | null (for the /ppi page)
 //   sign                { id, signature }         -> { ok }   (customer e-signs estimate)
 //   estimate-decline    { id }                    -> { ok }   (customer declines estimate)
 //   returning-customer  { fname,lname,email,phone}-> { stripeCustomerId, last4 } | null
@@ -208,6 +209,19 @@ export async function onRequestPost({ request, env }) {
         if (!booking) return json(null);
         booking.currentTaxRate = await fetchCurrentTaxRate();
         return json(booking);
+      }
+
+      // ---- PrePI page: read one pre-purchase inspection by id ---------------
+      case 'get-ppi': {
+        const { id } = payload;
+        if (!id) return json({ error: 'Missing id' }, 400);
+        const res = await fetch(
+          `${base}/ppi_inspections?id=eq.${encodeURIComponent(id)}&select=*`,
+          { headers }
+        );
+        if (!res.ok) return json({ error: await res.text() }, 502);
+        const rows = await res.json();
+        return json(rows[0] ?? null);
       }
 
       // ---- Customer e-signs the estimate -----------------------------------

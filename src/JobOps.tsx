@@ -257,6 +257,94 @@ interface InspectionData {
   dtcCodes: DtcCode[];
 }
 
+// ── PRE-PURCHASE INSPECTION (PrePI) ───────────────────────────────────────────
+// A standalone flow, separate from the job pipeline — someone doesn't have
+// to become a booked job to get a PPI. Lives in its own `ppi_inspections`
+// table so it can't collide with revenue/job-status accounting.
+export type PPIItemStatus = 'pass' | 'fail' | 'na' | '';
+
+export interface PPIChecklistItem {
+  id: string;
+  category: string;
+  label: string;
+  status: PPIItemStatus;
+  note: string;
+}
+
+export interface PPIRecord {
+  id: string;
+  vin: string;
+  fname: string;
+  lname: string;
+  phone: string;
+  email: string;
+  vehicle: string;
+  checklist: PPIChecklistItem[];
+  overallNotes: string;
+  status: 'DRAFT' | 'COMPLETE';
+  createdAt: string;
+  updatedAt: string;
+  completedAt: string | null;
+}
+
+// Standard categories/items covered on almost any pre-purchase inspection.
+// Regenerated fresh (new ids each call) so multiple in-progress PPIs never
+// share item ids.
+function defaultPPIChecklist(): PPIChecklistItem[] {
+  const groups: [string, string[]][] = [
+    ['Exterior', ['Body panels / paint condition', 'Frame / unibody rust or damage', 'Glass — cracks or chips', 'Lights (head/tail/turn/brake)', 'Tires — tread depth & wear pattern', 'Wheels — bends, cracks, curb rash']],
+    ['Under Hood', ['Engine oil level & condition', 'Coolant level & condition', 'Brake fluid', 'Power steering fluid', 'Transmission fluid', 'Belts & hoses', 'Battery & terminals', 'Visible leaks']],
+    ['Engine & Drivetrain', ['Engine starts & idles smoothly', 'Unusual noises (knock, tick, whine)', 'Exhaust smoke (color/amount)', 'Transmission shifts smoothly', 'Check engine / warning lights', 'Scan for stored DTC codes']],
+    ['Undercarriage', ['Frame rust / structural damage', 'Exhaust system condition', 'Suspension components', 'CV axles / boots', 'Fluid leaks (oil, trans, coolant)']],
+    ['Brakes', ['Front pad/rotor thickness', 'Rear pad/rotor (or drum) condition', 'Brake pedal feel', 'Parking brake function']],
+    ['Steering & Suspension', ['Steering play / alignment feel', 'Shocks/struts — bounce test', 'Ball joints / tie rods', 'Wheel bearings (noise/play)']],
+    ['Electrical', ['Battery charging system', 'All interior lights function', 'Power windows/locks/mirrors', 'HVAC — heat & A/C function', 'Infotainment / backup camera']],
+    ['Interior', ['Seats & upholstery condition', 'Dash & warning lights at startup', 'Odometer matches disclosures', 'Airbag warning light off', 'Seatbelts function correctly']],
+    ['Test Drive', ['Acceleration feels normal', 'Braking — straight, no pulling', 'Steering — no wander/pull', 'Transmission shift quality', 'Unusual noises at speed']],
+  ];
+  let seq = 0;
+  return groups.flatMap(([category, items]) =>
+    items.map(label => ({ id: `ppi-${Date.now()}-${seq++}`, category, label, status: '' as PPIItemStatus, note: '' }))
+  );
+}
+
+function mapPPI(row: any): PPIRecord {
+  return {
+    id: row.id,
+    vin: row.vin || '',
+    fname: row.fname || '',
+    lname: row.lname || '',
+    phone: row.phone || '',
+    email: row.email || '',
+    vehicle: row.vehicle || '',
+    checklist: Array.isArray(row.checklist) ? row.checklist : (typeof row.checklist === 'string' ? JSON.parse(row.checklist || '[]') : []),
+    overallNotes: row.overall_notes || '',
+    status: row.status === 'COMPLETE' ? 'COMPLETE' : 'DRAFT',
+    createdAt: row.created_at || '',
+    updatedAt: row.updated_at || '',
+    completedAt: row.completed_at || null,
+  };
+}
+
+async function listDraftPPIs(): Promise<PPIRecord[]> {
+  const rows = await adminPost('list-ppi', { status: 'DRAFT' });
+  return (rows || []).map(mapPPI);
+}
+async function insertPPI(row: Record<string, any>): Promise<PPIRecord> {
+  const inserted = await adminPost('insert-ppi', { row });
+  return mapPPI(inserted);
+}
+async function patchPPI(id: string, fields: Record<string, any>): Promise<void> {
+  await adminPost('patch-ppi', { id, fields });
+}
+async function sendPPIEmail(record: PPIRecord, toEmail: string): Promise<void> {
+  await adminPost('send-ppi', { record, toEmail });
+}
+export async function getPPIPublic(id: string): Promise<PPIRecord | null> {
+  const row = await apiPost('get-ppi', { id });
+  return row ? mapPPI(row) : null;
+}
+
 // ── SUPABASE HELPERS ─────────────────────────────────────────────────────────
 
 
@@ -4212,82 +4300,172 @@ function ExternalLeadModal({ onClose, onAdded }: { onClose: () => void; onAdded:
   );
 }
 
-function AddJobModal({ onClose, onAdded }: { onClose: () => void; onAdded: (job: Job) => void }) {
+
+// ── PRE-PURCHASE INSPECTION MODAL ─────────────────────────────────────────────
+// Standalone flow — not a job. Picker for in-progress drafts -> form/checklist
+// with Save & Close (resume later) -> Complete -> copy link / send email,
+// mirroring ExternalLeadModal's step-3 pattern.
+function PrePIModal({ onClose }: { onClose: () => void }) {
+  const [mode, setMode] = useState<'loading' | 'picker' | 'form' | 'done'>('loading');
+  const [drafts, setDrafts] = useState<PPIRecord[]>([]);
+  const [record, setRecord] = useState<PPIRecord | null>(null);
   const [saving, setSaving] = useState(false);
+  const [completing, setCompleting] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [fieldErr, setFieldErr] = useState<Record<string, string>>({});
-  const [f, setF] = useState({
-    fname: '', lname: '', phone: '', email: '',
-    vehicle: '', service: 'other', date: '', time: '', notes: '',
-  });
+  const [savedFlash, setSavedFlash] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [sendTo, setSendTo] = useState('');
+  const [sending, setSending] = useState(false);
+  const [sentOk, setSentOk] = useState(false);
   const backdropDown = useRef(false);
 
-  function set(k: string, v: string) { setF(p => ({ ...p, [k]: v })); setFieldErr(p => ({ ...p, [k]: '' })); }
+  useEffect(() => {
+    listDraftPPIs()
+      .then(list => { setDrafts(list); setMode('picker'); })
+      .catch(() => { setDrafts([]); setMode('picker'); });
+  }, []);
 
-  // Convert "14:30" → "2:30 PM" to match booking time slot format
-  function to12h(t: string): string {
-    const [hStr, mStr] = t.split(':');
-    const h = parseInt(hStr, 10);
-    const m = mStr ?? '00';
-    const period = h >= 12 ? 'PM' : 'AM';
-    const h12 = h % 12 === 0 ? 12 : h % 12;
-    return `${h12}:${m} ${period}`;
+  function startNew() {
+    setRecord({
+      id: `PPI-${Date.now()}`,
+      vin: '', fname: '', lname: '', phone: '', email: '', vehicle: '',
+      checklist: defaultPPIChecklist(),
+      overallNotes: '',
+      status: 'DRAFT',
+      createdAt: '', updatedAt: '', completedAt: null,
+    });
+    setMode('form');
+  }
+  function resumeDraft(d: PPIRecord) {
+    setRecord(d);
+    setMode('form');
   }
 
-  async function handleSave() {
-    const errs: Record<string, string> = {};
-    if (!f.fname)    errs.fname   = 'Required';
-    if (!f.phone)    errs.phone   = 'Required';
-    if (!f.vehicle)  errs.vehicle = 'Required';
-    if (!f.service)  errs.service = 'Required';
-    if (!f.date)     errs.date    = 'Required';
-    if (!f.time)     errs.time    = 'Required';
-    if (Object.keys(errs).length) { setFieldErr(errs); return; }
+  function setField(k: keyof PPIRecord, v: string) {
+    if (!record) return;
+    setRecord({ ...record, [k]: k === 'vin' ? v.toUpperCase() : v });
+    setFieldErr(p => ({ ...p, [k]: '' }));
+  }
+  function setItem(id: string, patch: Partial<PPIChecklistItem>) {
+    if (!record) return;
+    setRecord({ ...record, checklist: record.checklist.map(it => it.id === id ? { ...it, ...patch } : it) });
+  }
 
+  function validate(): boolean {
+    if (!record) return false;
+    const errs: Record<string, string> = {};
+    if (!record.vin) errs.vin = 'Required';
+    if (!record.fname) errs.fname = 'Required';
+    if (!record.phone) errs.phone = 'Required';
+    setFieldErr(errs);
+    return Object.keys(errs).length === 0;
+  }
+
+  function toRow(rec: PPIRecord, status: 'DRAFT' | 'COMPLETE') {
+    const now = new Date().toISOString();
+    return {
+      id: rec.id,
+      vin: rec.vin,
+      fname: rec.fname,
+      lname: rec.lname,
+      phone: rec.phone,
+      email: rec.email,
+      vehicle: rec.vehicle,
+      checklist: JSON.stringify(rec.checklist),
+      overall_notes: rec.overallNotes,
+      status,
+      updated_at: now,
+      ...(status === 'COMPLETE' ? { completed_at: now } : {}),
+    };
+  }
+
+  async function handleSaveAndClose() {
+    if (!record) return;
+    if (!validate()) return;
     setSaving(true);
     setErr(null);
-    const id = `GID-${Date.now()}`;
-    const formattedTime = to12h(f.time);
-    const row = {
-      id,
-      service: f.service,
-      service_icon: SERVICE_ICONS[f.service] ?? '🔧',
-      date: f.date,
-      time: formattedTime,
-      fname: f.fname,
-      lname: f.lname,
-      phone: f.phone,
-      email: f.email,
-      vehicle: f.vehicle,
-      notes: f.notes,
-      garage_notes: '',
-      status: 'confirmed',
-      job_status: 'BOOKED',
-      created_at: new Date().toISOString(),
-    };
     try {
-      const inserted = await adminPost('insert-booking', { row });
-      onAdded(mapJob(inserted ?? row));
-      onClose();
+      const isNewRow = !record.createdAt;
+      if (isNewRow) {
+        await insertPPI(toRow(record, 'DRAFT'));
+      } else {
+        await patchPPI(record.id, toRow(record, 'DRAFT'));
+      }
+      setSavedFlash(true);
+      setTimeout(() => { setSavedFlash(false); onClose(); }, 700);
     } catch (e: any) {
       setErr(e.message ?? 'Save failed. Try again.');
       setSaving(false);
     }
   }
 
-  const inp = (k: string, label: string, type = 'text', placeholder = '') => (
+  async function handleComplete() {
+    if (!record) return;
+    if (!validate()) return;
+    setCompleting(true);
+    setErr(null);
+    try {
+      const isNewRow = !record.createdAt;
+      if (isNewRow) {
+        const saved = await insertPPI(toRow(record, 'COMPLETE'));
+        setRecord(saved);
+      } else {
+        await patchPPI(record.id, toRow(record, 'COMPLETE'));
+        setRecord({ ...record, status: 'COMPLETE' });
+      }
+      setSendTo(record.email || '');
+      setMode('done');
+    } catch (e: any) {
+      setErr(e.message ?? 'Could not complete. Try again.');
+    } finally {
+      setCompleting(false);
+    }
+  }
+
+  const docUrl = record ? `https://gidgarage.com/ppi?id=${record.id}` : '';
+  function copyLink() {
+    navigator.clipboard.writeText(docUrl).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000); });
+  }
+  async function handleSendEmail() {
+    if (!record || !sendTo) return;
+    setSending(true);
+    setErr(null);
+    try {
+      await sendPPIEmail(record, sendTo);
+      setSentOk(true);
+    } catch (e: any) {
+      setErr(e.message ?? 'Send failed. Try again.');
+    } finally {
+      setSending(false);
+    }
+  }
+
+  function exportPPI() {
+    if (!record) return;
+    window.open(docUrl, '_blank', 'noopener,noreferrer');
+  }
+
+  const inp = (k: 'vin' | 'fname' | 'lname' | 'phone' | 'email' | 'vehicle', label: string, opts: { placeholder?: string; uppercase?: boolean; type?: string } = {}) => (
     <div>
       <label className={`block text-xs font-bold uppercase tracking-wider mb-1 ${fieldErr[k] ? 'text-red-500' : 'text-gray-500'}`}>{label}</label>
       <input
-        type={type}
-        placeholder={placeholder}
-        value={(f as any)[k]}
-        onChange={e => set(k, e.target.value)}
-        className={`w-full bg-gray-900 text-white text-sm px-3 py-2.5 outline-none border transition-colors ${fieldErr[k] ? 'border-red-500' : 'border-gray-700 focus:border-red-600'}`}
+        type={opts.type || 'text'}
+        placeholder={opts.placeholder}
+        value={record ? (record as any)[k] : ''}
+        onChange={e => setField(k, e.target.value)}
+        className={`w-full bg-gray-900 text-white text-sm px-3 py-2.5 outline-none border transition-colors ${opts.uppercase ? 'uppercase tracking-wider font-mono' : ''} ${fieldErr[k] ? 'border-red-500' : 'border-gray-700 focus:border-blue-600'}`}
       />
       {fieldErr[k] && <p className="text-red-500 text-[10px] mt-0.5">{fieldErr[k]}</p>}
     </div>
   );
+
+  const grouped = record ? Object.entries(
+    record.checklist.reduce<Record<string, PPIChecklistItem[]>>((acc, it) => {
+      (acc[it.category] ||= []).push(it);
+      return acc;
+    }, {})
+  ) : [];
 
   return (
     <div
@@ -4295,81 +4473,196 @@ function AddJobModal({ onClose, onAdded }: { onClose: () => void; onAdded: (job:
       onMouseDown={e => { backdropDown.current = e.target === e.currentTarget; }}
       onClick={e => { if (e.target === e.currentTarget && backdropDown.current) onClose(); backdropDown.current = false; }}
     >
-      <div className="bg-[#0f0f0f] border border-gray-800 w-full max-w-lg p-7 relative overflow-y-auto max-h-[90vh]">
-        <button onClick={onClose} className="absolute top-4 right-4 w-8 h-8 border border-gray-700 text-gray-500 hover:border-red-600 hover:text-white flex items-center justify-center transition-colors">✕</button>
-        <div className="w-8 h-1 bg-red-600 mb-4" />
-        <h2 className="text-xl font-black text-white mb-5">Add Job to Calendar</h2>
+      <div className="bg-[#0f0f0f] border border-gray-800 w-full max-w-2xl p-7 relative overflow-y-auto max-h-[90vh]">
+        <button onClick={onClose} className="absolute top-4 right-4 w-8 h-8 border border-gray-700 text-gray-500 hover:border-blue-600 hover:text-white flex items-center justify-center transition-colors">✕</button>
+        <div className="w-8 h-1 bg-blue-500 mb-4" />
 
-        <div className="space-y-3">
-          <div className="grid grid-cols-2 gap-3">
-            {inp('fname', 'First Name *', 'text', 'John')}
-            {inp('lname', 'Last Name', 'text', 'Smith')}
-            {inp('phone', 'Phone *', 'tel', '480-555-0100')}
-            {inp('email', 'Email', 'email', 'customer@email.com')}
-          </div>
+        {mode === 'loading' && (
+          <p className="text-gray-600 text-xs font-bold uppercase tracking-widest py-8 text-center">Loading…</p>
+        )}
 
-          {inp('vehicle', 'Vehicle * (Year Make Model Trim)', 'text', '2019 Toyota Camry LE')}
+        {mode === 'picker' && (
+          <>
+            <h2 className="text-xl font-black text-white mb-1">Pre-Purchase Inspection</h2>
+            <p className="text-gray-500 text-xs mb-5">Standard PPI checklist for any vehicle — VIN, customer info, and a full pass/fail walkthrough.</p>
 
-          <div>
-            <label className={`block text-xs font-bold uppercase tracking-wider mb-1 ${fieldErr.service ? 'text-red-500' : 'text-gray-500'}`}>Service *</label>
-            <select
-              value={f.service}
-              onChange={e => set('service', e.target.value)}
-              className={`w-full bg-gray-900 text-white text-sm px-3 py-2.5 outline-none border transition-colors ${fieldErr.service ? 'border-red-500' : 'border-gray-700 focus:border-red-600'}`}
-            >
-              {ADD_JOB_SERVICES.map(sv => (
-                <option key={sv.id} value={sv.id}>{sv.label}</option>
-              ))}
-            </select>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className={`block text-xs font-bold uppercase tracking-wider mb-1 ${fieldErr.date ? 'text-red-500' : 'text-gray-500'}`}>Date *</label>
-              <input
-                type="date"
-                value={f.date}
-                onChange={e => set('date', e.target.value)}
-                className={`w-full bg-gray-900 text-white text-sm px-3 py-2.5 outline-none border transition-colors ${fieldErr.date ? 'border-red-500' : 'border-gray-700 focus:border-red-600'}`}
-              />
-              {fieldErr.date && <p className="text-red-500 text-[10px] mt-0.5">{fieldErr.date}</p>}
-            </div>
-            <div>
-              <label className={`block text-xs font-bold uppercase tracking-wider mb-1 ${fieldErr.time ? 'text-red-500' : 'text-gray-500'}`}>Time *</label>
-              <input
-                type="time"
-                value={f.time}
-                onChange={e => set('time', e.target.value)}
-                className={`w-full bg-gray-900 text-white text-sm px-3 py-2.5 outline-none border transition-colors ${fieldErr.time ? 'border-red-500' : 'border-gray-700 focus:border-red-600'}`}
-              />
-              {fieldErr.time && <p className="text-red-500 text-[10px] mt-0.5">{fieldErr.time}</p>}
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-gray-500 text-xs font-bold uppercase tracking-wider mb-1">Notes / Problem Description</label>
-            <textarea
-              value={f.notes}
-              onChange={e => set('notes', e.target.value)}
-              rows={3}
-              placeholder="Customer complaint, symptoms, special instructions..."
-              className="w-full bg-gray-900 border border-gray-700 text-white text-sm px-3 py-2.5 outline-none focus:border-red-600 transition-colors resize-y"
-            />
-          </div>
-
-          {err && <div className="bg-red-950/50 border border-red-700 text-red-400 text-sm px-4 py-3">{err}</div>}
-
-          <div className="flex gap-3 pt-2">
-            <button onClick={onClose} className="flex-1 border border-gray-700 text-gray-400 hover:border-gray-500 text-xs font-bold uppercase tracking-widest py-3 transition-colors">Cancel</button>
             <button
-              onClick={handleSave}
-              disabled={saving}
-              className={`flex-1 bg-red-600 hover:bg-red-500 text-white text-xs font-bold uppercase tracking-widest py-3 transition-colors ${saving ? 'opacity-50 cursor-not-allowed' : ''}`}
+              onClick={startNew}
+              className="w-full bg-blue-600 hover:bg-blue-500 text-white text-sm font-bold uppercase tracking-widest py-3.5 transition-colors mb-5 flex items-center justify-center gap-2"
             >
-              {saving ? 'Saving…' : 'Add Job'}
+              <span className="text-base leading-none">+</span> Start New Inspection
             </button>
-          </div>
-        </div>
+
+            {drafts.length > 0 && (
+              <>
+                <p className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-2">Resume a saved inspection</p>
+                <div className="space-y-1.5">
+                  {drafts.map(d => (
+                    <button
+                      key={d.id}
+                      onClick={() => resumeDraft(d)}
+                      className="w-full text-left bg-gray-900 border border-gray-800 hover:border-blue-700 px-4 py-3 transition-colors flex items-center justify-between gap-3"
+                    >
+                      <div className="min-w-0">
+                        <p className="text-white text-sm font-bold truncate">{d.fname} {d.lname} {d.vin && <span className="text-gray-500 font-mono text-xs ml-1">{d.vin}</span>}</p>
+                        <p className="text-gray-500 text-xs truncate">{d.vehicle || 'No vehicle info yet'}</p>
+                      </div>
+                      <span className="text-gray-600 text-[10px] font-bold uppercase tracking-wider flex-shrink-0">Resume →</span>
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+          </>
+        )}
+
+        {mode === 'form' && record && (
+          <>
+            <h2 className="text-xl font-black text-white mb-1">Pre-Purchase Inspection</h2>
+            <p className="text-gray-500 text-xs mb-5">Fill out what you can now — save and come back anytime before completing.</p>
+
+            <div className="grid grid-cols-2 gap-3 mb-3">
+              {inp('vin', 'VIN', { placeholder: '1FTFW1E5...', uppercase: true })}
+              {inp('vehicle', 'Vehicle (Year / Make / Model)', { placeholder: '2019 Ford F-150' })}
+            </div>
+            <div className="grid grid-cols-2 gap-3 mb-3">
+              {inp('fname', 'Customer First Name')}
+              {inp('lname', 'Customer Last Name')}
+            </div>
+            <div className="grid grid-cols-2 gap-3 mb-6">
+              {inp('phone', 'Phone', { type: 'tel', placeholder: '(555) 555-5555' })}
+              {inp('email', 'Email', { type: 'email', placeholder: 'customer@email.com' })}
+            </div>
+
+            <div className="space-y-5 mb-6">
+              {grouped.map(([category, items]) => (
+                <div key={category}>
+                  <p className="text-blue-400 text-xs font-bold uppercase tracking-widest mb-2 border-b border-gray-800 pb-1.5">{category}</p>
+                  <div className="space-y-2">
+                    {items.map(it => (
+                      <div key={it.id} className="bg-gray-900/60 border border-gray-800 px-3 py-2.5">
+                        <div className="flex items-center justify-between gap-3 mb-1.5">
+                          <p className="text-gray-300 text-xs flex-1">{it.label}</p>
+                          <div className="flex gap-1 flex-shrink-0">
+                            {(['pass', 'fail', 'na'] as PPIItemStatus[]).map(s => (
+                              <button
+                                key={s}
+                                type="button"
+                                onClick={() => setItem(it.id, { status: it.status === s ? '' : s })}
+                                className={`w-9 py-1 text-[10px] font-bold uppercase tracking-wider border transition-colors ${
+                                  it.status === s
+                                    ? s === 'pass' ? 'bg-emerald-600 border-emerald-600 text-white'
+                                    : s === 'fail' ? 'bg-red-600 border-red-600 text-white'
+                                    : 'bg-gray-600 border-gray-600 text-white'
+                                    : 'border-gray-700 text-gray-600 hover:text-white hover:border-gray-500'
+                                }`}
+                              >
+                                {s === 'na' ? 'N/A' : s === 'pass' ? '✓' : '✕'}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                        {it.status === 'fail' && (
+                          <input
+                            type="text"
+                            value={it.note}
+                            onChange={e => setItem(it.id, { note: e.target.value })}
+                            placeholder="Note what's wrong…"
+                            className="w-full bg-gray-950 border border-red-900/50 text-white text-xs px-2.5 py-1.5 outline-none focus:border-red-600"
+                          />
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <label className="block text-xs font-bold uppercase tracking-wider mb-1 text-gray-500">Overall Notes</label>
+            <textarea
+              value={record.overallNotes}
+              onChange={e => setField('overallNotes', e.target.value)}
+              rows={3}
+              placeholder="Summary, recommendations, anything worth flagging up front…"
+              className="w-full bg-gray-900 border border-gray-700 text-white text-sm px-3 py-2.5 outline-none focus:border-blue-600 mb-5 resize-none"
+            />
+
+            {err && <p className="text-red-500 text-xs mb-3">{err}</p>}
+
+            <div className="flex gap-2">
+              <button
+                onClick={handleSaveAndClose}
+                disabled={saving || completing}
+                className={`flex-1 border text-sm font-bold uppercase tracking-widest py-3 transition-colors disabled:opacity-50 ${savedFlash ? 'border-emerald-600 text-emerald-400' : 'border-gray-700 hover:border-white text-white'}`}
+              >
+                {savedFlash ? '✓ Saved' : saving ? 'Saving…' : 'Save & Close'}
+              </button>
+              <button
+                onClick={handleComplete}
+                disabled={saving || completing}
+                className="flex-1 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white text-sm font-bold uppercase tracking-widest py-3 transition-colors"
+              >
+                {completing ? 'Completing…' : 'Complete Inspection'}
+              </button>
+            </div>
+          </>
+        )}
+
+        {mode === 'done' && record && (
+          <>
+            <h2 className="text-xl font-black text-white mb-1">✓ Inspection Complete</h2>
+            <p className="text-gray-500 text-xs mb-5">{record.fname} {record.lname} · {record.vehicle} · <span className="font-mono">{record.vin}</span></p>
+
+            <label className="block text-xs font-bold uppercase tracking-wider mb-1 text-gray-500">PrePI Link</label>
+            <div className="flex gap-2 mb-3">
+              <input
+                readOnly
+                value={docUrl}
+                onClick={e => (e.target as HTMLInputElement).select()}
+                className="flex-1 bg-gray-900 border border-gray-700 text-gray-300 text-xs px-3 py-2.5 outline-none font-mono"
+              />
+              <button
+                onClick={copyLink}
+                className={`px-4 py-2.5 text-xs font-bold uppercase tracking-widest transition-colors flex-shrink-0 ${copied ? 'bg-emerald-600 text-white' : 'bg-gray-800 text-white hover:bg-gray-700'}`}
+              >
+                {copied ? '✓ Copied' : 'Copy'}
+              </button>
+            </div>
+
+            <button
+              onClick={exportPPI}
+              className="w-full border border-gray-700 hover:border-blue-600 text-white text-xs font-bold uppercase tracking-widest py-2.5 transition-colors mb-5"
+            >
+              Export / Print PPI
+            </button>
+
+            <label className="block text-xs font-bold uppercase tracking-wider mb-1 text-gray-500">Or send it to an email</label>
+            <div className="flex gap-2 mb-2">
+              <input
+                type="email"
+                value={sendTo}
+                onChange={e => { setSendTo(e.target.value); setSentOk(false); }}
+                placeholder="customer@email.com"
+                className="flex-1 bg-gray-900 border border-gray-700 text-white text-sm px-3 py-2.5 outline-none focus:border-blue-600"
+              />
+              <button
+                onClick={handleSendEmail}
+                disabled={sending || !sendTo}
+                className={`px-4 py-2.5 text-xs font-bold uppercase tracking-widest transition-colors flex-shrink-0 disabled:opacity-50 ${sentOk ? 'bg-emerald-600 text-white' : 'bg-blue-600 hover:bg-blue-500 text-white'}`}
+              >
+                {sending ? 'Sending…' : sentOk ? '✓ Sent' : 'Send'}
+              </button>
+            </div>
+            {err && <p className="text-red-500 text-xs mb-3">{err}</p>}
+
+            <button
+              onClick={onClose}
+              className="w-full border border-gray-700 hover:border-blue-600 text-white text-sm font-bold uppercase tracking-widest py-3 transition-colors mt-4"
+            >
+              Done
+            </button>
+          </>
+        )}
       </div>
     </div>
   );
@@ -4386,7 +4679,7 @@ export function JobsTab() {
   const [selected, setSelected] = useState<Job | null>(null);
   const [search, setSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState<JobStatus | 'ALL'>('ALL');
-  const [showAddJob, setShowAddJob] = useState(false);
+  const [showPrePI, setShowPrePI] = useState(false);
   const [showExternalLead, setShowExternalLead] = useState(false);
   const [revenueView, setRevenueView] = useState<'month' | 'year'>('month');
   const [netProfitView, setNetProfitView] = useState<'month' | 'year'>('month');
@@ -4661,10 +4954,10 @@ export function JobsTab() {
           </span>
         )}
         <button
-          onClick={() => setShowAddJob(true)}
-          className="bg-red-600 hover:bg-red-500 text-white text-xs font-bold uppercase tracking-widest px-4 py-2 transition-colors flex items-center gap-1.5 flex-shrink-0"
+          onClick={() => setShowPrePI(true)}
+          className="bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold uppercase tracking-widest px-4 py-2 transition-colors flex items-center gap-1.5 flex-shrink-0"
         >
-          <span className="text-base leading-none">+</span> Add Job
+          <span className="text-base leading-none">🔍</span> PrePI
         </button>
         <button
           onClick={() => setShowExternalLead(true)}
@@ -4742,11 +5035,8 @@ export function JobsTab() {
         />
       )}
 
-      {showAddJob && (
-        <AddJobModal
-          onClose={() => setShowAddJob(false)}
-          onAdded={job => { setJobs(prev => [job, ...prev]); setSelected(job); }}
-        />
+      {showPrePI && (
+        <PrePIModal onClose={() => setShowPrePI(false)} />
       )}
       {showExternalLead && (
         <ExternalLeadModal
@@ -5658,6 +5948,147 @@ const SEED_NOTES: Record<string, string[]> = {
   misc: [],
 };
 
+// ── PRE-PURCHASE INSPECTION PAGE (customer/public-facing) ────────────────────
+// Read-only view of a completed (or in-progress) PPI. Same print pattern as
+// InvoicePage/EstimatePage — window.print() -> Save as PDF is the export.
+export function PPIPage() {
+  useGlobalErrorReporting({ page: 'public-ppi' });
+  const params = new URLSearchParams(window.location.search);
+  const ppiId = params.get('id');
+  const [record, setRecord] = useState<PPIRecord | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [notFound, setNotFound] = useState(false);
+
+  useEffect(() => {
+    if (!ppiId) { setNotFound(true); setLoading(false); return; }
+    getPPIPublic(ppiId).then(r => {
+      if (!r) setNotFound(true);
+      else setRecord(r);
+      setLoading(false);
+    });
+  }, [ppiId]);
+
+  if (loading) return (
+    <div className="min-h-screen bg-[#0f0f0f] flex items-center justify-center">
+      <p className="text-gray-600 text-sm font-bold uppercase tracking-widest">Loading…</p>
+    </div>
+  );
+
+  if (notFound || !record) return (
+    <div className="min-h-screen bg-[#0f0f0f] flex items-center justify-center px-4">
+      <div className="text-center">
+        <div className="text-4xl mb-4">⚠️</div>
+        <h1 className="text-white text-2xl font-black mb-3">Inspection Not Found</h1>
+        <p className="text-gray-500 text-sm mb-6">This link may be invalid. Please call us.</p>
+        <a href="tel:4807570476" className="inline-block bg-blue-600 text-white text-xs font-bold uppercase tracking-widest px-8 py-4">Call 480-757-0476</a>
+      </div>
+    </div>
+  );
+
+  const grouped = Object.entries(
+    record.checklist.reduce<Record<string, PPIChecklistItem[]>>((acc, it) => {
+      (acc[it.category] ||= []).push(it);
+      return acc;
+    }, {})
+  );
+  const failCount = record.checklist.filter(it => it.status === 'fail').length;
+  const completedDateStr = record.completedAt
+    ? new Date(record.completedAt).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })
+    : null;
+
+  const statusPill = (s: PPIItemStatus) => {
+    if (s === 'pass') return <span className="text-emerald-400 bg-emerald-900/30 text-[10px] font-bold uppercase tracking-wider px-2.5 py-1">Pass</span>;
+    if (s === 'fail') return <span className="text-red-400 bg-red-900/30 text-[10px] font-bold uppercase tracking-wider px-2.5 py-1">Fail</span>;
+    if (s === 'na') return <span className="text-gray-500 bg-gray-800/50 text-[10px] font-bold uppercase tracking-wider px-2.5 py-1">N/A</span>;
+    return <span className="text-gray-600 bg-gray-800/30 text-[10px] font-bold uppercase tracking-wider px-2.5 py-1">Not Checked</span>;
+  };
+
+  return (
+    <div className="min-h-screen bg-[#0f0f0f] py-12 px-4 print:py-0 print:px-0 print:min-h-0">
+      <style>{`
+        @media print {
+          @page { margin: 8mm; size: letter; }
+          html, body, #root {
+            background: #0f0f0f !important;
+            background-color: #0f0f0f !important;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+          }
+          .no-print { display: none !important; }
+          .print-full { max-width: 100% !important; width: 100% !important; margin: 0 !important; padding: 0 24px !important; }
+          .print-banner { max-height: 80px !important; width: auto !important; display: block !important; }
+          table { page-break-inside: avoid; }
+          .page-break-avoid { page-break-inside: avoid; }
+        }
+      `}</style>
+      <div className="max-w-2xl mx-auto print-full">
+        <div className="bg-gray-950 border border-gray-800">
+          <div className="border-b border-red-700 bg-gray-900">
+            <img src="/banner.PNG" alt="GID Garage" className="w-full h-auto block print-banner" />
+          </div>
+          <div className="p-8">
+            <div className="flex items-start justify-between mb-6 flex-wrap gap-2">
+              <div>
+                <h1 className="text-white text-2xl font-black mb-1">Pre-Purchase Inspection</h1>
+                <p className="text-gray-500 text-xs">{record.status === 'COMPLETE' ? `Completed ${completedDateStr}` : 'In Progress — not yet finalized'}</p>
+              </div>
+              {record.status === 'COMPLETE' && (
+                <span className={`text-xs font-bold uppercase tracking-widest px-3 py-1.5 ${failCount === 0 ? 'bg-emerald-900/30 text-emerald-400' : 'bg-yellow-900/30 text-yellow-400'}`}>
+                  {failCount === 0 ? 'No Issues Found' : `${failCount} Item${failCount === 1 ? '' : 's'} Flagged`}
+                </span>
+              )}
+            </div>
+
+            <div className="bg-gray-900 border border-gray-700 border-l-4 border-l-blue-600 px-5 py-4 mb-8">
+              <table className="w-full">
+                <tbody>
+                  <tr><td className="text-gray-500 text-xs font-bold uppercase tracking-wider py-1">VIN</td><td className="text-white text-sm text-right font-mono py-1">{record.vin || '—'}</td></tr>
+                  <tr><td className="text-gray-500 text-xs font-bold uppercase tracking-wider py-1">Vehicle</td><td className="text-white text-sm text-right py-1">{record.vehicle || '—'}</td></tr>
+                  <tr><td className="text-gray-500 text-xs font-bold uppercase tracking-wider py-1">Customer</td><td className="text-white text-sm text-right py-1">{record.fname} {record.lname}</td></tr>
+                  {record.phone && <tr><td className="text-gray-500 text-xs font-bold uppercase tracking-wider py-1">Phone</td><td className="text-white text-sm text-right py-1">{record.phone}</td></tr>}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="space-y-6 mb-8">
+              {grouped.map(([category, items]) => (
+                <div key={category} className="page-break-avoid">
+                  <p className="text-blue-400 text-xs font-bold uppercase tracking-widest mb-2 border-b border-gray-800 pb-1.5">{category}</p>
+                  <div className="space-y-1.5">
+                    {items.map(it => (
+                      <div key={it.id}>
+                        <div className="flex items-center justify-between gap-3 py-1">
+                          <p className="text-gray-300 text-xs flex-1">{it.label}</p>
+                          {statusPill(it.status)}
+                        </div>
+                        {it.status === 'fail' && it.note && (
+                          <p className="text-red-400 text-xs pl-3 pb-1.5 italic">— {it.note}</p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {record.overallNotes && (
+              <div className="bg-gray-900 border border-gray-700 px-5 py-4 mb-8">
+                <p className="text-gray-500 text-[10px] font-bold uppercase tracking-widest mb-2">Overall Notes</p>
+                <p className="text-gray-300 text-sm whitespace-pre-wrap">{record.overallNotes}</p>
+              </div>
+            )}
+
+            <button onClick={() => window.print()} className="no-print w-full border border-gray-700 text-gray-400 hover:border-white hover:text-white text-xs font-bold uppercase tracking-widest py-3 transition-colors">
+              Export / Print This Inspection
+            </button>
+            <p className="text-gray-700 text-[11px] text-center mt-4">Questions? Call or text <span className="text-gray-500">480-757-0476</span> · GID Garage · Flagstaff, AZ</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function usePersistentNotes(categoryId: string) {
   const [notes, setNotes] = useState<HubNote[]>([]);
   const [loading, setLoading] = useState(true);
@@ -6510,28 +6941,68 @@ function revenueEntriesFor(b: any): { date: string; amount: number }[] {
   return [];
 }
 
-function LineGraph({ points, valueFmt }: { points: { label: string; value: number }[]; valueFmt: (n: number) => string }) {
+// Net profit, same methodology as JobsTab's monthNetProfit/yearNetProfit:
+// revenue collected minus parts cost, attributed as a lump sum to paid_at
+// (parts cost doesn't split across partial payments the way revenue does).
+function netProfitEntriesFor(b: any): { date: string; amount: number }[] {
+  if (!b.paid_at) return [];
+  const payments = b.payments
+    ? (typeof b.payments === 'string' ? JSON.parse(b.payments) : b.payments)
+    : [];
+  const loggedTotal = payments.reduce((s: number, p: any) => s + (Number(p.amount) || 0), 0);
+  const invoiceTotal = (Number(b.invoice_amount) || 0) + (Number(b.tax_amount) || 0);
+  const paid = payments.length && loggedTotal >= invoiceTotal - 0.01 ? loggedTotal : invoiceTotal;
+  return [{ date: b.paid_at, amount: paid - (Number(b.parts_cost) || 0) }];
+}
+
+function LineGraph({ points, points2, series2Label, series2Color, valueFmt }: {
+  points: { label: string; value: number }[];
+  points2?: { label: string; value: number }[];
+  series2Label?: string;
+  series2Color?: string;
+  valueFmt: (n: number) => string;
+}) {
   const [hover, setHover] = useState<number | null>(null);
   const W = 600, H = 220, PAD_L = 8, PAD_R = 8, PAD_T = 16, PAD_B = 28;
   const innerW = W - PAD_L - PAD_R, innerH = H - PAD_T - PAD_B;
-  const max = Math.max(1, ...points.map(p => p.value));
+  const s2Color = series2Color || '#3b82f6';
+  const allValues = points.map(p => p.value).concat((points2 || []).map(p => p.value));
+  // Net profit can dip negative in a given period, so scale on a real
+  // min/max domain instead of assuming a zero floor like the old
+  // revenue-only version did.
+  const max = Math.max(1, ...allValues);
+  const min = Math.min(0, ...allValues);
+  const range = max - min || 1;
   const n = points.length;
   const x = (i: number) => PAD_L + (n <= 1 ? innerW / 2 : (innerW * i) / (n - 1));
-  const y = (v: number) => PAD_T + innerH - (innerH * v) / max;
+  const y = (v: number) => PAD_T + innerH - (innerH * (v - min)) / range;
+  const zeroY = y(0);
   const linePath = points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${x(i).toFixed(1)} ${y(p.value).toFixed(1)}`).join(' ');
-  const areaPath = `${linePath} L ${x(n - 1).toFixed(1)} ${(PAD_T + innerH).toFixed(1)} L ${x(0).toFixed(1)} ${(PAD_T + innerH).toFixed(1)} Z`;
+  const areaPath = `${linePath} L ${x(n - 1).toFixed(1)} ${zeroY.toFixed(1)} L ${x(0).toFixed(1)} ${zeroY.toFixed(1)} Z`;
+  const line2Path = points2 && points2.length
+    ? points2.map((p, i) => `${i === 0 ? 'M' : 'L'} ${x(i).toFixed(1)} ${y(p.value).toFixed(1)}`).join(' ')
+    : '';
   // Show every label if there are few points (months), thin them out for days
   const labelStep = n <= 12 ? 1 : Math.ceil(n / 8);
 
   return (
     <div className="relative">
+      {points2 && points2.length > 0 && (
+        <div className="flex items-center gap-4 mb-2 text-[10px] font-bold uppercase tracking-wider">
+          <span className="flex items-center gap-1.5 text-emerald-400"><span className="w-2.5 h-2.5 rounded-full bg-emerald-400 inline-block" /> Revenue</span>
+          <span className="flex items-center gap-1.5" style={{ color: s2Color }}><span className="w-2.5 h-2.5 rounded-full inline-block" style={{ background: s2Color }} /> {series2Label || 'Net Profit'}</span>
+        </div>
+      )}
       <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto touch-none" preserveAspectRatio="none">
         {/* horizontal gridlines */}
         {[0, 0.25, 0.5, 0.75, 1].map(f => (
           <line key={f} x1={PAD_L} x2={W - PAD_R} y1={PAD_T + innerH * (1 - f)} y2={PAD_T + innerH * (1 - f)} stroke="#1f2937" strokeWidth="1" />
         ))}
+        {/* zero baseline, only meaningful/visible when a series actually dips negative */}
+        {min < 0 && <line x1={PAD_L} x2={W - PAD_R} y1={zeroY} y2={zeroY} stroke="#374151" strokeWidth="1" strokeDasharray="3,3" />}
         <path d={areaPath} fill="url(#revGrad)" opacity="0.25" />
         <path d={linePath} fill="none" stroke="#34d399" strokeWidth="2.5" />
+        {line2Path && <path d={line2Path} fill="none" stroke={s2Color} strokeWidth="2.5" />}
         <defs>
           <linearGradient id="revGrad" x1="0" y1="0" x2="0" y2="1">
             <stop offset="0%" stopColor="#34d399" stopOpacity="0.8" />
@@ -6541,6 +7012,9 @@ function LineGraph({ points, valueFmt }: { points: { label: string; value: numbe
         {points.map((p, i) => (
           <g key={i}>
             <circle cx={x(i)} cy={y(p.value)} r={hover === i ? 5 : 3} fill="#34d399" stroke="#052e21" strokeWidth="1.5" />
+            {points2 && points2[i] && (
+              <circle cx={x(i)} cy={y(points2[i].value)} r={hover === i ? 5 : 3} fill={s2Color} stroke="#0f172a" strokeWidth="1.5" />
+            )}
             {/* invisible wide hit area for touch/hover */}
             <rect
               x={x(i) - (innerW / n) / 2} y={PAD_T} width={innerW / n || innerW} height={innerH}
@@ -6558,9 +7032,12 @@ function LineGraph({ points, valueFmt }: { points: { label: string; value: numbe
         ))}
       </svg>
       {hover !== null && points[hover] && (
-        <div className="absolute top-1 right-1 bg-gray-950 border border-emerald-800 px-2.5 py-1.5 text-right pointer-events-none">
+        <div className="absolute top-1 right-1 bg-gray-950 border border-emerald-800 px-2.5 py-1.5 text-right pointer-events-none space-y-0.5">
           <p className="text-gray-500 text-[10px] font-bold uppercase tracking-wider">{points[hover].label}</p>
           <p className="text-emerald-400 text-sm font-mono font-bold">{valueFmt(points[hover].value)}</p>
+          {points2 && points2[hover] && (
+            <p className="text-sm font-mono font-bold" style={{ color: s2Color }}>{valueFmt(points2[hover].value)}</p>
+          )}
         </div>
       )}
     </div>
@@ -6583,41 +7060,60 @@ function RevenuePanel() {
   if (loading) return <p className="text-gray-600 text-xs py-8 text-center animate-pulse">Loading revenue…</p>;
 
   const allEntries = rows.flatMap(revenueEntriesFor).filter(e => e.date);
+  const allNetProfitEntries = rows.flatMap(netProfitEntriesFor).filter(e => e.date);
 
   const now = new Date();
   const targetMonthDate = new Date(now.getFullYear(), now.getMonth() + monthOffset, 1);
   const targetYear = now.getFullYear() + yearOffset;
 
   let points: { label: string; value: number }[] = [];
+  let netProfitPoints: { label: string; value: number }[] = [];
   let periodLabel = '';
   let periodTotal = 0;
+  let periodNetProfitTotal = 0;
 
   if (mode === 'month') {
     const y = targetMonthDate.getFullYear(), m = targetMonthDate.getMonth();
     const daysInMonth = new Date(y, m + 1, 0).getDate();
     const dailyTotals = new Array(daysInMonth).fill(0);
+    const dailyNetProfitTotals = new Array(daysInMonth).fill(0);
     for (const e of allEntries) {
       const d = new Date(e.date);
       if (d.getFullYear() === y && d.getMonth() === m) dailyTotals[d.getDate() - 1] += e.amount;
     }
+    for (const e of allNetProfitEntries) {
+      const d = new Date(e.date);
+      if (d.getFullYear() === y && d.getMonth() === m) dailyNetProfitTotals[d.getDate() - 1] += e.amount;
+    }
     let running = 0;
     points = dailyTotals.map((amt, i) => { running += amt; return { label: String(i + 1), value: Math.round(running * 100) / 100 }; });
+    let runningNP = 0;
+    netProfitPoints = dailyNetProfitTotals.map((amt, i) => { runningNP += amt; return { label: String(i + 1), value: Math.round(runningNP * 100) / 100 }; });
     periodLabel = targetMonthDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
     periodTotal = running;
+    periodNetProfitTotal = runningNP;
   } else {
     const monthTotals = new Array(12).fill(0);
+    const monthNetProfitTotals = new Array(12).fill(0);
     for (const e of allEntries) {
       const d = new Date(e.date);
       if (d.getFullYear() === targetYear) monthTotals[d.getMonth()] += e.amount;
     }
+    for (const e of allNetProfitEntries) {
+      const d = new Date(e.date);
+      if (d.getFullYear() === targetYear) monthNetProfitTotals[d.getMonth()] += e.amount;
+    }
     let running = 0;
     const MONTH_ABBR = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
     points = monthTotals.map((amt, i) => { running += amt; return { label: MONTH_ABBR[i], value: Math.round(running * 100) / 100 }; });
+    let runningNP = 0;
+    netProfitPoints = monthNetProfitTotals.map((amt, i) => { runningNP += amt; return { label: MONTH_ABBR[i], value: Math.round(runningNP * 100) / 100 }; });
     periodLabel = String(targetYear);
     periodTotal = running;
+    periodNetProfitTotal = runningNP;
   }
 
-  const hasAnyData = points.some(p => p.value > 0);
+  const hasAnyData = points.some(p => p.value > 0) || netProfitPoints.some(p => p.value !== 0);
 
   return (
     <div>
@@ -6642,6 +7138,7 @@ function RevenuePanel() {
         <div className="text-center">
           <p className="text-white text-sm font-black">{periodLabel}</p>
           <p className="text-emerald-400 text-lg font-mono font-black">${periodTotal.toFixed(2)}</p>
+          <p className="text-blue-400 text-xs font-mono font-bold">${periodNetProfitTotal.toFixed(2)} net</p>
         </div>
         <button
           onClick={() => mode === 'month' ? setMonthOffset(o => Math.min(0, o + 1)) : setYearOffset(o => Math.min(0, o + 1))}
@@ -6653,13 +7150,13 @@ function RevenuePanel() {
       {/* Graph */}
       <div className="border border-gray-800 bg-gray-900/40 p-3">
         {hasAnyData ? (
-          <LineGraph points={points} valueFmt={n => `$${n.toFixed(2)}`} />
+          <LineGraph points={points} points2={netProfitPoints} series2Label="Net Profit" series2Color="#3b82f6" valueFmt={n => `$${n.toFixed(2)}`} />
         ) : (
           <p className="text-gray-700 text-xs italic py-16 text-center">No paid revenue in this period.</p>
         )}
       </div>
       <p className="text-gray-700 text-[10px] mt-2">
-        {mode === 'month' ? 'Cumulative revenue by day of month.' : 'Cumulative revenue by month of year.'} Tap/hover a point for that day/month's running total.
+        {mode === 'month' ? 'Cumulative revenue and net profit by day of month.' : 'Cumulative revenue and net profit by month of year.'} Tap/hover a point for that day/month's running totals.
       </p>
     </div>
   );
