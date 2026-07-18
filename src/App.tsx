@@ -949,6 +949,50 @@ function CancelPage({ bookingId, token }: { bookingId: string; token: string }) 
   );
 }
 
+function PrivacyPolicyPage() {
+  return (
+    <div className="bg-dark text-dark min-h-screen font-sans">
+      <div className="max-w-3xl mx-auto px-6 py-16">
+        <a href="/" className="text-orange-500 text-sm font-bold">← Back to GID Garage</a>
+        <h1 className="text-3xl md:text-4xl font-black text-white mt-6 mb-2">Privacy Policy</h1>
+        <p className="text-gray-500 text-sm mb-10">Last updated: July 18, 2026</p>
+
+        <div className="space-y-8 text-gray-300 text-sm leading-relaxed">
+          <section>
+            <h2 className="text-white font-bold text-lg mb-2">Who We Are</h2>
+            <p>GID Garage (operated by Echiverri Holdings LLC) is a mobile mechanic business serving Flagstaff, Arizona and the surrounding area. This policy explains how we collect, use, and protect the information you share with us.</p>
+          </section>
+
+          <section>
+            <h2 className="text-white font-bold text-lg mb-2">Information We Collect</h2>
+            <p>When you request a quote, book a service, or submit a lead form (including forms on Facebook/Instagram), we may collect your name, phone number, email address, vehicle information, and details about the issue you're experiencing.</p>
+          </section>
+
+          <section>
+            <h2 className="text-white font-bold text-lg mb-2">How We Use Your Information</h2>
+            <p>We use this information solely to contact you about your vehicle service request, provide quotes, schedule appointments, and follow up on completed work. We do not sell your information to third parties.</p>
+          </section>
+
+          <section>
+            <h2 className="text-white font-bold text-lg mb-2">How We Contact You</h2>
+            <p>We may contact you by phone call, text message, or email using the information you provide. Message and data rates may apply.</p>
+          </section>
+
+          <section>
+            <h2 className="text-white font-bold text-lg mb-2">Data Sharing</h2>
+            <p>We do not share your personal information with third parties, except as necessary to provide our services (e.g. payment processing) or as required by law.</p>
+          </section>
+
+          <section>
+            <h2 className="text-white font-bold text-lg mb-2">Contact Us</h2>
+            <p>If you have questions about this policy or want your information removed from our records, contact us at <a href="mailto:michael@gidgarage.com" className="text-orange-500">michael@gidgarage.com</a>.</p>
+          </section>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function App() {
   const [bookingServiceId, setBookingServiceId] = useState<string | null>(null);
   const [modalOpen, setModalOpen] = useState(window.location.pathname === '/bookings');
@@ -963,6 +1007,7 @@ export default function App() {
   const isGames = window.location.pathname === '/games';
   const isGameRedeem = window.location.pathname === '/game-redeem';
   const isServiceArea = window.location.pathname === '/service-area';
+  const isPrivacy = window.location.pathname === '/privacy';
 
   function handleBookService(id: string) {
     setBookingServiceId(id);
@@ -981,6 +1026,7 @@ export default function App() {
   if (isGames) return <GamesPage />;
   if (isGameRedeem) return <GameRedeem />;
   if (isServiceArea) return <ServiceAreaPage slug={params.get('town') ?? ''} />;
+  if (isPrivacy) return <PrivacyPolicyPage />;
   if (cancelId && cancelToken) return <CancelPage bookingId={cancelId} token={cancelToken} />;
 
   return (
