@@ -959,33 +959,90 @@ function PrivacyPolicyPage() {
 
         <div className="space-y-8 text-gray-300 text-sm leading-relaxed">
           <section>
-            <h2 className="text-white font-bold text-lg mb-2">Who We Are</h2>
-            <p>GID Garage (operated by Echiverri Holdings LLC) is a mobile mechanic business serving Flagstaff, Arizona and the surrounding area. This policy explains how we collect, use, and protect the information you share with us.</p>
+            <h2 className="text-white font-bold text-lg mb-2">1. Who We Are</h2>
+            <p>GID Garage ("we," "us," "our") is a mobile mechanic business operated by Echiverri Holdings LLC, serving Flagstaff, Arizona and the surrounding area. This policy explains what information we collect, how we use it, who we share it with, and the choices you have. It applies to gidgarage.com, our booking and admin tools, and any lead forms we run on third-party platforms (including Meta/Facebook/Instagram, Google, and Nextdoor).</p>
           </section>
 
           <section>
-            <h2 className="text-white font-bold text-lg mb-2">Information We Collect</h2>
-            <p>When you request a quote, book a service, or submit a lead form (including forms on Facebook/Instagram), we may collect your name, phone number, email address, vehicle information, and details about the issue you're experiencing.</p>
+            <h2 className="text-white font-bold text-lg mb-2">2. Information We Collect</h2>
+            <p className="mb-2">We collect information you provide directly, including:</p>
+            <ul className="list-disc pl-5 space-y-1">
+              <li>Name, phone number, email address, and service address</li>
+              <li>Vehicle information (year, make, model, mileage, VIN where provided)</li>
+              <li>Details about the issue or service you're requesting</li>
+              <li>Payment and billing information (processed securely by Stripe — see Section 5)</li>
+              <li>Photos or diagnostic scan data related to your vehicle, when applicable</li>
+              <li>Communications between you and us (texts, emails, calls)</li>
+            </ul>
+            <p className="mt-2">We also automatically collect limited technical information when you visit our site or interact with our booking tools, such as IP address, browser type, device type, and general usage/error data (see Section 4).</p>
           </section>
 
           <section>
-            <h2 className="text-white font-bold text-lg mb-2">How We Use Your Information</h2>
-            <p>We use this information solely to contact you about your vehicle service request, provide quotes, schedule appointments, and follow up on completed work. We do not sell your information to third parties.</p>
+            <h2 className="text-white font-bold text-lg mb-2">3. How We Use Your Information</h2>
+            <p className="mb-2">We use your information to:</p>
+            <ul className="list-disc pl-5 space-y-1">
+              <li>Provide quotes, schedule and perform vehicle services, and process payments</li>
+              <li>Contact you about your appointment, estimate, or invoice</li>
+              <li>Send appointment reminders, service follow-ups, and review requests</li>
+              <li>Maintain records for warranty, accounting, and legal purposes</li>
+              <li>Improve our services and troubleshoot technical issues</li>
+            </ul>
+            <p className="mt-2">We do not sell your personal information, and we do not use it for purposes unrelated to providing and improving our services.</p>
           </section>
 
           <section>
-            <h2 className="text-white font-bold text-lg mb-2">How We Contact You</h2>
-            <p>We may contact you by phone call, text message, or email using the information you provide. Message and data rates may apply.</p>
+            <h2 className="text-white font-bold text-lg mb-2">4. Cookies, Tracking & Analytics</h2>
+            <p>Our website may use cookies or similar technologies for basic site functionality and error monitoring (we use Sentry to detect and fix technical bugs; this does not involve advertising tracking). If we run ads on platforms like Meta (Facebook/Instagram) or Google, those platforms may use their own tracking technologies (such as the Meta Pixel or conversion tracking) on their ad forms and, if enabled, on our site. Where required, we will disclose this and provide opt-out information. You can generally control cookies through your browser settings.</p>
           </section>
 
           <section>
-            <h2 className="text-white font-bold text-lg mb-2">Data Sharing</h2>
-            <p>We do not share your personal information with third parties, except as necessary to provide our services (e.g. payment processing) or as required by law.</p>
+            <h2 className="text-white font-bold text-lg mb-2">5. Third Parties We Work With</h2>
+            <p className="mb-2">We use trusted service providers to operate our business. Each only receives the information needed to perform its function:</p>
+            <ul className="list-disc pl-5 space-y-1">
+              <li><strong className="text-white">Stripe</strong> — payment processing and card storage (we do not store full card numbers ourselves)</li>
+              <li><strong className="text-white">Supabase</strong> — secure database hosting for booking and job records</li>
+              <li><strong className="text-white">Cloudflare</strong> — website hosting, security, and photo/file storage (R2)</li>
+              <li><strong className="text-white">Sentry</strong> — technical error monitoring (no personal data used for advertising)</li>
+              <li><strong className="text-white">Zoho Mail / Brevo</strong> — sending transactional emails (booking confirmations, receipts, notifications)</li>
+              <li><strong className="text-white">Meta, Google, Nextdoor</strong> — advertising platforms, when you submit a lead form directly through them</li>
+            </ul>
+            <p className="mt-2">These providers are contractually or by policy restricted from using your data for their own purposes beyond providing their service to us. We do not sell or rent your information to marketers or data brokers.</p>
           </section>
 
           <section>
-            <h2 className="text-white font-bold text-lg mb-2">Contact Us</h2>
-            <p>If you have questions about this policy or want your information removed from our records, contact us at <a href="mailto:michael@gidgarage.com" className="text-orange-500">michael@gidgarage.com</a>.</p>
+            <h2 className="text-white font-bold text-lg mb-2">6. How We Contact You</h2>
+            <p>By providing your phone number or email, you consent to be contacted by GID Garage via phone call, text message (SMS), or email regarding your service request, appointment, quote, invoice, or related follow-up. <strong className="text-white">Message and data rates may apply. Message frequency varies. Reply STOP to a text at any time to opt out of SMS messages, or contact us using the information in Section 10.</strong> Opting out of texts will not affect your ability to receive service — you can still reach us or be reached by phone or email.</p>
+          </section>
+
+          <section>
+            <h2 className="text-white font-bold text-lg mb-2">7. Data Retention</h2>
+            <p>We retain customer and job information for as long as needed to provide our services, comply with tax and legal recordkeeping obligations (typically at least the period required by Arizona state law), and maintain warranty history. You may request earlier deletion of non-essential records at any time (see Section 9).</p>
+          </section>
+
+          <section>
+            <h2 className="text-white font-bold text-lg mb-2">8. Data Security</h2>
+            <p>We use industry-standard measures to protect your information, including encrypted connections (HTTPS), restricted admin access behind authentication, and secure third-party processors for payments (Stripe) and data storage (Supabase, Cloudflare). No method of transmission or storage is 100% secure, but we work to protect your data appropriately for a small business handling personal and payment information.</p>
+          </section>
+
+          <section>
+            <h2 className="text-white font-bold text-lg mb-2">9. Your Rights & Choices</h2>
+            <p className="mb-2">Depending on where you live, you may have rights to access, correct, delete, or limit use of your personal information (for example, under the California Consumer Privacy Act if you are a California resident). To exercise any of these rights, contact us using the information below. We will respond within a reasonable time and will not discriminate against you for exercising these rights.</p>
+            <p>You may also opt out of marketing/promotional texts or emails at any time — this will not affect your ability to book or receive service from us.</p>
+          </section>
+
+          <section>
+            <h2 className="text-white font-bold text-lg mb-2">10. Children's Privacy</h2>
+            <p>Our services are intended for adults (18+) seeking vehicle repair services. We do not knowingly collect personal information from children.</p>
+          </section>
+
+          <section>
+            <h2 className="text-white font-bold text-lg mb-2">11. Changes to This Policy</h2>
+            <p>We may update this policy from time to time to reflect changes in our practices or legal requirements. The "Last updated" date at the top of this page will reflect the most recent revision.</p>
+          </section>
+
+          <section>
+            <h2 className="text-white font-bold text-lg mb-2">12. Contact Us</h2>
+            <p>Questions about this policy, or want your information corrected or removed? Contact us at <a href="mailto:michael@gidgarage.com" className="text-orange-500">michael@gidgarage.com</a>.</p>
           </section>
         </div>
       </div>
