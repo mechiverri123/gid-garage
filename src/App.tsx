@@ -1042,7 +1042,7 @@ function PrivacyPolicyPage() {
 
           <section>
             <h2 className="text-white font-bold text-lg mb-2">12. Contact Us</h2>
-            <p>Questions about this policy, or want your information corrected or removed? Contact us at <a href="mailto:michael@gidgarage.com" className="text-orange-500">michael@gidgarage.com</a>.</p>
+            <p>Questions about this policy, or want your information corrected or removed? Contact us at <a href="mailto:info@gidgarage.com" className="text-orange-500">info@gidgarage.com</a>.</p>
           </section>
         </div>
       </div>
