@@ -378,7 +378,7 @@ function WhyUs() {
 }
 
 // ── GOOGLE REVIEWS ───────────────────────────────────────────────────────────
-const GBP_REVIEW_URL = 'https://g.page/r/CdERSypGqVdlEBM/review';
+const GBP_REVIEW_URL = 'https://g.page/r/CdERSypGqVdlEBM';
 
 function Stars({ rating }: { rating: number }) {
   return (
