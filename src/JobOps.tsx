@@ -2362,6 +2362,56 @@ function EstimatePanel({ job, onUpdate }: { job: Job; onUpdate: (j: Job) => void
           </button>
         )}
       </div>
+      <EmailQuickEdit job={job} onUpdate={onUpdate} />
+    </div>
+  );
+}
+
+
+// Inline "or change email" box — lets you fix a bad email address right where
+// you're about to send, instead of backing out to Edit Appointment first.
+function EmailQuickEdit({ job, onUpdate }: { job: Job; onUpdate: (j: Job) => void }) {
+  const [value, setValue] = useState(job.email || '');
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  useEffect(() => { setValue(job.email || ''); }, [job.id, job.email]);
+
+  const trimmed = value.trim();
+  const dirty = !!trimmed && trimmed !== job.email;
+
+  async function save() {
+    if (!dirty) return;
+    setSaving(true);
+    try {
+      await patchJob(job.id, { email: trimmed });
+      onUpdate({ ...job, email: trimmed });
+      setSaved(true);
+      setTimeout(() => setSaved(false), 1500);
+    } catch (e: any) {
+      await reportError(e, { source: 'EmailQuickEdit', jobId: job.id });
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="flex items-center gap-2 mt-1.5">
+      <input
+        type="email"
+        value={value}
+        onChange={e => setValue(e.target.value)}
+        onKeyDown={e => { if (e.key === 'Enter') save(); }}
+        placeholder="or change email…"
+        className="bg-gray-800 border border-gray-700 text-white px-2 py-1.5 text-xs flex-1 focus:border-red-600 outline-none"
+      />
+      <button
+        onClick={save}
+        disabled={saving || !dirty}
+        className="text-[10px] font-bold uppercase tracking-wider text-gray-400 hover:text-white border border-gray-600 hover:border-white px-2.5 py-1.5 transition-colors disabled:opacity-40 flex-shrink-0"
+      >
+        {saving ? '…' : saved ? '✓ Saved' : 'Save'}
+      </button>
     </div>
   );
 }
@@ -2944,16 +2994,15 @@ function PaymentPanel({ job, onUpdate, onRequote }: { job: Job; onUpdate: (j: Jo
               ? `📧 Invoice emailed ${job.invoiceSentCount}× — last sent ${job.invoiceLastSentAt ? new Date(job.invoiceLastSentAt).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : ''}`
               : '⚠️ Invoice email never sent to this customer'}
           </p>
-          {!!job.email && (
-            <button
-              onClick={resendInvoice}
-              disabled={resending}
-              className="text-[10px] font-bold uppercase tracking-wider text-emerald-600 hover:text-emerald-300 underline flex-shrink-0 disabled:opacity-40"
-            >
-              {resending ? 'Sending…' : job.invoiceSentCount ? 'Resend' : 'Send Now'}
-            </button>
-          )}
+          <button
+            onClick={resendInvoice}
+            disabled={resending || !job.email}
+            className="text-[10px] font-bold uppercase tracking-wider text-emerald-600 hover:text-emerald-300 underline flex-shrink-0 disabled:opacity-40"
+          >
+            {resending ? 'Sending…' : job.invoiceSentCount ? 'Resend' : 'Send Now'}
+          </button>
         </div>
+        <EmailQuickEdit job={job} onUpdate={onUpdate} />
         <ReviewStatusToggle job={job} onUpdate={onUpdate} />
       </div>
     );
@@ -2978,16 +3027,15 @@ function PaymentPanel({ job, onUpdate, onRequote }: { job: Job; onUpdate: (j: Jo
             ? `📧 Invoice emailed ${job.invoiceSentCount}× — last sent ${job.invoiceLastSentAt ? new Date(job.invoiceLastSentAt).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : ''}`
             : '⚠️ Invoice email never sent to this customer'}
         </p>
-        {!!job.email && (
-          <button
-            onClick={resendInvoice}
-            disabled={resending}
-            className="text-[10px] font-bold uppercase tracking-wider text-gray-500 hover:text-white underline flex-shrink-0 disabled:opacity-40"
-          >
-            {resending ? 'Sending…' : job.invoiceSentCount ? 'Resend' : 'Send Now'}
-          </button>
-        )}
+        <button
+          onClick={resendInvoice}
+          disabled={resending || !job.email}
+          className="text-[10px] font-bold uppercase tracking-wider text-gray-500 hover:text-white underline flex-shrink-0 disabled:opacity-40"
+        >
+          {resending ? 'Sending…' : job.invoiceSentCount ? 'Resend' : 'Send Now'}
+        </button>
       </div>
+      <EmailQuickEdit job={job} onUpdate={onUpdate} />
 
       <div>
         <label className="text-gray-500 text-xs font-bold uppercase tracking-widest block mb-1">Final Invoice Amount</label>
@@ -4872,6 +4920,9 @@ export function JobsTab() {
           preExistingDamage: prev.preExistingDamage,
           customerSignature: prev.customerSignature,
           adjustmentReason: prev.adjustmentReason,
+          preScan: prev.preScan,
+          postScan: prev.postScan,
+          paymentLink: prev.paymentLink,
         };
       });
     }, 30000);
