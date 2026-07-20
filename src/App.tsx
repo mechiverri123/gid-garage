@@ -379,12 +379,16 @@ function WhyUs() {
 
 // ── GOOGLE REVIEWS ───────────────────────────────────────────────────────────
 const GBP_REVIEW_URL = 'https://g.page/r/CdERSypGqVdlEBM';
+// Same listing, but this one drops straight into the write-a-review box
+// instead of the plain Business Profile page — already used in the
+// post-service review-request email.
+const GBP_WRITE_REVIEW_URL = 'https://g.page/r/CdERSypGqVdlEAI/review';
 
 // gidgarage.com/review — short link to hand out in person / on receipts,
 // bounces straight to the Google review popup.
 function ReviewRedirect() {
   useEffect(() => {
-    window.location.replace(GBP_REVIEW_URL);
+    window.location.replace(GBP_WRITE_REVIEW_URL);
   }, []);
   return null;
 }
