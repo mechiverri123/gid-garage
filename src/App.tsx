@@ -380,6 +380,15 @@ function WhyUs() {
 // ── GOOGLE REVIEWS ───────────────────────────────────────────────────────────
 const GBP_REVIEW_URL = 'https://g.page/r/CdERSypGqVdlEBM';
 
+// gidgarage.com/review — short link to hand out in person / on receipts,
+// bounces straight to the Google review popup.
+function ReviewRedirect() {
+  useEffect(() => {
+    window.location.replace(GBP_REVIEW_URL);
+  }, []);
+  return null;
+}
+
 function Stars({ rating }: { rating: number }) {
   return (
     <div className="flex gap-0.5">
@@ -1065,6 +1074,7 @@ export default function App() {
   const isGameRedeem = window.location.pathname === '/game-redeem';
   const isServiceArea = window.location.pathname === '/service-area';
   const isPrivacy = window.location.pathname === '/privacy';
+  const isReview = window.location.pathname === '/review';
 
   function handleBookService(id: string) {
     setBookingServiceId(id);
@@ -1084,6 +1094,7 @@ export default function App() {
   if (isGameRedeem) return <GameRedeem />;
   if (isServiceArea) return <ServiceAreaPage slug={params.get('town') ?? ''} />;
   if (isPrivacy) return <PrivacyPolicyPage />;
+  if (isReview) return <ReviewRedirect />;
   if (cancelId && cancelToken) return <CancelPage bookingId={cancelId} token={cancelToken} />;
 
   return (
