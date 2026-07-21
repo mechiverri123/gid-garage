@@ -3,7 +3,7 @@
 // In App.tsx, add the EstimatePage route and Jobs tab to AdminSchedule
 // ────────────────────────────────────────────────────────────────────────────
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 
 // Emails now sent server-side — BREVO_API_KEY removed from client bundle
 const STRIPE_PK = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY as string;
@@ -3931,9 +3931,12 @@ const SERVICE_ICONS: Record<string, string> = {
 // word of mouth, etc). Creates a job with no date/time requirement, then surfaces
 // the estimate link immediately so it can be copied straight into a text or DM.
 // Does not touch AddJobModal or the normal booking pipeline.
-function ExternalLeadModal({ onClose, onAdded }: { onClose: () => void; onAdded: (job: Job) => void }) {
-  // Step 1: contact + vehicle. Step 2: line item builder (same math as EstimatePanel).
-  // Step 3: done — copy link or send straight to an email of your choosing.
+// External leads are, by definition, unsigned — nothing has been agreed to yet,
+// so this flow only ever produces an Estimate. Invoicing happens later, through
+// the normal job pipeline (Payment tab), once the customer has actually signed.
+function ExternalLeadModal({ onClose, onAdded, jobs }: { onClose: () => void; onAdded: (job: Job) => void; jobs: Job[] }) {
+  // Step 1: contact + vehicle (with previous-customer search/autofill). Step 2: line
+  // item builder (same math as EstimatePanel). Step 3: done — copy link or send.
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -3943,17 +3946,47 @@ function ExternalLeadModal({ onClose, onAdded }: { onClose: () => void; onAdded:
   const [sendTo, setSendTo] = useState('');
   const [sending, setSending] = useState(false);
   const [sentOk, setSentOk] = useState(false);
-  const [markingPaid, setMarkingPaid] = useState(false);
-  const [paidMethod, setPaidMethod] = useState('Cash');
   const backdropDown = useRef(false);
-  const [paidRef, setPaidRef] = useState('');
-  const [isPaid, setIsPaid] = useState(false);
-  const [docType, setDocType] = useState<'estimate' | 'invoice'>('invoice');
 
   const [f, setF] = useState({
     fname: '', lname: '', phone: '', email: '',
     vehicle: '', service: 'other', notes: '',
   });
+
+  // ── Previous-customer search: dedupe jobs by phone, keep each customer's most
+  // recent contact info/vehicle, so picking one autofills the fields below.
+  const [custQuery, setCustQuery] = useState('');
+  const [custPickerOpen, setCustPickerOpen] = useState(false);
+  const priorCustomers = useMemo(() => {
+    const byPhone = new Map<string, { fname: string; lname: string; phone: string; email: string; vehicle: string; createdAt: string }>();
+    for (const j of jobs) {
+      const key = (j.phone || '').replace(/\D/g, '') || `${j.fname}|${j.lname}|${j.email}`;
+      if (!key) continue;
+      const existing = byPhone.get(key);
+      if (!existing || (j.createdAt || '') > existing.createdAt) {
+        byPhone.set(key, { fname: j.fname || '', lname: j.lname || '', phone: j.phone || '', email: j.email || '', vehicle: j.vehicle || '', createdAt: j.createdAt || '' });
+      }
+    }
+    return Array.from(byPhone.values()).sort((a, b) => (a.fname + a.lname).localeCompare(b.fname + b.lname));
+  }, [jobs]);
+
+  const custMatches = useMemo(() => {
+    const q = custQuery.trim().toLowerCase();
+    if (!q) return [];
+    return priorCustomers.filter(c =>
+      `${c.fname} ${c.lname}`.toLowerCase().includes(q) ||
+      c.phone.toLowerCase().includes(q) ||
+      c.email.toLowerCase().includes(q) ||
+      c.vehicle.toLowerCase().includes(q)
+    ).slice(0, 8);
+  }, [priorCustomers, custQuery]);
+
+  function pickCustomer(c: { fname: string; lname: string; phone: string; email: string; vehicle: string }) {
+    setF(p => ({ ...p, fname: c.fname, lname: c.lname, phone: c.phone, email: c.email, vehicle: c.vehicle }));
+    setFieldErr({});
+    setCustQuery(`${c.fname} ${c.lname}`.trim());
+    setCustPickerOpen(false);
+  }
 
   const [lineItems, setLineItems] = useState<LineItem[]>([
     { id: `li-${Date.now()}`, label: 'Mobile Service Fee', amount: 25, type: 'mobile' },
@@ -3994,7 +4027,6 @@ function ExternalLeadModal({ onClose, onAdded }: { onClose: () => void; onAdded:
     setErr(null);
     const id = `GID-${Date.now()}`;
     const now = new Date();
-    const isEstimate = docType === 'estimate';
     const notesStr = f.notes ? `[External lead] ${f.notes}` : '[External lead]';
     const row: Record<string, any> = {
       id,
@@ -4010,17 +4042,13 @@ function ExternalLeadModal({ onClose, onAdded }: { onClose: () => void; onAdded:
       notes: notesStr,
       garage_notes: '',
       status: 'confirmed',
-      job_status: isEstimate ? 'ESTIMATE_SENT' : 'INVOICED',
+      job_status: 'ESTIMATE_SENT',
       created_at: now.toISOString(),
       line_items: JSON.stringify(lineItems),
       tax_amount: tax,
+      estimate_amount: subtotal,
+      estimate_notes: notesStr,
     };
-    if (isEstimate) {
-      row.estimate_amount = subtotal;
-      row.estimate_notes = notesStr;
-    } else {
-      row.invoice_amount = subtotal;
-    }
     try {
       const inserted = await adminPost('insert-booking', { row });
       const job = mapJob(inserted ?? row);
@@ -4035,7 +4063,7 @@ function ExternalLeadModal({ onClose, onAdded }: { onClose: () => void; onAdded:
     }
   }
 
-  const docUrl = createdJob ? `https://gidgarage.com/${docType === 'estimate' ? 'estimate' : 'invoice'}?id=${createdJob.id}` : '';
+  const docUrl = createdJob ? `https://gidgarage.com/estimate?id=${createdJob.id}` : '';
 
   function copyLink() {
     navigator.clipboard.writeText(docUrl).then(() => {
@@ -4044,42 +4072,12 @@ function ExternalLeadModal({ onClose, onAdded }: { onClose: () => void; onAdded:
     });
   }
 
-  async function handleMarkPaid() {
-    if (!createdJob) return;
-    setMarkingPaid(true);
-    setErr(null);
-    const paidAt = new Date().toISOString();
-    const ref = paidRef.trim() ? `${paidMethod} — ${paidRef.trim()}` : paidMethod;
-    try {
-      await adminPost('patch-booking', {
-        id: createdJob.id,
-        fields: {
-          stripe_transaction_id: ref,
-          paid_at: paidAt,
-          job_status: 'PAID',
-          status: 'completed',
-        },
-      });
-      setCreatedJob({ ...createdJob, stripeTransactionId: ref, paidAt, jobStatus: 'PAID' as JobStatus, status: 'completed' });
-      setIsPaid(true);
-    } catch (e: any) {
-      setErr(e.message ?? 'Could not mark as paid. Try again.');
-    } finally {
-      setMarkingPaid(false);
-    }
-  }
-
   async function handleSendEmail() {
     if (!createdJob || !sendTo) return;
     setSending(true);
     try {
       const job = { ...createdJob, email: sendTo };
-      if (docType === 'estimate') {
-        await adminPost('send-estimate', { job, shopAvg: 0 });
-      } else {
-        const action = isPaid ? 'send-receipt' : 'send-invoice';
-        await adminPost(action, { job });
-      }
+      await adminPost('send-estimate', { job, shopAvg: 0 });
       setSentOk(true);
     } catch (e: any) {
       setErr(e.message ?? 'Send failed. Try again.');
@@ -4116,26 +4114,37 @@ function ExternalLeadModal({ onClose, onAdded }: { onClose: () => void; onAdded:
         {step === 1 && (
           <>
             <h2 className="text-xl font-black text-white mb-1">External Lead</h2>
-            <p className="text-gray-500 text-xs mb-5">Yelp, Nextdoor, word of mouth — anyone who didn't book through the site. No appointment time needed yet.</p>
-
-            <div className="flex gap-2 mb-4">
-              <button
-                type="button"
-                onClick={() => setDocType('estimate')}
-                className={`flex-1 text-xs font-bold uppercase tracking-widest py-2.5 border transition-colors ${docType === 'estimate' ? 'bg-indigo-600 border-indigo-600 text-white' : 'border-gray-700 text-gray-500 hover:border-gray-500'}`}
-              >
-                Estimate
-              </button>
-              <button
-                type="button"
-                onClick={() => setDocType('invoice')}
-                className={`flex-1 text-xs font-bold uppercase tracking-widest py-2.5 border transition-colors ${docType === 'invoice' ? 'bg-indigo-600 border-indigo-600 text-white' : 'border-gray-700 text-gray-500 hover:border-gray-500'}`}
-              >
-                Invoice
-              </button>
-            </div>
+            <p className="text-gray-500 text-xs mb-5">Yelp, Nextdoor, word of mouth — anyone who didn't book through the site. No appointment time needed yet. This always creates an Estimate — nothing's signed yet, so there's nothing to invoice.</p>
 
             <div className="space-y-3">
+              <div className="relative">
+                <label className="block text-xs font-bold uppercase tracking-wider mb-1 text-gray-500">Search Previous Customers</label>
+                <input
+                  type="text"
+                  value={custQuery}
+                  onChange={e => { setCustQuery(e.target.value); setCustPickerOpen(true); }}
+                  onFocus={() => setCustPickerOpen(true)}
+                  onBlur={() => setTimeout(() => setCustPickerOpen(false), 150)}
+                  placeholder="Search by name, phone, email, or vehicle…"
+                  className="w-full bg-gray-900 text-white text-sm px-3 py-2.5 outline-none border border-gray-700 focus:border-indigo-600 transition-colors"
+                />
+                {custPickerOpen && custMatches.length > 0 && (
+                  <div className="absolute z-10 top-full left-0 right-0 mt-1 bg-gray-900 border border-gray-700 max-h-52 overflow-y-auto">
+                    {custMatches.map((c, i) => (
+                      <button
+                        key={i}
+                        type="button"
+                        onMouseDown={() => pickCustomer(c)}
+                        className="w-full text-left px-3 py-2 hover:bg-gray-800 border-b border-gray-800 last:border-b-0 transition-colors"
+                      >
+                        <div className="text-white text-sm font-bold">{c.fname} {c.lname}</div>
+                        <div className="text-gray-500 text-xs">{c.phone}{c.vehicle ? ` · ${c.vehicle}` : ''}</div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
               <div className="grid grid-cols-2 gap-3">
                 {inp('fname', 'First Name *', 'text', 'John')}
                 {inp('lname', 'Last Name', 'text', 'Smith')}
@@ -4173,7 +4182,7 @@ function ExternalLeadModal({ onClose, onAdded }: { onClose: () => void; onAdded:
                 onClick={() => { if (validateStep1()) setStep(2); }}
                 className="w-full bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-bold uppercase tracking-widest py-3 transition-colors mt-2"
               >
-                Next — Build {docType === 'estimate' ? 'Estimate' : 'Invoice'} →
+                Next — Build Estimate →
               </button>
             </div>
           </>
@@ -4182,7 +4191,7 @@ function ExternalLeadModal({ onClose, onAdded }: { onClose: () => void; onAdded:
         {/* STEP 2 — line items, same math as EstimatePanel */}
         {step === 2 && (
           <>
-            <h2 className="text-xl font-black text-white mb-1">Build {docType === 'estimate' ? 'Estimate' : 'Invoice'}</h2>
+            <h2 className="text-xl font-black text-white mb-1">Build Estimate</h2>
             <p className="text-gray-500 text-xs mb-5">{f.fname} {f.lname} · {f.vehicle}</p>
 
             <div className="space-y-2 mb-3">
@@ -4267,7 +4276,7 @@ function ExternalLeadModal({ onClose, onAdded }: { onClose: () => void; onAdded:
                 disabled={saving || lineItems.length === 0}
                 className="flex-1 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-sm font-bold uppercase tracking-widest py-3 transition-colors"
               >
-                {saving ? 'Creating…' : `Create ${docType === 'estimate' ? 'Estimate' : 'Invoice'}`}
+                {saving ? 'Creating…' : 'Create Estimate'}
               </button>
             </div>
           </>
@@ -4276,52 +4285,11 @@ function ExternalLeadModal({ onClose, onAdded }: { onClose: () => void; onAdded:
         {/* STEP 3 — done — mark paid, copy, or send */}
         {step === 3 && createdJob && (
           <>
-            <h2 className="text-xl font-black text-white mb-1">{isPaid ? '✓ Paid' : docType === 'estimate' ? '✓ Estimate Ready' : '✓ Invoice Ready'}</h2>
+            <h2 className="text-xl font-black text-white mb-1">✓ Estimate Ready</h2>
             <p className="text-gray-500 text-xs mb-5">{createdJob.fname} {createdJob.lname} · {createdJob.vehicle} · ${total.toFixed(2)}</p>
+            <p className="text-gray-600 text-[10px] mb-5">Once they sign and you're ready to bill, invoice from the job itself (Payment tab) — not from here.</p>
 
-            {docType === 'invoice' && !isPaid && (
-              <div className="bg-gray-900 border border-gray-700 p-4 mb-5">
-                <p className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-3">Already paid in person?</p>
-                <div className="flex gap-2 mb-2">
-                  <select
-                    value={paidMethod}
-                    onChange={e => setPaidMethod(e.target.value)}
-                    className="bg-gray-800 border border-gray-700 text-white text-sm px-2.5 py-2 outline-none focus:border-emerald-600 flex-shrink-0"
-                  >
-                    <option>Cash</option>
-                    <option>Check</option>
-                    <option>Zelle</option>
-                    <option>Venmo</option>
-                    <option>CashApp</option>
-                    <option>Card (manual)</option>
-                    <option>Other</option>
-                  </select>
-                  <input
-                    type="text"
-                    value={paidRef}
-                    onChange={e => setPaidRef(e.target.value)}
-                    placeholder="Reference / check # (optional)"
-                    className="flex-1 bg-gray-800 border border-gray-700 text-white text-sm px-3 py-2 outline-none focus:border-emerald-600"
-                  />
-                </div>
-                <button
-                  onClick={handleMarkPaid}
-                  disabled={markingPaid}
-                  className="w-full bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white text-xs font-bold uppercase tracking-widest py-2.5 transition-colors"
-                >
-                  {markingPaid ? 'Marking Paid…' : 'Mark as Paid'}
-                </button>
-              </div>
-            )}
-
-            {isPaid && (
-              <div className="bg-emerald-950/40 border border-emerald-800 p-3 mb-5">
-                <p className="text-emerald-400 text-xs font-bold">✓ Marked paid — {createdJob.stripeTransactionId}</p>
-                <p className="text-gray-500 text-[10px] mt-1">Sending now sends a receipt instead of an open invoice.</p>
-              </div>
-            )}
-
-            <label className="block text-xs font-bold uppercase tracking-wider mb-1 text-gray-500">{isPaid ? 'Receipt' : docType === 'estimate' ? 'Estimate' : 'Invoice'} Link</label>
+            <label className="block text-xs font-bold uppercase tracking-wider mb-1 text-gray-500">Estimate Link</label>
             <div className="flex gap-2 mb-5">
               <input
                 readOnly
@@ -5200,6 +5168,7 @@ export function JobsTab() {
         <ExternalLeadModal
           onClose={() => setShowExternalLead(false)}
           onAdded={job => { setJobs(prev => [job, ...prev]); }}
+          jobs={jobs}
         />
       )}
     </div>
