@@ -7010,26 +7010,44 @@ function TaxRateSettings() {
 
 // ── TAX SUMMARY (live from Supabase) ──────────────────────────────────────────
 function TaxSummary() {
-  const [rows, setRows] = useState<{ month: string; subtotal: number; tax: number; total: number }[]>([]);
+  const [rows, setRows] = useState<{ month: string; subtotal: number; taxableGross: number; tax: number; total: number }[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Best-effort taxable gross for one paid booking — the figure that actually
+  // goes in AZTaxes.gov's "Gross" field per line item (parts/taxable amount
+  // only, never labor or the mobile fee). Prefers the real line items so
+  // discounts etc. are reflected correctly; falls back to back-computing
+  // from the stored tax_amount (tax / rate) for older rows that predate
+  // per-item tracking, using whatever the site's tax rate is right now as
+  // a best-effort approximation for those.
+  function taxableGrossFor(b: any): number {
+    const items = b.line_items
+      ? (typeof b.line_items === 'string' ? JSON.parse(b.line_items) : b.line_items)
+      : null;
+    if (items && items.length) return taxableAmount(items);
+    const tax = Number(b.tax_amount) || 0;
+    return tax > 0 ? tax / TAX_RATE : 0;
+  }
 
   useEffect(() => {
     adminPost('paid-bookings')
       .then((data: any[]) => {
         if (!data?.length) { setRows([]); setLoading(false); return; }
-        const byMonth: Record<string, { subtotal: number; tax: number }> = {};
+        const byMonth: Record<string, { subtotal: number; taxableGross: number; tax: number }> = {};
         for (const b of data) {
           if (!b.paid_at) continue;
           const month = b.paid_at.slice(0, 7); // YYYY-MM
-          if (!byMonth[month]) byMonth[month] = { subtotal: 0, tax: 0 };
+          if (!byMonth[month]) byMonth[month] = { subtotal: 0, taxableGross: 0, tax: 0 };
           byMonth[month].subtotal += Number(b.invoice_amount) || 0;
+          byMonth[month].taxableGross += taxableGrossFor(b);
           byMonth[month].tax += Number(b.tax_amount) || 0;
         }
         const sorted = Object.entries(byMonth)
           .sort(([a], [b]) => b.localeCompare(a))
-          .map(([month, { subtotal, tax }]) => ({
+          .map(([month, { subtotal, taxableGross, tax }]) => ({
             month,
             subtotal: Math.round(subtotal * 100) / 100,
+            taxableGross: Math.round(taxableGross * 100) / 100,
             tax: Math.round(tax * 100) / 100,
             total: Math.round((subtotal + tax) * 100) / 100,
           }));
@@ -7057,10 +7075,14 @@ function TaxSummary() {
           return (
             <div key={r.month} className="border border-gray-800 bg-gray-900/40 px-4 py-3 space-y-1.5">
               <p className="text-white text-sm font-black">{label}</p>
-              <div className="grid grid-cols-3 gap-2 text-center">
+              <div className="grid grid-cols-4 gap-2 text-center">
                 <div className="bg-gray-900 border border-gray-800 px-2 py-2">
                   <p className="text-gray-500 text-[10px] font-bold uppercase tracking-wider mb-0.5">Subtotal</p>
                   <p className="text-white text-sm font-mono font-bold">${r.subtotal.toFixed(2)}</p>
+                </div>
+                <div className="bg-blue-900/20 border border-blue-800 px-2 py-2">
+                  <p className="text-blue-500 text-[10px] font-bold uppercase tracking-wider mb-0.5">Taxable Gross</p>
+                  <p className="text-blue-300 text-sm font-mono font-bold">${r.taxableGross.toFixed(2)}</p>
                 </div>
                 <div className="bg-yellow-900/20 border border-yellow-800 px-2 py-2">
                   <p className="text-yellow-600 text-[10px] font-bold uppercase tracking-wider mb-0.5">Tax</p>
@@ -7071,16 +7093,18 @@ function TaxSummary() {
                   <p className="text-white text-sm font-mono font-bold">${r.total.toFixed(2)}</p>
                 </div>
               </div>
+              <p className="text-gray-700 text-[10px] pt-0.5">Enter <strong className="text-blue-400">${r.taxableGross.toFixed(2)}</strong> as Gross on each AZTaxes.gov RETAIL-017 line item for this period.</p>
             </div>
           );
         })}
-        <div className="border border-gray-700 bg-gray-900/60 px-4 py-3 grid grid-cols-3 gap-2 text-center">
+        <div className="border border-gray-700 bg-gray-900/60 px-4 py-3 grid grid-cols-4 gap-2 text-center">
           <div><p className="text-gray-600 text-[10px] uppercase tracking-wider">All Time</p><p className="text-gray-300 text-sm font-mono font-bold">${rows.reduce((s, r) => s + r.subtotal, 0).toFixed(2)}</p></div>
+          <div><p className="text-blue-700 text-[10px] uppercase tracking-wider">Taxable Gross</p><p className="text-blue-300 text-sm font-mono font-bold">${rows.reduce((s, r) => s + r.taxableGross, 0).toFixed(2)}</p></div>
           <div><p className="text-yellow-700 text-[10px] uppercase tracking-wider">Tax</p><p className="text-yellow-400 text-sm font-mono font-bold">${rows.reduce((s, r) => s + r.tax, 0).toFixed(2)}</p></div>
           <div><p className="text-gray-600 text-[10px] uppercase tracking-wider">Total</p><p className="text-white text-sm font-mono font-bold">${rows.reduce((s, r) => s + r.total, 0).toFixed(2)}</p></div>
         </div>
       </div>
-      <p className="text-gray-700 text-[10px] mt-2">File & remit at AZTaxes.gov by the 20th of the following month.</p>
+      <p className="text-gray-700 text-[10px] mt-2">File & remit at AZTaxes.gov by the 20th of the following month. "Taxable Gross" is what goes in AZTaxes.gov's Gross field on each RETAIL-017 line — it excludes labor and the mobile fee.</p>
     </div>
   );
 }
