@@ -597,6 +597,9 @@ const CYA_TERMS_EXTENDED = [
   'If the customer is unreachable for approval of additional work, GID Garage reserves the right to pause or halt service until contact is made.',
   'GID Garage is not liable for service interruptions caused by third parties, property owners, or local ordinances restricting vehicle repair at the service location. Customer is responsible for ensuring repair work is permitted on the premises.',
   'Any disputes arising from services rendered shall be governed by the laws of the State of Arizona. Coconino County shall be the agreed venue for any legal proceedings.',
+  'Cancellations or reschedules require at least 24 hours notice. Late cancellations (inside 24 hours) or no-shows may be subject to a trip fee to cover technician time and travel already committed.',
+  'If parts have already been ordered or purchased on your behalf prior to cancellation, you are responsible for the cost of those parts, particularly special-order or non-returnable items. Any deposit collected for parts is non-refundable once the parts have been ordered.',
+  'Once you have approved and signed this estimate, your appointment slot, parts sourcing, and technician scheduling are reserved on your behalf. Cancelling after approval is subject to a $50 cancellation fee to cover the scheduling and preparation already committed to your job.',
 ];
 
 // Combined for admin display
@@ -5982,24 +5985,6 @@ export function EstimatePage() {
                 <div
                   className="mt-3 max-h-48 overflow-y-auto pr-1 space-y-2 scrollbar-thin"
                   style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-y' }}
-                  onScroll={e => {
-                    const el = e.currentTarget;
-                    if (el.scrollTop + el.clientHeight >= el.scrollHeight - 4) {
-                      const sigSection = document.getElementById('sig-section');
-                      const sigInput = document.getElementById('sig-input') as HTMLInputElement;
-                      if (sigSection) {
-                        sigSection.classList.remove('opacity-40', 'pointer-events-none');
-                        sigSection.classList.add('opacity-100');
-                      }
-                      if (sigInput) {
-                        sigInput.removeAttribute('disabled');
-                        sigInput.classList.remove('bg-white/5', 'border-white/10');
-                        sigInput.classList.add('bg-white/10', 'border-red-600/50', 'ring-1', 'ring-red-600/30');
-                        sigInput.focus();
-                      }
-                    }
-                  }}
-                  id="extended-terms-scroll"
                 >
                   {CYA_TERMS_EXTENDED.map((t, i) => (
                     <div key={i} className="text-gray-400 text-xs flex gap-2 border-b border-white/5 pb-2 last:border-0">
@@ -6011,8 +5996,9 @@ export function EstimatePage() {
               </details>
             </div>
 
-            {/* Pre-existing damage + signature — dimmed until extended terms scrolled */}
-            <div id="sig-section" className="space-y-4 opacity-40 pointer-events-none transition-opacity duration-300">
+            {/* Pre-existing damage + signature — always available; approving only
+                requires checking the box and typing a full name below. */}
+            <div className="space-y-4">
               <div>
                 <label className="text-gray-400 text-xs font-bold uppercase tracking-widest block mb-2">
                   Note any pre-existing damage <span className="text-gray-700 normal-case font-normal">(optional)</span>
@@ -6044,10 +6030,9 @@ export function EstimatePage() {
                   value={signature}
                   onChange={e => setSignature(e.target.value)}
                   placeholder="Full legal name"
-                  disabled
-                  className="bg-white/5 border border-white/10 text-white px-3 py-3 text-sm w-full focus:border-red-600 outline-none placeholder-gray-700 transition-all duration-300"
+                  className="bg-white/10 border border-white/10 text-white px-3 py-3 text-sm w-full focus:border-red-600 outline-none placeholder-gray-700"
                 />
-                <p className="text-gray-500 text-[10px] mt-1.5">Please read all terms above to unlock the signature field. By typing your name, you are providing an electronic signature legally binding under the Uniform Electronic Transactions Act (UETA).</p>
+                <p className="text-gray-500 text-[10px] mt-1.5">By checking the box above and typing your name, you are providing an electronic signature legally binding under the Uniform Electronic Transactions Act (UETA).</p>
               </div>
 
               <button
