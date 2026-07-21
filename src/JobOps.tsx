@@ -1406,12 +1406,10 @@ function PartsCostPanel({ job, onUpdate }: { job: Job; onUpdate: (j: Job) => voi
 
   const totalPaid = job.amountPaid || (job.jobStatus === 'PAID' ? (job.invoiceAmount || 0) + (job.taxAmount || 0) : 0);
   const partsCostVal = job.partsCost || 0;
-  const netProfit = Math.round((totalPaid - partsCostVal) * 100) / 100;
-  // "Net Profit" above still includes the sales tax collected from the customer
-  // in totalPaid — that money isn't income, it's owed to AZ. Actual Net Income
-  // backs it out so this figure is what you actually keep.
   const taxCollected = job.taxAmount || 0;
-  const actualNetIncome = Math.round((netProfit - taxCollected) * 100) / 100;
+  // Net Profit = what you actually keep: total paid minus the sales tax
+  // collected (that's owed to AZ, not income) minus parts cost.
+  const netProfit = Math.round((totalPaid - taxCollected - partsCostVal) * 100) / 100;
 
   return (
     <div className="border-t border-gray-800 pt-4 mt-2">
@@ -1485,20 +1483,16 @@ function PartsCostPanel({ job, onUpdate }: { job: Job; onUpdate: (j: Job) => voi
           <span className="text-emerald-400 font-mono">${totalPaid.toFixed(2)}</span>
         </div>
         <div className="flex justify-between text-xs">
+          <span className="text-gray-500">Sales Tax Collected (owed to AZ, not income)</span>
+          <span className="text-gray-400 font-mono">-${taxCollected.toFixed(2)}</span>
+        </div>
+        <div className="flex justify-between text-xs">
           <span className="text-gray-500">Parts Cost</span>
           <span className="text-red-400 font-mono">-${partsCostVal.toFixed(2)}</span>
         </div>
         <div className="flex justify-between text-sm pt-1.5 border-t border-gray-800">
           <span className="text-gray-300 font-bold uppercase tracking-wider text-xs">Net Profit</span>
           <span className={`font-mono font-black ${netProfit >= 0 ? 'text-emerald-400' : 'text-red-500'}`}>${netProfit.toFixed(2)}</span>
-        </div>
-        <div className="flex justify-between text-xs text-gray-600">
-          <span>− Sales Tax Collected (not income)</span>
-          <span className="font-mono">-${taxCollected.toFixed(2)}</span>
-        </div>
-        <div className="flex justify-between text-sm pt-1.5 border-t border-gray-800">
-          <span className="text-cyan-500 font-bold uppercase tracking-wider text-xs">Actual Net Income</span>
-          <span className={`font-mono font-black ${actualNetIncome >= 0 ? 'text-cyan-400' : 'text-red-500'}`}>${actualNetIncome.toFixed(2)}</span>
         </div>
       </div>
       <DocViewerModal doc={viewer.doc} onClose={viewer.close} />
@@ -4843,7 +4837,6 @@ export function JobsTab() {
   const [showExternalLead, setShowExternalLead] = useState(false);
   const [revenueView, setRevenueView] = useState<'month' | 'year'>('month');
   const [netProfitView, setNetProfitView] = useState<'month' | 'year'>('month');
-  const [actualNetView, setActualNetView] = useState<'month' | 'year'>('month');
 
   const seenEventIds = useRef<Set<string>>(
     new Set(JSON.parse(localStorage.getItem('seenPaymentEventIds') ?? '[]'))
@@ -5034,26 +5027,17 @@ export function JobsTab() {
   }, 0);
   const monthRevenue = revenueFor(isThisMonth);
   const yearRevenue = revenueFor(isThisYear);
-  // Net profit = revenue collected minus parts cost, attributed to the job's
-  // close-out date (paidAt) — parts cost is a lump sum per job, not something
-  // that splits across payment entries the way revenue can.
+  // Net profit = revenue collected minus the sales tax collected (owed to
+  // AZ, not income) minus parts cost, attributed to the job's close-out date
+  // (paidAt) — parts cost is a lump sum per job, not something that splits
+  // across payment entries the way revenue can.
   const netProfitFor = (inWindow: (iso: string) => boolean) => jobs.reduce((sum, j) => {
-    if (j.jobStatus !== 'PAID' || !j.paidAt || !inWindow(j.paidAt)) return sum;
-    const paid = j.amountPaid ?? ((j.invoiceAmount || 0) + (j.taxAmount || 0));
-    return sum + (paid - (j.partsCost || 0));
-  }, 0);
-  const monthNetProfit = netProfitFor(isThisMonth);
-  const yearNetProfit = netProfitFor(isThisYear);
-  // Actual Net Income = Net Profit above minus the sales tax collected from
-  // the customer, since that tax isn't income — it's owed to AZ. This is
-  // what you actually keep, unlike "Net Profit" which still has tax mixed in.
-  const actualNetProfitFor = (inWindow: (iso: string) => boolean) => jobs.reduce((sum, j) => {
     if (j.jobStatus !== 'PAID' || !j.paidAt || !inWindow(j.paidAt)) return sum;
     const paid = j.amountPaid ?? ((j.invoiceAmount || 0) + (j.taxAmount || 0));
     return sum + (paid - (j.taxAmount || 0) - (j.partsCost || 0));
   }, 0);
-  const monthActualNet = actualNetProfitFor(isThisMonth);
-  const yearActualNet = actualNetProfitFor(isThisYear);
+  const monthNetProfit = netProfitFor(isThisMonth);
+  const yearNetProfit = netProfitFor(isThisYear);
 
   const JOB_STATUS_ORDER: Record<string, number> = {
     BOOKED: 0, ESTIMATE_SENT: 1, SIGNED: 2, IN_PROGRESS: 3,
@@ -5074,7 +5058,7 @@ export function JobsTab() {
   return (
     <div>
       {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-6 gap-4 mb-8">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8">
         {[
           ['Unpaid / Due', unpaid, 'text-yellow-400'],
           ['Awaiting Signature', awaitingSign, 'text-purple-400'],
@@ -5102,26 +5086,13 @@ export function JobsTab() {
           type="button"
           onClick={() => setNetProfitView(v => v === 'month' ? 'year' : 'month')}
           className="bg-gray-900 border border-gray-800 p-5 text-left hover:border-cyan-800 active:bg-gray-800 transition-colors"
-          title="Tap to toggle Month / Year — includes sales tax collected"
+          title="Tap to toggle Month / Year — revenue minus sales tax collected minus parts cost"
         >
           <div className={`text-2xl font-black mb-1 ${(netProfitView === 'month' ? monthNetProfit : yearNetProfit) >= 0 ? 'text-cyan-400' : 'text-red-500'}`}>
             ${(netProfitView === 'month' ? monthNetProfit : yearNetProfit).toFixed(2)}
           </div>
           <div className="text-gray-600 text-xs font-bold uppercase tracking-wider">
             {netProfitView === 'month' ? 'Net Profit This Month' : `${now.getFullYear()} Net Profit`}
-          </div>
-        </button>
-        <button
-          type="button"
-          onClick={() => setActualNetView(v => v === 'month' ? 'year' : 'month')}
-          className="bg-gray-900 border border-blue-900 p-5 text-left hover:border-blue-700 active:bg-gray-800 transition-colors"
-          title="Tap to toggle Month / Year — Net Profit minus sales tax collected (what you actually keep)"
-        >
-          <div className={`text-2xl font-black mb-1 ${(actualNetView === 'month' ? monthActualNet : yearActualNet) >= 0 ? 'text-blue-400' : 'text-red-500'}`}>
-            ${(actualNetView === 'month' ? monthActualNet : yearActualNet).toFixed(2)}
-          </div>
-          <div className="text-gray-600 text-xs font-bold uppercase tracking-wider">
-            {actualNetView === 'month' ? 'Actual Net Income This Month' : `${now.getFullYear()} Actual Net Income`}
           </div>
         </button>
       </div>
@@ -6844,7 +6815,7 @@ function JobsCSVExport() {
       const headers = [
         'Date', 'Customer', 'Vehicle', 'Service', 'Status',
         'Subtotal', 'Tax Collected', 'Total Charged', 'Amount Paid',
-        'Parts Cost', 'Net Profit', 'Actual Net Income (excl. tax)', 'Date Paid', 'Transaction ID',
+        'Parts Cost', 'Net Profit', 'Date Paid', 'Transaction ID',
       ];
 
       const rows = jobs.map(j => {
@@ -6853,10 +6824,9 @@ function JobsCSVExport() {
         const totalCharged = subtotal + tax;
         const amountPaid = j.amountPaid ?? (j.jobStatus === 'PAID' ? totalCharged : 0);
         const partsCost = j.partsCost ?? 0;
-        const netProfit = Math.round((amountPaid - partsCost) * 100) / 100;
-        // Net Profit above still has the sales tax collected mixed into
-        // amountPaid — that's not income, it's owed to AZ. This backs it out.
-        const actualNetIncome = Math.round((netProfit - tax) * 100) / 100;
+        // Net Profit = what you actually keep: amount paid minus the sales
+        // tax collected (owed to AZ, not income) minus parts cost.
+        const netProfit = Math.round((amountPaid - tax - partsCost) * 100) / 100;
         return [
           j.date || '',
           `${j.fname || ''} ${j.lname || ''}`.trim(),
@@ -6869,7 +6839,6 @@ function JobsCSVExport() {
           amountPaid.toFixed(2),
           partsCost.toFixed(2),
           netProfit.toFixed(2),
-          actualNetIncome.toFixed(2),
           j.paidAt ? new Date(j.paidAt).toLocaleDateString('en-US') : '',
           j.stripeTransactionId || '',
         ];
@@ -6894,7 +6863,6 @@ function JobsCSVExport() {
         (totals.subtotal + totals.tax).toFixed(2),
         totals.amountPaid.toFixed(2),
         totals.partsCost.toFixed(2),
-        (totals.amountPaid - totals.partsCost).toFixed(2),
         (totals.amountPaid - totals.tax - totals.partsCost).toFixed(2),
         '', '',
       ];
@@ -7172,23 +7140,10 @@ function revenueEntriesFor(b: any): { date: string; amount: number }[] {
 }
 
 // Net profit, same methodology as JobsTab's monthNetProfit/yearNetProfit:
-// revenue collected minus parts cost, attributed as a lump sum to paid_at
-// (parts cost doesn't split across partial payments the way revenue does).
+// revenue collected minus the sales tax collected (owed to AZ, not income)
+// minus parts cost, attributed as a lump sum to paid_at (parts cost doesn't
+// split across partial payments the way revenue does).
 function netProfitEntriesFor(b: any): { date: string; amount: number }[] {
-  if (!b.paid_at) return [];
-  const payments = b.payments
-    ? (typeof b.payments === 'string' ? JSON.parse(b.payments) : b.payments)
-    : [];
-  const loggedTotal = payments.reduce((s: number, p: any) => s + (Number(p.amount) || 0), 0);
-  const invoiceTotal = (Number(b.invoice_amount) || 0) + (Number(b.tax_amount) || 0);
-  const paid = payments.length && loggedTotal >= invoiceTotal - 0.01 ? loggedTotal : invoiceTotal;
-  return [{ date: b.paid_at, amount: paid - (Number(b.parts_cost) || 0) }];
-}
-
-// Actual Net Income: same as Net Profit above, but also backs out the sales
-// tax collected from the customer — that money isn't income, it's owed to
-// AZ, so "Net Profit" alone overstates what you actually keep by tax_amount.
-function actualNetProfitEntriesFor(b: any): { date: string; amount: number }[] {
   if (!b.paid_at) return [];
   const payments = b.payments
     ? (typeof b.payments === 'string' ? JSON.parse(b.payments) : b.payments)
@@ -7305,7 +7260,6 @@ function RevenuePanel() {
 
   const allEntries = rows.flatMap(revenueEntriesFor).filter(e => e.date);
   const allNetProfitEntries = rows.flatMap(netProfitEntriesFor).filter(e => e.date);
-  const allActualNetEntries = rows.flatMap(actualNetProfitEntriesFor).filter(e => e.date);
 
   const now = new Date();
   const targetMonthDate = new Date(now.getFullYear(), now.getMonth() + monthOffset, 1);
@@ -7316,7 +7270,6 @@ function RevenuePanel() {
   let periodLabel = '';
   let periodTotal = 0;
   let periodNetProfitTotal = 0;
-  let periodActualNetTotal = 0;
 
   if (mode === 'month') {
     const y = targetMonthDate.getFullYear(), m = targetMonthDate.getMonth();
@@ -7338,10 +7291,6 @@ function RevenuePanel() {
     periodLabel = targetMonthDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
     periodTotal = running;
     periodNetProfitTotal = runningNP;
-    periodActualNetTotal = allActualNetEntries.reduce((s, e) => {
-      const d = new Date(e.date);
-      return (d.getFullYear() === y && d.getMonth() === m) ? s + e.amount : s;
-    }, 0);
   } else {
     const monthTotals = new Array(12).fill(0);
     const monthNetProfitTotals = new Array(12).fill(0);
@@ -7361,10 +7310,6 @@ function RevenuePanel() {
     periodLabel = String(targetYear);
     periodTotal = running;
     periodNetProfitTotal = runningNP;
-    periodActualNetTotal = allActualNetEntries.reduce((s, e) => {
-      const d = new Date(e.date);
-      return d.getFullYear() === targetYear ? s + e.amount : s;
-    }, 0);
   }
 
   const hasAnyData = points.some(p => p.value > 0) || netProfitPoints.some(p => p.value !== 0);
@@ -7393,7 +7338,6 @@ function RevenuePanel() {
           <p className="text-white text-sm font-black">{periodLabel}</p>
           <p className="text-emerald-400 text-lg font-mono font-black">${periodTotal.toFixed(2)}</p>
           <p className="text-blue-400 text-xs font-mono font-bold">${periodNetProfitTotal.toFixed(2)} net</p>
-          <p className="text-cyan-400 text-[11px] font-mono">${periodActualNetTotal.toFixed(2)} actual net (excl. tax collected)</p>
         </div>
         <button
           onClick={() => mode === 'month' ? setMonthOffset(o => Math.min(0, o + 1)) : setYearOffset(o => Math.min(0, o + 1))}
