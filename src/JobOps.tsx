@@ -3873,6 +3873,22 @@ function JobDetailPanel({ job: initialJob, onClose, onJobUpdate }: {
                       → Log Payment
                     </button>
                   )}
+              {/* Cancel / Reopen — keeps all job info, just moves it out of the active pipeline */}
+              {job.jobStatus === 'CANCELLED' ? (
+                <button
+                  onClick={() => { if (confirm('Reopen this job and move it back to Booked?')) setJobStatus('BOOKED'); }}
+                  className="border border-gray-700 text-gray-400 hover:border-gray-500 hover:text-white text-xs font-bold uppercase tracking-wider px-3 py-2 transition-colors"
+                >
+                  ↺ Reopen Job
+                </button>
+              ) : (
+                <button
+                  onClick={() => { if (confirm(`Mark this job for ${job.fname} ${job.lname} as Cancelled? Nothing is deleted — it'll move out of your active job list but all info stays saved.`)) setJobStatus('CANCELLED'); }}
+                  className="border border-gray-800 text-gray-600 hover:border-gray-500 hover:text-gray-300 text-xs font-bold uppercase tracking-wider px-3 py-2 transition-colors"
+                >
+                  ⊘ Mark as Cancelled
+                </button>
+              )}
               {/* Delete job */}
               <button
                 onClick={async () => {
@@ -5045,7 +5061,10 @@ export function JobsTab() {
   };
   const filtered = jobs
     .filter(j => {
-      const matchStatus = filterStatus === 'ALL' || j.jobStatus === filterStatus;
+      // "ALL" hides Cancelled by default to keep the list decluttered —
+      // select the Cancelled filter explicitly to see them. Nothing is
+      // deleted, just tucked out of the default view.
+      const matchStatus = filterStatus === 'ALL' ? j.jobStatus !== 'CANCELLED' : j.jobStatus === filterStatus;
       const matchSearch = !search || `${j.fname} ${j.lname} ${j.vehicle} ${j.phone} ${j.stripeTransactionId || ''}`.toLowerCase().includes(search.toLowerCase());
       return matchStatus && matchSearch;
     })
@@ -5132,6 +5151,12 @@ export function JobsTab() {
               {s === 'ALL' ? 'All' : STATUS_CONFIG[s].label}
             </button>
           ))}
+          <button onClick={() => setFilterStatus('CANCELLED')}
+            className={`text-xs font-bold uppercase tracking-wider px-3 py-1.5 border transition-colors ${
+              filterStatus === 'CANCELLED' ? 'bg-gray-600 border-gray-600 text-white' : 'border-gray-800 text-gray-600 hover:border-gray-500 hover:text-gray-300'
+            }`}>
+            Cancelled
+          </button>
         </div>
       </div>
 
