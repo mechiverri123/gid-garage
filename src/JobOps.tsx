@@ -181,6 +181,8 @@ export interface Job {
   phone: string;
   email: string;
   vehicle: string;
+  vin: string;
+  mileage: string;
   notes: string;
   garageNotes: string;
   status: string;
@@ -452,6 +454,8 @@ function mapJob(b: any): Job {
     phone: b.phone,
     email: b.email,
     vehicle: b.vehicle,
+    vin: b.vin || '',
+    mileage: b.mileage || '',
     notes: b.notes || '',
     garageNotes: b.garage_notes || '',
     status: b.status,
@@ -3601,6 +3605,8 @@ function JobDetailPanel({ job: initialJob, onClose, onJobUpdate }: {
   const [editTime, setEditTime] = useState(job.time);
   const [editCustomTime, setEditCustomTime] = useState(false);
   const [editVehicle, setEditVehicle] = useState(job.vehicle || '');
+  const [editVin, setEditVin] = useState(job.vin || '');
+  const [editMileage, setEditMileage] = useState(job.mileage || '');
   const [editPhone, setEditPhone] = useState(job.phone || '');
   const [editEmail, setEditEmail] = useState(job.email || '');
   const [editNotes, setEditNotes] = useState(job.notes || '');
@@ -3610,6 +3616,8 @@ function JobDetailPanel({ job: initialJob, onClose, onJobUpdate }: {
     setEditTime(job.time);
     setEditCustomTime(false);
     setEditVehicle(job.vehicle || '');
+    setEditVin(job.vin || '');
+    setEditMileage(job.mileage || '');
     setEditPhone(job.phone || '');
     setEditEmail(job.email || '');
     setEditNotes(job.notes || '');
@@ -3622,10 +3630,10 @@ function JobDetailPanel({ job: initialJob, onClose, onJobUpdate }: {
     setApptErr(null);
     try {
       await patchJob(job.id, {
-        date: editDate, time: editTime, vehicle: editVehicle,
+        date: editDate, time: editTime, vehicle: editVehicle, vin: editVin, mileage: editMileage,
         phone: editPhone, email: editEmail, notes: editNotes,
       });
-      handleUpdate({ ...job, date: editDate, time: editTime, vehicle: editVehicle, phone: editPhone, email: editEmail, notes: editNotes });
+      handleUpdate({ ...job, date: editDate, time: editTime, vehicle: editVehicle, vin: editVin, mileage: editMileage, phone: editPhone, email: editEmail, notes: editNotes });
       setEditingAppt(false);
     } catch (e: any) {
       setApptErr(e.message ?? 'Save failed. Try again.');
@@ -3728,6 +3736,8 @@ function JobDetailPanel({ job: initialJob, onClose, onJobUpdate }: {
                     ['Phone', job.phone],
                     ['Email', job.email],
                     ['Vehicle', job.vehicle],
+                    ['VIN', job.vin || '—'],
+                    ['Mileage', job.mileage ? `${job.mileage} mi` : '—'],
                     ['Customer Notes', job.notes || '—'],
                   ].map(([label, val]) => (
                     <div key={label} className="flex gap-4 border-b border-gray-800 py-2">
@@ -3769,6 +3779,18 @@ function JobDetailPanel({ job: initialJob, onClose, onJobUpdate }: {
                     <label className="block text-gray-500 text-[10px] font-bold uppercase tracking-wider mb-1">Vehicle</label>
                     <input type="text" value={editVehicle} onChange={e => setEditVehicle(e.target.value)} placeholder="Year Make Model Trim Engine"
                       className="w-full bg-gray-900 text-white text-sm px-3 py-2 outline-none border border-gray-700 focus:border-red-600 transition-colors" />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-gray-500 text-[10px] font-bold uppercase tracking-wider mb-1">VIN</label>
+                      <input type="text" value={editVin} onChange={e => setEditVin(e.target.value.toUpperCase())} placeholder="1FTFW1E5..."
+                        className="w-full bg-gray-900 text-white text-sm px-3 py-2 outline-none border border-gray-700 focus:border-red-600 transition-colors font-mono" />
+                    </div>
+                    <div>
+                      <label className="block text-gray-500 text-[10px] font-bold uppercase tracking-wider mb-1">Mileage</label>
+                      <input type="text" inputMode="numeric" value={editMileage} onChange={e => setEditMileage(e.target.value.replace(/[^0-9]/g, ''))} placeholder="98,000"
+                        className="w-full bg-gray-900 text-white text-sm px-3 py-2 outline-none border border-gray-700 focus:border-red-600 transition-colors" />
+                    </div>
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
@@ -3953,21 +3975,23 @@ function ExternalLeadModal({ onClose, onAdded, jobs }: { onClose: () => void; on
     vehicle: '', service: 'other', notes: '',
   });
 
-  // ── Previous-customer search: dedupe jobs by phone, keep each customer's most
-  // recent contact info/vehicle, so picking one autofills the fields below.
+  // ── Previous-customer search: one entry per (customer, vehicle) — a repeat
+  // customer with two vehicles shows up as two separate picks, e.g. "Brian
+  // Hinshaw (2021 Chevrolet Colorado)" and "Brian Hinshaw (2002 Honda Civic)".
   const [custQuery, setCustQuery] = useState('');
   const [custPickerOpen, setCustPickerOpen] = useState(false);
   const priorCustomers = useMemo(() => {
-    const byPhone = new Map<string, { fname: string; lname: string; phone: string; email: string; vehicle: string; createdAt: string }>();
+    const byCustomerVehicle = new Map<string, { fname: string; lname: string; phone: string; email: string; vehicle: string; createdAt: string }>();
     for (const j of jobs) {
-      const key = (j.phone || '').replace(/\D/g, '') || `${j.fname}|${j.lname}|${j.email}`;
-      if (!key) continue;
-      const existing = byPhone.get(key);
+      const custKey = (j.phone || '').replace(/\D/g, '') || `${j.fname}|${j.lname}|${j.email}`;
+      if (!custKey) continue;
+      const key = `${custKey}::${(j.vehicle || '').trim().toLowerCase()}`;
+      const existing = byCustomerVehicle.get(key);
       if (!existing || (j.createdAt || '') > existing.createdAt) {
-        byPhone.set(key, { fname: j.fname || '', lname: j.lname || '', phone: j.phone || '', email: j.email || '', vehicle: j.vehicle || '', createdAt: j.createdAt || '' });
+        byCustomerVehicle.set(key, { fname: j.fname || '', lname: j.lname || '', phone: j.phone || '', email: j.email || '', vehicle: j.vehicle || '', createdAt: j.createdAt || '' });
       }
     }
-    return Array.from(byPhone.values()).sort((a, b) => (a.fname + a.lname).localeCompare(b.fname + b.lname));
+    return Array.from(byCustomerVehicle.values()).sort((a, b) => (a.fname + a.lname + a.vehicle).localeCompare(b.fname + b.lname + b.vehicle));
   }, [jobs]);
 
   const custMatches = useMemo(() => {
@@ -3984,7 +4008,7 @@ function ExternalLeadModal({ onClose, onAdded, jobs }: { onClose: () => void; on
   function pickCustomer(c: { fname: string; lname: string; phone: string; email: string; vehicle: string }) {
     setF(p => ({ ...p, fname: c.fname, lname: c.lname, phone: c.phone, email: c.email, vehicle: c.vehicle }));
     setFieldErr({});
-    setCustQuery(`${c.fname} ${c.lname}`.trim());
+    setCustQuery(`${c.fname} ${c.lname}${c.vehicle ? ` (${c.vehicle})` : ''}`.trim());
     setCustPickerOpen(false);
   }
 
@@ -4137,8 +4161,8 @@ function ExternalLeadModal({ onClose, onAdded, jobs }: { onClose: () => void; on
                         onMouseDown={() => pickCustomer(c)}
                         className="w-full text-left px-3 py-2 hover:bg-gray-800 border-b border-gray-800 last:border-b-0 transition-colors"
                       >
-                        <div className="text-white text-sm font-bold">{c.fname} {c.lname}</div>
-                        <div className="text-gray-500 text-xs">{c.phone}{c.vehicle ? ` · ${c.vehicle}` : ''}</div>
+                        <div className="text-white text-sm font-bold">{c.fname} {c.lname}{c.vehicle ? ` (${c.vehicle})` : ''}</div>
+                        <div className="text-gray-500 text-xs">{c.phone}</div>
                       </button>
                     ))}
                   </div>
@@ -5445,13 +5469,15 @@ export function InvoicePage() {
             {[
               ['Customer', `${job.fname} ${job.lname}`],
               ['Vehicle', job.vehicle],
+              ...(job.vin ? [['VIN', job.vin]] : []),
+              ...(job.mileage ? [['Mileage', `${job.mileage} mi`]] : []),
               ['Service Date', serviceDateStr],
               ...(isPaid && paidDateStr ? [['Date Paid', paidDateStr]] : []),
               ...(isPaid && job.stripeTransactionId ? [['Transaction ID', job.stripeTransactionId]] : []),
             ].map(([label, val]) => (
               <div key={label} className="flex justify-between px-6 py-3 gap-4">
                 <span className="text-gray-500 text-xs font-bold uppercase tracking-wider flex-shrink-0">{label}</span>
-                <span className={`text-sm text-right ${label === 'Transaction ID' ? 'text-gray-400 font-mono text-xs break-all' : 'text-white'}`}>{val}</span>
+                <span className={`text-sm text-right ${label === 'Transaction ID' || label === 'VIN' ? 'text-gray-400 font-mono text-xs break-all' : 'text-white'}`}>{val}</span>
               </div>
             ))}
           </div>
@@ -5842,11 +5868,13 @@ export function EstimatePage() {
             <div className="bg-white/5 border border-white/10 divide-y divide-white/10">
               {[
                 ['Vehicle', job.vehicle],
+                ...(job.vin ? [['VIN', job.vin]] : []),
+                ...(job.mileage ? [['Mileage', `${job.mileage} mi`]] : []),
                 ['Appointment', `${dateStr} at ${job.time}`],
               ].map(([label, val]) => (
                 <div key={label} className="flex justify-between px-4 py-3">
                   <span className="text-gray-500 text-xs font-bold uppercase tracking-wider">{label}</span>
-                  <span className="text-white text-sm">{val}</span>
+                  <span className={`text-sm ${label === 'VIN' ? 'text-gray-300 font-mono text-xs break-all' : 'text-white'}`}>{val}</span>
                 </div>
               ))}
               {/* Line items */}
