@@ -183,6 +183,7 @@ export interface Job {
   vehicle: string;
   vin: string;
   mileage: string;
+  serviceAddress: string;
   notes: string;
   garageNotes: string;
   status: string;
@@ -456,6 +457,7 @@ function mapJob(b: any): Job {
     vehicle: b.vehicle,
     vin: b.vin || '',
     mileage: b.mileage || '',
+    serviceAddress: b.service_address || '',
     notes: b.notes || '',
     garageNotes: b.garage_notes || '',
     status: b.status,
@@ -3614,6 +3616,7 @@ function JobDetailPanel({ job: initialJob, onClose, onJobUpdate }: {
   const [editVehicle, setEditVehicle] = useState(job.vehicle || '');
   const [editVin, setEditVin] = useState(job.vin || '');
   const [editMileage, setEditMileage] = useState(job.mileage || '');
+  const [editServiceAddress, setEditServiceAddress] = useState(job.serviceAddress || '');
   const [editPhone, setEditPhone] = useState(job.phone || '');
   const [editEmail, setEditEmail] = useState(job.email || '');
   const [editNotes, setEditNotes] = useState(job.notes || '');
@@ -3625,6 +3628,7 @@ function JobDetailPanel({ job: initialJob, onClose, onJobUpdate }: {
     setEditVehicle(job.vehicle || '');
     setEditVin(job.vin || '');
     setEditMileage(job.mileage || '');
+    setEditServiceAddress(job.serviceAddress || '');
     setEditPhone(job.phone || '');
     setEditEmail(job.email || '');
     setEditNotes(job.notes || '');
@@ -3638,9 +3642,9 @@ function JobDetailPanel({ job: initialJob, onClose, onJobUpdate }: {
     try {
       await patchJob(job.id, {
         date: editDate, time: editTime, vehicle: editVehicle, vin: editVin, mileage: editMileage,
-        phone: editPhone, email: editEmail, notes: editNotes,
+        service_address: editServiceAddress, phone: editPhone, email: editEmail, notes: editNotes,
       });
-      handleUpdate({ ...job, date: editDate, time: editTime, vehicle: editVehicle, vin: editVin, mileage: editMileage, phone: editPhone, email: editEmail, notes: editNotes });
+      handleUpdate({ ...job, date: editDate, time: editTime, vehicle: editVehicle, vin: editVin, mileage: editMileage, serviceAddress: editServiceAddress, phone: editPhone, email: editEmail, notes: editNotes });
       setEditingAppt(false);
     } catch (e: any) {
       setApptErr(e.message ?? 'Save failed. Try again.');
@@ -3742,6 +3746,7 @@ function JobDetailPanel({ job: initialJob, onClose, onJobUpdate }: {
                     ['Date', `${dateStr} at ${job.time}`],
                     ['Phone', job.phone],
                     ['Email', job.email],
+                    ['Service Address', job.serviceAddress || '—'],
                     ['Vehicle', job.vehicle],
                     ['VIN', job.vin || '—'],
                     ['Mileage', job.mileage ? `${job.mileage} mi` : '—'],
@@ -3810,6 +3815,11 @@ function JobDetailPanel({ job: initialJob, onClose, onJobUpdate }: {
                       <input type="email" value={editEmail} onChange={e => setEditEmail(e.target.value)}
                         className="w-full bg-gray-900 text-white text-sm px-3 py-2 outline-none border border-gray-700 focus:border-red-600 transition-colors" />
                     </div>
+                  </div>
+                  <div>
+                    <label className="block text-gray-500 text-[10px] font-bold uppercase tracking-wider mb-1">Service Address</label>
+                    <input type="text" value={editServiceAddress} onChange={e => setEditServiceAddress(e.target.value)} placeholder="123 Main St, Flagstaff, AZ"
+                      className="w-full bg-gray-900 text-white text-sm px-3 py-2 outline-none border border-gray-700 focus:border-red-600 transition-colors" />
                   </div>
                   <div>
                     <label className="block text-gray-500 text-[10px] font-bold uppercase tracking-wider mb-1">Notes</label>
@@ -3995,7 +4005,7 @@ function ExternalLeadModal({ onClose, onAdded, jobs }: { onClose: () => void; on
 
   const [f, setF] = useState({
     fname: '', lname: '', phone: '', email: '',
-    vehicle: '', service: 'other', notes: '',
+    vehicle: '', service: 'other', notes: '', address: '',
   });
 
   // ── Previous-customer search: one entry per (customer, vehicle) — a repeat
@@ -4004,14 +4014,14 @@ function ExternalLeadModal({ onClose, onAdded, jobs }: { onClose: () => void; on
   const [custQuery, setCustQuery] = useState('');
   const [custPickerOpen, setCustPickerOpen] = useState(false);
   const priorCustomers = useMemo(() => {
-    const byCustomerVehicle = new Map<string, { fname: string; lname: string; phone: string; email: string; vehicle: string; createdAt: string }>();
+    const byCustomerVehicle = new Map<string, { fname: string; lname: string; phone: string; email: string; vehicle: string; address: string; createdAt: string }>();
     for (const j of jobs) {
       const custKey = (j.phone || '').replace(/\D/g, '') || `${j.fname}|${j.lname}|${j.email}`;
       if (!custKey) continue;
       const key = `${custKey}::${(j.vehicle || '').trim().toLowerCase()}`;
       const existing = byCustomerVehicle.get(key);
       if (!existing || (j.createdAt || '') > existing.createdAt) {
-        byCustomerVehicle.set(key, { fname: j.fname || '', lname: j.lname || '', phone: j.phone || '', email: j.email || '', vehicle: j.vehicle || '', createdAt: j.createdAt || '' });
+        byCustomerVehicle.set(key, { fname: j.fname || '', lname: j.lname || '', phone: j.phone || '', email: j.email || '', vehicle: j.vehicle || '', address: j.serviceAddress || '', createdAt: j.createdAt || '' });
       }
     }
     return Array.from(byCustomerVehicle.values()).sort((a, b) => (a.fname + a.lname + a.vehicle).localeCompare(b.fname + b.lname + b.vehicle));
@@ -4024,12 +4034,13 @@ function ExternalLeadModal({ onClose, onAdded, jobs }: { onClose: () => void; on
       `${c.fname} ${c.lname}`.toLowerCase().includes(q) ||
       c.phone.toLowerCase().includes(q) ||
       c.email.toLowerCase().includes(q) ||
-      c.vehicle.toLowerCase().includes(q)
+      c.vehicle.toLowerCase().includes(q) ||
+      c.address.toLowerCase().includes(q)
     ).slice(0, 8);
   }, [priorCustomers, custQuery]);
 
-  function pickCustomer(c: { fname: string; lname: string; phone: string; email: string; vehicle: string }) {
-    setF(p => ({ ...p, fname: c.fname, lname: c.lname, phone: c.phone, email: c.email, vehicle: c.vehicle }));
+  function pickCustomer(c: { fname: string; lname: string; phone: string; email: string; vehicle: string; address: string }) {
+    setF(p => ({ ...p, fname: c.fname, lname: c.lname, phone: c.phone, email: c.email, vehicle: c.vehicle, address: c.address }));
     setFieldErr({});
     setCustQuery(`${c.fname} ${c.lname}${c.vehicle ? ` (${c.vehicle})` : ''}`.trim());
     setCustPickerOpen(false);
@@ -4086,6 +4097,7 @@ function ExternalLeadModal({ onClose, onAdded, jobs }: { onClose: () => void; on
       phone: f.phone,
       email: f.email,
       vehicle: f.vehicle,
+      service_address: f.address,
       notes: notesStr,
       garage_notes: '',
       status: 'confirmed',
@@ -4172,7 +4184,7 @@ function ExternalLeadModal({ onClose, onAdded, jobs }: { onClose: () => void; on
                   onChange={e => { setCustQuery(e.target.value); setCustPickerOpen(true); }}
                   onFocus={() => setCustPickerOpen(true)}
                   onBlur={() => setTimeout(() => setCustPickerOpen(false), 150)}
-                  placeholder="Search by name, phone, email, or vehicle…"
+                  placeholder="Search by name, phone, email, vehicle, or address…"
                   className="w-full bg-gray-900 text-white text-sm px-3 py-2.5 outline-none border border-gray-700 focus:border-indigo-600 transition-colors"
                 />
                 {custPickerOpen && custMatches.length > 0 && (
@@ -4185,7 +4197,7 @@ function ExternalLeadModal({ onClose, onAdded, jobs }: { onClose: () => void; on
                         className="w-full text-left px-3 py-2 hover:bg-gray-800 border-b border-gray-800 last:border-b-0 transition-colors"
                       >
                         <div className="text-white text-sm font-bold">{c.fname} {c.lname}{c.vehicle ? ` (${c.vehicle})` : ''}</div>
-                        <div className="text-gray-500 text-xs">{c.phone}</div>
+                        <div className="text-gray-500 text-xs">{c.phone}{c.address ? ` · ${c.address}` : ''}</div>
                       </button>
                     ))}
                   </div>
@@ -4200,6 +4212,7 @@ function ExternalLeadModal({ onClose, onAdded, jobs }: { onClose: () => void; on
               </div>
 
               {inp('vehicle', 'Vehicle * (Year Make Model Trim)', 'text', '2019 Toyota Camry LE')}
+              {inp('address', 'Service Address (optional)', 'text', '123 Main St, Flagstaff, AZ')}
 
               <div>
                 <label className="block text-xs font-bold uppercase tracking-wider mb-1 text-gray-500">Service</label>
