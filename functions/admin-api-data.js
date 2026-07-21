@@ -379,6 +379,53 @@ export async function onRequestPost({ request, env }) {
       }
 
       // ---- Business Hub notes (admin-only) ---------------------------------
+      // ---- Owner's Equity ledger (Hub → Banking & Credit) -------------------
+      // Requires a Supabase table `equity_entries`:
+      //   id uuid primary key default gen_random_uuid(),
+      //   entry_type text not null check (entry_type in ('contribution','draw')),
+      //   amount numeric not null,
+      //   note text,
+      //   entry_date date not null,
+      //   created_at timestamptz not null default now()
+      case 'list-equity-entries': {
+        const res = await fetch(
+          `${base}/equity_entries?select=*&order=entry_date.desc,created_at.desc`,
+          { headers }
+        );
+        if (!res.ok) return json({ error: await res.text() }, 502);
+        return json(await res.json());
+      }
+
+      case 'add-equity-entry': {
+        const { entryType, amount, note, entryDate } = payload;
+        if (entryType !== 'contribution' && entryType !== 'draw') {
+          return json({ error: 'entryType must be "contribution" or "draw"' }, 400);
+        }
+        if (typeof amount !== 'number' || !(amount > 0)) {
+          return json({ error: 'amount must be a positive number' }, 400);
+        }
+        if (!entryDate) return json({ error: 'Missing entryDate' }, 400);
+        const res = await fetch(`${base}/equity_entries`, {
+          method: 'POST',
+          headers: { ...headers, Prefer: 'return=representation' },
+          body: JSON.stringify({ entry_type: entryType, amount, note: note ?? '', entry_date: entryDate }),
+        });
+        if (!res.ok) return json({ error: await res.text() }, 502);
+        const rows = await res.json();
+        return json(Array.isArray(rows) ? rows[0] : rows);
+      }
+
+      case 'delete-equity-entry': {
+        const { id } = payload;
+        if (!id) return json({ error: 'Missing id' }, 400);
+        const res = await fetch(
+          `${base}/equity_entries?id=eq.${encodeURIComponent(id)}`,
+          { method: 'DELETE', headers: { ...headers, Prefer: 'return=minimal' } }
+        );
+        if (!res.ok) return json({ error: await res.text() }, 502);
+        return json({ ok: true });
+      }
+
       case 'list-notes': {
         const { categoryId } = payload;
         if (!categoryId) return json({ error: 'Missing categoryId' }, 400);

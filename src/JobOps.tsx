@@ -7119,6 +7119,164 @@ function TaxSummary() {
   );
 }
 
+// ── OWNER'S EQUITY LEDGER (Hub → Banking & Credit) ────────────────────────────
+// Tracks the two sides Michael needs: Contributions (personal money put into
+// the business — parts fronted on a personal card, seed cash, etc.) and Draws
+// (money paid back out to him, including reimbursements). Running balance =
+// total contributions − total draws. This is bookkeeping context only — it's
+// not a loan and doesn't affect taxable income either way for an LLC.
+interface EquityEntry {
+  id: string;
+  entry_type: 'contribution' | 'draw';
+  amount: number;
+  note: string;
+  entry_date: string;
+  created_at: string;
+}
+
+function EquityTracker() {
+  const [entries, setEntries] = useState<EquityEntry[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [entryType, setEntryType] = useState<'contribution' | 'draw'>('draw');
+  const [amountInput, setAmountInput] = useState('');
+  const [noteInput, setNoteInput] = useState('');
+  const [dateInput, setDateInput] = useState(() => new Date().toISOString().slice(0, 10));
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  function load() {
+    setLoading(true);
+    adminPost('list-equity-entries')
+      .then((data: EquityEntry[]) => { setEntries(data || []); setLoading(false); })
+      .catch(() => setLoading(false));
+  }
+
+  useEffect(load, []);
+
+  async function addEntry() {
+    const amount = parseFloat(amountInput);
+    if (!(amount > 0)) { setError('Enter an amount greater than 0'); return; }
+    setSaving(true);
+    setError(null);
+    try {
+      await adminPost('add-equity-entry', { entryType, amount, note: noteInput, entryDate: dateInput });
+      setAmountInput('');
+      setNoteInput('');
+      load();
+    } catch (e: any) {
+      setError(e.message ?? 'Failed to save');
+    }
+    setSaving(false);
+  }
+
+  async function removeEntry(id: string) {
+    if (!confirm('Delete this entry?')) return;
+    try {
+      await adminPost('delete-equity-entry', { id });
+      setEntries(prev => prev.filter(e => e.id !== id));
+    } catch (e: any) {
+      setError(e.message ?? 'Failed to delete');
+    }
+  }
+
+  const totalContributions = entries.filter(e => e.entry_type === 'contribution').reduce((s, e) => s + (Number(e.amount) || 0), 0);
+  const totalDraws = entries.filter(e => e.entry_type === 'draw').reduce((s, e) => s + (Number(e.amount) || 0), 0);
+  const balance = Math.round((totalContributions - totalDraws) * 100) / 100;
+
+  return (
+    <div className="mt-4 border border-gray-800 bg-gray-900/30 p-4">
+      <p className="text-gray-400 text-xs font-bold uppercase tracking-widest mb-1">🏦 Owner's Equity Ledger</p>
+      <p className="text-gray-600 text-[10px] mb-3">
+        Contributions = personal money you've put into the business (parts fronted, seed cash, expenses paid personally — you're already tracking these in Zoho). Draws = money the business has paid back to you. Balance below is what the business still owes you, or how far ahead it's paid you back.
+      </p>
+
+      <div className="grid grid-cols-3 gap-2 mb-4 text-center">
+        <div className="bg-gray-900 border border-emerald-900 px-2 py-2">
+          <p className="text-emerald-600 text-[10px] font-bold uppercase tracking-wider mb-0.5">Contributions</p>
+          <p className="text-emerald-400 text-sm font-mono font-bold">${totalContributions.toFixed(2)}</p>
+        </div>
+        <div className="bg-gray-900 border border-orange-900 px-2 py-2">
+          <p className="text-orange-600 text-[10px] font-bold uppercase tracking-wider mb-0.5">Draws</p>
+          <p className="text-orange-400 text-sm font-mono font-bold">${totalDraws.toFixed(2)}</p>
+        </div>
+        <div className="bg-gray-900 border border-cyan-900 px-2 py-2">
+          <p className="text-cyan-600 text-[10px] font-bold uppercase tracking-wider mb-0.5">Balance</p>
+          <p className={`text-sm font-mono font-bold ${balance >= 0 ? 'text-cyan-400' : 'text-red-400'}`}>${balance.toFixed(2)}</p>
+        </div>
+      </div>
+
+      {/* Add entry */}
+      <div className="border border-gray-800 p-3 mb-4 space-y-2">
+        <div className="flex gap-2">
+          <button
+            onClick={() => setEntryType('contribution')}
+            className={`flex-1 py-2 text-xs font-bold uppercase tracking-wider border transition-colors ${entryType === 'contribution' ? 'bg-emerald-900/20 border-emerald-800 text-emerald-400' : 'border-gray-800 text-gray-500 hover:text-gray-300'}`}
+          >Contribution (in)</button>
+          <button
+            onClick={() => setEntryType('draw')}
+            className={`flex-1 py-2 text-xs font-bold uppercase tracking-wider border transition-colors ${entryType === 'draw' ? 'bg-orange-900/20 border-orange-800 text-orange-400' : 'border-gray-800 text-gray-500 hover:text-gray-300'}`}
+          >Draw / Payback (out)</button>
+        </div>
+        <div className="flex gap-2">
+          <div className="flex items-center gap-1 bg-gray-900 border border-gray-700 px-2.5 flex-1">
+            <span className="text-gray-500 text-xs font-bold">$</span>
+            <input
+              type="number" min="0" step="0.01" placeholder="0.00"
+              value={amountInput}
+              onChange={e => setAmountInput(e.target.value)}
+              className="bg-transparent text-white py-2 text-sm font-mono w-full outline-none placeholder-gray-700"
+            />
+          </div>
+          <input
+            type="date"
+            value={dateInput}
+            onChange={e => setDateInput(e.target.value)}
+            className="bg-gray-900 border border-gray-700 text-white px-2.5 py-2 text-sm outline-none"
+          />
+        </div>
+        <input
+          type="text" placeholder="Note (e.g. O'Reilly parts run, personal card)"
+          value={noteInput}
+          onChange={e => setNoteInput(e.target.value)}
+          className="w-full bg-gray-900 border border-gray-700 text-white px-2.5 py-2 text-sm outline-none placeholder-gray-700"
+        />
+        <button
+          onClick={addEntry}
+          disabled={saving}
+          className="w-full py-2.5 text-xs font-bold uppercase tracking-wider border border-cyan-700 text-cyan-500 hover:bg-cyan-900/20 transition-colors disabled:opacity-50"
+        >{saving ? 'Saving…' : '+ Add Entry'}</button>
+        {error && <p className="text-red-400 text-xs">{error}</p>}
+      </div>
+
+      {/* History */}
+      {loading ? (
+        <p className="text-gray-600 text-xs py-4">Loading ledger…</p>
+      ) : !entries.length ? (
+        <p className="text-gray-700 text-xs italic py-2">No entries yet — log your first contribution or draw above.</p>
+      ) : (
+        <div className="space-y-1.5">
+          {entries.map(e => (
+            <div key={e.id} className="flex items-center justify-between bg-gray-900/40 border border-gray-800 px-3 py-2">
+              <div className="min-w-0">
+                <p className={`text-xs font-bold uppercase tracking-wider ${e.entry_type === 'contribution' ? 'text-emerald-500' : 'text-orange-500'}`}>
+                  {e.entry_type === 'contribution' ? 'Contribution' : 'Draw'}
+                </p>
+                <p className="text-gray-500 text-[11px] truncate">{e.note || '—'} · {new Date(e.entry_date + 'T00:00:00').toLocaleDateString('en-US')}</p>
+              </div>
+              <div className="flex items-center gap-3 flex-shrink-0">
+                <span className={`font-mono text-sm font-bold ${e.entry_type === 'contribution' ? 'text-emerald-400' : 'text-orange-400'}`}>
+                  {e.entry_type === 'contribution' ? '+' : '-'}${Number(e.amount).toFixed(2)}
+                </span>
+                <button onClick={() => removeEntry(e.id)} className="text-gray-600 hover:text-red-500 transition-colors" title="Delete">×</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── REVENUE PANEL (Hub) ──────────────────────────────────────────────────────
 // Same payments-aware, fallback-to-paidAt accounting as JobsTab's monthRevenue,
 // generalized to per-entry {date, amount} so it can be bucketed by day or month.
@@ -7639,6 +7797,9 @@ function HubCategoryPanel({ cat }: { cat: HubCategory }) {
       {cat.id === 'taxes' && <TaxSummary />}
       {cat.id === 'taxes' && <JobsCSVExport />}
       {cat.id === 'taxes' && <InvoiceExport />}
+
+      {/* Owner's Equity ledger auto-embedded in banking tab */}
+      {cat.id === 'banking' && <EquityTracker />}
 
       {/* Add note */}
       <div className="mt-5 space-y-2">
