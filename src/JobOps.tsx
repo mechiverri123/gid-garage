@@ -1152,6 +1152,7 @@ function AdminPhotoPanel({ entityId, onSave, initialPhotos, onPhotosChange }: {
   const [savingNotes, setSavingNotes] = useState(false);
   const [notesSaved, setNotesSaved] = useState(false);
   const [hasNoteChanges, setHasNoteChanges] = useState(false);
+  const [editingNote, setEditingNote] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const prevEntityId = useRef(entityId);
 
@@ -1294,19 +1295,25 @@ function AdminPhotoPanel({ entityId, onSave, initialPhotos, onPhotosChange }: {
                 <span className="absolute bottom-2 left-2 text-[10px] text-gray-400 bg-black/60 px-1.5 py-0.5">{p.name}</span>
               </div>
               <div className="p-2">
-                <textarea
-                  value={p.note}
-                  onChange={e => updateNote(p.key, e.target.value)}
-                  placeholder="Add a note…"
-                  rows={1}
-                  className="w-full bg-gray-800 border border-gray-700 text-white text-xs px-2.5 py-1.5 outline-none focus:border-yellow-700 placeholder-gray-600 transition-colors resize-none whitespace-pre-wrap break-words"
-                  style={{ overflowWrap: 'break-word' }}
-                  onInput={e => {
-                    const el = e.currentTarget;
-                    el.style.height = 'auto';
-                    el.style.height = el.scrollHeight + 'px';
-                  }}
-                />
+                {editingNote === p.key ? (
+                  <input
+                    autoFocus
+                    type="text"
+                    value={p.note}
+                    onChange={e => updateNote(p.key, e.target.value)}
+                    onBlur={() => setEditingNote(null)}
+                    onKeyDown={e => e.key === 'Enter' && setEditingNote(null)}
+                    placeholder="Add a note…"
+                    className="w-full bg-gray-800 border border-gray-700 text-white text-xs px-2.5 py-1.5 outline-none focus:border-yellow-700 placeholder-gray-600 transition-colors"
+                  />
+                ) : (
+                  <button
+                    onClick={() => setEditingNote(p.key)}
+                    className="w-full text-left text-xs text-gray-400 hover:text-gray-200 transition-colors whitespace-pre-wrap break-words"
+                  >
+                    {p.note || <span className="italic text-gray-600">+ Add a note…</span>}
+                  </button>
+                )}
               </div>
             </div>
           ))}
