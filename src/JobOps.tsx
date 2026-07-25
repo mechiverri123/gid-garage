@@ -1294,12 +1294,18 @@ function AdminPhotoPanel({ entityId, onSave, initialPhotos, onPhotosChange }: {
                 <span className="absolute bottom-2 left-2 text-[10px] text-gray-400 bg-black/60 px-1.5 py-0.5">{p.name}</span>
               </div>
               <div className="p-2">
-                <input
-                  type="text"
+                <textarea
                   value={p.note}
                   onChange={e => updateNote(p.key, e.target.value)}
                   placeholder="Add a note…"
-                  className="w-full bg-gray-800 border border-gray-700 text-white text-xs px-2.5 py-1.5 outline-none focus:border-yellow-700 placeholder-gray-600 transition-colors"
+                  rows={1}
+                  className="w-full bg-gray-800 border border-gray-700 text-white text-xs px-2.5 py-1.5 outline-none focus:border-yellow-700 placeholder-gray-600 transition-colors resize-none whitespace-pre-wrap break-words"
+                  style={{ overflowWrap: 'break-word' }}
+                  onInput={e => {
+                    const el = e.currentTarget;
+                    el.style.height = 'auto';
+                    el.style.height = el.scrollHeight + 'px';
+                  }}
                 />
               </div>
             </div>
