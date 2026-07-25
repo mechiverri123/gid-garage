@@ -3616,6 +3616,8 @@ function JobDetailPanel({ job: initialJob, onClose, onJobUpdate }: {
   const [editDate, setEditDate] = useState(job.date);
   const [editTime, setEditTime] = useState(job.time);
   const [editCustomTime, setEditCustomTime] = useState(false);
+  const [editFname, setEditFname] = useState(job.fname || '');
+  const [editLname, setEditLname] = useState(job.lname || '');
   const [editVehicle, setEditVehicle] = useState(job.vehicle || '');
   const [editVin, setEditVin] = useState(job.vin || '');
   const [editMileage, setEditMileage] = useState(job.mileage || '');
@@ -3628,6 +3630,8 @@ function JobDetailPanel({ job: initialJob, onClose, onJobUpdate }: {
     setEditDate(job.date);
     setEditTime(job.time);
     setEditCustomTime(false);
+    setEditFname(job.fname || '');
+    setEditLname(job.lname || '');
     setEditVehicle(job.vehicle || '');
     setEditVin(job.vin || '');
     setEditMileage(job.mileage || '');
@@ -3640,14 +3644,15 @@ function JobDetailPanel({ job: initialJob, onClose, onJobUpdate }: {
   }
 
   async function saveAppt() {
+    if (!editFname.trim()) { setApptErr('First name is required.'); return; }
     setApptSaving(true);
     setApptErr(null);
     try {
       await patchJob(job.id, {
-        date: editDate, time: editTime, vehicle: editVehicle, vin: editVin, mileage: editMileage,
+        date: editDate, time: editTime, fname: editFname.trim(), lname: editLname.trim(), vehicle: editVehicle, vin: editVin, mileage: editMileage,
         service_address: editServiceAddress, phone: editPhone, email: editEmail, notes: editNotes,
       });
-      handleUpdate({ ...job, date: editDate, time: editTime, vehicle: editVehicle, vin: editVin, mileage: editMileage, serviceAddress: editServiceAddress, phone: editPhone, email: editEmail, notes: editNotes });
+      handleUpdate({ ...job, date: editDate, time: editTime, fname: editFname.trim(), lname: editLname.trim(), vehicle: editVehicle, vin: editVin, mileage: editMileage, serviceAddress: editServiceAddress, phone: editPhone, email: editEmail, notes: editNotes });
       setEditingAppt(false);
     } catch (e: any) {
       setApptErr(e.message ?? 'Save failed. Try again.');
@@ -3745,6 +3750,7 @@ function JobDetailPanel({ job: initialJob, onClose, onJobUpdate }: {
               {!editingAppt ? (
                 <div className="space-y-2">
                   {[
+                    ['Name', `${job.fname} ${job.lname}`.trim() || '—'],
                     ['Service', resolveServiceName(job.service, job.notes)],
                     ['Date', `${dateStr} at ${job.time}`],
                     ['Phone', job.phone],
@@ -3767,6 +3773,18 @@ function JobDetailPanel({ job: initialJob, onClose, onJobUpdate }: {
                 </div>
               ) : (
                 <div className="space-y-3">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-gray-500 text-[10px] font-bold uppercase tracking-wider mb-1">First Name</label>
+                      <input type="text" value={editFname} onChange={e => setEditFname(e.target.value)} placeholder="John"
+                        className="w-full bg-gray-900 text-white text-sm px-3 py-2 outline-none border border-gray-700 focus:border-red-600 transition-colors" />
+                    </div>
+                    <div>
+                      <label className="block text-gray-500 text-[10px] font-bold uppercase tracking-wider mb-1">Last Name</label>
+                      <input type="text" value={editLname} onChange={e => setEditLname(e.target.value)} placeholder="Smith (optional)"
+                        className="w-full bg-gray-900 text-white text-sm px-3 py-2 outline-none border border-gray-700 focus:border-red-600 transition-colors" />
+                    </div>
+                  </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label className="block text-gray-500 text-[10px] font-bold uppercase tracking-wider mb-1">Date</label>
