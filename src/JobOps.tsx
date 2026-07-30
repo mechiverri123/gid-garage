@@ -5241,7 +5241,7 @@ export function JobsTab() {
                 </div>
                 {job.estimateAmount && (
                   <div className="hidden md:block text-gray-500 text-sm font-mono">
-                    ${job.estimateAmount.toFixed(2)}
+                    ${(job.estimateAmount + (job.taxAmount ?? (job.lineItems?.length ? taxFromItems(job.lineItems) : calcTax(job.estimateAmount)))).toFixed(2)}
                   </div>
                 )}
               </div>
@@ -5947,6 +5947,7 @@ export function EstimatePage() {
             {/* Job summary */}
             <div className="bg-white/5 border border-white/10 divide-y divide-white/10">
               {[
+                ['Name', `${job.fname} ${job.lname}`],
                 ['Vehicle', job.vehicle],
                 ...(job.vin ? [['VIN', job.vin]] : []),
                 ...(job.mileage ? [['Mileage', `${job.mileage} mi`]] : []),
