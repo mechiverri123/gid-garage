@@ -113,7 +113,7 @@ function Hero({ openBooking }: { openBooking: () => void }) {
   return (
     <section id="hero" className="relative min-h-screen flex items-center justify-center bg-dark overflow-hidden pt-20">
       <div className="absolute inset-0">
-        <img src="https://images.unsplash.com/photo-1530046339160-ce3e530c7d2f?w=2560&q=85&auto=format&fit=crop" alt="Mechanic working under a car hood" className="w-full h-full object-cover object-center" />
+        <img src={img('afba.jpg')} alt="GID Garage mobile mechanic performing on-site auto repair for a customer in Flagstaff, AZ" className="w-full h-full object-cover object-center" />
         <div className="absolute inset-0 bg-dark/75" />
         <div className="absolute bottom-0 left-0 right-0 h-48" style={{ background: 'linear-gradient(to bottom, transparent, #0f0f0f)' }} />
       </div>
@@ -128,7 +128,7 @@ function Hero({ openBooking }: { openBooking: () => void }) {
         </div>
         <div className="max-w-5xl mx-auto px-5 md:px-8">
           <p className="text-red-400 text-xs font-bold uppercase tracking-[0.25em] mb-6">Get It Done Garage · Flagstaff, AZ</p>
-          <h1 className="text-5xl sm:text-6xl md:text-7xl font-extrabold text-white leading-tight tracking-tight mb-6">Mobile Car Care<br />at 7,000 Feet</h1>
+          <h1 className="text-5xl sm:text-6xl md:text-7xl font-extrabold text-white leading-tight tracking-tight mb-6">Flagstaff Mobile Mechanic<br /><span className="text-3xl sm:text-4xl md:text-5xl">Car Care at 7,000 Feet</span></h1>
           <div className="text-white/80 text-lg md:text-xl max-w-2xl mx-auto mb-10 leading-relaxed font-light">We come to you — Flagstaff, Bellemont, Kachina, Fort Valley &amp; beyond. Honest pricing, expert work, no shop wait.</div>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <button onClick={openBooking} className="btn-primary text-sm px-8 py-4">Get a Quote</button>
@@ -410,6 +410,23 @@ function GoogleReviewsSection() {
     fetch('/google-reviews').then(r => r.json()).then(setData).catch(() => setData(null));
   }, []);
 
+  // Once we have a live rating, add it to the AutoRepair schema so search
+  // engines can show star ratings in results.
+  useEffect(() => {
+    if (data?.rating == null || data?.totalReviews == null) return;
+    const schemaEl = document.getElementById('business-schema');
+    if (!schemaEl) return;
+    try {
+      const schema = JSON.parse(schemaEl.textContent || '{}');
+      schema.aggregateRating = {
+        '@type': 'AggregateRating',
+        ratingValue: data.rating,
+        reviewCount: data.totalReviews,
+      };
+      schemaEl.textContent = JSON.stringify(schema);
+    } catch { /* leave schema untouched if parsing fails */ }
+  }, [data]);
+
   // Not configured yet, or nothing to show — don't render a broken/empty section
   if (!data?.configured || !data.reviews?.length) return null;
 
@@ -520,7 +537,7 @@ function ServiceMap() {
             return area.isHome ? (
               <div key={area.name} className="p-3 text-center border border-red-600 bg-red-600/10">{Card}</div>
             ) : (
-              <a key={area.name} href={`/service-area?town=${area.slug}`} className="p-3 text-center border border-white/10 bg-white/5 hover:border-red-600/50 hover:bg-white/10 transition-colors">{Card}</a>
+              <a key={area.name} href={`/service-area/${area.slug}`} className="p-3 text-center border border-white/10 bg-white/5 hover:border-red-600/50 hover:bg-white/10 transition-colors">{Card}</a>
             );
           })}
         </div>
@@ -780,6 +797,21 @@ function ServiceAreaPage({ slug }: { slug: string }) {
     document.title = title;
     let meta = document.querySelector('meta[name="description"]');
     if (meta) meta.setAttribute('content', desc);
+
+    // Flagstaff is our home base and already the homepage's primary target —
+    // canonicalize this page to the homepage so the two don't compete for
+    // the same "Flagstaff mobile mechanic" ranking. Other towns canonicalize
+    // to their own clean URL.
+    const canonicalHref = area.isHome
+      ? 'https://gidgarage.com/'
+      : `https://gidgarage.com/service-area/${area.slug}`;
+    let link = document.querySelector('link[rel="canonical"]');
+    if (!link) {
+      link = document.createElement('link');
+      link.setAttribute('rel', 'canonical');
+      document.head.appendChild(link);
+    }
+    link.setAttribute('href', canonicalHref);
   }, [area]);
 
   if (!area) {
@@ -1076,7 +1108,8 @@ export default function App() {
   const isPPI = window.location.pathname === '/ppi';
   const isGames = window.location.pathname === '/games';
   const isGameRedeem = window.location.pathname === '/game-redeem';
-  const isServiceArea = window.location.pathname === '/service-area';
+  const isServiceArea = window.location.pathname.startsWith('/service-area/');
+  const serviceAreaSlug = isServiceArea ? window.location.pathname.split('/service-area/')[1]?.replace(/\/$/, '') : '';
   const isPrivacy = window.location.pathname === '/privacy';
   const isReview = window.location.pathname === '/review';
 
@@ -1096,7 +1129,7 @@ export default function App() {
   if (isPPI) return <PPIPage />;
   if (isGames) return <GamesPage />;
   if (isGameRedeem) return <GameRedeem />;
-  if (isServiceArea) return <ServiceAreaPage slug={params.get('town') ?? ''} />;
+  if (isServiceArea) return <ServiceAreaPage slug={serviceAreaSlug ?? ''} />;
   if (isPrivacy) return <PrivacyPolicyPage />;
   if (isReview) return <ReviewRedirect />;
   if (cancelId && cancelToken) return <CancelPage bookingId={cancelId} token={cancelToken} />;

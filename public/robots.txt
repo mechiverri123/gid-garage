@@ -5,3 +5,5 @@ Disallow: /admin/
 User-agent: Googlebot
 Disallow: /admin
 Disallow: /admin/
+
+Sitemap: https://gidgarage.com/sitemap.xml
