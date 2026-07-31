@@ -1112,6 +1112,20 @@ export default function App() {
   const isPrivacy = window.location.pathname === '/privacy';
   const isReview = window.location.pathname === '/review';
 
+  // Utility/account pages (quotes, invoices, games, cancellations, admin) aren't
+  // content pages — indexing them creates thin/duplicate results that dilute
+  // the pages we actually want ranking. Keep home, service-area, and privacy indexable.
+  useEffect(() => {
+    const shouldNoindex = isEstimate || isInvoice || isPPI || isGames || isGameRedeem || isReview || isAdmin || (!!cancelId && !!cancelToken);
+    let meta = document.querySelector('meta[name="robots"]');
+    if (!meta) {
+      meta = document.createElement('meta');
+      meta.setAttribute('name', 'robots');
+      document.head.appendChild(meta);
+    }
+    meta.setAttribute('content', shouldNoindex ? 'noindex, nofollow' : 'index, follow');
+  }, [isEstimate, isInvoice, isPPI, isGames, isGameRedeem, isReview, isAdmin, cancelId, cancelToken]);
+
   function handleBookService(id: string) {
     setBookingServiceId(id);
     setModalOpen(true);

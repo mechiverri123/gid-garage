@@ -1,9 +1,23 @@
 User-agent: *
 Disallow: /admin
 Disallow: /admin/
+Disallow: /estimate
+Disallow: /invoice
+Disallow: /ppi
+Disallow: /games
+Disallow: /game-redeem
+Disallow: /review
+Disallow: /*?cancel=
 
 User-agent: Googlebot
 Disallow: /admin
 Disallow: /admin/
+Disallow: /estimate
+Disallow: /invoice
+Disallow: /ppi
+Disallow: /games
+Disallow: /game-redeem
+Disallow: /review
+Disallow: /*?cancel=
 
 Sitemap: https://gidgarage.com/sitemap.xml
