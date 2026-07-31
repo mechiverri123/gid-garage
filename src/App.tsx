@@ -112,18 +112,17 @@ function Nav({ openBooking }: { openBooking: () => void }) {
 function Hero({ openBooking }: { openBooking: () => void }) {
   return (
     <section id="hero" className="relative min-h-screen flex items-center justify-center bg-dark overflow-hidden pt-20">
-      <div className="absolute inset-0">
-        <img src={img('afba.jpg')} alt="GID Garage mobile mechanic performing on-site auto repair for a customer in Flagstaff, AZ" className="w-full h-full object-cover object-center" />
-        <div className="absolute inset-0 bg-dark/75" />
-        <div className="absolute bottom-0 left-0 right-0 h-48" style={{ background: 'linear-gradient(to bottom, transparent, #0f0f0f)' }} />
-      </div>
+      <div
+        className="absolute inset-0"
+        style={{ background: 'radial-gradient(ellipse 80% 60% at 50% 35%, rgba(220,38,38,0.14), transparent 70%), linear-gradient(180deg, #0f0f0f 0%, #141414 45%, #0f0f0f 100%)' }}
+      />
       <div className="relative z-10 w-full text-center">
-        <div className="mb-4 w-full px-4 md:px-0 md:max-w-6xl lg:max-w-7xl mx-auto">
+        <div className="mb-4 w-full px-4 md:px-0 md:max-w-7xl mx-auto">
           <img
             src={img('banner.PNG')}
             alt="GID Garage"
             className="w-full object-contain drop-shadow-2xl"
-            style={{ maxHeight: '560px' }}
+            style={{ maxHeight: '680px' }}
           />
         </div>
         <div className="max-w-5xl mx-auto px-5 md:px-8">
