@@ -3634,6 +3634,7 @@ function JobMileageBox({ job }: { job: Job }) {
     } catch (err: any) {
       let msg = err?.message || 'Unknown error';
       try { msg = JSON.parse(msg)?.error || msg; } catch { /* not JSON */ }
+      if (/^\s*<!DOCTYPE/i.test(msg) || /^\s*<html/i.test(msg)) msg = 'Server error (Cloudflare) — try again in a moment.';
       setCalcErr(msg);
     }
     setCalculating(false);

@@ -446,8 +446,13 @@ export async function onRequestPost({ request, env }) {
         const apiKey = env.GOOGLE_PLACES_API_KEY;
         if (!apiKey) return json({ error: 'GOOGLE_PLACES_API_KEY not configured' }, 500);
         const url = `https://maps.googleapis.com/maps/api/distancematrix/json?units=imperial&origins=${encodeURIComponent(origin)}&destinations=${encodeURIComponent(destination)}&key=${apiKey}`;
-        const res = await fetch(url);
-        if (!res.ok) return json({ error: await res.text() }, 502);
+        let res;
+        try {
+          res = await fetch(url, { signal: AbortSignal.timeout(10000) });
+        } catch (fetchErr) {
+          return json({ error: `Distance lookup timed out or failed to reach Google: ${fetchErr.message}` }, 502);
+        }
+        if (!res.ok) return json({ error: `Google returned ${res.status}: ${await res.text()}` }, 502);
         const data = await res.json();
         const el = data?.rows?.[0]?.elements?.[0];
         if (data.status !== 'OK' || !el || el.status !== 'OK') {
