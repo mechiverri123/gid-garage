@@ -3629,13 +3629,26 @@ function JobMileageBox({ job }: { job: Job }) {
     try {
       const { homeAddress } = await adminPost('get-home-address');
       if (!homeAddress) { setCalcErr('Set your home address in the Mileage tab first.'); setCalculating(false); return; }
-      const { miles: oneWay } = await adminPost('calc-distance', { origin: homeAddress, destination: job.serviceAddress });
+      // Raw fetch here (not adminPost) so we can surface status + cf-ray on screen without DevTools.
+      const res = await fetch('/admin-api-data', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'calc-distance', origin: homeAddress, destination: job.serviceAddress }),
+      });
+      const cfRay = res.headers.get('cf-ray') || 'none';
+      const text = await res.text();
+      if (!res.ok) {
+        let detail = text;
+        try { detail = JSON.parse(text)?.error || text; } catch { /* not JSON */ }
+        if (/^\s*<!DOCTYPE/i.test(detail) || /^\s*<html/i.test(detail)) detail = '(Cloudflare edge page, no body detail)';
+        setCalcErr(`HTTP ${res.status} · cf-ray ${cfRay} · ${detail}`);
+        setCalculating(false);
+        return;
+      }
+      const { miles: oneWay } = JSON.parse(text);
       setMiles(String(Math.round(oneWay * 2 * 10) / 10)); // round trip
     } catch (err: any) {
-      let msg = err?.message || 'Unknown error';
-      try { msg = JSON.parse(msg)?.error || msg; } catch { /* not JSON */ }
-      if (/^\s*<!DOCTYPE/i.test(msg) || /^\s*<html/i.test(msg)) msg = 'Server error (Cloudflare) — try again in a moment.';
-      setCalcErr(msg);
+      setCalcErr(`Network error: ${err?.message || 'unknown'}`);
     }
     setCalculating(false);
   }
@@ -3691,7 +3704,7 @@ function JobMileageBox({ job }: { job: Job }) {
               {saving ? 'Saving…' : savedMiles != null ? 'Update' : 'Log Miles'}
             </button>
           </div>
-          {calcErr && <p className="text-red-400 text-[10px]">{calcErr}</p>}
+          {calcErr && <p className="text-red-400 text-[10px] break-words">{calcErr}</p>}
         </div>
       )}
       {savedMiles != null && !loading && (
