@@ -28,6 +28,7 @@
 //   insert-ppi            { row }                 -> PPIRecord
 //   patch-ppi             { id, fields }          -> { ok }
 //   send-ppi              { record, toEmail }     -> { ok }        (emails the PrePI link)
+//   list-mileage-job-ids   {}                     -> string[]       (job_ids with a logged mileage entry)
 //   list-mileage          { year?, job_id? }     -> MileageLog[]  (business drive-time log, own table)
 //   upsert-job-mileage    { job_id, fields }     -> MileageLog     (one entry per job — internal only)
 //   get-home-address       {}                     -> { homeAddress }
@@ -298,6 +299,18 @@ export async function onRequestPost({ request, env }) {
       // ---- Mileage log — business drive-time tracking for the IRS deduction -
       // Own table (`mileage_logs`), independent of bookings so it also covers
       // non-job driving (parts runs, bank trips, etc). One row per trip.
+      // Lightweight — just the job_ids that already have a mileage entry, for
+      // the Jobs list badge. Avoids pulling full mileage rows for every job.
+      case 'list-mileage-job-ids': {
+        const res = await fetch(
+          `${base}/mileage_logs?select=job_id&job_id=not.is.null`,
+          { headers }
+        );
+        if (!res.ok) return json({ error: await res.text() }, 502);
+        const rows = await res.json();
+        return json(rows.map((r) => r.job_id));
+      }
+
       case 'list-mileage': {
         const { year, job_id } = payload;
         let filter = year ? `&date=gte.${year}-01-01&date=lte.${year}-12-31` : '';

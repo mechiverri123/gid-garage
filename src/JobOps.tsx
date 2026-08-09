@@ -5015,6 +5015,14 @@ export function JobsTab() {
   const [showExternalLead, setShowExternalLead] = useState(false);
   const [revenueView, setRevenueView] = useState<'month' | 'year'>('month');
   const [netProfitView, setNetProfitView] = useState<'month' | 'year'>('month');
+  const [mileageJobIds, setMileageJobIds] = useState<Set<string>>(new Set());
+
+  function loadMileageJobIds() {
+    adminPost('list-mileage-job-ids')
+      .then((ids: string[]) => setMileageJobIds(new Set(ids || [])))
+      .catch(() => {});
+  }
+  useEffect(() => { loadMileageJobIds(); }, []);
 
   const seenEventIds = useRef<Set<string>>(
     new Set(JSON.parse(localStorage.getItem('seenPaymentEventIds') ?? '[]'))
@@ -5365,6 +5373,7 @@ export function JobsTab() {
                 {job.service === 'quote' && <span className="text-blue-400 text-[10px] font-bold uppercase bg-blue-900/30 px-2 py-0.5">Quick Quote</span>}
                 {job.status === 'pending' && <span className="text-amber-400 text-[10px] font-bold uppercase bg-amber-900/30 px-2 py-0.5">No Card</span>}
                 {isOverdue && <span className="text-yellow-600 text-[10px] font-bold uppercase">Overdue</span>}
+                {mileageJobIds.has(job.id) && <span className="text-emerald-500 text-[10px] font-bold uppercase bg-emerald-900/20 px-2 py-0.5" title="Trip mileage logged">🚗 Mi</span>}
                 <StatusBadge status={job.jobStatus} />
               </div>
             </button>
@@ -5375,7 +5384,7 @@ export function JobsTab() {
       {selected && (
         <JobDetailPanel
           job={selected}
-          onClose={() => setSelected(null)}
+          onClose={() => { setSelected(null); loadMileageJobIds(); }}
           onJobUpdate={handleJobUpdate}
         />
       )}
