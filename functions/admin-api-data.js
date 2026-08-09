@@ -30,6 +30,9 @@
 //   send-ppi              { record, toEmail }     -> { ok }        (emails the PrePI link)
 //   list-mileage          { year?, job_id? }     -> MileageLog[]  (business drive-time log, own table)
 //   upsert-job-mileage    { job_id, fields }     -> MileageLog     (one entry per job — internal only)
+//   get-home-address       {}                     -> { homeAddress }
+//   set-home-address       { homeAddress }        -> { ok }
+//   calc-distance           { origin, destination } -> { miles }  (one-way; Google Distance Matrix)
 //   add-mileage           { row }                -> MileageLog
 //   patch-mileage         { id, fields }          -> { ok }
 //   delete-mileage        { id }                  -> { ok }
@@ -410,6 +413,50 @@ export async function onRequestPost({ request, env }) {
 
       // ---- Paid bookings (tax/revenue summary) -----------------------------
       // ---- AZ TPT tax rate (editable, applies going forward only) ----------
+      // ---- Home base address (for auto-calculating job trip mileage) ------
+      case 'get-home-address': {
+        const res = await fetch(
+          `${base}/business_settings?id=eq.default&select=home_address`,
+          { headers }
+        );
+        if (!res.ok) return json({ error: await res.text() }, 502);
+        const rows = await res.json();
+        return json({ homeAddress: rows?.[0]?.home_address || '' });
+      }
+
+      case 'set-home-address': {
+        const { homeAddress } = payload;
+        if (typeof homeAddress !== 'string') return json({ error: 'Invalid homeAddress' }, 400);
+        const res = await fetch(`${base}/business_settings`, {
+          method: 'POST',
+          headers: { ...headers, Prefer: 'resolution=merge-duplicates,return=minimal' },
+          body: JSON.stringify({ id: 'default', home_address: homeAddress, updated_at: new Date().toISOString() }),
+        });
+        if (!res.ok) return json({ error: await res.text() }, 502);
+        return json({ ok: true, homeAddress });
+      }
+
+      // ---- Driving distance between two addresses (Google Distance Matrix) -
+      // Reuses GOOGLE_PLACES_API_KEY — the "Distance Matrix API" must also be
+      // enabled for that key in Google Cloud Console (Places API alone isn't
+      // enough). Returns one-way driving miles; caller doubles for round trip.
+      case 'calc-distance': {
+        const { origin, destination } = payload;
+        if (!origin || !destination) return json({ error: 'Missing origin or destination' }, 400);
+        const apiKey = env.GOOGLE_PLACES_API_KEY;
+        if (!apiKey) return json({ error: 'GOOGLE_PLACES_API_KEY not configured' }, 500);
+        const url = `https://maps.googleapis.com/maps/api/distancematrix/json?units=imperial&origins=${encodeURIComponent(origin)}&destinations=${encodeURIComponent(destination)}&key=${apiKey}`;
+        const res = await fetch(url);
+        if (!res.ok) return json({ error: await res.text() }, 502);
+        const data = await res.json();
+        const el = data?.rows?.[0]?.elements?.[0];
+        if (data.status !== 'OK' || !el || el.status !== 'OK') {
+          return json({ error: `Distance lookup failed: ${el?.status || data.status || 'unknown error'}` }, 502);
+        }
+        const miles = el.distance.value / 1609.344; // meters -> miles
+        return json({ miles: Math.round(miles * 10) / 10 });
+      }
+
       case 'get-tax-rate': {
         const res = await fetch(
           `${base}/business_settings?id=eq.default&select=tax_rate`,

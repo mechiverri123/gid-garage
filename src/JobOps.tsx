@@ -3607,6 +3607,8 @@ function JobMileageBox({ job }: { job: Job }) {
   const [savedMiles, setSavedMiles] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [calculating, setCalculating] = useState(false);
+  const [calcErr, setCalcErr] = useState<string | null>(null);
 
   useEffect(() => {
     setLoading(true);
@@ -3619,6 +3621,21 @@ function JobMileageBox({ job }: { job: Job }) {
       .catch(() => {})
       .finally(() => setLoading(false));
   }, [job.id]);
+
+  async function handleAutoCalc() {
+    if (!job.serviceAddress) { setCalcErr('No service address on this job.'); return; }
+    setCalculating(true);
+    setCalcErr(null);
+    try {
+      const { homeAddress } = await adminPost('get-home-address');
+      if (!homeAddress) { setCalcErr('Set your home address in the Mileage tab first.'); setCalculating(false); return; }
+      const { miles: oneWay } = await adminPost('calc-distance', { origin: homeAddress, destination: job.serviceAddress });
+      setMiles(String(Math.round(oneWay * 2 * 10) / 10)); // round trip
+    } catch {
+      setCalcErr('Could not calculate distance — enter miles manually.');
+    }
+    setCalculating(false);
+  }
 
   async function handleSave() {
     const m = Number(miles);
@@ -3645,22 +3662,33 @@ function JobMileageBox({ job }: { job: Job }) {
       {loading ? (
         <p className="text-gray-600 text-xs">Loading…</p>
       ) : (
-        <div className="flex gap-1.5 items-center">
-          <input
-            type="text"
-            inputMode="decimal"
-            value={miles}
-            onChange={e => setMiles(e.target.value.replace(/[^0-9.]/g, ''))}
-            placeholder="Round trip mi"
-            className="flex-1 bg-gray-800 border border-gray-700 text-white px-2 py-1.5 text-xs outline-none focus:border-yellow-700 placeholder-gray-600"
-          />
-          <button
-            onClick={handleSave}
-            disabled={!miles || saving}
-            className="bg-yellow-700 hover:bg-yellow-600 disabled:opacity-40 text-white text-[10px] font-bold uppercase tracking-wider px-3 py-1.5 transition-colors"
-          >
-            {saving ? 'Saving…' : savedMiles != null ? 'Update' : 'Log Miles'}
-          </button>
+        <div className="space-y-1.5">
+          <div className="flex gap-1.5 items-center">
+            <input
+              type="text"
+              inputMode="decimal"
+              value={miles}
+              onChange={e => setMiles(e.target.value.replace(/[^0-9.]/g, ''))}
+              placeholder="Round trip mi"
+              className="flex-1 bg-gray-800 border border-gray-700 text-white px-2 py-1.5 text-xs outline-none focus:border-yellow-700 placeholder-gray-600"
+            />
+            <button
+              onClick={handleAutoCalc}
+              disabled={calculating || !job.serviceAddress}
+              title={!job.serviceAddress ? 'No service address on this job' : 'Auto-calc round trip from your home address'}
+              className="border border-gray-700 text-gray-300 hover:border-indigo-600 hover:text-indigo-400 disabled:opacity-30 text-[10px] font-bold uppercase tracking-wider px-2.5 py-1.5 transition-colors whitespace-nowrap"
+            >
+              {calculating ? '…' : '📍 Auto-calc'}
+            </button>
+            <button
+              onClick={handleSave}
+              disabled={!miles || saving}
+              className="bg-yellow-700 hover:bg-yellow-600 disabled:opacity-40 text-white text-[10px] font-bold uppercase tracking-wider px-3 py-1.5 transition-colors whitespace-nowrap"
+            >
+              {saving ? 'Saving…' : savedMiles != null ? 'Update' : 'Log Miles'}
+            </button>
+          </div>
+          {calcErr && <p className="text-red-400 text-[10px]">{calcErr}</p>}
         </div>
       )}
       {savedMiles != null && !loading && (
@@ -6201,6 +6229,26 @@ export function MileageTab() {
   const [fDest, setFDest] = useState('');
   const [fNotes, setFNotes] = useState('');
   const [saving, setSaving] = useState(false);
+  const [homeAddress, setHomeAddress] = useState('');
+  const [homeInput, setHomeInput] = useState('');
+  const [homeSaving, setHomeSaving] = useState(false);
+  const [editingHome, setEditingHome] = useState(false);
+
+  useEffect(() => {
+    adminPost('get-home-address')
+      .then((d: any) => { setHomeAddress(d?.homeAddress || ''); setHomeInput(d?.homeAddress || ''); })
+      .catch(() => {});
+  }, []);
+
+  async function saveHome() {
+    setHomeSaving(true);
+    try {
+      await adminPost('set-home-address', { homeAddress: homeInput.trim() });
+      setHomeAddress(homeInput.trim());
+      setEditingHome(false);
+    } catch { alert('Failed to save home address.'); }
+    setHomeSaving(false);
+  }
 
   function load(y: number) {
     setLoading(true);
@@ -6266,6 +6314,29 @@ export function MileageTab() {
 
   return (
     <div>
+      {/* Home base address — used to auto-calc round trip miles on each job */}
+      <div className="border border-gray-800 bg-gray-900/30 px-3 py-2.5 mb-4 flex items-center gap-2">
+        <span className="text-gray-500 text-[10px] font-bold uppercase tracking-wider flex-shrink-0">🏠 Home Base</span>
+        {editingHome ? (
+          <>
+            <input type="text" value={homeInput} onChange={e => setHomeInput(e.target.value)} placeholder="Your home address, Flagstaff, AZ"
+              className="flex-1 bg-black border border-gray-800 text-white text-xs px-2 py-1.5 outline-none focus:border-yellow-700" />
+            <button onClick={saveHome} disabled={homeSaving || !homeInput.trim()}
+              className="text-[10px] font-bold uppercase tracking-wider text-yellow-500 hover:text-yellow-400 disabled:opacity-40 flex-shrink-0">
+              {homeSaving ? 'Saving…' : 'Save'}
+            </button>
+            <button onClick={() => { setEditingHome(false); setHomeInput(homeAddress); }}
+              className="text-[10px] font-bold uppercase tracking-wider text-gray-500 hover:text-gray-300 flex-shrink-0">Cancel</button>
+          </>
+        ) : (
+          <>
+            <span className="flex-1 text-gray-300 text-xs truncate">{homeAddress || 'Not set'}</span>
+            <button onClick={() => setEditingHome(true)}
+              className="text-[10px] font-bold uppercase tracking-wider text-gray-500 hover:text-white flex-shrink-0">Edit</button>
+          </>
+        )}
+      </div>
+
       {/* Stats */}
       <div className="grid grid-cols-3 gap-4 mb-6">
         {[
