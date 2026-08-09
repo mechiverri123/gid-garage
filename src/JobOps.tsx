@@ -6084,6 +6084,214 @@ export function EstimatePage() {
   );
 }
 
+// ── MILEAGE TRACKER ──────────────────────────────────────────────────────────
+// Business drive-time log for the IRS mileage deduction. Own table
+// (mileage_logs), independent of bookings — covers parts runs, bank trips,
+// etc. too, not just job visits. Each entry locks in the rate that applied
+// on its date, so past totals don't shift when the rate changes mid-year.
+
+interface MileageEntry {
+  id: string;
+  date: string;
+  miles: number;
+  purpose: string;
+  notes: string;
+  rate_cents_per_mile: number;
+}
+
+// IRS standard business mileage rate, cents/mile, effective from the given date.
+// 2026 had a mid-year bump (Notice 2026-10 -> Rev. Proc. 2026-25, eff. Jul 1).
+// Add new brackets here when the IRS announces future changes.
+const MILEAGE_RATE_BRACKETS: { from: string; cents: number }[] = [
+  { from: '2025-01-01', cents: 70 },
+  { from: '2026-01-01', cents: 72.5 },
+  { from: '2026-07-01', cents: 76 },
+];
+function ratesForDate(dateStr: string): number {
+  let cents = MILEAGE_RATE_BRACKETS[0].cents;
+  for (const b of MILEAGE_RATE_BRACKETS) {
+    if (dateStr >= b.from) cents = b.cents; else break;
+  }
+  return cents;
+}
+function todayStr() { return new Date().toISOString().slice(0, 10); }
+
+const MILEAGE_PURPOSES = ['Job site visit', 'Parts run', 'Bank / supply run', 'Other'];
+
+export function MileageTab() {
+  const [entries, setEntries] = useState<MileageEntry[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [year, setYear] = useState<number>(new Date().getFullYear());
+  const [showForm, setShowForm] = useState(false);
+  const [editing, setEditing] = useState<MileageEntry | null>(null);
+  const [fDate, setFDate] = useState(todayStr());
+  const [fMiles, setFMiles] = useState('');
+  const [fPurpose, setFPurpose] = useState(MILEAGE_PURPOSES[0]);
+  const [fDest, setFDest] = useState('');
+  const [fNotes, setFNotes] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  function load(y: number) {
+    setLoading(true);
+    adminPost('list-mileage', { year: y })
+      .then((data: MileageEntry[]) => setEntries(data || []))
+      .catch(() => setEntries([]))
+      .finally(() => setLoading(false));
+  }
+  useEffect(() => { load(year); }, [year]);
+
+  function resetForm() {
+    setEditing(null);
+    setFDate(todayStr());
+    setFMiles('');
+    setFPurpose(MILEAGE_PURPOSES[0]);
+    setFDest('');
+    setFNotes('');
+  }
+
+  function openEdit(e: MileageEntry) {
+    setEditing(e);
+    setFDate(e.date);
+    setFMiles(String(e.miles));
+    const [p, ...rest] = (e.purpose || '').split(' — ');
+    setFPurpose(MILEAGE_PURPOSES.includes(p) ? p : 'Other');
+    setFDest(rest.join(' — '));
+    setFNotes(e.notes || '');
+    setShowForm(true);
+  }
+
+  async function save() {
+    const miles = Number(fMiles);
+    if (!fDate || !miles || miles <= 0) return;
+    setSaving(true);
+    const purpose = fDest.trim() ? `${fPurpose} — ${fDest.trim()}` : fPurpose;
+    try {
+      if (editing) {
+        await adminPost('patch-mileage', { id: editing.id, fields: { date: fDate, miles, purpose, notes: fNotes } });
+      } else {
+        await adminPost('add-mileage', { row: { date: fDate, miles, purpose, notes: fNotes, rate_cents_per_mile: ratesForDate(fDate) } });
+      }
+      setShowForm(false);
+      resetForm();
+      load(year);
+    } catch { alert('Failed to save — try again.'); }
+    setSaving(false);
+  }
+
+  async function remove(id: string) {
+    if (!confirm('Delete this mileage entry?')) return;
+    try { await adminPost('delete-mileage', { id }); load(year); } catch { alert('Failed to delete.'); }
+  }
+
+  const totalMiles = entries.reduce((s, e) => s + Number(e.miles || 0), 0);
+  const totalDeduction = entries.reduce((s, e) => s + Number(e.miles || 0) * (Number(e.rate_cents_per_mile || 0) / 100), 0);
+  const thisMonth = new Date().getMonth();
+  const isCurrentYear = year === new Date().getFullYear();
+  const mtdEntries = isCurrentYear ? entries.filter(e => new Date(e.date + 'T00:00').getMonth() === thisMonth) : [];
+  const mtdMiles = mtdEntries.reduce((s, e) => s + Number(e.miles || 0), 0);
+  const currentRate = ratesForDate(todayStr());
+
+  const years = Array.from(new Set([new Date().getFullYear(), new Date().getFullYear() - 1, ...entries.map(e => Number(e.date.slice(0, 4)))])).sort((a, b) => b - a);
+
+  return (
+    <div>
+      {/* Stats */}
+      <div className="grid grid-cols-3 gap-4 mb-6">
+        {[
+          ['YTD Miles', totalMiles.toLocaleString(), 'text-white'],
+          ['YTD Deduction', `$${totalDeduction.toFixed(2)}`, 'text-emerald-400'],
+          ['This Month', `${mtdMiles.toLocaleString()} mi`, 'text-blue-400'],
+        ].map(([label, val, cls]) => (
+          <div key={label as string} className="border border-gray-800 bg-gray-900/30 px-3 py-3 text-center">
+            <div className={`text-xl font-black ${cls}`}>{val}</div>
+            <div className="text-[10px] text-gray-500 uppercase tracking-wider mt-0.5">{label}</div>
+          </div>
+        ))}
+      </div>
+
+      <div className="flex items-center justify-between mb-4">
+        <select value={year} onChange={e => setYear(Number(e.target.value))}
+          className="bg-black border border-gray-800 text-gray-300 text-xs font-bold uppercase tracking-wider px-3 py-2">
+          {years.map(y => <option key={y} value={y}>{y}</option>)}
+        </select>
+        <div className="flex items-center gap-3">
+          <span className="text-[10px] text-gray-500 uppercase tracking-wider">Current IRS rate: {currentRate}¢/mi</span>
+          <button onClick={() => { resetForm(); setShowForm(true); }}
+            className="bg-red-600 hover:bg-red-500 text-white text-xs font-bold uppercase tracking-wider px-4 py-2 transition-colors">
+            + Log Trip
+          </button>
+        </div>
+      </div>
+
+      {showForm && (
+        <div className="border border-gray-800 bg-gray-900/40 p-4 mb-6 space-y-3">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-gray-500 text-[10px] font-bold uppercase tracking-wider mb-1">Date</label>
+              <input type="date" value={fDate} onChange={e => setFDate(e.target.value)}
+                className="w-full bg-black border border-gray-800 text-white text-sm px-3 py-2" />
+            </div>
+            <div>
+              <label className="block text-gray-500 text-[10px] font-bold uppercase tracking-wider mb-1">Miles</label>
+              <input type="text" inputMode="decimal" value={fMiles} onChange={e => setFMiles(e.target.value.replace(/[^0-9.]/g, ''))} placeholder="24"
+                className="w-full bg-black border border-gray-800 text-white text-sm px-3 py-2" />
+            </div>
+          </div>
+          <div>
+            <label className="block text-gray-500 text-[10px] font-bold uppercase tracking-wider mb-1">Purpose</label>
+            <select value={fPurpose} onChange={e => setFPurpose(e.target.value)}
+              className="w-full bg-black border border-gray-800 text-white text-sm px-3 py-2">
+              {MILEAGE_PURPOSES.map(p => <option key={p} value={p}>{p}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="block text-gray-500 text-[10px] font-bold uppercase tracking-wider mb-1">Destination / Job</label>
+            <input type="text" value={fDest} onChange={e => setFDest(e.target.value)} placeholder="123 Main St, Flagstaff, AZ (or customer name)"
+              className="w-full bg-black border border-gray-800 text-white text-sm px-3 py-2" />
+          </div>
+          <div>
+            <label className="block text-gray-500 text-[10px] font-bold uppercase tracking-wider mb-1">Notes (optional)</label>
+            <input type="text" value={fNotes} onChange={e => setFNotes(e.target.value)}
+              className="w-full bg-black border border-gray-800 text-white text-sm px-3 py-2" />
+          </div>
+          <div className="flex gap-2 pt-1">
+            <button onClick={save} disabled={saving}
+              className="bg-red-600 hover:bg-red-500 text-white text-xs font-bold uppercase tracking-wider px-4 py-2 transition-colors disabled:opacity-40">
+              {saving ? 'Saving…' : editing ? 'Save Changes' : 'Save Trip'}
+            </button>
+            <button onClick={() => { setShowForm(false); resetForm(); }}
+              className="border border-gray-700 text-gray-400 hover:text-white text-xs font-bold uppercase tracking-wider px-4 py-2 transition-colors">
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      {loading ? (
+        <div className="text-gray-500 text-sm text-center py-8">Loading…</div>
+      ) : entries.length === 0 ? (
+        <div className="text-gray-500 text-sm text-center py-8">No trips logged for {year} yet.</div>
+      ) : (
+        <div className="divide-y divide-gray-800 border border-gray-800">
+          {entries.map(e => (
+            <div key={e.id} className="flex items-center justify-between px-4 py-3 hover:bg-gray-900/30">
+              <div className="min-w-0">
+                <div className="text-white text-sm font-bold">{e.date} · {Number(e.miles).toLocaleString()} mi</div>
+                <div className="text-gray-500 text-xs truncate">{e.purpose}{e.notes ? ` — ${e.notes}` : ''}</div>
+              </div>
+              <div className="flex items-center gap-3 flex-shrink-0">
+                <span className="text-emerald-400 text-xs font-bold">${(Number(e.miles) * (Number(e.rate_cents_per_mile) / 100)).toFixed(2)}</span>
+                <button onClick={() => openEdit(e)} className="text-gray-500 hover:text-white text-xs font-bold uppercase tracking-wider">Edit</button>
+                <button onClick={() => remove(e.id)} className="text-gray-500 hover:text-red-500 text-xs font-bold uppercase tracking-wider">Del</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── BUSINESS HUB ─────────────────────────────────────────────────────────────
 
 interface HubNote {

@@ -28,6 +28,10 @@
 //   insert-ppi            { row }                 -> PPIRecord
 //   patch-ppi             { id, fields }          -> { ok }
 //   send-ppi              { record, toEmail }     -> { ok }        (emails the PrePI link)
+//   list-mileage          { year? }               -> MileageLog[]  (business drive-time log, own table)
+//   add-mileage           { row }                 -> MileageLog
+//   patch-mileage         { id, fields }          -> { ok }
+//   delete-mileage        { id }                  -> { ok }
 
 import { runBackup, readBackupStatus, listBackups, restoreBackup } from './_lib/backup.js';
 import { reportError } from './_lib/sentry.js';
@@ -113,7 +117,7 @@ export async function onRequestPost({ request, env }) {
         // are only needed when a specific job is opened, via get-booking.
         const listColumns = [
           'id', 'service', 'date', 'time', 'fname', 'lname', 'phone', 'email',
-          'vehicle', 'vin', 'mileage', 'notes', 'garage_notes', 'status', 'job_status', 'created_at',
+          'vehicle', 'vin', 'mileage', 'service_address', 'notes', 'garage_notes', 'status', 'job_status', 'created_at',
           'estimate_amount', 'tax_amount', 'customer_agreed', 'signed_at',
           'invoice_amount', 'stripe_transaction_id', 'stripe_customer_id',
           'stripe_last4', 'paid_at', 'adjustment_amount', 'amount_paid', 'payments',
@@ -282,6 +286,55 @@ export async function onRequestPost({ request, env }) {
         const res = await fetch(
           `${base}/ppi_inspections?id=eq.${encodeURIComponent(id)}`,
           { method: 'PATCH', headers: { ...headers, Prefer: 'return=minimal' }, body: JSON.stringify(fields) }
+        );
+        if (!res.ok) return json({ error: await res.text() }, 502);
+        return json({ ok: true });
+      }
+
+      // ---- Mileage log — business drive-time tracking for the IRS deduction -
+      // Own table (`mileage_logs`), independent of bookings so it also covers
+      // non-job driving (parts runs, bank trips, etc). One row per trip.
+      case 'list-mileage': {
+        const { year } = payload;
+        const filter = year ? `&date=gte.${year}-01-01&date=lte.${year}-12-31` : '';
+        const res = await fetch(
+          `${base}/mileage_logs?select=*&order=date.desc${filter}`,
+          { headers }
+        );
+        if (!res.ok) return json({ error: await res.text() }, 502);
+        return json(await res.json());
+      }
+
+      case 'add-mileage': {
+        const { row } = payload;
+        if (!row || !row.date || row.miles == null) return json({ error: 'Missing date or miles' }, 400);
+        const res = await fetch(`${base}/mileage_logs`, {
+          method: 'POST',
+          headers: { ...headers, Prefer: 'return=representation' },
+          body: JSON.stringify({ created_at: new Date().toISOString(), ...row }),
+        });
+        if (!res.ok) return json({ error: await res.text() }, 502);
+        const rows = await res.json();
+        return json(Array.isArray(rows) ? rows[0] : rows);
+      }
+
+      case 'patch-mileage': {
+        const { id, fields } = payload;
+        if (!id || !fields) return json({ error: 'Missing id or fields' }, 400);
+        const res = await fetch(
+          `${base}/mileage_logs?id=eq.${encodeURIComponent(id)}`,
+          { method: 'PATCH', headers: { ...headers, Prefer: 'return=minimal' }, body: JSON.stringify(fields) }
+        );
+        if (!res.ok) return json({ error: await res.text() }, 502);
+        return json({ ok: true });
+      }
+
+      case 'delete-mileage': {
+        const { id } = payload;
+        if (!id) return json({ error: 'Missing id' }, 400);
+        const res = await fetch(
+          `${base}/mileage_logs?id=eq.${encodeURIComponent(id)}`,
+          { method: 'DELETE', headers: { ...headers, Prefer: 'return=minimal' } }
         );
         if (!res.ok) return json({ error: await res.text() }, 502);
         return json({ ok: true });
