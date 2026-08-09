@@ -32,7 +32,7 @@
 //   upsert-job-mileage    { job_id, fields }     -> MileageLog     (one entry per job — internal only)
 //   get-home-address       {}                     -> { homeAddress }
 //   set-home-address       { homeAddress }        -> { ok }
-//   calc-distance           { origin, destination } -> { miles }  (one-way; Google Distance Matrix)
+//   calc-distance           { origin, destination } -> { miles }  (one-way; Google Distance Matrix, uses GOOGLE_DISTANCE_API_KEY)
 //   add-mileage           { row }                -> MileageLog
 //   patch-mileage         { id, fields }          -> { ok }
 //   delete-mileage        { id }                  -> { ok }
@@ -443,22 +443,38 @@ export async function onRequestPost({ request, env }) {
       case 'calc-distance': {
         const { origin, destination } = payload;
         if (!origin || !destination) return json({ error: 'Missing origin or destination' }, 400);
-        const apiKey = env.GOOGLE_PLACES_API_KEY;
-        if (!apiKey) return json({ error: 'GOOGLE_PLACES_API_KEY not configured' }, 500);
+        // Separate key from GOOGLE_PLACES_API_KEY on purpose — that key powers
+        // the review-request feature and shouldn't be touched. Falls back to
+        // it only if a distance-specific key was never configured.
+        const apiKey = env.GOOGLE_DISTANCE_API_KEY || env.GOOGLE_PLACES_API_KEY;
+        if (!apiKey) return json({ error: 'GOOGLE_DISTANCE_API_KEY not configured' }, 500);
+        console.log('calc-distance: starting lookup', origin, '->', destination);
         const url = `https://maps.googleapis.com/maps/api/distancematrix/json?units=imperial&origins=${encodeURIComponent(origin)}&destinations=${encodeURIComponent(destination)}&key=${apiKey}`;
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), 10000);
         let res;
         try {
-          res = await fetch(url, { signal: AbortSignal.timeout(10000) });
+          res = await fetch(url, { signal: controller.signal });
+          console.log('calc-distance: got response', res.status);
         } catch (fetchErr) {
+          console.log('calc-distance: fetch threw', String(fetchErr));
           return json({ error: `Distance lookup timed out or failed to reach Google: ${fetchErr.message}` }, 502);
+        } finally {
+          clearTimeout(timer);
         }
-        if (!res.ok) return json({ error: `Google returned ${res.status}: ${await res.text()}` }, 502);
+        if (!res.ok) {
+          const bodyText = await res.text();
+          console.log('calc-distance: non-ok body', bodyText.slice(0, 300));
+          return json({ error: `Google returned ${res.status}: ${bodyText}` }, 502);
+        }
         const data = await res.json();
         const el = data?.rows?.[0]?.elements?.[0];
         if (data.status !== 'OK' || !el || el.status !== 'OK') {
+          console.log('calc-distance: bad status', data.status, el?.status);
           return json({ error: `Distance lookup failed: ${el?.status || data.status || 'unknown error'}` }, 502);
         }
         const miles = el.distance.value / 1609.344; // meters -> miles
+        console.log('calc-distance: success', miles);
         return json({ miles: Math.round(miles * 10) / 10 });
       }
 
