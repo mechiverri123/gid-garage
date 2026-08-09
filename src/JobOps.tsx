@@ -3631,8 +3631,10 @@ function JobMileageBox({ job }: { job: Job }) {
       if (!homeAddress) { setCalcErr('Set your home address in the Mileage tab first.'); setCalculating(false); return; }
       const { miles: oneWay } = await adminPost('calc-distance', { origin: homeAddress, destination: job.serviceAddress });
       setMiles(String(Math.round(oneWay * 2 * 10) / 10)); // round trip
-    } catch {
-      setCalcErr('Could not calculate distance — enter miles manually.');
+    } catch (err: any) {
+      let msg = err?.message || 'Unknown error';
+      try { msg = JSON.parse(msg)?.error || msg; } catch { /* not JSON */ }
+      setCalcErr(msg);
     }
     setCalculating(false);
   }
