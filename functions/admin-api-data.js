@@ -28,8 +28,9 @@
 //   insert-ppi            { row }                 -> PPIRecord
 //   patch-ppi             { id, fields }          -> { ok }
 //   send-ppi              { record, toEmail }     -> { ok }        (emails the PrePI link)
-//   list-mileage          { year? }               -> MileageLog[]  (business drive-time log, own table)
-//   add-mileage           { row }                 -> MileageLog
+//   list-mileage          { year?, job_id? }     -> MileageLog[]  (business drive-time log, own table)
+//   upsert-job-mileage    { job_id, fields }     -> MileageLog     (one entry per job — internal only)
+//   add-mileage           { row }                -> MileageLog
 //   patch-mileage         { id, fields }          -> { ok }
 //   delete-mileage        { id }                  -> { ok }
 
@@ -295,14 +296,47 @@ export async function onRequestPost({ request, env }) {
       // Own table (`mileage_logs`), independent of bookings so it also covers
       // non-job driving (parts runs, bank trips, etc). One row per trip.
       case 'list-mileage': {
-        const { year } = payload;
-        const filter = year ? `&date=gte.${year}-01-01&date=lte.${year}-12-31` : '';
+        const { year, job_id } = payload;
+        let filter = year ? `&date=gte.${year}-01-01&date=lte.${year}-12-31` : '';
+        if (job_id) filter += `&job_id=eq.${encodeURIComponent(job_id)}`;
         const res = await fetch(
           `${base}/mileage_logs?select=*&order=date.desc${filter}`,
           { headers }
         );
         if (!res.ok) return json({ error: await res.text() }, 502);
         return json(await res.json());
+      }
+
+      // One mileage entry per job — internal only, never surfaced to the
+      // customer. Looks up any existing row for this job_id and patches it,
+      // otherwise inserts a new one.
+      case 'upsert-job-mileage': {
+        const { job_id, fields } = payload;
+        if (!job_id || !fields) return json({ error: 'Missing job_id or fields' }, 400);
+        const existingRes = await fetch(
+          `${base}/mileage_logs?job_id=eq.${encodeURIComponent(job_id)}&select=id&limit=1`,
+          { headers }
+        );
+        if (!existingRes.ok) return json({ error: await existingRes.text() }, 502);
+        const existing = await existingRes.json();
+        if (existing[0]) {
+          const res = await fetch(
+            `${base}/mileage_logs?id=eq.${encodeURIComponent(existing[0].id)}`,
+            { method: 'PATCH', headers: { ...headers, Prefer: 'return=representation' }, body: JSON.stringify(fields) }
+          );
+          if (!res.ok) return json({ error: await res.text() }, 502);
+          const rows = await res.json();
+          return json(Array.isArray(rows) ? rows[0] : rows);
+        } else {
+          const res = await fetch(`${base}/mileage_logs`, {
+            method: 'POST',
+            headers: { ...headers, Prefer: 'return=representation' },
+            body: JSON.stringify({ created_at: new Date().toISOString(), job_id, ...fields }),
+          });
+          if (!res.ok) return json({ error: await res.text() }, 502);
+          const rows = await res.json();
+          return json(Array.isArray(rows) ? rows[0] : rows);
+        }
       }
 
       case 'add-mileage': {

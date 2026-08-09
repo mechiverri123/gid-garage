@@ -3602,7 +3602,75 @@ function PaymentLinkBox({ job, onUpdate }: { job: Job; onUpdate: (j: Job) => voi
 }
 
 
-// ── JOB DETAIL PANEL ──────────────────────────────────────────────────────────
+function JobMileageBox({ job }: { job: Job }) {
+  const [miles, setMiles] = useState('');
+  const [savedMiles, setSavedMiles] = useState<number | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    setLoading(true);
+    adminPost('list-mileage', { job_id: job.id })
+      .then((rows: any[]) => {
+        const row = rows?.[0];
+        setSavedMiles(row ? Number(row.miles) : null);
+        setMiles(row ? String(row.miles) : '');
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, [job.id]);
+
+  async function handleSave() {
+    const m = Number(miles);
+    if (!m || m <= 0) return;
+    setSaving(true);
+    try {
+      await adminPost('upsert-job-mileage', {
+        job_id: job.id,
+        fields: {
+          date: job.date,
+          miles: m,
+          purpose: `Job — ${job.serviceAddress || `${job.fname} ${job.lname}`.trim()}`,
+          rate_cents_per_mile: ratesForDate(job.date),
+        },
+      });
+      setSavedMiles(m);
+    } catch { alert('Failed to save mileage — try again.'); }
+    setSaving(false);
+  }
+
+  return (
+    <div className="bg-gray-900 border border-gray-800 p-3">
+      <p className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-2">🚗 Trip Miles <span className="text-gray-700 normal-case tracking-normal font-normal">(internal — not shown to customer)</span></p>
+      {loading ? (
+        <p className="text-gray-600 text-xs">Loading…</p>
+      ) : (
+        <div className="flex gap-1.5 items-center">
+          <input
+            type="text"
+            inputMode="decimal"
+            value={miles}
+            onChange={e => setMiles(e.target.value.replace(/[^0-9.]/g, ''))}
+            placeholder="Round trip mi"
+            className="flex-1 bg-gray-800 border border-gray-700 text-white px-2 py-1.5 text-xs outline-none focus:border-yellow-700 placeholder-gray-600"
+          />
+          <button
+            onClick={handleSave}
+            disabled={!miles || saving}
+            className="bg-yellow-700 hover:bg-yellow-600 disabled:opacity-40 text-white text-[10px] font-bold uppercase tracking-wider px-3 py-1.5 transition-colors"
+          >
+            {saving ? 'Saving…' : savedMiles != null ? 'Update' : 'Log Miles'}
+          </button>
+        </div>
+      )}
+      {savedMiles != null && !loading && (
+        <p className="text-gray-600 text-[10px] mt-1.5">Logged in the Mileage tab — counts toward your YTD deduction total.</p>
+      )}
+    </div>
+  );
+}
+
+
 
 const JOB_PIPELINE: JobStatus[] = ['BOOKED', 'ESTIMATE_SENT', 'SIGNED', 'IN_PROGRESS', 'COMPLETED', 'INVOICED', 'PAID'];
 
@@ -3758,6 +3826,9 @@ function JobDetailPanel({ job: initialJob, onClose, onJobUpdate }: {
 
               {/* External payment link (e.g. pay.bluevine.com) — shown to the customer as a Pay Now button */}
               <PaymentLinkBox job={job} onUpdate={handleUpdate} />
+
+              {/* Trip mileage for this job — admin/tax use only, never customer-facing */}
+              <JobMileageBox job={job} />
 
               {/* Customer & Job info */}
               {!editingAppt ? (
