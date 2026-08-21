@@ -6183,6 +6183,18 @@ export function EstimatePage() {
               </button>
             </div>
             <EstimateSummary job={job} />
+
+            {/* Signature block — mirrors the admin panel's "Estimate Signed" display */}
+            <div className="bg-white/5 border border-white/10 p-4">
+              <p className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-2">Signed By</p>
+              <p className="text-white text-sm font-bold" style={{ fontFamily: 'Georgia, serif', fontStyle: 'italic' }}>{job.customerSignature}</p>
+              {job.signedAt && (
+                <p className="text-gray-600 text-xs mt-1">
+                  {new Date(job.signedAt).toLocaleString('en-US', { month: 'long', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: 'America/Phoenix' })}
+                </p>
+              )}
+            </div>
+
             <p className="text-gray-500 text-sm text-center">Approved — we'll see you on {dateStr} at {job.time}.</p>
             <p className="text-gray-700 text-xs text-center">Questions? Call or text us at <strong className="text-gray-600">480-757-0476</strong></p>
           </div>
