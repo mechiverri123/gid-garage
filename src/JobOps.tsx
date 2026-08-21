@@ -513,7 +513,13 @@ async function writePaymentEvent(
 }
 
 export async function getAllJobs(): Promise<Job[]> {
-  const data = (await adminPost('list-bookings') || []).filter((b: any) => b.status !== 'cancelled');
+  // Previously filtered out status === 'cancelled' here, which meant any
+  // booking cancelled from the schedule/calendar (which sets status, not
+  // just job_status) vanished from the Jobs tab entirely — unreachable even
+  // via the "Cancelled" filter. Job-level filtering (by job_status) already
+  // handles hiding cancelled jobs by default; don't also filter by the raw
+  // booking status here, or cancelled jobs become permanently invisible.
+  const data = (await adminPost('list-bookings') || []);
   return data.map(mapJob);
 }
 
@@ -3792,7 +3798,16 @@ function JobDetailPanel({ job: initialJob, onClose, onJobUpdate }: {
   }
 
   async function setJobStatus(s: JobStatus) {
-    await patchJob(job.id, { job_status: s });
+    // Cancelling/reopening a job here previously only touched job_status,
+    // leaving the booking's own `status` field (what the schedule/calendar
+    // view actually filters on) untouched — so a job marked Cancelled from
+    // this tab would still show up as a live "confirmed" appointment on the
+    // calendar. Keep both fields in sync no matter which side you cancel
+    // from, so the appointment and the job always agree.
+    const fields: Record<string, any> = { job_status: s };
+    if (s === 'CANCELLED') fields.status = 'cancelled';
+    else if (job.jobStatus === 'CANCELLED') fields.status = 'confirmed';
+    await patchJob(job.id, fields);
     handleUpdate({ ...job, jobStatus: s });
   }
 
@@ -5985,6 +6000,7 @@ export function EstimatePage() {
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState(false);
   const [alreadySigned, setAlreadySigned] = useState(false);
+  const [viewOnly, setViewOnly] = useState(false);
 
   useEffect(() => {
     if (!jobId) { setNotFound(true); setLoading(false); return; }
@@ -6021,6 +6037,99 @@ export function EstimatePage() {
     weekday: 'long', month: 'long', day: 'numeric', year: 'numeric',
   }) : '';
 
+  // Shared read-only estimate summary (job details, line items, scope notes,
+  // terms) — used both while a customer is signing and in the view-only
+  // mode reachable from the "Already Signed" screen. Keeping one copy avoids
+  // the two views drifting apart.
+  function EstimateSummary({ job }: { job: Job }) {
+    return (
+      <>
+        <div className="bg-white/5 border border-white/10 divide-y divide-white/10">
+          {[
+            ['Name', `${job.fname} ${job.lname}`],
+            ['Vehicle', job.vehicle],
+            ...(job.vin ? [['VIN', job.vin]] : []),
+            ...(job.mileage ? [['Mileage', `${job.mileage} mi`]] : []),
+            ['Appointment', `${dateStr} at ${job.time}`],
+          ].map(([label, val]) => (
+            <div key={label} className="flex justify-between px-4 py-3">
+              <span className="text-gray-500 text-xs font-bold uppercase tracking-wider">{label}</span>
+              <span className={`text-sm ${label === 'VIN' ? 'text-gray-300 font-mono text-xs break-all' : 'text-white'}`}>{val}</span>
+            </div>
+          ))}
+          {/* Line items */}
+          {job.lineItems?.length > 0 ? (
+            <>
+              {job.lineItems.map(item => (
+                <div key={item.id} className="flex justify-between gap-3 px-4 py-3">
+                  <span className="text-gray-300 text-sm flex-1 min-w-0 break-words">{item.label}</span>
+                  <span className={`text-sm font-mono font-bold flex-shrink-0 whitespace-nowrap ${item.amount === 0 ? 'text-gray-600' : 'text-white'}`}>
+                    {item.amount === 0 ? 'FREE' : (item.amount < 0 ? `-$${Math.abs(item.amount).toFixed(2)}` : `$${item.amount.toFixed(2)}`)}
+                  </span>
+                </div>
+              ))}
+            </>
+          ) : (
+            <div className="flex justify-between px-4 py-3">
+              <span className="text-gray-300 text-sm">{resolveServiceName(job.service, job.notes)}</span>
+              <span className="text-white text-sm font-mono">${job.estimateAmount?.toFixed(2)}</span>
+            </div>
+          )}
+          <div className="flex justify-between px-4 py-3 border-t border-white/10">
+            <span className="text-gray-500 text-xs font-bold uppercase tracking-wider">Subtotal</span>
+            <span className="text-white text-sm font-mono">${job.estimateAmount?.toFixed(2)}</span>
+          </div>
+          <div className="flex justify-between px-4 py-3 border-t border-white/5">
+            <span className="text-gray-500 text-xs font-bold uppercase tracking-wider">AZ TPT ({taxRatePercentLabel()}%)</span>
+            <span className="text-white text-sm font-mono">${taxFromItems(job.lineItems).toFixed(2)}</span>
+          </div>
+          <div className="flex justify-between px-4 py-4 border-t border-white/10">
+            <span className="text-gray-500 text-xs font-bold uppercase tracking-wider">Total</span>
+            <span className="text-red-400 text-2xl font-black">${totalFromItems(job.estimateAmount || 0, job.lineItems).toFixed(2)}</span>
+          </div>
+        </div>
+
+        {/* Scope notes */}
+        {job.estimateNotes && (
+          <div className="bg-white/5 border-l-4 border-l-red-600 px-4 py-3">
+            <p className="text-gray-400 text-sm leading-relaxed whitespace-pre-wrap">{job.estimateNotes}</p>
+          </div>
+        )}
+
+        {/* Terms */}
+        <div className="bg-white/5 border border-white/10 p-4">
+          <p className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-3">Terms of Service</p>
+          {/* Core terms — always visible */}
+          <ul className="space-y-2 mb-3">
+            {CYA_TERMS_CORE.map((t, i) => (
+              <li key={i} className="text-gray-300 text-sm flex gap-2.5">
+                <span className="text-red-600 font-bold flex-shrink-0 mt-0.5">✓</span> {t}
+              </li>
+            ))}
+          </ul>
+          {/* Extended terms — collapsible scrollable box */}
+          <details className="group">
+            <summary className="text-red-500 text-xs font-bold uppercase tracking-widest cursor-pointer select-none hover:text-red-400 transition-colors list-none flex items-center gap-1.5">
+              <span className="group-open:hidden">▶ View all terms ({CYA_TERMS_EXTENDED.length} additional)</span>
+              <span className="hidden group-open:inline">▼ Hide additional terms</span>
+            </summary>
+            <div
+              className="mt-3 max-h-48 overflow-y-auto pr-1 space-y-2 scrollbar-thin"
+              style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-y' }}
+            >
+              {CYA_TERMS_EXTENDED.map((t, i) => (
+                <div key={i} className="text-gray-400 text-xs flex gap-2 border-b border-white/5 pb-2 last:border-0">
+                  <span className="text-gray-600 font-bold flex-shrink-0">{i + 1}.</span> {t}
+                </div>
+              ))}
+              <p className="text-gray-600 text-[10px] text-center pt-1 pb-0.5">— End of terms —</p>
+            </div>
+          </details>
+        </div>
+      </>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-[#0f0f0f] flex items-start justify-center px-4 py-12" style={{ WebkitOverflowScrolling: 'touch' }}>
       <div className="w-full max-w-lg">
@@ -6043,11 +6152,39 @@ export function EstimatePage() {
           </div>
         )}
 
-        {alreadySigned && job && !done && (
+        {alreadySigned && job && !done && !viewOnly && (
           <div className="text-center">
             <div className="text-4xl mb-4">✓</div>
             <h1 className="text-white text-2xl font-black mb-3">Already Signed</h1>
-            <p className="text-gray-500 text-sm">You've already approved this estimate. We'll see you on {dateStr} at {job.time}.</p>
+            <p className="text-gray-500 text-sm mb-6">You've already approved this estimate. We'll see you on {dateStr} at {job.time}.</p>
+            <button
+              onClick={() => setViewOnly(true)}
+              className="w-full bg-red-600 hover:bg-red-500 text-white font-black text-sm uppercase tracking-widest py-4 transition-colors"
+            >
+              View Estimate
+            </button>
+          </div>
+        )}
+
+        {/* Read-only view of a signed estimate — same details, but no way to
+            edit line items, add pre-existing damage, or touch the signature. */}
+        {alreadySigned && job && !done && viewOnly && (
+          <div className="space-y-6">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-red-500 text-xs font-bold uppercase tracking-[0.25em] mb-1">Signed Estimate</p>
+                <h1 className="text-white text-3xl font-black tracking-tight">View Only</h1>
+              </div>
+              <button
+                onClick={() => setViewOnly(false)}
+                className="flex-shrink-0 text-gray-500 hover:text-white text-xs font-bold uppercase tracking-wider border border-gray-700 hover:border-gray-500 px-3 py-2 transition-colors"
+              >
+                ← Back
+              </button>
+            </div>
+            <EstimateSummary job={job} />
+            <p className="text-gray-500 text-sm text-center">Approved — we'll see you on {dateStr} at {job.time}.</p>
+            <p className="text-gray-700 text-xs text-center">Questions? Call or text us at <strong className="text-gray-600">480-757-0476</strong></p>
           </div>
         )}
 
@@ -6068,89 +6205,7 @@ export function EstimatePage() {
               <h1 className="text-white text-3xl font-black tracking-tight">Review &amp; Approve</h1>
             </div>
 
-            {/* Job summary */}
-            <div className="bg-white/5 border border-white/10 divide-y divide-white/10">
-              {[
-                ['Name', `${job.fname} ${job.lname}`],
-                ['Vehicle', job.vehicle],
-                ...(job.vin ? [['VIN', job.vin]] : []),
-                ...(job.mileage ? [['Mileage', `${job.mileage} mi`]] : []),
-                ['Appointment', `${dateStr} at ${job.time}`],
-              ].map(([label, val]) => (
-                <div key={label} className="flex justify-between px-4 py-3">
-                  <span className="text-gray-500 text-xs font-bold uppercase tracking-wider">{label}</span>
-                  <span className={`text-sm ${label === 'VIN' ? 'text-gray-300 font-mono text-xs break-all' : 'text-white'}`}>{val}</span>
-                </div>
-              ))}
-              {/* Line items */}
-              {job.lineItems?.length > 0 ? (
-                <>
-                  {job.lineItems.map(item => (
-                    <div key={item.id} className="flex justify-between gap-3 px-4 py-3">
-                      <span className="text-gray-300 text-sm flex-1 min-w-0 break-words">{item.label}</span>
-                      <span className={`text-sm font-mono font-bold flex-shrink-0 whitespace-nowrap ${item.amount === 0 ? 'text-gray-600' : 'text-white'}`}>
-                        {item.amount === 0 ? 'FREE' : (item.amount < 0 ? `-$${Math.abs(item.amount).toFixed(2)}` : `$${item.amount.toFixed(2)}`)}
-                      </span>
-                    </div>
-                  ))}
-                </>
-              ) : (
-                <div className="flex justify-between px-4 py-3">
-                  <span className="text-gray-300 text-sm">{resolveServiceName(job.service, job.notes)}</span>
-                  <span className="text-white text-sm font-mono">${job.estimateAmount?.toFixed(2)}</span>
-                </div>
-              )}
-              <div className="flex justify-between px-4 py-3 border-t border-white/10">
-                <span className="text-gray-500 text-xs font-bold uppercase tracking-wider">Subtotal</span>
-                <span className="text-white text-sm font-mono">${job.estimateAmount?.toFixed(2)}</span>
-              </div>
-              <div className="flex justify-between px-4 py-3 border-t border-white/5">
-                <span className="text-gray-500 text-xs font-bold uppercase tracking-wider">AZ TPT ({taxRatePercentLabel()}%)</span>
-                <span className="text-white text-sm font-mono">${taxFromItems(job.lineItems).toFixed(2)}</span>
-              </div>
-              <div className="flex justify-between px-4 py-4 border-t border-white/10">
-                <span className="text-gray-500 text-xs font-bold uppercase tracking-wider">Total</span>
-                <span className="text-red-400 text-2xl font-black">${totalFromItems(job.estimateAmount || 0, job.lineItems).toFixed(2)}</span>
-              </div>
-            </div>
-
-            {/* Scope notes */}
-            {job.estimateNotes && (
-              <div className="bg-white/5 border-l-4 border-l-red-600 px-4 py-3">
-                <p className="text-gray-400 text-sm leading-relaxed whitespace-pre-wrap">{job.estimateNotes}</p>
-              </div>
-            )}
-
-            {/* Terms */}
-            <div className="bg-white/5 border border-white/10 p-4">
-              <p className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-3">Terms of Service</p>
-              {/* Core terms — always visible */}
-              <ul className="space-y-2 mb-3">
-                {CYA_TERMS_CORE.map((t, i) => (
-                  <li key={i} className="text-gray-300 text-sm flex gap-2.5">
-                    <span className="text-red-600 font-bold flex-shrink-0 mt-0.5">✓</span> {t}
-                  </li>
-                ))}
-              </ul>
-              {/* Extended terms — collapsible scrollable box */}
-              <details className="group">
-                <summary className="text-red-500 text-xs font-bold uppercase tracking-widest cursor-pointer select-none hover:text-red-400 transition-colors list-none flex items-center gap-1.5">
-                  <span className="group-open:hidden">▶ View all terms ({CYA_TERMS_EXTENDED.length} additional)</span>
-                  <span className="hidden group-open:inline">▼ Hide additional terms</span>
-                </summary>
-                <div
-                  className="mt-3 max-h-48 overflow-y-auto pr-1 space-y-2 scrollbar-thin"
-                  style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-y' }}
-                >
-                  {CYA_TERMS_EXTENDED.map((t, i) => (
-                    <div key={i} className="text-gray-400 text-xs flex gap-2 border-b border-white/5 pb-2 last:border-0">
-                      <span className="text-gray-600 font-bold flex-shrink-0">{i + 1}.</span> {t}
-                    </div>
-                  ))}
-                  <p className="text-gray-600 text-[10px] text-center pt-1 pb-0.5">— End of terms —</p>
-                </div>
-              </details>
-            </div>
+            <EstimateSummary job={job} />
 
             {/* Pre-existing damage + signature — always available; approving only
                 requires checking the box and typing a full name below. */}

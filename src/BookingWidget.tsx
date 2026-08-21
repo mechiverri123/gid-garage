@@ -1255,20 +1255,20 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
       created_at: new Date().toISOString(),
     };
     try {
-      await apiPost('insert-booking', { row: inquiry });
+      // Single server-side call: inserts the booking row and sends the
+      // owner alert together, so the alert can't be dropped if the
+      // customer's connection drops right after the row is saved.
+      await apiPost('send-inquiry', {
+        row: inquiry,
+        fname: form.fname, lname: form.lname, phone: form.phone,
+        email: form.email || '', vehicle: vehicleString(form),
+        notes: form.notes, bookingId,
+      });
     } catch (e: any) {
       setSubmitError('Something went wrong. Please try again or call us directly.');
       setSubmitting(false);
       return;
     }
-    // Notify GID Garage via worker (BREVO_API_KEY no longer in client bundle)
-    try {
-      await apiPost('send-inquiry', {
-        fname: form.fname, lname: form.lname, phone: form.phone,
-        email: form.email || '', vehicle: vehicleString(form),
-        notes: form.notes, bookingId,
-      });
-    } catch { /* non-critical */ }
     setSubmitting(false);
     setSubmitted(true);
   }
@@ -2339,9 +2339,14 @@ export function AdminSchedule() {
       const fresh = await getSupabaseBookings();
       if (seenBookingIds.current) {
         const tenMinutesAgo = Date.now() - 10 * 60 * 1000;
+        // Was requiring stripeCustomerId here, which meant any confirmed
+        // booking that didn't go through the card-on-file flow (e.g. a
+        // returning-customer edge case, or any future no-card booking type)
+        // silently never triggered a push alert. What actually matters is
+        // whether the booking is confirmed, not which payment path it took.
         const newOnes = fresh.filter(
           b => !seenBookingIds.current!.has(b.id) &&
-               !!b.stripeCustomerId &&
+               b.status === 'confirmed' &&
                new Date(b.createdAt).getTime() > tenMinutesAgo
         );
         // Always add all fresh IDs to seen so we don't re-notify on next poll

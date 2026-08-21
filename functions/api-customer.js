@@ -16,7 +16,7 @@
 //   estimate-decline    { id }                    -> { ok }   (customer declines estimate)
 //   returning-customer  { fname,lname,email,phone}-> { stripeCustomerId, last4 } | null
 
-//   send-inquiry        {...}                    -> { ok }    (existing inquiry-form email)
+//   send-inquiry        { row, fname,lname,phone,email,vehicle,notes,bookingId } -> { ok }  (inserts + emails atomically)
 //   quick-quote         { name, phone, issue }    -> { ok }    (homepage fast-path form — texts the owner directly)
 
 function json(body, status = 200) {
@@ -342,15 +342,11 @@ export async function onRequestPost({ request, env }) {
             },
           });
         } catch (e) { console.error('Customer confirmation email failed:', e.message); }
-        // Owner notification
-        try {
-          await brevoSend({
-            sender: { name: 'GID Garage Bookings', email: 'bookings@gidgarage.com' },
-            to: [{ email: 'info@gidgarage.com', name: 'GID Garage' }],
-            subject: `New Booking: ${customerName} — ${serviceName} on ${dateStr}`,
-            htmlContent: `<div style="font-family:sans-serif;padding:24px;background:#0f0f0f;color:#fff;"><h2 style="color:#ef4444;">New Booking</h2><p><strong>${customerName}</strong><br>${booking.phone}<br>${booking.email}</p><p><strong>${serviceName}</strong><br>${dateStr} at ${booking.time}<br>${booking.vehicle}</p>${booking.notes ? `<p>Notes: ${booking.notes}</p>` : ''}</div>`,
-          });
-        } catch (e) { console.error('Owner notification email failed:', e.message); }
+        // Owner notification for this booking already went out server-side
+        // (save-card / confirm-booking, at the moment the booking was
+        // actually confirmed) — not repeated here, since this call depends
+        // on the customer's browser still being open after that point and
+        // would just duplicate an alert that may or may not have fired.
         return json({ ok: true });
       }
 
@@ -437,7 +433,7 @@ export async function onRequestPost({ request, env }) {
           `${base}/bookings?id=eq.${encodeURIComponent(id)}`,
           {
             method: 'PATCH',
-            headers: { ...headers, Prefer: 'return=minimal' },
+            headers: { ...headers, Prefer: 'return=representation' },
             body: JSON.stringify({
               status: 'confirmed',
               ...(stripeCustomerId ? { stripe_customer_id: stripeCustomerId } : {}),
@@ -446,13 +442,49 @@ export async function onRequestPost({ request, env }) {
           }
         );
         if (!res.ok) return json({ error: await res.text() }, 502);
+
+        // Owner alert fires here, server-side, at the moment the booking
+        // actually becomes confirmed — not from the client's later
+        // send-confirmation call, which depends on the customer's browser
+        // staying open after this point. That gap was letting some
+        // standard bookings go through with no admin notification.
+        try {
+          const rows = await res.json();
+          const row = rows[0];
+          if (row) {
+            await brevoSend({
+              sender: { name: 'GID Garage Bookings', email: 'bookings@gidgarage.com' },
+              to: [{ email: 'info@gidgarage.com', name: 'GID Garage' }],
+              subject: `New Booking: ${row.fname} ${row.lname} — ${row.service} on ${row.date}`,
+              htmlContent: `<div style="font-family:sans-serif;padding:24px;background:#0f0f0f;color:#fff;"><h2 style="color:#ef4444;">New Booking</h2><p><strong>${row.fname} ${row.lname}</strong><br>${row.phone}<br>${row.email || ''}</p><p><strong>${row.service}</strong><br>${row.date} at ${row.time}<br>${row.vehicle || ''}</p>${row.notes ? `<p>Notes: ${row.notes}</p>` : ''}</div>`,
+            });
+          }
+        } catch (e) { console.error('Owner notification (confirm-booking) failed:', e.message); }
+
         return json({ ok: true });
       }
 
       // ---- Inquiry / quote-request notification (owner only) -----------
+      // Inserts the booking row AND sends the owner alert in one server
+      // call — mirrors quick-quote's pattern. Previously the client made
+      // two separate calls (insert-booking, then send-inquiry); if the
+      // customer closed the tab or lost connection between them, the
+      // inquiry would save with no notification ever going out.
       case 'send-inquiry': {
-        const { fname, lname, phone, email, vehicle, notes, bookingId } = payload;
+        const { row, fname, lname, phone, email, vehicle, notes, bookingId } = payload;
         const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+
+        if (row) {
+          try {
+            const res = await fetch(`${base}/bookings`, {
+              method: 'POST',
+              headers: { ...headers, Prefer: 'return=minimal' },
+              body: JSON.stringify(row),
+            });
+            if (!res.ok) return json({ error: await res.text() }, 502);
+          } catch (e) { return json({ error: e.message ?? 'Insert failed' }, 500); }
+        }
+
         try {
           await brevoSend({
             sender: { name: 'GID Garage Bookings', email: 'bookings@gidgarage.com' },
