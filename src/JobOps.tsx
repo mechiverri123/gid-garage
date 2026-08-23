@@ -2388,8 +2388,8 @@ function EstimatePanel({ job, onUpdate }: { job: Job; onUpdate: (j: Job) => void
         {alreadySent && (
           <button
             onClick={async () => {
-              await patchJob(job.id, { customer_agreed: false, customer_signature: '', signed_at: null, job_status: 'BOOKED' });
-              onUpdate({ ...job, customerAgreed: false, customerSignature: '', signedAt: null, jobStatus: 'BOOKED', lineItems, estimateAmount: total, estimateNotes: notes });
+              await patchJob(job.id, { customer_agreed: false, customer_signature: '', signed_at: null, job_status: 'ESTIMATE_SENT' });
+              onUpdate({ ...job, customerAgreed: false, customerSignature: '', signedAt: null, jobStatus: 'ESTIMATE_SENT', lineItems, estimateAmount: total, estimateNotes: notes });
             }}
             className="border border-yellow-700 text-yellow-600 hover:border-yellow-500 hover:text-yellow-400 text-xs font-bold uppercase tracking-widest px-4 py-2 transition-colors"
           >
@@ -3269,7 +3269,7 @@ function PaymentPanel({ job, onUpdate, onRequote }: { job: Job; onUpdate: (j: Jo
       {onRequote && (
         <button
           onClick={async () => {
-            await patchJob(job.id, { customer_agreed: false, customer_signature: '', signed_at: null, job_status: 'BOOKED' });
+            await patchJob(job.id, { customer_agreed: false, customer_signature: '', signed_at: null, job_status: 'ESTIMATE_SENT' });
             onRequote();
           }}
           className="border border-yellow-700 text-yellow-600 hover:border-yellow-500 hover:text-yellow-400 text-xs font-bold uppercase tracking-widest px-4 py-2 transition-colors"
