@@ -14,6 +14,10 @@
 //   get-booking         { id }             -> Booking | null
 //   patch-booking       { id, fields }     -> { ok }
 //   patch-by-customer   { customerId, fields } -> { ok }   (e.g. update stripe_last4 on all rows)
+//   list-customers            {}                              -> Customer[]
+//   find-or-create-customer   { fname, lname, phone, email, vin?, vehicle?, mileage?, service_address? }
+//                                                              -> { customer, isNew, possibleDuplicates }
+//   patch-customer            { id, fields }                  -> { ok }  (cascades identity fields to that customer's bookings)
 //   list-payment-events { limit? }         -> PaymentEvent[]
 //   write-payment-event { booking_id, event_type, amount, error_message } -> { ok }
 //   list-blackout-dates {}                 -> BlackoutDate[]   (requires a `blackout_dates` table: date text PK, reason text)
@@ -122,7 +126,7 @@ export async function onRequestPost({ request, env }) {
         // are only needed when a specific job is opened, via get-booking.
         const listColumns = [
           'id', 'service', 'date', 'time', 'fname', 'lname', 'phone', 'email',
-          'vehicle', 'vin', 'mileage', 'service_address', 'notes', 'garage_notes', 'status', 'job_status', 'created_at',
+          'vehicle', 'vin', 'mileage', 'service_address', 'customer_id', 'notes', 'garage_notes', 'status', 'job_status', 'created_at',
           'estimate_amount', 'tax_amount', 'customer_agreed', 'signed_at',
           'invoice_amount', 'stripe_transaction_id', 'stripe_customer_id',
           'stripe_last4', 'paid_at', 'adjustment_amount', 'amount_paid', 'payments',
@@ -168,6 +172,104 @@ export async function onRequestPost({ request, env }) {
           { method: 'PATCH', headers: { ...headers, Prefer: 'return=minimal' }, body: JSON.stringify(fields) }
         );
         if (!res.ok) return json({ error: await res.text() }, 502);
+        return json({ ok: true });
+      }
+
+      // ---- Customers (one file per real person — see customers_migration.sql) ----
+      // list-customers          {}                          -> Customer[]
+      // find-or-create-customer { fname, lname, phone, email } -> { customer, isNew, possibleDuplicates }
+      //   Dedupe key: phone digits if present, else lower(fname+lname+email).
+      //   Same rule the old ExternalLeadModal previous-customer search used,
+      //   kept identical so behavior doesn't silently shift. Never merges a
+      //   name-only match onto an existing record with a DIFFERENT phone —
+      //   that ambiguous case comes back as `possibleDuplicates` for the
+      //   admin to eyeball, and a fresh customer is created instead of
+      //   guessing.
+      // patch-customer          { id, fields }               -> { ok }
+      //   Updates the customer row AND cascades the same fields to every
+      //   booking with that customer_id — this is what actually keeps VIN/
+      //   phone/etc. in sync across a customer's jobs.
+      case 'list-customers': {
+        const res = await fetch(`${base}/customers?select=*&order=lname.asc,fname.asc`, { headers });
+        if (!res.ok) return json({ error: await res.text() }, 502);
+        return json(await res.json());
+      }
+
+      case 'find-or-create-customer': {
+        const { fname, lname, phone, email, vin, vehicle, mileage, service_address } = payload;
+        if (!fname) return json({ error: 'Missing fname' }, 400);
+        const phoneDigits = (phone || '').replace(/\D/g, '');
+
+        let existing = [];
+        if (phoneDigits) {
+          const res = await fetch(
+            `${base}/customers?select=*&phone=not.is.null`,
+            { headers }
+          );
+          if (!res.ok) return json({ error: await res.text() }, 502);
+          const all = await res.json();
+          existing = all.filter(c => (c.phone || '').replace(/\D/g, '') === phoneDigits);
+        } else {
+          const res = await fetch(
+            `${base}/customers?select=*&fname=ilike.${encodeURIComponent(fname)}&lname=ilike.${encodeURIComponent(lname || '')}&email=ilike.${encodeURIComponent(email || '')}`,
+            { headers }
+          );
+          if (!res.ok) return json({ error: await res.text() }, 502);
+          existing = await res.json();
+        }
+
+        if (existing.length > 0) {
+          return json({ customer: existing[0], isNew: false, possibleDuplicates: [] });
+        }
+
+        // No exact match by phone/email. Check for a name-only collision so
+        // the admin can be warned, but still create a distinct customer.
+        let possibleDuplicates = [];
+        if (fname) {
+          const res = await fetch(
+            `${base}/customers?select=id,fname,lname,phone,email&fname=ilike.${encodeURIComponent(fname)}&lname=ilike.${encodeURIComponent(lname || '')}`,
+            { headers }
+          );
+          if (res.ok) possibleDuplicates = await res.json();
+        }
+
+        const insertRes = await fetch(`${base}/customers`, {
+          method: 'POST',
+          headers: { ...headers, Prefer: 'return=representation' },
+          body: JSON.stringify({
+            fname, lname: lname || '', phone: phone || null, email: email || null,
+            vin: vin || null, vehicle: vehicle || null, mileage: mileage || null,
+            service_address: service_address || null,
+          }),
+        });
+        if (!insertRes.ok) return json({ error: await insertRes.text() }, 502);
+        const rows = await insertRes.json();
+        return json({ customer: Array.isArray(rows) ? rows[0] : rows, isNew: true, possibleDuplicates });
+      }
+
+      case 'patch-customer': {
+        const { id, fields } = payload;
+        if (!id || !fields) return json({ error: 'Missing id or fields' }, 400);
+        const patchFields = { ...fields, updated_at: new Date().toISOString() };
+        const custRes = await fetch(
+          `${base}/customers?id=eq.${encodeURIComponent(id)}`,
+          { method: 'PATCH', headers: { ...headers, Prefer: 'return=minimal' }, body: JSON.stringify(patchFields) }
+        );
+        if (!custRes.ok) return json({ error: await custRes.text() }, 502);
+
+        // Cascade the same customer-identity fields to every booking under
+        // this customer, so VIN/phone/etc. stay in sync across all their jobs.
+        const cascadeFields = {};
+        for (const k of ['fname', 'lname', 'phone', 'email', 'vin', 'vehicle', 'mileage', 'service_address']) {
+          if (k in fields) cascadeFields[k] = fields[k];
+        }
+        if (Object.keys(cascadeFields).length > 0) {
+          const bookingRes = await fetch(
+            `${base}/bookings?customer_id=eq.${encodeURIComponent(id)}`,
+            { method: 'PATCH', headers: { ...headers, Prefer: 'return=minimal' }, body: JSON.stringify(cascadeFields) }
+          );
+          if (!bookingRes.ok) return json({ error: await bookingRes.text() }, 502);
+        }
         return json({ ok: true });
       }
 

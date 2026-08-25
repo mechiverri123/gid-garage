@@ -184,6 +184,11 @@ export interface Job {
   vin: string;
   mileage: string;
   serviceAddress: string;
+  // Links this job to a single customer file (see customers_migration.sql).
+  // Null on jobs created before the customers-table migration ran, or on
+  // any job saved before this field existed — those fall back to the old
+  // per-job-only behavior until backfilled.
+  customerId: string | null;
   notes: string;
   garageNotes: string;
   status: string;
@@ -458,6 +463,7 @@ function mapJob(b: any): Job {
     vin: b.vin || '',
     mileage: b.mileage || '',
     serviceAddress: b.service_address || '',
+    customerId: b.customer_id || null,
     notes: b.notes || '',
     garageNotes: b.garage_notes || '',
     status: b.status,
@@ -3778,12 +3784,30 @@ function JobDetailPanel({ job: initialJob, onClose, onJobUpdate }: {
     if (!editFname.trim()) { setApptErr('First name is required.'); return; }
     setApptSaving(true);
     setApptErr(null);
+    // Fields that live on the customer file (not per-job): identity + vehicle.
+    // date/time/notes stay per-job on purpose — those are appointment-specific.
+    const customerFields = {
+      fname: editFname.trim(), lname: editLname.trim(), phone: editPhone, email: editEmail,
+      vin: editVin, vehicle: editVehicle, mileage: editMileage, service_address: editServiceAddress,
+    };
     try {
+      let customerId = job.customerId;
+      if (customerId) {
+        // Existing customer file — patch-customer cascades these fields to
+        // every other job under the same file, which is the whole point.
+        await adminPost('patch-customer', { id: customerId, fields: customerFields });
+      } else if (editFname.trim()) {
+        // Legacy job with no customer file yet (created before the
+        // customers-table migration, or before a backfill ran) — resolve or
+        // create one now so future edits on this job start syncing too.
+        const result = await adminPost('find-or-create-customer', { ...customerFields });
+        customerId = result?.customer?.id ?? null;
+        if (customerId) await patchJob(job.id, { customer_id: customerId });
+      }
       await patchJob(job.id, {
-        date: editDate, time: editTime, fname: editFname.trim(), lname: editLname.trim(), vehicle: editVehicle, vin: editVin, mileage: editMileage,
-        service_address: editServiceAddress, phone: editPhone, email: editEmail, notes: editNotes,
+        date: editDate, time: editTime, ...customerFields, notes: editNotes,
       });
-      handleUpdate({ ...job, date: editDate, time: editTime, fname: editFname.trim(), lname: editLname.trim(), vehicle: editVehicle, vin: editVin, mileage: editMileage, serviceAddress: editServiceAddress, phone: editPhone, email: editEmail, notes: editNotes });
+      handleUpdate({ ...job, date: editDate, time: editTime, fname: editFname.trim(), lname: editLname.trim(), vehicle: editVehicle, vin: editVin, mileage: editMileage, serviceAddress: editServiceAddress, phone: editPhone, email: editEmail, notes: editNotes, customerId });
       setEditingAppt(false);
     } catch (e: any) {
       setApptErr(e.message ?? 'Save failed. Try again.');
@@ -4154,9 +4178,10 @@ const SERVICE_ICONS: Record<string, string> = {
 // so this flow only ever produces an Estimate. Invoicing happens later, through
 // the normal job pipeline (Payment tab), once the customer has actually signed.
 function ExternalLeadModal({ onClose, onAdded, jobs }: { onClose: () => void; onAdded: (job: Job) => void; jobs: Job[] }) {
-  // Step 1: contact + vehicle (with previous-customer search/autofill). Step 2: line
-  // item builder (same math as EstimatePanel). Step 3: done — copy link or send.
-  const [step, setStep] = useState<1 | 2 | 3>(1);
+  // Step 1: contact + vehicle (with previous-customer search/autofill). Step 2:
+  // service date. Step 3: line item builder (same math as EstimatePanel).
+  // Step 4: done — copy link or send.
+  const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [fieldErr, setFieldErr] = useState<Record<string, string>>({});
@@ -4170,6 +4195,7 @@ function ExternalLeadModal({ onClose, onAdded, jobs }: { onClose: () => void; on
   const [f, setF] = useState({
     fname: '', lname: '', phone: '', email: '',
     vehicle: '', service: 'other', notes: '', address: '',
+    date: new Date().toLocaleDateString('en-CA', { timeZone: 'America/Phoenix' }),
   });
 
   // ── Previous-customer search: one entry per (customer, vehicle) — a repeat
@@ -4254,7 +4280,7 @@ function ExternalLeadModal({ onClose, onAdded, jobs }: { onClose: () => void; on
       id,
       service: f.service,
       service_icon: SERVICE_ICONS[f.service] ?? '🔧',
-      date: now.toLocaleDateString('en-CA', { timeZone: 'America/Phoenix' }), // Phoenix is UTC-7 year-round; raw UTC date rolls over 7hrs early
+      date: f.date, // picked in step 2 — defaults to today (America/Phoenix) but can be moved
       time: 'TBD',
       fname: f.fname,
       lname: f.lname,
@@ -4273,12 +4299,27 @@ function ExternalLeadModal({ onClose, onAdded, jobs }: { onClose: () => void; on
       estimate_notes: notesStr,
     };
     try {
+      // Resolve to a single customer file (matches on phone digits, else
+      // name+email — see find-or-create-customer). This is what makes VIN/
+      // phone edits made later, from any job, show up everywhere for this
+      // customer. A picked prior-customer (pickCustomer below) already has
+      // a stable identity, so this either finds that same file again or
+      // creates a fresh one for a genuinely new lead.
+      try {
+        const custResult = await adminPost('find-or-create-customer', {
+          fname: f.fname, lname: f.lname, phone: f.phone, email: f.email, vehicle: f.vehicle, service_address: f.address,
+        });
+        if (custResult?.customer?.id) row.customer_id = custResult.customer.id;
+      } catch {
+        // Non-fatal — worst case this job just doesn't have a customer_id
+        // yet and behaves like a pre-migration job until edited once.
+      }
       const inserted = await adminPost('insert-booking', { row });
       const job = mapJob(inserted ?? row);
       setCreatedJob(job);
       setSendTo(f.email || '');
       onAdded(job);
-      setStep(3);
+      setStep(4);
     } catch (e: any) {
       setErr(e.message ?? 'Save failed. Try again.');
     } finally {
@@ -4406,17 +4447,50 @@ function ExternalLeadModal({ onClose, onAdded, jobs }: { onClose: () => void; on
                 onClick={() => { if (validateStep1()) setStep(2); }}
                 className="w-full bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-bold uppercase tracking-widest py-3 transition-colors mt-2"
               >
+                Next — Service Date →
+              </button>
+            </div>
+          </>
+        )}
+
+        {/* STEP 2 — service date */}
+        {step === 2 && (
+          <>
+            <h2 className="text-xl font-black text-white mb-1">Service Date</h2>
+            <p className="text-gray-500 text-xs mb-5">{f.fname} {f.lname} · {f.vehicle} — when is this job scheduled? Defaults to today; move it if it's booked out.</p>
+
+            <div className="mb-5">
+              <label className="block text-xs font-bold uppercase tracking-wider mb-1 text-gray-500">Service Date</label>
+              <input
+                type="date"
+                value={f.date}
+                onChange={e => set('date', e.target.value)}
+                className="w-full bg-gray-900 text-white text-sm px-3 py-2.5 outline-none border border-gray-700 focus:border-indigo-600 transition-colors"
+              />
+            </div>
+
+            <div className="flex gap-2">
+              <button
+                onClick={() => setStep(1)}
+                className="flex-shrink-0 border border-gray-700 hover:border-red-600 text-white text-xs font-bold uppercase tracking-widest px-4 py-3 transition-colors"
+              >
+                ← Back
+              </button>
+              <button
+                onClick={() => setStep(3)}
+                className="flex-1 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-bold uppercase tracking-widest py-3 transition-colors"
+              >
                 Next — Build Estimate →
               </button>
             </div>
           </>
         )}
 
-        {/* STEP 2 — line items, same math as EstimatePanel */}
-        {step === 2 && (
+        {/* STEP 3 — line items, same math as EstimatePanel */}
+        {step === 3 && (
           <>
             <h2 className="text-xl font-black text-white mb-1">Build Estimate</h2>
-            <p className="text-gray-500 text-xs mb-5">{f.fname} {f.lname} · {f.vehicle}</p>
+            <p className="text-gray-500 text-xs mb-5">{f.fname} {f.lname} · {f.vehicle} · {f.date}</p>
 
             <div className="space-y-2 mb-3">
               {lineItems.map(item => (
@@ -4490,7 +4564,7 @@ function ExternalLeadModal({ onClose, onAdded, jobs }: { onClose: () => void; on
 
             <div className="flex gap-2">
               <button
-                onClick={() => setStep(1)}
+                onClick={() => setStep(2)}
                 className="flex-shrink-0 border border-gray-700 hover:border-red-600 text-white text-xs font-bold uppercase tracking-widest px-4 py-3 transition-colors"
               >
                 ← Back
@@ -4506,8 +4580,8 @@ function ExternalLeadModal({ onClose, onAdded, jobs }: { onClose: () => void; on
           </>
         )}
 
-        {/* STEP 3 — done — mark paid, copy, or send */}
-        {step === 3 && createdJob && (
+        {/* STEP 4 — done — mark paid, copy, or send */}
+        {step === 4 && createdJob && (
           <>
             <h2 className="text-xl font-black text-white mb-1">✓ Estimate Ready</h2>
             <p className="text-gray-500 text-xs mb-5">{createdJob.fname} {createdJob.lname} · {createdJob.vehicle} · ${total.toFixed(2)}</p>
@@ -5030,6 +5104,7 @@ export function JobsTab() {
   const [showExternalLead, setShowExternalLead] = useState(false);
   const [revenueView, setRevenueView] = useState<'month' | 'year'>('month');
   const [netProfitView, setNetProfitView] = useState<'month' | 'year'>('month');
+  const [showBreakdown, setShowBreakdown] = useState(false);
   const [mileageJobIds, setMileageJobIds] = useState<Set<string>>(new Set());
 
   function loadMileageJobIds() {
@@ -5240,6 +5315,31 @@ export function JobsTab() {
   const monthNetProfit = netProfitFor(isThisMonth);
   const yearNetProfit = netProfitFor(isThisYear);
 
+  // Breakdown of what net profit is made of, same PAID/paidAt-in-window
+  // gating as netProfitFor above, but split out by line-item type instead
+  // of collapsed to one number. laborBilled/partsBilled/mobileBilled/other
+  // come from each job's line items (what the customer was actually
+  // charged); partsCost is the admin-entered actual cost (COGS), so
+  // partsMargin = partsBilled - partsCost is the real profit on parts.
+  const breakdownFor = (inWindow: (iso: string) => boolean) => jobs.reduce((acc, j) => {
+    if (j.jobStatus !== 'PAID' || !j.paidAt || !inWindow(j.paidAt)) return acc;
+    for (const li of j.lineItems || []) {
+      if (li.type === 'labor') acc.laborBilled += li.amount;
+      else if (li.type === 'parts') acc.partsBilled += li.amount;
+      else if (li.type === 'mobile') acc.mobileBilled += li.amount;
+      else acc.otherBilled += li.amount; // fixed / discount / other
+    }
+    acc.partsCost += j.partsCost || 0;
+    acc.taxCollected += j.taxAmount || 0;
+    acc.jobCount += 1;
+    return acc;
+  }, { laborBilled: 0, partsBilled: 0, mobileBilled: 0, otherBilled: 0, partsCost: 0, taxCollected: 0, jobCount: 0 });
+  const monthBreakdown = breakdownFor(isThisMonth);
+  const yearBreakdown = breakdownFor(isThisYear);
+  const activeBreakdown = netProfitView === 'month' ? monthBreakdown : yearBreakdown;
+  const activeBreakdownLabel = netProfitView === 'month' ? 'This Month' : `${now.getFullYear()}`;
+  const partsMargin = activeBreakdown.partsBilled - activeBreakdown.partsCost;
+
   const JOB_STATUS_ORDER: Record<string, number> = {
     BOOKED: 0, ESTIMATE_SENT: 1, SIGNED: 2, IN_PROGRESS: 3,
     COMPLETED: 4, INVOICED: 5, PAID: 6, CANCELLED: 7,
@@ -5299,6 +5399,57 @@ export function JobsTab() {
             {netProfitView === 'month' ? 'Net Profit This Month' : `${now.getFullYear()} Net Profit`}
           </div>
         </button>
+      </div>
+
+      {/* Net profit breakdown — labor/parts/mobile billed vs. actual parts
+          cost, for whichever window (month/year) the net profit card is
+          currently showing. */}
+      <div className="mb-8 -mt-4">
+        <button
+          type="button"
+          onClick={() => setShowBreakdown(v => !v)}
+          className="text-cyan-600 hover:text-cyan-400 text-xs font-bold uppercase tracking-wider transition-colors"
+        >
+          {showBreakdown ? '▾' : '▸'} Net Profit Breakdown — {activeBreakdownLabel}
+        </button>
+        {showBreakdown && (
+          <div className="mt-2 bg-gray-900 border border-gray-800 p-4 grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-3">
+            <div>
+              <div className="text-white font-mono font-bold">${activeBreakdown.laborBilled.toFixed(2)}</div>
+              <div className="text-gray-600 text-[10px] font-bold uppercase tracking-wider">Labor Billed</div>
+            </div>
+            <div>
+              <div className="text-white font-mono font-bold">${activeBreakdown.partsBilled.toFixed(2)}</div>
+              <div className="text-gray-600 text-[10px] font-bold uppercase tracking-wider">Parts Billed</div>
+            </div>
+            <div>
+              <div className="text-red-400 font-mono font-bold">-${activeBreakdown.partsCost.toFixed(2)}</div>
+              <div className="text-gray-600 text-[10px] font-bold uppercase tracking-wider">Parts Cost (Actual)</div>
+            </div>
+            <div>
+              <div className={`font-mono font-bold ${partsMargin >= 0 ? 'text-emerald-400' : 'text-red-500'}`}>${partsMargin.toFixed(2)}</div>
+              <div className="text-gray-600 text-[10px] font-bold uppercase tracking-wider">Parts Margin</div>
+            </div>
+            <div>
+              <div className="text-white font-mono font-bold">${activeBreakdown.mobileBilled.toFixed(2)}</div>
+              <div className="text-gray-600 text-[10px] font-bold uppercase tracking-wider">Mobile Fees Billed</div>
+            </div>
+            {activeBreakdown.otherBilled !== 0 && (
+              <div>
+                <div className="text-white font-mono font-bold">${activeBreakdown.otherBilled.toFixed(2)}</div>
+                <div className="text-gray-600 text-[10px] font-bold uppercase tracking-wider">Other / Fixed / Discounts</div>
+              </div>
+            )}
+            <div>
+              <div className="text-gray-400 font-mono font-bold">-${activeBreakdown.taxCollected.toFixed(2)}</div>
+              <div className="text-gray-600 text-[10px] font-bold uppercase tracking-wider">Sales Tax (Not Income)</div>
+            </div>
+            <div>
+              <div className="text-gray-400 font-mono font-bold">{activeBreakdown.jobCount}</div>
+              <div className="text-gray-600 text-[10px] font-bold uppercase tracking-wider">Paid Jobs</div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Filters + Add Job */}

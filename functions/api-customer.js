@@ -16,6 +16,7 @@
 //   estimate-decline    { id }                    -> { ok }   (customer declines estimate)
 //   returning-customer  { fname,lname,email,phone}-> { stripeCustomerId, last4 } | null
 
+//   insert-booking       { row }                  -> { ok }   (customer booking + inquiry forms — resolves/creates a customer file)
 //   send-inquiry        { row, fname,lname,phone,email,vehicle,notes,bookingId } -> { ok }  (inserts + emails atomically)
 //   quick-quote         { name, phone, issue }    -> { ok }    (homepage fast-path form — texts the owner directly)
 
@@ -90,6 +91,47 @@ export async function onRequestPost({ request, env }) {
     Authorization: `Bearer ${serviceKey}`,
     'Content-Type': 'application/json',
   };
+
+  // Resolves a booking's contact info to a single customer file, creating
+  // one if none matches — same dedupe rule as admin-api-data's
+  // find-or-create-customer (phone digits if present, else name+email),
+  // kept in sync deliberately so a lead coming through the public site
+  // resolves to the same file it would if entered manually as an External
+  // Lead. Never throws — a customer-linking hiccup should never block a
+  // real booking from saving.
+  async function findOrCreateCustomerId({ fname, lname, phone, email, vehicle }) {
+    if (!fname) return null;
+    try {
+      const phoneDigits = (phone || '').replace(/\D/g, '');
+      let existing = [];
+      if (phoneDigits) {
+        const r = await fetch(`${base}/customers?select=id,phone`, { headers });
+        if (r.ok) {
+          const all = await r.json();
+          existing = all.filter(c => (c.phone || '').replace(/\D/g, '') === phoneDigits);
+        }
+      } else {
+        const r = await fetch(
+          `${base}/customers?select=id&fname=ilike.${encodeURIComponent(fname)}&lname=ilike.${encodeURIComponent(lname || '')}&email=ilike.${encodeURIComponent(email || '')}`,
+          { headers }
+        );
+        if (r.ok) existing = await r.json();
+      }
+      if (existing.length > 0) return existing[0].id;
+
+      const insertRes = await fetch(`${base}/customers`, {
+        method: 'POST',
+        headers: { ...headers, Prefer: 'return=representation' },
+        body: JSON.stringify({ fname, lname: lname || '', phone: phone || null, email: email || null, vehicle: vehicle || null }),
+      });
+      if (!insertRes.ok) return null;
+      const rows = await insertRes.json();
+      return (Array.isArray(rows) ? rows[0] : rows)?.id ?? null;
+    } catch (e) {
+      console.error('findOrCreateCustomerId failed:', e.message);
+      return null;
+    }
+  }
 
   // Current AZ TPT rate as a decimal (e.g. 0.09386 for 9.386%) — same source of
   // truth as the admin Hub → Taxes setting. Falls back to the historical
@@ -476,10 +518,11 @@ export async function onRequestPost({ request, env }) {
 
         if (row) {
           try {
+            const customerId = await findOrCreateCustomerId({ fname: row.fname, lname: row.lname, phone: row.phone, email: row.email, vehicle: row.vehicle });
             const res = await fetch(`${base}/bookings`, {
               method: 'POST',
               headers: { ...headers, Prefer: 'return=minimal' },
-              body: JSON.stringify(row),
+              body: JSON.stringify(customerId ? { ...row, customer_id: customerId } : row),
             });
             if (!res.ok) return json({ error: await res.text() }, 502);
           } catch (e) { return json({ error: e.message ?? 'Insert failed' }, 500); }
@@ -520,6 +563,7 @@ export async function onRequestPost({ request, env }) {
         // shows up in admin > Jobs alongside everything else — a quick-quote
         // lead should never depend on an email/SMS landing to be visible.
         try {
+          const customerId = await findOrCreateCustomerId({ fname, lname, phone, email: '', vehicle });
           const res = await fetch(`${base}/bookings`, {
             method: 'POST',
             headers: { ...headers, Prefer: 'return=minimal' },
@@ -538,6 +582,7 @@ export async function onRequestPost({ request, env }) {
               status: 'confirmed',
               job_status: 'BOOKED',
               created_at: new Date().toISOString(),
+              ...(customerId ? { customer_id: customerId } : {}),
             }),
           });
           if (!res.ok) console.error('quick-quote booking insert failed:', await res.text());
@@ -571,10 +616,11 @@ export async function onRequestPost({ request, env }) {
             if (hits.length) return json({ error: 'That date is unavailable. Please pick another date.' }, 409);
           }
         }
+        const customerId = await findOrCreateCustomerId({ fname: row.fname, lname: row.lname, phone: row.phone, email: row.email, vehicle: row.vehicle });
         const res = await fetch(`${base}/bookings`, {
           method: 'POST',
           headers: { ...headers, Prefer: 'return=minimal' },
-          body: JSON.stringify(row),
+          body: JSON.stringify(customerId ? { ...row, customer_id: customerId } : row),
         });
         if (!res.ok) return json({ error: await res.text() }, 502);
         return json({ ok: true });
