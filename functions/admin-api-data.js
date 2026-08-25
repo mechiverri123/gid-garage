@@ -120,14 +120,17 @@ export async function onRequestPost({ request, env }) {
       case 'list-bookings': {
         const limit = Number(payload.limit) || 2000;
         // Only the columns the job LIST view actually renders (name, vehicle,
-        // date, status, amounts, search fields). job_photos / admin_photos /
-        // line_items / inspection_data / payments are excluded here — those
-        // can be large (especially older jobs with legacy base64 photos) and
-        // are only needed when a specific job is opened, via get-booking.
+        // date, status, amounts, search fields), plus line_items — needed by
+        // the Net Profit Breakdown panel (Labor/Parts/Mobile billed). It's
+        // small JSON (a handful of line items per job), unlike job_photos /
+        // admin_photos / inspection_data, which stay excluded here since
+        // those can be large (especially older jobs with legacy base64
+        // photos) and are only needed when a specific job is opened, via
+        // get-booking.
         const listColumns = [
           'id', 'service', 'date', 'time', 'fname', 'lname', 'phone', 'email',
           'vehicle', 'vin', 'mileage', 'service_address', 'customer_id', 'notes', 'garage_notes', 'status', 'job_status', 'created_at',
-          'estimate_amount', 'tax_amount', 'customer_agreed', 'signed_at',
+          'estimate_amount', 'tax_amount', 'customer_agreed', 'signed_at', 'line_items',
           'invoice_amount', 'stripe_transaction_id', 'stripe_customer_id',
           'stripe_last4', 'paid_at', 'adjustment_amount', 'amount_paid', 'payments',
           'invoice_sent_count', 'invoice_last_sent_at', 'parts_cost', 'parts_receipts',
