@@ -189,9 +189,12 @@ export async function onRequestPost({ request, env }) {
       //   admin to eyeball, and a fresh customer is created instead of
       //   guessing.
       // patch-customer          { id, fields }               -> { ok }
-      //   Updates the customer row AND cascades the same fields to every
-      //   booking with that customer_id — this is what actually keeps VIN/
-      //   phone/etc. in sync across a customer's jobs.
+      //   Updates the customer row AND cascades identity fields (fname,
+      //   lname, phone, email, vin, vehicle) to every booking with that
+      //   customer_id — this is what actually keeps VIN/phone/etc. in sync
+      //   across a customer's jobs. mileage and service_address are per-job
+      //   values and never cascade, even though they can still be passed in
+      //   `fields` to update just this customer row.
       case 'list-customers': {
         const res = await fetch(`${base}/customers?select=*&order=lname.asc,fname.asc`, { headers });
         if (!res.ok) return json({ error: await res.text() }, 502);
@@ -262,8 +265,11 @@ export async function onRequestPost({ request, env }) {
 
         // Cascade the same customer-identity fields to every booking under
         // this customer, so VIN/phone/etc. stay in sync across all their jobs.
+        // mileage and service_address are deliberately excluded — both are
+        // per-visit values (odometer reading and job location change every
+        // trip), not customer identity, so they must never cascade.
         const cascadeFields = {};
-        for (const k of ['fname', 'lname', 'phone', 'email', 'vin', 'vehicle', 'mileage', 'service_address']) {
+        for (const k of ['fname', 'lname', 'phone', 'email', 'vin', 'vehicle']) {
           if (k in fields) cascadeFields[k] = fields[k];
         }
         if (Object.keys(cascadeFields).length > 0) {

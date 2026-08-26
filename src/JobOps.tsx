@@ -3786,10 +3786,14 @@ function JobDetailPanel({ job: initialJob, onClose, onJobUpdate }: {
     setApptErr(null);
     // Fields that live on the customer file (not per-job): identity + vehicle.
     // date/time/notes stay per-job on purpose — those are appointment-specific.
+    // mileage and service_address are ALSO per-job, not customer identity —
+    // odometer reading and job location both change every visit, so they
+    // must never cascade to the customer's other jobs.
     const customerFields = {
       fname: editFname.trim(), lname: editLname.trim(), phone: editPhone, email: editEmail,
-      vin: editVin, vehicle: editVehicle, mileage: editMileage, service_address: editServiceAddress,
+      vin: editVin, vehicle: editVehicle,
     };
+    const jobOnlyFields = { mileage: editMileage, service_address: editServiceAddress };
     try {
       let customerId = job.customerId;
       if (customerId) {
@@ -3805,7 +3809,7 @@ function JobDetailPanel({ job: initialJob, onClose, onJobUpdate }: {
         if (customerId) await patchJob(job.id, { customer_id: customerId });
       }
       await patchJob(job.id, {
-        date: editDate, time: editTime, ...customerFields, notes: editNotes,
+        date: editDate, time: editTime, ...customerFields, ...jobOnlyFields, notes: editNotes,
       });
       handleUpdate({ ...job, date: editDate, time: editTime, fname: editFname.trim(), lname: editLname.trim(), vehicle: editVehicle, vin: editVin, mileage: editMileage, serviceAddress: editServiceAddress, phone: editPhone, email: editEmail, notes: editNotes, customerId });
       setEditingAppt(false);
