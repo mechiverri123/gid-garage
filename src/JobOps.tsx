@@ -11,6 +11,14 @@ const STRIPE_PK = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY as string;
 const R2 = (import.meta.env.VITE_R2_PUBLIC_URL as string | undefined)?.replace(/\/$/, '') ?? '';
 function img(filename: string) { return R2 ? `${R2}/${filename}` : `/${filename}`; }
 
+// Vehicle mileage is stored as a raw digit string (e.g. "98000") — this
+// adds thousands separators for display only: "98000" -> "98,000".
+function fmtMileage(m: string | number | null | undefined): string {
+  if (m === null || m === undefined || m === '') return '';
+  const n = Number(String(m).replace(/[^0-9]/g, ''));
+  return Number.isFinite(n) ? n.toLocaleString() : String(m);
+}
+
 // ── In-app document/image viewer ─────────────────────────────────────────
 // Photos/scans/receipts used to open via <a target="_blank">, which counts
 // as a real navigation. On mobile home-screen installs (and some desktop
@@ -3929,7 +3937,7 @@ function JobDetailPanel({ job: initialJob, onClose, onJobUpdate }: {
                     ['Service Address', job.serviceAddress || '—'],
                     ['Vehicle', job.vehicle],
                     ['VIN', job.vin || '—'],
-                    ['Mileage', job.mileage ? `${job.mileage} mi` : '—'],
+                    ['Mileage', job.mileage ? `${fmtMileage(job.mileage)} mi` : '—'],
                     ['Customer Notes', job.notes || '—'],
                   ].map(([label, val]) => (
                     <div key={label} className="flex gap-4 border-b border-gray-800 py-2">
@@ -3992,7 +4000,7 @@ function JobDetailPanel({ job: initialJob, onClose, onJobUpdate }: {
                     </div>
                     <div>
                       <label className="block text-gray-500 text-[10px] font-bold uppercase tracking-wider mb-1">Mileage</label>
-                      <input type="text" inputMode="numeric" value={editMileage} onChange={e => setEditMileage(e.target.value.replace(/[^0-9]/g, ''))} placeholder="98,000"
+                      <input type="text" inputMode="numeric" value={fmtMileage(editMileage)} onChange={e => setEditMileage(e.target.value.replace(/[^0-9]/g, ''))} placeholder="98,000"
                         className="w-full bg-gray-900 text-white text-sm px-3 py-2 outline-none border border-gray-700 focus:border-red-600 transition-colors" />
                     </div>
                   </div>
@@ -5844,7 +5852,7 @@ export function InvoicePage() {
               ['Customer', `${job.fname} ${job.lname}`],
               ['Vehicle', job.vehicle],
               ...(job.vin ? [['VIN', job.vin]] : []),
-              ...(job.mileage ? [['Mileage', `${job.mileage} mi`]] : []),
+              ...(job.mileage ? [['Mileage', `${fmtMileage(job.mileage)} mi`]] : []),
               ['Service Date', serviceDateStr],
               ...(isPaid && paidDateStr ? [['Date Paid', paidDateStr]] : []),
               ...(isPaid && job.stripeTransactionId ? [['Transaction ID', job.stripeTransactionId]] : []),
@@ -6204,7 +6212,7 @@ export function EstimatePage() {
             ['Name', `${job.fname} ${job.lname}`],
             ['Vehicle', job.vehicle],
             ...(job.vin ? [['VIN', job.vin]] : []),
-            ...(job.mileage ? [['Mileage', `${job.mileage} mi`]] : []),
+            ...(job.mileage ? [['Mileage', `${fmtMileage(job.mileage)} mi`]] : []),
             ['Appointment', `${dateStr} at ${job.time}`],
           ].map(([label, val]) => (
             <div key={label} className="flex justify-between px-4 py-3">
