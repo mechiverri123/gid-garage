@@ -635,6 +635,53 @@ const CYA_TERMS_EXTENDED = [
 // Combined for admin display
 const CYA_TERMS = [...CYA_TERMS_CORE, ...CYA_TERMS_EXTENDED];
 
+// ── SHARED PRINT STYLES ───────────────────────────────────────────────────────
+// Used by InvoicePage, EstimatePage, PPIPage, and the admin Signed Document
+// viewer. The on-screen UI is a dark theme, which is wrong for printed paper
+// (wastes ink, and if the browser's "print background graphics" option is
+// off — the default in most browsers — light-on-dark text disappears
+// entirely onto a white page). Rather than force the dark theme to print
+// (the old approach, and the actual cause of "printing isn't clean"), this
+// flips anything wrapped in .print-doc to plain black-on-white for print
+// only, regardless of which Tailwind color utility classes it's using
+// on-screen, and normalizes the page to a standard letter-size sheet.
+const PRINT_DOC_STYLES = `
+  @page { margin: 0.5in; size: letter; }
+  html, body, #root { background: #ffffff !important; }
+  .no-print { display: none !important; }
+  .print-full { max-width: 100% !important; width: 100% !important; margin: 0 !important; padding: 0 24px !important; }
+  .print-banner { max-height: 70px !important; width: auto !important; display: block !important; }
+  .print-hide-photos { display: none !important; }
+  table { page-break-inside: avoid; }
+  .page-break-avoid { page-break-inside: avoid; }
+  .print-doc, .print-doc * {
+    background: transparent !important;
+    color: #111 !important;
+    border-color: #ccc !important;
+    box-shadow: none !important;
+    text-shadow: none !important;
+  }
+  .print-doc { background: #ffffff !important; }
+  /* Full-screen fixed overlays (e.g. the Signed Document modal) don't paginate
+     correctly when printed — force them back into normal document flow. */
+  .print-modal-reset {
+    position: static !important;
+    inset: auto !important;
+    background: #ffffff !important;
+    overflow: visible !important;
+    height: auto !important;
+    max-height: none !important;
+    display: block !important;
+    padding: 0 !important;
+  }
+  .print-modal-inner {
+    max-width: 100% !important;
+    max-height: none !important;
+    margin: 0 !important;
+    overflow: visible !important;
+  }
+`;
+
 // ── SERVICE NAME RESOLUTION ───────────────────────────────────────────────────
 
 const SERVICE_NAMES: Record<string, string> = {
@@ -3335,14 +3382,20 @@ function SignedDocSection({ job }: { job: Job }) {
       </div>
 
       {open && (
-        <div className="fixed inset-0 z-[200] bg-black/90 overflow-y-auto flex items-start justify-center p-4" onClick={() => setOpen(false)}>
-          <div className="bg-[#0f0f0f] border border-gray-700 w-full max-w-lg my-4 relative" onClick={e => e.stopPropagation()}>
-            <div className="sticky top-0 bg-[#0f0f0f] border-b border-gray-800 px-6 py-4 flex items-center justify-between z-10">
+        <div className="fixed inset-0 z-[200] bg-black/90 overflow-y-auto flex items-start justify-center p-4 print-modal-reset" onClick={() => setOpen(false)}>
+          <style>{`@media print { ${PRINT_DOC_STYLES} }`}</style>
+          <div className="bg-[#0f0f0f] border border-gray-700 w-full max-w-lg my-4 relative print-modal-inner print-doc" onClick={e => e.stopPropagation()}>
+            <div className="sticky top-0 bg-[#0f0f0f] border-b border-gray-800 px-6 py-4 flex items-center justify-between z-10 no-print">
               <div>
                 <p className="text-purple-400 text-xs font-bold uppercase tracking-widest">Signed Document</p>
                 <h3 className="text-white font-black text-base mt-0.5">{job.fname} {job.lname}</h3>
               </div>
               <button onClick={() => setOpen(false)} className="text-gray-500 hover:text-white text-2xl leading-none transition-colors">×</button>
+            </div>
+            {/* Print-only header — the sticky one above is hidden when printing */}
+            <div className="hidden print:block px-6 pt-6">
+              <p className="text-xs font-bold uppercase tracking-widest">Signed Document</p>
+              <h3 className="font-black text-base mt-0.5">{job.fname} {job.lname}</h3>
             </div>
 
             <div className="px-6 py-5 space-y-5">
@@ -3409,7 +3462,7 @@ function SignedDocSection({ job }: { job: Job }) {
                 <p className="text-gray-700 text-[10px] mt-2">Signed electronically under the Uniform Electronic Transactions Act (UETA). This constitutes a legally binding agreement.</p>
               </div>
 
-              <button onClick={() => window.print()} className="w-full border border-gray-700 text-gray-400 hover:border-white hover:text-white text-xs font-bold uppercase tracking-widest py-3 transition-colors">
+              <button onClick={() => window.print()} className="no-print w-full border border-gray-700 text-gray-400 hover:border-white hover:text-white text-xs font-bold uppercase tracking-widest py-3 transition-colors">
                 🖨 Print / Save as PDF
               </button>
             </div>
@@ -5792,35 +5845,8 @@ export function InvoicePage() {
 
   return (
     <div className="min-h-screen bg-[#0f0f0f] py-12 px-4 print:py-0 print:px-0 print:min-h-0">
-      <style>{`
-        @media print {
-          @page { margin: 8mm; size: letter; }
-          html, body, #root {
-            background: #0f0f0f !important;
-            background-color: #0f0f0f !important;
-            -webkit-print-color-adjust: exact;
-            print-color-adjust: exact;
-          }
-          .no-print { display: none !important; }
-          .print-full {
-            max-width: 100% !important;
-            width: 100% !important;
-            margin: 0 !important;
-            padding: 0 24px !important;
-          }
-          .print-banner {
-            max-height: 80px !important;
-            width: auto !important;
-            display: block !important;
-          }
-          /* Photos take too much space when printing — hide them */
-          .print-hide-photos { display: none !important; }
-          /* Ensure line items and totals don't break across pages */
-          table { page-break-inside: avoid; }
-          .page-break-avoid { page-break-inside: avoid; }
-        }
-      `}</style>
-      <div className="max-w-lg mx-auto print-full">
+      <style>{`@media print { ${PRINT_DOC_STYLES} }`}</style>
+      <div className="max-w-lg mx-auto print-full print-doc">
 
         {/* Banner — full width, both screen and print */}
         <div className="mb-6">
@@ -6305,8 +6331,9 @@ export function EstimatePage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#0f0f0f] flex items-start justify-center px-4 py-12" style={{ WebkitOverflowScrolling: 'touch' }}>
-      <div className="w-full max-w-lg">
+    <div className="min-h-screen bg-[#0f0f0f] flex items-start justify-center px-4 py-12 print:py-0" style={{ WebkitOverflowScrolling: 'touch' }}>
+      <style>{`@media print { ${PRINT_DOC_STYLES} }`}</style>
+      <div className="w-full max-w-lg print-full print-doc">
         <div className="mb-8 no-print">
           <a href="/">
             <img src={img('banner.PNG')} alt="GID Garage" className="w-full h-auto block" />
@@ -6371,6 +6398,13 @@ export function EstimatePage() {
 
             <p className="text-gray-500 text-sm text-center">Approved — we'll see you on {dateStr}{apptTimeLabel(job.time)}.</p>
             <p className="text-gray-700 text-xs text-center">Questions? Call or text us at <strong className="text-gray-600">480-757-0476</strong></p>
+
+            <button
+              onClick={() => window.print()}
+              className="no-print w-full border border-white/20 text-gray-400 hover:border-white hover:text-white text-xs font-bold uppercase tracking-widest py-3 mt-4 transition-colors"
+            >
+              🖨 Save / Print Estimate
+            </button>
           </div>
         )}
 
@@ -6839,23 +6873,8 @@ export function PPIPage() {
 
   return (
     <div className="min-h-screen bg-[#0f0f0f] py-12 px-4 print:py-0 print:px-0 print:min-h-0">
-      <style>{`
-        @media print {
-          @page { margin: 8mm; size: letter; }
-          html, body, #root {
-            background: #0f0f0f !important;
-            background-color: #0f0f0f !important;
-            -webkit-print-color-adjust: exact;
-            print-color-adjust: exact;
-          }
-          .no-print { display: none !important; }
-          .print-full { max-width: 100% !important; width: 100% !important; margin: 0 !important; padding: 0 24px !important; }
-          .print-banner { max-height: 80px !important; width: auto !important; display: block !important; }
-          table { page-break-inside: avoid; }
-          .page-break-avoid { page-break-inside: avoid; }
-        }
-      `}</style>
-      <div className="max-w-2xl mx-auto print-full">
+      <style>{`@media print { ${PRINT_DOC_STYLES} }`}</style>
+      <div className="max-w-2xl mx-auto print-full print-doc">
         <div className="bg-gray-950 border border-gray-800">
           <div className="border-b border-red-700 bg-gray-900">
             <img src="/banner.PNG" alt="GID Garage" className="w-full h-auto block print-banner" />
