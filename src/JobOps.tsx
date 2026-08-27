@@ -651,7 +651,6 @@ const PRINT_DOC_STYLES = `
   .no-print { display: none !important; }
   .print-full { max-width: 100% !important; width: 100% !important; margin: 0 !important; padding: 0 24px !important; }
   .print-banner { max-height: 70px !important; width: auto !important; display: block !important; }
-  .print-hide-photos { display: none !important; }
   table { page-break-inside: avoid; }
   .page-break-avoid { page-break-inside: avoid; }
   .print-doc, .print-doc * {
@@ -6043,13 +6042,14 @@ export function InvoicePage() {
           </div>
         )}
 
-        {/* Job photos if present — hidden when printing */}
+        {/* Job photos if present — printed too, since they're part of the
+            documentation the customer is getting */}
         {job.jobPhotos?.length > 0 && (
-          <div className="mt-4 border border-white/10 bg-white/5 px-6 py-4 print-hide-photos">
+          <div className="mt-4 border border-white/10 bg-white/5 px-6 py-4 page-break-avoid">
             <p className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-3">Job Photos</p>
             <div className="space-y-3">
               {job.jobPhotos.map(photo => (
-                <div key={photo.id}>
+                <div key={photo.id} className="page-break-avoid">
                   <img src={photo.url || photo.dataUrl} alt="Job photo" className="w-full max-h-64 object-cover" />
                   {photo.note && <p className="text-gray-400 text-xs mt-1">{photo.note}</p>}
                 </div>
@@ -6058,9 +6058,9 @@ export function InvoicePage() {
           </div>
         )}
 
-        {/* Job videos if present — hidden when printing */}
+        {/* Job videos if present — can't render on paper, hidden when printing */}
         {job.jobVideos?.length > 0 && (
-          <div className="mt-4 border border-white/10 bg-white/5 px-6 py-4 print-hide-photos">
+          <div className="mt-4 border border-white/10 bg-white/5 px-6 py-4 no-print">
             <p className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-3">Job Videos</p>
             <div className="space-y-3">
               {job.jobVideos.map(video => (
@@ -6402,6 +6402,7 @@ export function EstimatePage() {
             <img src={img('banner.PNG')} alt="GID Garage" className="w-full h-auto block" />
           </a>
         </div>
+        <img src={img('banner.PNG')} alt="GID Garage" className="hidden print:block h-auto block mb-6 print-banner" />
 
         {loading && (
           <p className="text-center text-gray-600 text-sm font-bold uppercase tracking-widest">Loading estimate…</p>
