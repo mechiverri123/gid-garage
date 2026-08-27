@@ -2134,7 +2134,7 @@ function EstimatePanel({ job, onUpdate }: { job: Job; onUpdate: (j: Job) => void
     navigator.clipboard.writeText(estimateUrl).then(() => {
       setLinkCopied(true);
       setTimeout(() => setLinkCopied(false), 2000);
-    });
+    }).catch(() => alert(`Couldn't copy automatically — here's the link:\n\n${estimateUrl}`));
   }
   const [showCalc, setShowCalc] = useState(!job.lineItems?.length);
   const [shopAvg, setShopAvg] = useState(0);
@@ -2543,7 +2543,7 @@ function PaymentPanel({ job, onUpdate, onRequote }: { job: Job; onUpdate: (j: Jo
     navigator.clipboard.writeText(invoiceUrl).then(() => {
       setInvoiceLinkCopied(true);
       setTimeout(() => setInvoiceLinkCopied(false), 2000);
-    });
+    }).catch(() => alert(`Couldn't copy automatically — here's the link:\n\n${invoiceUrl}`));
   }
 
   const hasCardOnFile = !!job.stripeCustomerId;
@@ -4343,7 +4343,7 @@ function ExternalLeadModal({ onClose, onAdded, jobs }: { onClose: () => void; on
     navigator.clipboard.writeText(docUrl).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
-    });
+    }).catch(() => alert(`Couldn't copy automatically — here's the link:\n\n${docUrl}`));
   }
 
   async function handleSendEmail() {
@@ -4368,6 +4368,7 @@ function ExternalLeadModal({ onClose, onAdded, jobs }: { onClose: () => void; on
         placeholder={placeholder}
         value={(f as any)[k]}
         onChange={e => set(k, e.target.value)}
+        onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); if (validateStep1()) setStep(2); } }}
         className={`w-full bg-gray-900 text-white text-sm px-3 py-2.5 outline-none border transition-colors ${fieldErr[k] ? 'border-red-500' : 'border-gray-700 focus:border-red-600'}`}
       />
       {fieldErr[k] && <p className="text-red-500 text-[10px] mt-0.5">{fieldErr[k]}</p>}
@@ -4812,7 +4813,8 @@ function PrePIModal({ onClose }: { onClose: () => void }) {
 
   const docUrl = record ? `https://gidgarage.com/ppi?id=${record.id}` : '';
   function copyLink() {
-    navigator.clipboard.writeText(docUrl).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000); });
+    navigator.clipboard.writeText(docUrl).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000); })
+      .catch(() => alert(`Couldn't copy automatically — here's the link:\n\n${docUrl}`));
   }
   async function handleSendEmail() {
     if (!record || !sendTo) return;
