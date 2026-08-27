@@ -3462,7 +3462,10 @@ function SignedDocSection({ job }: { job: Job }) {
                 <p className="text-gray-700 text-[10px] mt-2">Signed electronically under the Uniform Electronic Transactions Act (UETA). This constitutes a legally binding agreement.</p>
               </div>
 
-              <button onClick={() => window.print()} className="no-print w-full border border-gray-700 text-gray-400 hover:border-white hover:text-white text-xs font-bold uppercase tracking-widest py-3 transition-colors">
+              <button
+                onClick={() => window.open(`https://gidgarage.com/estimate?id=${job.id}&print=1`, '_blank', 'noopener,noreferrer')}
+                className="no-print w-full border border-gray-700 text-gray-400 hover:border-white hover:text-white text-xs font-bold uppercase tracking-widest py-3 transition-colors"
+              >
                 🖨 Print / Save as PDF
               </button>
             </div>
@@ -3915,9 +3918,10 @@ function JobDetailPanel({ job: initialJob, onClose, onJobUpdate }: {
   const statusIdx = JOB_PIPELINE.indexOf(job.jobStatus);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-end" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+    <div className="fixed inset-0 z-50 flex items-start justify-end print-modal-reset" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <style>{`@media print { ${PRINT_DOC_STYLES} }`}</style>
       <div
-        className="relative h-full w-full max-w-xl bg-gray-950 border-l border-gray-800 overflow-y-auto"
+        className="relative h-full w-full max-w-xl bg-gray-950 border-l border-gray-800 overflow-y-auto print-modal-inner print-doc"
         onClick={e => e.stopPropagation()}
       >
         {/* Header */}
@@ -3928,11 +3932,11 @@ function JobDetailPanel({ job: initialJob, onClose, onJobUpdate }: {
             <p className="text-gray-500 text-sm">{resolveServiceName(job.service, job.notes)} · {job.vehicle}</p>
             <p className="text-gray-600 text-xs mt-0.5">{dateStr}{apptTimeLabel(job.time)}</p>
           </div>
-          <button onClick={onClose} className="text-gray-600 hover:text-white text-2xl leading-none mt-1 transition-colors">×</button>
+          <button onClick={onClose} className="no-print text-gray-600 hover:text-white text-2xl leading-none mt-1 transition-colors">×</button>
         </div>
 
-        {/* Pipeline stepper */}
-        <div className="px-6 py-4 border-b border-gray-800 overflow-x-auto scrollbar-none" style={{scrollbarWidth:"none",msOverflowStyle:"none"}}>
+        {/* Pipeline stepper — interactive status control, not useful on paper */}
+        <div className="no-print px-6 py-4 border-b border-gray-800 overflow-x-auto scrollbar-none" style={{scrollbarWidth:"none",msOverflowStyle:"none"}}>
           <div className="flex items-center gap-0 min-w-max">
             {JOB_PIPELINE.map((s, i) => {
               const cfg = STATUS_CONFIG[s];
@@ -3958,7 +3962,7 @@ function JobDetailPanel({ job: initialJob, onClose, onJobUpdate }: {
         </div>
 
         {/* Tabs */}
-        <div className="flex border-b border-gray-800">
+        <div className="no-print flex border-b border-gray-800">
           {(['overview', 'estimate', 'payment', 'inspection'] as const).map(t => (
             <button key={t} onClick={() => setTab(t)}
               className={`text-xs font-bold uppercase tracking-widest px-5 py-3 transition-colors border-b-2 -mb-px ${
@@ -3975,16 +3979,16 @@ function JobDetailPanel({ job: initialJob, onClose, onJobUpdate }: {
           {tab === 'overview' && (
             <div className="space-y-6">
               {/* Pre/Post health scan documents — optional links shown on the customer invoice */}
-              <div className="grid grid-cols-2 gap-3">
+              <div className="no-print grid grid-cols-2 gap-3">
                 <ScanUploadBox job={job} stage="pre" onUpdate={handleUpdate} />
                 <ScanUploadBox job={job} stage="post" onUpdate={handleUpdate} />
               </div>
 
               {/* External payment link (e.g. pay.bluevine.com) — shown to the customer as a Pay Now button */}
-              <PaymentLinkBox job={job} onUpdate={handleUpdate} />
+              <div className="no-print"><PaymentLinkBox job={job} onUpdate={handleUpdate} /></div>
 
               {/* Trip mileage for this job — admin/tax use only, never customer-facing */}
-              <JobMileageBox job={job} />
+              <div className="no-print"><JobMileageBox job={job} /></div>
 
               {/* Customer & Job info */}
               {!editingAppt ? (
@@ -4007,12 +4011,12 @@ function JobDetailPanel({ job: initialJob, onClose, onJobUpdate }: {
                     </div>
                   ))}
                   <button onClick={startEditAppt}
-                    className="w-full border border-gray-700 text-gray-400 hover:border-red-600 hover:text-white text-xs font-bold uppercase tracking-wider py-2.5 mt-2 transition-colors">
+                    className="no-print w-full border border-gray-700 text-gray-400 hover:border-red-600 hover:text-white text-xs font-bold uppercase tracking-wider py-2.5 mt-2 transition-colors">
                     ✏️ Edit Appointment
                   </button>
                 </div>
               ) : (
-                <div className="space-y-3">
+                <div className="no-print space-y-3">
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label className="block text-gray-500 text-[10px] font-bold uppercase tracking-wider mb-1">First Name</label>
@@ -4105,8 +4109,43 @@ function JobDetailPanel({ job: initialJob, onClose, onJobUpdate }: {
                 </div>
               )}
 
+              {/* Line-item recap — print-only. Overview otherwise has no dollar
+                  amounts, so a printed copy would just be contact info with
+                  no priced work on it. Skipped when the Paid block above (or
+                  SignedDocSection's own itemized list) already covers it. */}
+              {job.lineItems?.length > 0 && job.jobStatus !== 'PAID' && !job.customerAgreed && (
+                <div className="hidden print:block border border-white/10 divide-y divide-white/5">
+                  <p className="text-gray-600 text-[10px] font-bold uppercase tracking-widest px-4 py-2">Estimate</p>
+                  {job.lineItems.map(item => (
+                    <div key={item.id} className="flex justify-between gap-3 px-4 py-2">
+                      <span className="text-gray-300 text-sm flex-1 min-w-0 break-words">{item.label}</span>
+                      <span className="text-white text-sm font-mono flex-shrink-0 whitespace-nowrap">{item.amount === 0 ? 'FREE' : (item.amount < 0 ? `-$${Math.abs(item.amount).toFixed(2)}` : `$${item.amount.toFixed(2)}`)}</span>
+                    </div>
+                  ))}
+                  <div className="flex justify-between px-4 py-2">
+                    <span className="text-gray-500 text-xs font-bold uppercase tracking-wider">Subtotal</span>
+                    <span className="text-white text-sm font-mono">${(job.estimateAmount || 0).toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between px-4 py-2">
+                    <span className="text-gray-500 text-xs font-bold uppercase tracking-wider">AZ TPT ({taxRatePercentLabel()}%)</span>
+                    <span className="text-white text-sm font-mono">${taxFromItems(job.lineItems).toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between px-4 py-3">
+                    <span className="text-gray-500 text-xs font-bold uppercase tracking-wider">Total</span>
+                    <span className="text-white text-lg font-black">${totalFromItems(job.estimateAmount || 0, job.lineItems).toFixed(2)}</span>
+                  </div>
+                </div>
+              )}
+
+              <button
+                onClick={() => window.print()}
+                className="no-print w-full border border-gray-700 text-gray-400 hover:border-white hover:text-white text-xs font-bold uppercase tracking-wider py-2.5 transition-colors"
+              >
+                🖨 Print Job Summary
+              </button>
+
               {/* Quick status buttons */}
-              <div>
+              <div className="no-print">
                 <p className="text-gray-600 text-xs font-bold uppercase tracking-widest mb-3">Quick Actions</p>
                 <div className="flex flex-wrap gap-2">
                   {job.jobStatus === 'SIGNED' && (
@@ -4173,7 +4212,7 @@ function JobDetailPanel({ job: initialJob, onClose, onJobUpdate }: {
               </div>
 
               {/* Photos — inline in overview (same as Schedule) */}
-              <div className="border-t border-gray-800 pt-4">
+              <div className="no-print border-t border-gray-800 pt-4">
                 <p className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-3">📷 Photos & Documentation</p>
                 <PhotoPanel job={job} onUpdate={handleUpdate} />
                 <div className="mt-4">
@@ -4187,10 +4226,10 @@ function JobDetailPanel({ job: initialJob, onClose, onJobUpdate }: {
               </div>
 
               {/* Parts cost, receipts, and net profit calculator — admin only */}
-              <PartsCostPanel job={job} onUpdate={handleUpdate} />
+              <div className="no-print"><PartsCostPanel job={job} onUpdate={handleUpdate} /></div>
 
               {/* Videos — shown to customer on the invoice page */}
-              <div className="border-t border-gray-800 pt-4">
+              <div className="no-print border-t border-gray-800 pt-4">
                 <p className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-3">🎥 Videos</p>
                 <VideoPanel job={job} onUpdate={handleUpdate} />
               </div>
@@ -5437,6 +5476,10 @@ export function JobsTab() {
 
   return (
     <div>
+      {/* Everything below is hidden from print while a job panel is open — see
+          the no-print class — so printing prints only the open JobDetailPanel,
+          not this list bleeding through behind it. */}
+      <div className={selected ? 'no-print' : undefined}>
       {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8">
         {[
@@ -5621,6 +5664,8 @@ export function JobsTab() {
             </button>
           );
         })}
+      </div>
+
       </div>
 
       {selected && (
@@ -6190,6 +6235,13 @@ export function InvoicePage() {
 export function EstimatePage() {
   const params = new URLSearchParams(window.location.search);
   const jobId = params.get('id');
+  // ?print=1 — used by the admin "Print / Save as PDF" button (Job Detail →
+  // Open Doc) to land directly on the clean, print-ready signed summary and
+  // fire the print dialog automatically, instead of trying to print the
+  // nested admin modal in place (two nested position:fixed layers print
+  // unreliably — browsers often drop the inner one). This page is a normal
+  // top-level route, so its print styles apply cleanly every time.
+  const autoPrint = params.get('print') === '1';
 
   const [job, setJob] = useState<Job | null>(null);
   const [loading, setLoading] = useState(true);
@@ -6206,11 +6258,22 @@ export function EstimatePage() {
     if (!jobId) { setNotFound(true); setLoading(false); return; }
     getJobByIdPublic(jobId).then(j => {
       if (!j) { setNotFound(true); }
-      else if (j.customerAgreed) { setAlreadySigned(true); setJob(j); }
+      else if (j.customerAgreed) {
+        setAlreadySigned(true);
+        setJob(j);
+        if (autoPrint) setViewOnly(true);
+      }
       else { setJob(j); }
       setLoading(false);
     });
   }, [jobId]);
+
+  // Fire the print dialog once the signed summary has actually rendered.
+  useEffect(() => {
+    if (!autoPrint || !alreadySigned || !viewOnly || !job) return;
+    const t = setTimeout(() => window.print(), 300);
+    return () => clearTimeout(t);
+  }, [autoPrint, alreadySigned, viewOnly, job]);
 
   async function handleSign() {
     if (!job || !agreed || !signature.trim()) return;
@@ -6378,7 +6441,7 @@ export function EstimatePage() {
               </div>
               <button
                 onClick={() => setViewOnly(false)}
-                className="flex-shrink-0 text-gray-500 hover:text-white text-xs font-bold uppercase tracking-wider border border-gray-700 hover:border-gray-500 px-3 py-2 transition-colors"
+                className="no-print flex-shrink-0 text-gray-500 hover:text-white text-xs font-bold uppercase tracking-wider border border-gray-700 hover:border-gray-500 px-3 py-2 transition-colors"
               >
                 ← Back
               </button>
