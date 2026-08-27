@@ -90,8 +90,11 @@ function taxRatePercentLabel(): string { return (TAX_RATE * 100).toFixed(3); }
 const TAX_EXEMPT_TYPES: LineItem['type'][] = ['labor', 'mobile', 'discount'];
 function calcTax(subtotal: number) { return Math.round(subtotal * TAX_RATE * 100) / 100; }
 
-// Convert "14:30" (native <input type="time"> value) → "2:30 PM" (display format used everywhere else)
+// Convert "14:30" (native <input type="time"> value) → "2:30 PM" (display format used everywhere else).
+// Returns '' if the input was cleared, so callers can decide how to handle "no time set"
+// instead of silently saving something like "NaN:00 AM".
 function to12h(t: string): string {
+  if (!t) return '';
   const [hStr, mStr] = t.split(':');
   const h = parseInt(hStr, 10);
   const m = mStr ?? '00';
@@ -99,10 +102,12 @@ function to12h(t: string): string {
   const h12 = h % 12 === 0 ? 12 : h % 12;
   return `${h12}:${m} ${period}`;
 }
-// Convert "2:30 PM" → "14:30" so the native time input can show the current value
+// Convert "2:30 PM" → "14:30" so the native time input can show the current value.
+// Returns '' for anything that isn't a real time (e.g. "TBD", blank) — so the
+// input shows empty/unset instead of silently defaulting to 12:00 PM.
 function from12h(t: string): string {
   const m = t.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
-  if (!m) return '12:00';
+  if (!m) return '';
   let h = parseInt(m[1], 10);
   const min = m[2];
   const period = m[3].toUpperCase();
@@ -111,7 +116,12 @@ function from12h(t: string): string {
   return `${String(h).padStart(2, '0')}:${min}`;
 }
 
-// Sum of taxable line items — everything except labor and the mobile fee.
+// External leads and any job without a set time get "TBD" — reads badly
+// stitched into a sentence like "we'll see you on {date} at TBD.", so callers
+// use this instead of interpolating job.time directly.
+function apptTimeLabel(time: string): string {
+  return time && time !== 'TBD' ? ` at ${time}` : ' (time TBD — we\'ll confirm with you)';
+}
 function taxableAmount(items?: LineItem[] | null): number {
   if (!items || items.length === 0) return 0;
   return items.filter(i => !TAX_EXEMPT_TYPES.includes(i.type)).reduce((s, i) => s + (i.amount || 0), 0);
@@ -3341,7 +3351,7 @@ function SignedDocSection({ job }: { job: Job }) {
                 {[
                   ['Vehicle', job.vehicle],
                   ['Service', resolveServiceName(job.service, job.notes)],
-                  ['Appointment', `${new Date(job.date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })} at ${job.time}`],
+                  ['Appointment', `${new Date(job.date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}${apptTimeLabel(job.time)}`],
                   ...(amount ? [['Quoted Amount', `$${amount.toFixed(2)}`]] : []),
                 ].map(([label, val]) => (
                   <div key={label} className="flex justify-between px-4 py-2.5 gap-4">
@@ -3815,9 +3825,9 @@ function JobDetailPanel({ job: initialJob, onClose, onJobUpdate }: {
         if (customerId) await patchJob(job.id, { customer_id: customerId });
       }
       await patchJob(job.id, {
-        date: editDate, time: editTime, ...customerFields, ...jobOnlyFields, notes: editNotes,
+        date: editDate, time: editTime || 'TBD', ...customerFields, ...jobOnlyFields, notes: editNotes,
       });
-      handleUpdate({ ...job, date: editDate, time: editTime, fname: editFname.trim(), lname: editLname.trim(), vehicle: editVehicle, vin: editVin, mileage: editMileage, serviceAddress: editServiceAddress, phone: editPhone, email: editEmail, notes: editNotes, customerId });
+      handleUpdate({ ...job, date: editDate, time: editTime || 'TBD', fname: editFname.trim(), lname: editLname.trim(), vehicle: editVehicle, vin: editVin, mileage: editMileage, serviceAddress: editServiceAddress, phone: editPhone, email: editEmail, notes: editNotes, customerId });
       setEditingAppt(false);
     } catch (e: any) {
       setApptErr(e.message ?? 'Save failed. Try again.');
@@ -3863,7 +3873,7 @@ function JobDetailPanel({ job: initialJob, onClose, onJobUpdate }: {
             <p className="text-red-500 text-xs font-bold uppercase tracking-widest mb-0.5">Job Detail</p>
             <h2 className="text-white font-black text-lg">{job.fname} {job.lname}</h2>
             <p className="text-gray-500 text-sm">{resolveServiceName(job.service, job.notes)} · {job.vehicle}</p>
-            <p className="text-gray-600 text-xs mt-0.5">{dateStr} at {job.time}</p>
+            <p className="text-gray-600 text-xs mt-0.5">{dateStr}{apptTimeLabel(job.time)}</p>
           </div>
           <button onClick={onClose} className="text-gray-600 hover:text-white text-2xl leading-none mt-1 transition-colors">×</button>
         </div>
@@ -3929,7 +3939,7 @@ function JobDetailPanel({ job: initialJob, onClose, onJobUpdate }: {
                   {[
                     ['Name', `${job.fname} ${job.lname}`.trim() || '—'],
                     ['Service', resolveServiceName(job.service, job.notes)],
-                    ['Date', `${dateStr} at ${job.time}`],
+                    ['Date', `${dateStr}${apptTimeLabel(job.time)}`],
                     ['Phone', job.phone],
                     ['Email', job.email],
                     ['Service Address', job.serviceAddress || '—'],
@@ -6212,7 +6222,7 @@ export function EstimatePage() {
             ['Vehicle', job.vehicle],
             ...(job.vin ? [['VIN', job.vin]] : []),
             ...(job.mileage ? [['Mileage', `${fmtMileage(job.mileage)} mi`]] : []),
-            ['Appointment', `${dateStr} at ${job.time}`],
+            ['Appointment', `${dateStr}${apptTimeLabel(job.time)}`],
           ].map(([label, val]) => (
             <div key={label} className="flex justify-between px-4 py-3">
               <span className="text-gray-500 text-xs font-bold uppercase tracking-wider">{label}</span>
@@ -6318,7 +6328,7 @@ export function EstimatePage() {
           <div className="text-center">
             <div className="text-4xl mb-4">✓</div>
             <h1 className="text-white text-2xl font-black mb-3">Already Signed</h1>
-            <p className="text-gray-500 text-sm mb-6">You've already approved this estimate. We'll see you on {dateStr} at {job.time}.</p>
+            <p className="text-gray-500 text-sm mb-6">You've already approved this estimate. We'll see you on {dateStr}{apptTimeLabel(job.time)}.</p>
             <button
               onClick={() => setViewOnly(true)}
               className="w-full bg-red-600 hover:bg-red-500 text-white font-black text-sm uppercase tracking-widest py-4 transition-colors"
@@ -6357,7 +6367,7 @@ export function EstimatePage() {
               )}
             </div>
 
-            <p className="text-gray-500 text-sm text-center">Approved — we'll see you on {dateStr} at {job.time}.</p>
+            <p className="text-gray-500 text-sm text-center">Approved — we'll see you on {dateStr}{apptTimeLabel(job.time)}.</p>
             <p className="text-gray-700 text-xs text-center">Questions? Call or text us at <strong className="text-gray-600">480-757-0476</strong></p>
           </div>
         )}
@@ -6367,7 +6377,7 @@ export function EstimatePage() {
             <div className="text-5xl mb-4">✅</div>
             <h1 className="text-white text-2xl font-black mb-3">You're All Set!</h1>
             <p className="text-gray-400 text-sm mb-2">Your estimate is approved and your appointment is confirmed.</p>
-            <p className="text-gray-600 text-sm">{dateStr} at {job?.time}</p>
+            <p className="text-gray-600 text-sm">{dateStr}{apptTimeLabel(job?.time ?? '')}</p>
             <p className="text-gray-700 text-xs mt-6">Questions? Call or text <strong className="text-gray-500">480-757-0476</strong></p>
           </div>
         )}

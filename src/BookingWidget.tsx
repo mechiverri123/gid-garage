@@ -168,8 +168,11 @@ function getSlotsForDate(dateStr: string): string[] {
   return (dow === 0 || dow === 6) ? WEEKEND_SLOTS : WEEKDAY_SLOTS;
 }
 
-// Convert "14:30" (native <input type="time"> value) → "2:30 PM" (slot-string format used everywhere else)
+// Convert "14:30" (native <input type="time"> value) → "2:30 PM" (slot-string format used everywhere else).
+// Returns '' if the input was cleared, so callers can decide how to handle "no time set"
+// instead of silently saving something like "NaN:00 AM".
 function to12h(t: string): string {
+  if (!t) return '';
   const [hStr, mStr] = t.split(':');
   const h = parseInt(hStr, 10);
   const m = mStr ?? '00';
@@ -177,10 +180,12 @@ function to12h(t: string): string {
   const h12 = h % 12 === 0 ? 12 : h % 12;
   return `${h12}:${m} ${period}`;
 }
-// Convert "2:30 PM" → "14:30" so the native time input can show the current value
+// Convert "2:30 PM" → "14:30" so the native time input can show the current value.
+// Returns '' for anything that isn't a real time — so the input shows empty/unset
+// instead of silently defaulting to 12:00.
 function from12h(t: string): string {
   const m = t.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
-  if (!m) return '12:00';
+  if (!m) return '';
   let h = parseInt(m[1], 10);
   const min = m[2];
   const period = m[3].toUpperCase();
@@ -1823,14 +1828,14 @@ function BookingDetailModal({ booking, onClose, onUpdate, onBookingPatched }: {
     try {
       const fields: Record<string, string> = {
         date: editDate,
-        time: editTime,
+        time: editTime || booking.time,
         phone: editPhone,
         email: editEmail,
         vehicle: editVehicle,
         notes: editNotes,
       };
       await adminPost('patch-booking', { id: booking.id, fields });
-      onBookingPatched?.({ id: booking.id, date: editDate, time: editTime, phone: editPhone, email: editEmail, vehicle: editVehicle, notes: editNotes });
+      onBookingPatched?.({ id: booking.id, date: editDate, time: fields.time, phone: editPhone, email: editEmail, vehicle: editVehicle, notes: editNotes });
       setEditMode(false);
     } catch (e: any) {
       setSaveError(e.message ?? 'Save failed');
