@@ -4208,6 +4208,7 @@ function ExternalLeadModal({ onClose, onAdded, jobs }: { onClose: () => void; on
     fname: '', lname: '', phone: '', email: '',
     vehicle: '', service: 'other', notes: '', address: '',
     date: new Date().toLocaleDateString('en-CA', { timeZone: 'America/Phoenix' }),
+    time: '',
   });
 
   // ── Previous-customer search: one entry per (customer, vehicle) — a repeat
@@ -4293,7 +4294,7 @@ function ExternalLeadModal({ onClose, onAdded, jobs }: { onClose: () => void; on
       service: f.service,
       service_icon: SERVICE_ICONS[f.service] ?? '🔧',
       date: f.date, // picked in step 2 — defaults to today (America/Phoenix) but can be moved
-      time: 'TBD',
+      time: f.time || 'TBD',
       fname: f.fname,
       lname: f.lname,
       phone: f.phone,
@@ -4471,14 +4472,25 @@ function ExternalLeadModal({ onClose, onAdded, jobs }: { onClose: () => void; on
             <h2 className="text-xl font-black text-white mb-1">Service Date</h2>
             <p className="text-gray-500 text-xs mb-5">{f.fname} {f.lname} · {f.vehicle} — when is this job scheduled? Defaults to today; move it if it's booked out.</p>
 
-            <div className="mb-5">
-              <label className="block text-xs font-bold uppercase tracking-wider mb-1 text-gray-500">Service Date</label>
-              <input
-                type="date"
-                value={f.date}
-                onChange={e => set('date', e.target.value)}
-                className="w-full bg-gray-900 text-white text-sm px-3 py-2.5 outline-none border border-gray-700 focus:border-indigo-600 transition-colors"
-              />
+            <div className="grid grid-cols-2 gap-3 mb-5">
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider mb-1 text-gray-500">Service Date</label>
+                <input
+                  type="date"
+                  value={f.date}
+                  onChange={e => set('date', e.target.value)}
+                  className="w-full bg-gray-900 text-white text-sm px-3 py-2.5 outline-none border border-gray-700 focus:border-indigo-600 transition-colors"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider mb-1 text-gray-500">Time (optional)</label>
+                <input
+                  type="time"
+                  value={f.time ? from12h(f.time) : ''}
+                  onChange={e => set('time', e.target.value ? to12h(e.target.value) : '')}
+                  className="w-full bg-gray-900 text-white text-sm px-3 py-2.5 outline-none border border-gray-700 focus:border-indigo-600 transition-colors"
+                />
+              </div>
             </div>
 
             <div className="flex gap-2">
@@ -4502,7 +4514,7 @@ function ExternalLeadModal({ onClose, onAdded, jobs }: { onClose: () => void; on
         {step === 3 && (
           <>
             <h2 className="text-xl font-black text-white mb-1">Build Estimate</h2>
-            <p className="text-gray-500 text-xs mb-5">{f.fname} {f.lname} · {f.vehicle} · {f.date}</p>
+            <p className="text-gray-500 text-xs mb-5">{f.fname} {f.lname} · {f.vehicle} · {f.date}{f.time ? ` at ${f.time}` : ''}</p>
 
             <div className="space-y-2 mb-3">
               {lineItems.map(item => (
