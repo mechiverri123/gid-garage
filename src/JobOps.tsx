@@ -3760,7 +3760,6 @@ function JobDetailPanel({ job: initialJob, onClose, onJobUpdate }: {
   const [apptErr, setApptErr] = useState<string | null>(null);
   const [editDate, setEditDate] = useState(job.date);
   const [editTime, setEditTime] = useState(job.time);
-  const [editCustomTime, setEditCustomTime] = useState(false);
   const [editFname, setEditFname] = useState(job.fname || '');
   const [editLname, setEditLname] = useState(job.lname || '');
   const [editVehicle, setEditVehicle] = useState(job.vehicle || '');
@@ -3774,7 +3773,6 @@ function JobDetailPanel({ job: initialJob, onClose, onJobUpdate }: {
   function startEditAppt() {
     setEditDate(job.date);
     setEditTime(job.time);
-    setEditCustomTime(false);
     setEditFname(job.fname || '');
     setEditLname(job.lname || '');
     setEditVehicle(job.vehicle || '');
@@ -3971,20 +3969,9 @@ function JobDetailPanel({ job: initialJob, onClose, onJobUpdate }: {
                         className="w-full bg-gray-900 text-white text-sm px-3 py-2 outline-none border border-gray-700 focus:border-red-600 transition-colors" />
                     </div>
                     <div>
-                      <div className="flex items-center justify-between mb-1">
-                        <label className="block text-gray-500 text-[10px] font-bold uppercase tracking-wider">Time</label>
-                        <button type="button" onClick={() => setEditCustomTime(v => !v)}
-                          className="text-[10px] text-indigo-400 hover:text-indigo-300 font-bold uppercase tracking-wider">
-                          {editCustomTime ? 'Use text' : 'Set exact time'}
-                        </button>
-                      </div>
-                      {editCustomTime ? (
-                        <input type="time" value={from12h(editTime)} onChange={e => setEditTime(to12h(e.target.value))}
-                          className="w-full bg-gray-900 text-white text-sm px-3 py-2 outline-none border border-gray-700 focus:border-red-600 transition-colors" />
-                      ) : (
-                        <input type="text" value={editTime} onChange={e => setEditTime(e.target.value)}
-                          className="w-full bg-gray-900 text-white text-sm px-3 py-2 outline-none border border-gray-700 focus:border-red-600 transition-colors" />
-                      )}
+                      <label className="block text-gray-500 text-[10px] font-bold uppercase tracking-wider mb-1">Time</label>
+                      <input type="time" value={from12h(editTime)} onChange={e => setEditTime(to12h(e.target.value))}
+                        className="w-full bg-gray-900 text-white text-sm px-3 py-2 outline-none border border-gray-700 focus:border-red-600 transition-colors" />
                     </div>
                   </div>
                   <div>

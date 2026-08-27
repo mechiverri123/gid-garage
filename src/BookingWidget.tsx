@@ -1797,7 +1797,6 @@ function BookingDetailModal({ booking, onClose, onUpdate, onBookingPatched }: {
 
   const [editDate, setEditDate] = useState(booking.date);
   const [editTime, setEditTime] = useState(booking.time);
-  const [customTime, setCustomTime] = useState(false);
   const [editPhone, setEditPhone] = useState(booking.phone);
   const [editEmail, setEditEmail] = useState(booking.email || '');
   const [editVehicle, setEditVehicle] = useState(booking.vehicle || '');
@@ -1879,8 +1878,6 @@ function BookingDetailModal({ booking, onClose, onUpdate, onBookingPatched }: {
     await savePhotosToDb(updated);
   }
 
-  const timeSlots = getSlotsForDate(editDate);
-
   const inputCls = 'w-full bg-gray-900 text-white text-sm px-3 py-2 outline-none border border-gray-700 focus:border-red-600 transition-colors';
   const labelCls = 'block text-gray-500 text-[10px] font-bold uppercase tracking-wider mb-1';
 
@@ -1945,23 +1942,8 @@ function BookingDetailModal({ booking, onClose, onUpdate, onBookingPatched }: {
                   <input type="date" value={editDate} onChange={e => setEditDate(e.target.value)} className={inputCls} />
                 </div>
                 <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <label className={labelCls + ' mb-0'}>Time</label>
-                    <button type="button" onClick={() => setCustomTime(v => !v)}
-                      className="text-[10px] text-indigo-400 hover:text-indigo-300 font-bold uppercase tracking-wider">
-                      {customTime ? 'Use slots' : 'Set exact time'}
-                    </button>
-                  </div>
-                  {customTime ? (
-                    <input type="time" value={from12h(editTime)} onChange={e => setEditTime(to12h(e.target.value))} className={inputCls} />
-                  ) : (
-                    <select value={editTime} onChange={e => setEditTime(e.target.value)} className={inputCls}>
-                      {(getSlotsForDate(editDate).length > 0 ? getSlotsForDate(editDate) : timeSlots).map(t => (
-                        <option key={t} value={t}>{t}</option>
-                      ))}
-                      {!timeSlots.includes(editTime) && <option value={editTime}>{editTime} (current)</option>}
-                    </select>
-                  )}
+                  <label className={labelCls}>Time</label>
+                  <input type="time" value={from12h(editTime)} onChange={e => setEditTime(to12h(e.target.value))} className={inputCls} />
                 </div>
               </div>
               <div>
