@@ -5909,7 +5909,7 @@ export function InvoicePage() {
         </div>
 
         {/* Invoice card */}
-        <div className="bg-white/5 border border-white/10 page-break-avoid">
+        <div className="bg-white/5 border border-white/10">
 
           {/* Title row */}
           <div className="px-6 py-5 border-b border-white/10 flex items-center justify-between">
@@ -5982,7 +5982,7 @@ export function InvoicePage() {
           )}
 
           {/* Amount row */}
-          <div className="border-t border-white/10">
+          <div className="border-t border-white/10 page-break-avoid">
             <div className="flex justify-between px-6 py-3">
               <span className="text-gray-500 text-xs font-bold uppercase tracking-wider">Subtotal</span>
               <span className="text-white text-sm font-mono">${amount?.toFixed(2)}</span>
@@ -5997,7 +5997,7 @@ export function InvoicePage() {
                 <span className="text-emerald-400 text-sm font-mono">-${(job.amountPaid || 0).toFixed(2)}</span>
               </div>
             )}
-            <div className={`px-6 py-6 border-t border-white/10 flex items-center justify-between ${isPaid ? 'bg-emerald-900/10' : isPartiallyPaid ? 'bg-yellow-900/10' : 'bg-red-900/10'}`}>
+            <div className={`px-6 py-6 border-t border-white/10 flex items-center justify-between page-break-avoid ${isPaid ? 'bg-emerald-900/10' : isPartiallyPaid ? 'bg-yellow-900/10' : 'bg-red-900/10'}`}>
               <span className="text-white font-bold uppercase tracking-wider text-sm">{isPaid ? 'Total Paid' : isPartiallyPaid ? 'Balance Due' : 'Total Due'}</span>
               <span className={`text-3xl font-black ${isPaid ? 'text-emerald-400' : isPartiallyPaid ? 'text-yellow-400' : 'text-red-400'}`}>
                 ${isPaid ? ((job.invoiceAmount || 0) + (job.taxAmount || 0)).toFixed(2) : isPartiallyPaid ? balanceDue.toFixed(2) : (amount ? ((amount) + (job.taxAmount || 0)).toFixed(2) : '0.00')}
