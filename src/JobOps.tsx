@@ -27,6 +27,56 @@ function fmtMileage(m: string | number | null | undefined): string {
 // first history entry — the admin job list — instead of returning into
 // the job panel. Viewing inline means no navigation ever happens, so
 // back/swipe-back just closes the viewer and you're still on the job.
+// Click-to-copy value — copies text to clipboard and flashes a
+// "Copied!" confirmation for a moment. Falls back to a manual
+// textarea-select copy if the async Clipboard API isn't available.
+function CopyableField({ value, className }: { value: string; className?: string }) {
+  const [copied, setCopied] = useState(false);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  async function handleCopy() {
+    if (!value) return;
+    try {
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(value);
+      } else {
+        const ta = document.createElement('textarea');
+        ta.value = value;
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.focus(); ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+      }
+      setCopied(true);
+      if (timerRef.current) clearTimeout(timerRef.current);
+      timerRef.current = setTimeout(() => setCopied(false), 1400);
+    } catch { /* clipboard denied — silently ignore */ }
+  }
+
+  useEffect(() => () => { if (timerRef.current) clearTimeout(timerRef.current); }, []);
+
+  return (
+    <button
+      type="button"
+      onClick={handleCopy}
+      title="Click to copy"
+      className={`no-print relative inline-flex items-center gap-1.5 text-left hover:text-red-400 transition-colors cursor-pointer group ${className || ''}`}
+    >
+      <span>{value}</span>
+      <span className={`text-[10px] transition-opacity ${copied ? 'opacity-100 text-emerald-400' : 'opacity-0 group-hover:opacity-60'}`}>
+        {copied ? '✓' : '⧉'}
+      </span>
+      {copied && (
+        <span className="absolute -top-6 left-0 bg-emerald-900/90 border border-emerald-700 text-emerald-300 text-[10px] font-bold uppercase tracking-wider px-2 py-1 whitespace-nowrap animate-[fadeIn_0.15s_ease-out]">
+          Copied to clipboard
+        </span>
+      )}
+    </button>
+  );
+}
+
 function useDocViewer() {
   const [doc, setDocState] = useState<{ url: string; name: string } | null>(null);
 
@@ -3998,7 +4048,19 @@ function JobDetailPanel({ job: initialJob, onClose, onJobUpdate }: {
                     ['Date', `${dateStr}${apptTimeLabel(job.time)}`],
                     ['Phone', job.phone],
                     ['Email', job.email],
-                    ['Service Address', job.serviceAddress || '—'],
+                  ].map(([label, val]) => (
+                    <div key={label} className="flex gap-4 border-b border-gray-800 py-2">
+                      <span className="text-gray-600 text-xs font-bold uppercase tracking-wider w-32 flex-shrink-0 pt-0.5">{label}</span>
+                      <span className="text-white text-sm whitespace-pre-wrap">{val}</span>
+                    </div>
+                  ))}
+                  <div className="flex gap-4 border-b border-gray-800 py-2">
+                    <span className="text-gray-600 text-xs font-bold uppercase tracking-wider w-32 flex-shrink-0 pt-0.5">Service Address</span>
+                    {job.serviceAddress
+                      ? <CopyableField value={job.serviceAddress} className="text-white text-sm whitespace-pre-wrap" />
+                      : <span className="text-white text-sm">—</span>}
+                  </div>
+                  {[
                     ['Vehicle', job.vehicle],
                     ['VIN', job.vin || '—'],
                     ['Mileage', job.mileage ? `${fmtMileage(job.mileage)} mi` : '—'],
@@ -8155,12 +8217,26 @@ function LineGraph({ points, points2, series2Label, series2Color, valueFmt }: {
   );
 }
 
+// Local YYYY-MM-DD for a Date, and an inclusive [start, end] day-string check —
+// avoids UTC/timezone drift when comparing to <input type="date"> values.
+function toDateInputStr(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+function inDateRange(iso: string, start: string, end: string): boolean {
+  if (!start || !end) return false;
+  const day = toDateInputStr(new Date(iso));
+  return day >= start && day <= end;
+}
+
 function RevenuePanel() {
   const [rows, setRows] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [mode, setMode] = useState<'month' | 'year'>('month');
+  const [mode, setMode] = useState<'month' | 'year' | 'range'>('month');
   const [monthOffset, setMonthOffset] = useState(0); // 0 = current month
   const [yearOffset, setYearOffset] = useState(0);    // 0 = current year
+  const today = toDateInputStr(new Date());
+  const [rangeStart, setRangeStart] = useState(today);
+  const [rangeEnd, setRangeEnd] = useState(today);
 
   useEffect(() => {
     adminPost('paid-bookings')
@@ -8226,9 +8302,19 @@ function RevenuePanel() {
 
   const hasAnyData = points.some(p => p.value > 0) || netProfitPoints.some(p => p.value !== 0);
 
+  // Custom date-range totals — straight sums (not cumulative), gross
+  // revenue vs net profit, over an inclusive start/end day range.
+  const rangeGross = allEntries
+    .filter(e => inDateRange(e.date, rangeStart, rangeEnd))
+    .reduce((s, e) => s + e.amount, 0);
+  const rangeNet = allNetProfitEntries
+    .filter(e => inDateRange(e.date, rangeStart, rangeEnd))
+    .reduce((s, e) => s + e.amount, 0);
+  const rangeValid = !!rangeStart && !!rangeEnd && rangeStart <= rangeEnd;
+
   return (
     <div>
-      {/* Month / Year toggle */}
+      {/* Month / Year / Custom Range toggle */}
       <div className="flex gap-2 mb-4">
         <button
           onClick={() => setMode('month')}
@@ -8238,8 +8324,69 @@ function RevenuePanel() {
           onClick={() => setMode('year')}
           className={`flex-1 py-2.5 text-xs font-bold uppercase tracking-wider border transition-colors ${mode === 'year' ? 'bg-emerald-900/20 border-emerald-800 text-emerald-400' : 'border-gray-800 text-gray-500 hover:text-gray-300'}`}
         >By Year</button>
+        <button
+          onClick={() => setMode('range')}
+          className={`flex-1 py-2.5 text-xs font-bold uppercase tracking-wider border transition-colors ${mode === 'range' ? 'bg-emerald-900/20 border-emerald-800 text-emerald-400' : 'border-gray-800 text-gray-500 hover:text-gray-300'}`}
+        >Custom Range</button>
       </div>
 
+      {mode === 'range' ? (
+        <div>
+          {/* Date range pickers */}
+          <div className="flex items-center gap-2 mb-4">
+            <div className="flex-1">
+              <label className="block text-gray-500 text-[10px] font-bold uppercase tracking-wider mb-1">Start</label>
+              <input type="date" value={rangeStart} max={rangeEnd || undefined} onChange={e => setRangeStart(e.target.value)}
+                className="w-full bg-gray-900 text-white text-sm px-3 py-2 outline-none border border-gray-700 focus:border-emerald-600 transition-colors" />
+            </div>
+            <span className="text-gray-600 text-xs pt-5">to</span>
+            <div className="flex-1">
+              <label className="block text-gray-500 text-[10px] font-bold uppercase tracking-wider mb-1">End</label>
+              <input type="date" value={rangeEnd} min={rangeStart || undefined} onChange={e => setRangeEnd(e.target.value)}
+                className="w-full bg-gray-900 text-white text-sm px-3 py-2 outline-none border border-gray-700 focus:border-emerald-600 transition-colors" />
+            </div>
+          </div>
+
+          {/* Quick presets */}
+          <div className="flex gap-2 mb-4">
+            {[
+              { label: '7D', days: 7 },
+              { label: '30D', days: 30 },
+              { label: '90D', days: 90 },
+              { label: 'YTD', days: null },
+            ].map(p => (
+              <button key={p.label}
+                onClick={() => {
+                  const end = new Date();
+                  const start = p.days === null ? new Date(end.getFullYear(), 0, 1) : new Date(end.getTime() - (p.days - 1) * 86400000);
+                  setRangeStart(toDateInputStr(start));
+                  setRangeEnd(toDateInputStr(end));
+                }}
+                className="flex-1 py-1.5 text-[10px] font-bold uppercase tracking-wider border border-gray-800 text-gray-500 hover:text-white hover:border-gray-600 transition-colors"
+              >{p.label}</button>
+            ))}
+          </div>
+
+          {!rangeValid ? (
+            <p className="text-gray-700 text-xs italic py-16 text-center border border-gray-800 bg-gray-900/40">Pick a start and end date.</p>
+          ) : (
+            <div className="grid grid-cols-2 gap-3">
+              <div className="border border-emerald-800 bg-emerald-900/10 p-4 text-center">
+                <p className="text-emerald-400 text-2xl font-mono font-black">${rangeGross.toFixed(2)}</p>
+                <p className="text-gray-500 text-[10px] font-bold uppercase tracking-wider mt-1">Gross Revenue</p>
+              </div>
+              <div className="border border-blue-800 bg-blue-900/10 p-4 text-center">
+                <p className="text-blue-400 text-2xl font-mono font-black">${rangeNet.toFixed(2)}</p>
+                <p className="text-gray-500 text-[10px] font-bold uppercase tracking-wider mt-1">Net Profit</p>
+              </div>
+            </div>
+          )}
+          <p className="text-gray-700 text-[10px] mt-2">
+            Gross = payments collected in range. Net = gross minus sales tax collected minus parts cost, attributed to each job's paid date.
+          </p>
+        </div>
+      ) : (
+        <>
       {/* Period nav */}
       <div className="flex items-center justify-between mb-3">
         <button
@@ -8269,6 +8416,8 @@ function RevenuePanel() {
       <p className="text-gray-700 text-[10px] mt-2">
         {mode === 'month' ? 'Cumulative revenue and net profit by day of month.' : 'Cumulative revenue and net profit by month of year.'} Tap/hover a point for that day/month's running totals.
       </p>
+        </>
+      )}
     </div>
   );
 }

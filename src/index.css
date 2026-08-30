@@ -63,3 +63,9 @@
   button, .no-print { display: none !important; }
   a[href="/"] { pointer-events: none; }
 }
+
+/* Copy-to-clipboard confirmation pop */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(2px); }
+  to { opacity: 1; transform: translateY(0); }
+}
