@@ -4360,6 +4360,16 @@ function ExternalLeadModal({ onClose, onAdded, jobs }: { onClose: () => void; on
     date: new Date().toLocaleDateString('en-CA', { timeZone: 'America/Phoenix' }),
     time: '',
   });
+  // Phone is genuinely required for most leads (it's how the shop follows
+  // up), but forcing a real value when it's truly unknown pushed people to
+  // type in a placeholder like "0" — and a placeholder shared across
+  // multiple unrelated customers is exactly what caused separate people's
+  // jobs to get merged into one customer file (see the Aug 2026 Mark
+  // Hartley / Julie Heal / Timothy Pagliarulo incident). This checkbox is
+  // the honest way to say "don't have it" — leaves phone blank instead of
+  // faking a number, which the customer-matching logic already treats
+  // safely (blank phone just falls back to name+email matching).
+  const [phoneUnknown, setPhoneUnknown] = useState(false);
 
   // ── Previous-customer search: one entry per (customer, vehicle) — a repeat
   // customer with two vehicles shows up as two separate picks, e.g. "Brian
@@ -4427,7 +4437,7 @@ function ExternalLeadModal({ onClose, onAdded, jobs }: { onClose: () => void; on
   function validateStep1(): boolean {
     const errs: Record<string, string> = {};
     if (!f.fname)   errs.fname   = 'Required';
-    if (!f.phone)   errs.phone   = 'Required';
+    if (!phoneUnknown && !f.phone) errs.phone = 'Required';
     if (!f.vehicle) errs.vehicle = 'Required';
     setFieldErr(errs);
     return Object.keys(errs).length === 0;
@@ -4513,7 +4523,7 @@ function ExternalLeadModal({ onClose, onAdded, jobs }: { onClose: () => void; on
     }
   }
 
-  const inp = (k: string, label: string, type = 'text', placeholder = '') => (
+  const inp = (k: string, label: string, type = 'text', placeholder = '', disabled = false) => (
     <div>
       <label className={`block text-xs font-bold uppercase tracking-wider mb-1 ${fieldErr[k] ? 'text-red-500' : 'text-gray-500'}`}>{label}</label>
       <input
@@ -4522,7 +4532,8 @@ function ExternalLeadModal({ onClose, onAdded, jobs }: { onClose: () => void; on
         value={(f as any)[k]}
         onChange={e => set(k, e.target.value)}
         onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); if (validateStep1()) setStep(2); } }}
-        className={`w-full bg-gray-900 text-white text-sm px-3 py-2.5 outline-none border transition-colors ${fieldErr[k] ? 'border-red-500' : 'border-gray-700 focus:border-red-600'}`}
+        disabled={disabled}
+        className={`w-full bg-gray-900 text-white text-sm px-3 py-2.5 outline-none border transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${fieldErr[k] ? 'border-red-500' : 'border-gray-700 focus:border-red-600'}`}
       />
       {fieldErr[k] && <p className="text-red-500 text-[10px] mt-0.5">{fieldErr[k]}</p>}
     </div>
@@ -4576,7 +4587,23 @@ function ExternalLeadModal({ onClose, onAdded, jobs }: { onClose: () => void; on
               <div className="grid grid-cols-2 gap-3">
                 {inp('fname', 'First Name *', 'text', 'John')}
                 {inp('lname', 'Last Name', 'text', 'Smith')}
-                {inp('phone', 'Phone *', 'tel', '480-555-0100')}
+                <div>
+                  {inp('phone', phoneUnknown ? 'Phone' : 'Phone *', 'tel', '480-555-0100', phoneUnknown)}
+                  <label className="flex items-center gap-1.5 mt-1 text-gray-500 text-[11px] cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={phoneUnknown}
+                      onChange={e => {
+                        const checked = e.target.checked;
+                        setPhoneUnknown(checked);
+                        if (checked) set('phone', '');
+                        setFieldErr(p => ({ ...p, phone: '' }));
+                      }}
+                      className="accent-indigo-600"
+                    />
+                    Don't have it — leave blank (never enter a placeholder like "0")
+                  </label>
+                </div>
                 {inp('email', 'Email (optional)', 'email', 'customer@email.com')}
               </div>
 
