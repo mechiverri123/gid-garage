@@ -131,3 +131,19 @@ export async function restoreBackup(env, key, mode = 'merge') {
 
   return { key, mode, restoredAt: new Date().toISOString(), rowCounts };
 }
+
+// Read-only peek into a single past backup — pulls specific booking rows
+// (by id) out of an old snapshot WITHOUT touching the live database at all.
+// Built for data-recovery investigations: e.g. a booking's identity fields
+// got overwritten by a bad customer-merge, and we need to see what it
+// looked like before that happened, without risking a live restore.
+export async function inspectBackupBookings(env, key, bookingIds) {
+  const bucket = env.GID_PHOTOS;
+  if (!bucket) throw new Error('R2 bucket GID_PHOTOS not bound');
+  const obj = await bucket.get(key);
+  if (!obj) throw new Error(`Backup not found: ${key}`);
+  const dump = JSON.parse(await obj.text());
+  const rows = Array.isArray(dump.bookings) ? dump.bookings : [];
+  const idSet = new Set(bookingIds);
+  return rows.filter(r => idSet.has(r.id));
+}

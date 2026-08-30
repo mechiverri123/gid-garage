@@ -27,6 +27,7 @@
 //   backup-status         {}                -> BackupStatus | null
 //   list-backups          {}                -> { key, uploaded, sizeBytes }[]
 //   restore-backup        { key, mode, confirm } -> RestoreResult  (mode: 'merge' | 'replace', confirm: true required)
+//   inspect-backup-bookings { key, bookingIds }  -> Booking[]  (READ-ONLY — no live writes)
 //   list-ppi              { status? }            -> PPIRecord[]   (pre-purchase inspections, own table)
 //   get-ppi               { id }                  -> PPIRecord | null
 //   insert-ppi            { row }                 -> PPIRecord
@@ -42,7 +43,7 @@
 //   patch-mileage         { id, fields }          -> { ok }
 //   delete-mileage        { id }                  -> { ok }
 
-import { runBackup, readBackupStatus, listBackups, restoreBackup } from './_lib/backup.js';
+import { runBackup, readBackupStatus, listBackups, restoreBackup, inspectBackupBookings } from './_lib/backup.js';
 import { reportError } from './_lib/sentry.js';
 
 const GBP_REVIEW_URL = 'https://g.page/r/CdERSypGqVdlEBM/review';
@@ -54,6 +55,23 @@ function json(body, status = 200) {
     status,
     headers: { 'Content-Type': 'application/json' },
   });
+}
+
+// A phone number match alone is never enough to say two customer records
+// are the same person (see: the Mark Hartley / Julie Heal / Timothy
+// Pagliarulo merge — a shared phone silently welded 3 unrelated customer
+// files together). This adds a name sanity check on top of a phone match.
+// Deliberately permissive about missing data (an existing file with no
+// name on record, or this submission having no last name, still counts
+// as a match) but strict about an actual conflicting name.
+function namesLikelyMatch(fnameA, lnameA, fnameB, lnameB) {
+  const norm = s => (s || '').trim().toLowerCase();
+  const fa = norm(fnameA), fb = norm(fnameB);
+  const la = norm(lnameA), lb = norm(lnameB);
+  if (!fb && !lb) return true; // existing file has no name on record — don't block on it
+  if (fa !== fb) return false; // first name must match when both are present
+  if (!la || !lb) return true; // either side missing a last name — inconclusive, allow it
+  return la === lb;
 }
 
 export async function onRequestPost({ request, env }) {
@@ -207,6 +225,7 @@ export async function onRequestPost({ request, env }) {
         const phoneDigits = (phone || '').replace(/\D/g, '');
 
         let existing = [];
+        let phoneMatchedDifferentName = [];
         if (phoneDigits) {
           const res = await fetch(
             `${base}/customers?select=*&phone=not.is.null`,
@@ -214,7 +233,17 @@ export async function onRequestPost({ request, env }) {
           );
           if (!res.ok) return json({ error: await res.text() }, 502);
           const all = await res.json();
-          existing = all.filter(c => (c.phone || '').replace(/\D/g, '') === phoneDigits);
+          const byPhone = all.filter(c => (c.phone || '').replace(/\D/g, '') === phoneDigits);
+          // A shared phone number alone is NOT proof of the same person —
+          // landlines, business lines, and placeholder numbers get reused
+          // across genuinely different customers. Only auto-merge onto an
+          // existing file when the name also reasonably matches (or the
+          // existing file has no name on record yet). A phone match with a
+          // clearly different name is surfaced as a possible duplicate
+          // instead of silently overwriting someone else's customer file —
+          // this is what a name/VIN overwrite bug traced back to.
+          existing = byPhone.filter(c => namesLikelyMatch(fname, lname, c.fname, c.lname));
+          phoneMatchedDifferentName = byPhone.filter(c => !namesLikelyMatch(fname, lname, c.fname, c.lname));
         } else {
           const res = await fetch(
             `${base}/customers?select=*&fname=ilike.${encodeURIComponent(fname)}&lname=ilike.${encodeURIComponent(lname || '')}&email=ilike.${encodeURIComponent(email || '')}`,
@@ -228,9 +257,10 @@ export async function onRequestPost({ request, env }) {
           return json({ customer: existing[0], isNew: false, possibleDuplicates: [] });
         }
 
-        // No exact match by phone/email. Check for a name-only collision so
-        // the admin can be warned, but still create a distinct customer.
-        let possibleDuplicates = [];
+        // No safe match by phone+name, or by name+email. Check for
+        // collisions so the admin can be warned, but still create a
+        // distinct customer rather than guessing.
+        let possibleDuplicates = phoneMatchedDifferentName.map(c => ({ id: c.id, fname: c.fname, lname: c.lname, phone: c.phone, email: c.email }));
         if (fname) {
           const res = await fetch(
             `${base}/customers?select=id,fname,lname,phone,email&fname=ilike.${encodeURIComponent(fname)}&lname=ilike.${encodeURIComponent(lname || '')}`,
@@ -655,6 +685,19 @@ export async function onRequestPost({ request, env }) {
         if (confirm !== true) return json({ error: 'Missing confirmation' }, 400);
         const result = await restoreBackup(env, key, mode === 'replace' ? 'replace' : 'merge');
         return json(result);
+      }
+      // inspect-backup-bookings { key, bookingIds: string[] } -> Booking[]
+      //   READ-ONLY — pulls specific booking rows out of an old backup
+      //   snapshot without touching the live database. For data-recovery
+      //   investigations (e.g. checking what a booking looked like before
+      //   a bad edit overwrote it), so you can see the old values before
+      //   deciding whether/how to fix the live rows.
+      case 'inspect-backup-bookings': {
+        const { key, bookingIds } = payload;
+        if (!key) return json({ error: 'Missing key' }, 400);
+        if (!Array.isArray(bookingIds) || bookingIds.length === 0) return json({ error: 'Missing bookingIds' }, 400);
+        const rows = await inspectBackupBookings(env, key, bookingIds);
+        return json(rows);
       }
 
       // ---- Business Hub notes (admin-only) ---------------------------------

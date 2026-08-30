@@ -27,6 +27,21 @@ function json(body, status = 200) {
   });
 }
 
+// A phone number match alone is never enough to say two customer records
+// are the same person — see admin-api-data.js's namesLikelyMatch for the
+// full story (a shared phone silently merged 3 unrelated customers into
+// one file). Kept identical here so the public lead-intake path can't
+// reintroduce the same bug through a different door.
+function namesLikelyMatch(fnameA, lnameA, fnameB, lnameB) {
+  const norm = s => (s || '').trim().toLowerCase();
+  const fa = norm(fnameA), fb = norm(fnameB);
+  const la = norm(lnameA), lb = norm(lnameB);
+  if (!fb && !lb) return true;
+  if (fa !== fb) return false;
+  if (!la || !lb) return true;
+  return la === lb;
+}
+
 // HMAC-SHA256(secret, bookingId) -> 32-char hex. Replaces the old hardcoded-secret
 // SHA-256 that lived in the browser bundle. Secret now comes from env only.
 async function makeToken(bookingId, secret) {
@@ -105,10 +120,12 @@ export async function onRequestPost({ request, env }) {
       const phoneDigits = (phone || '').replace(/\D/g, '');
       let existing = [];
       if (phoneDigits) {
-        const r = await fetch(`${base}/customers?select=id,phone`, { headers });
+        const r = await fetch(`${base}/customers?select=id,phone,fname,lname`, { headers });
         if (r.ok) {
           const all = await r.json();
-          existing = all.filter(c => (c.phone || '').replace(/\D/g, '') === phoneDigits);
+          existing = all
+            .filter(c => (c.phone || '').replace(/\D/g, '') === phoneDigits)
+            .filter(c => namesLikelyMatch(fname, lname, c.fname, c.lname));
         }
       } else {
         const r = await fetch(

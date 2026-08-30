@@ -8423,6 +8423,81 @@ function RevenuePanel() {
 }
 
 // ── RECOVERY PANEL (Hub) ─────────────────────────────────────────────────────
+// Read-only lookup into whichever backup is selected above — pulls just the
+// booking IDs you paste in, straight out of that snapshot, without touching
+// the live database. For checking what a job looked like before a bad edit
+// overwrote it (e.g. a customer-merge cascade), before deciding how to fix
+// the live row by hand.
+function BackupBookingInspector({ backupKey }: { backupKey: string }) {
+  const [open, setOpen] = useState(false);
+  const [idsText, setIdsText] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [rows, setRows] = useState<any[] | null>(null);
+
+  async function run() {
+    const bookingIds = idsText.split(/[\s,]+/).map(s => s.trim()).filter(Boolean);
+    if (!backupKey || bookingIds.length === 0) return;
+    setLoading(true);
+    setError(null);
+    setRows(null);
+    try {
+      const result = await adminPost('inspect-backup-bookings', { key: backupKey, bookingIds });
+      setRows(result || []);
+    } catch (e: any) {
+      setError(e.message ?? 'Lookup failed');
+    }
+    setLoading(false);
+  }
+
+  return (
+    <div className="mt-4 border-t border-gray-800 pt-4">
+      <button type="button" onClick={() => setOpen(v => !v)}
+        className="text-cyan-600 hover:text-cyan-400 text-xs font-bold uppercase tracking-wider transition-colors">
+        {open ? '▾' : '▸'} Inspect Bookings in Selected Backup (read-only)
+      </button>
+      {open && (
+        <div className="mt-3 space-y-2">
+          <p className="text-gray-500 text-[11px]">
+            Looks up specific job IDs inside the backup selected above, without changing anything live. Paste GID-… ids, one per line or comma-separated.
+          </p>
+          <textarea value={idsText} onChange={e => setIdsText(e.target.value)} rows={3}
+            placeholder="GID-1785180935122, GID-1785272578055, ..."
+            className="w-full bg-gray-900 text-white text-xs font-mono px-3 py-2 outline-none border border-gray-700 focus:border-cyan-600 transition-colors" />
+          <button type="button" onClick={run} disabled={loading || !backupKey || !idsText.trim()}
+            className="border border-cyan-700 text-cyan-400 hover:bg-cyan-900/20 disabled:opacity-50 text-xs font-bold uppercase tracking-wider px-4 py-2 transition-colors">
+            {loading ? 'Looking up…' : 'Look Up in This Backup'}
+          </button>
+          {error && <p className="text-red-400 text-xs">{error}</p>}
+          {rows && rows.length === 0 && <p className="text-gray-600 text-xs italic">No matching booking IDs found in this backup.</p>}
+          {rows && rows.length > 0 && (
+            <div className="overflow-x-auto border border-gray-800">
+              <table className="w-full text-[11px]">
+                <thead>
+                  <tr className="bg-gray-900 text-gray-500 uppercase tracking-wider">
+                    {['id','fname','lname','phone','email','vin','vehicle','service_address','notes'].map(h => (
+                      <th key={h} className="text-left px-2 py-1.5 font-bold whitespace-nowrap">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((r, i) => (
+                    <tr key={r.id ?? i} className="border-t border-gray-800 text-gray-300">
+                      {['id','fname','lname','phone','email','vin','vehicle','service_address','notes'].map(h => (
+                        <td key={h} className="px-2 py-1.5 whitespace-pre-wrap max-w-[220px] align-top">{String(r[h] ?? '')}</td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function RecoveryPanel() {
   const [status, setStatus] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -8599,6 +8674,8 @@ function RecoveryPanel() {
                 </p>
               </div>
             )}
+
+            <BackupBookingInspector backupKey={selectedKey} />
           </>
         )}
       </div>
