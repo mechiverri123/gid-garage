@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, type Dispatch, type SetStateAction } from 'react';
-import { JobsTab, BusinessHub, MileageTab } from './JobOps';
+import { JobsTab, BusinessHub, MileageTab, JobDetailPanel, getJobById, type Job } from './JobOps';
 import { getEngines } from './engineData';
 import { getTrims } from './trimData';
 
@@ -168,31 +168,6 @@ function getSlotsForDate(dateStr: string): string[] {
   return (dow === 0 || dow === 6) ? WEEKEND_SLOTS : WEEKDAY_SLOTS;
 }
 
-// Convert "14:30" (native <input type="time"> value) → "2:30 PM" (slot-string format used everywhere else).
-// Returns '' if the input was cleared, so callers can decide how to handle "no time set"
-// instead of silently saving something like "NaN:00 AM".
-function to12h(t: string): string {
-  if (!t) return '';
-  const [hStr, mStr] = t.split(':');
-  const h = parseInt(hStr, 10);
-  const m = mStr ?? '00';
-  const period = h >= 12 ? 'PM' : 'AM';
-  const h12 = h % 12 === 0 ? 12 : h % 12;
-  return `${h12}:${m} ${period}`;
-}
-// Convert "2:30 PM" → "14:30" so the native time input can show the current value.
-// Returns '' for anything that isn't a real time — so the input shows empty/unset
-// instead of silently defaulting to 12:00.
-function from12h(t: string): string {
-  const m = t.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
-  if (!m) return '';
-  let h = parseInt(m[1], 10);
-  const min = m[2];
-  const period = m[3].toUpperCase();
-  if (period === 'PM' && h !== 12) h += 12;
-  if (period === 'AM' && h === 12) h = 0;
-  return `${pad(h)}:${min}`;
-}
 function pad(n: number) { return String(n).padStart(2, '0'); }
 
 // Phoenix is UTC-7 year-round (no DST). The booking calendar's "is this slot
@@ -1785,268 +1760,6 @@ function AdminPasswordGate({ onUnlock }: { onUnlock: () => void }) {
   );
 }
 
-// ── BOOKING DETAIL MODAL ────────────────────────────────────────────────────
-function BookingDetailModal({ booking, onClose, onUpdate, onBookingPatched }: {
-  booking: Booking;
-  onClose: () => void;
-  onUpdate: (id: string, status: Booking['status']) => void;
-  onBookingPatched?: (updated: Partial<Booking> & { id: string }) => void;
-}) {
-  const svcInfo = SERVICES.find(s => s.id === booking.service);
-  const dateStr = new Date(booking.date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
-
-  const [editMode, setEditMode] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [saveError, setSaveError] = useState<string | null>(null);
-  const backdropDown = useRef(false);
-
-  const [editDate, setEditDate] = useState(booking.date);
-  const [editTime, setEditTime] = useState(booking.time);
-  const [editPhone, setEditPhone] = useState(booking.phone);
-  const [editEmail, setEditEmail] = useState(booking.email || '');
-  const [editVehicle, setEditVehicle] = useState(booking.vehicle || '');
-  const [editNotes, setEditNotes] = useState(booking.notes || '');
-
-  // Photo upload state
-  const [photos, setPhotos] = useState<{ key: string; url: string; name: string; note: string }[]>(booking.adminPhotos || []);
-  const [uploadingPhoto, setUploadingPhoto] = useState(false);
-  const [photoError, setPhotoError] = useState<string | null>(null);
-  const [savingNotes, setSavingNotes] = useState(false);
-  const [notesSaved, setNotesSaved] = useState(false);
-  const [hasNoteChanges, setHasNoteChanges] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
-  async function savePhotosToDb(updated: typeof photos) {
-    try {
-      await adminPost('patch-booking', { id: booking.id, fields: { admin_photos: JSON.stringify(updated) } });
-    } catch {}
-  }
-
-  async function handleSave() {
-    setSaving(true);
-    setSaveError(null);
-    try {
-      const fields: Record<string, string> = {
-        date: editDate,
-        time: editTime || booking.time,
-        phone: editPhone,
-        email: editEmail,
-        vehicle: editVehicle,
-        notes: editNotes,
-      };
-      await adminPost('patch-booking', { id: booking.id, fields });
-      onBookingPatched?.({ id: booking.id, date: editDate, time: fields.time, phone: editPhone, email: editEmail, vehicle: editVehicle, notes: editNotes });
-      setEditMode(false);
-    } catch (e: any) {
-      setSaveError(e.message ?? 'Save failed');
-    }
-    setSaving(false);
-  }
-
-  async function handlePhotoUpload(file: File) {
-    setUploadingPhoto(true);
-    setPhotoError(null);
-    try {
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append('bookingId', booking.id);
-      const res = await fetch('/admin-upload-photo', { method: 'POST', body: formData });
-      if (!res.ok) throw new Error(await res.text());
-      const data = await res.json() as any;
-      const newPhoto = { key: data.key, url: data.url, name: file.name, note: '' };
-      const updated = [...photos, newPhoto];
-      setPhotos(updated);
-      await savePhotosToDb(updated);
-    } catch (e: any) {
-      setPhotoError(e.message ?? 'Upload failed');
-    }
-    setUploadingPhoto(false);
-  }
-
-  function updatePhotoNote(key: string, note: string) {
-    setPhotos(prev => prev.map(p => p.key === key ? { ...p, note } : p));
-    setHasNoteChanges(true);
-    setNotesSaved(false);
-  }
-
-  async function saveAllNotes() {
-    setSavingNotes(true);
-    await savePhotosToDb(photos);
-    setSavingNotes(false);
-    setNotesSaved(true);
-    setHasNoteChanges(false);
-  }
-
-  async function deletePhoto(key: string) {
-    const updated = photos.filter(p => p.key !== key);
-    setPhotos(updated);
-    await savePhotosToDb(updated);
-  }
-
-  const inputCls = 'w-full bg-gray-900 text-white text-sm px-3 py-2 outline-none border border-gray-700 focus:border-red-600 transition-colors';
-  const labelCls = 'block text-gray-500 text-[10px] font-bold uppercase tracking-wider mb-1';
-
-  return (
-    <div
-      className="fixed inset-0 z-[9999] bg-black/80 flex items-start justify-center p-4 overflow-y-auto"
-      onMouseDown={e => { backdropDown.current = e.target === e.currentTarget; }}
-      onClick={e => { if (e.target === e.currentTarget && backdropDown.current) onClose(); backdropDown.current = false; }}
-    >
-      <div className="bg-[#0f0f0f] border border-gray-800 w-full max-w-lg p-7 relative my-4">
-        <button onClick={onClose} className="absolute top-4 right-4 w-8 h-8 border border-gray-700 text-gray-500 hover:border-red-600 hover:text-white flex items-center justify-center transition-colors">✕</button>
-        <p className="text-red-600 text-xs font-bold uppercase tracking-[0.25em] mb-1">Appointment</p>
-        <h2 className="text-2xl font-black text-white mb-1">{booking.fname} {booking.lname}</h2>
-        <p className="text-gray-500 text-xs mb-5 font-mono">{booking.id}</p>
-
-        {!editMode ? (
-          <>
-            <div className="space-y-2.5 mb-5">
-              {[
-                ['Service', `${svcInfo?.icon ?? '🔧'} ${svcInfo?.name ?? booking.service}`],
-                ['Date', dateStr],
-                ['Time', booking.time],
-                ['Vehicle', booking.vehicle || '—'],
-                ['Phone', booking.phone],
-                ['Email', booking.email || '—'],
-              ].map(([k, v]) => (
-                <div key={k} className="flex justify-between border-b border-gray-900 pb-2">
-                  <span className="text-gray-500 text-xs font-bold uppercase tracking-wider">{k}</span>
-                  <span className="text-white text-sm font-medium text-right max-w-[60%]">{v}</span>
-                </div>
-              ))}
-              {booking.notes && (
-                <div className="border-b border-gray-900 pb-2">
-                  <span className="text-gray-500 text-xs font-bold uppercase tracking-wider block mb-1">Notes</span>
-                  <span className="text-white/70 text-sm italic">"{booking.notes}"</span>
-                </div>
-              )}
-            </div>
-
-            <button onClick={() => setEditMode(true)}
-              className="w-full border border-gray-700 text-gray-400 hover:border-red-600 hover:text-white text-xs font-bold uppercase tracking-wider py-2.5 mb-4 transition-colors">
-              ✏️ Edit Appointment
-            </button>
-
-            <div className="flex gap-2 mb-4">
-              {booking.status === 'confirmed' && (
-                <button onClick={() => { onUpdate(booking.id, 'completed'); onClose(); }}
-                  className="flex-1 text-xs font-bold uppercase tracking-wider py-2.5 border border-green-800 text-green-600 hover:bg-green-900/30 transition-colors">✓ Mark Done</button>
-              )}
-              {booking.status !== 'cancelled' && (
-                <button onClick={() => { if (confirm('Cancel this appointment?')) { onUpdate(booking.id, 'cancelled'); onClose(); } }}
-                  className="flex-1 text-xs font-bold uppercase tracking-wider py-2.5 border border-gray-700 text-gray-500 hover:border-red-700 hover:text-red-500 transition-colors">✕ Cancel</button>
-              )}
-            </div>
-          </>
-        ) : (
-          <>
-            <div className="space-y-3 mb-4">
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className={labelCls}>Date</label>
-                  <input type="date" value={editDate} onChange={e => setEditDate(e.target.value)} className={inputCls} />
-                </div>
-                <div>
-                  <label className={labelCls}>Time</label>
-                  <input type="time" value={from12h(editTime)} onChange={e => setEditTime(to12h(e.target.value))} className={inputCls} />
-                </div>
-              </div>
-              <div>
-                <label className={labelCls}>Vehicle</label>
-                <input type="text" value={editVehicle} onChange={e => setEditVehicle(e.target.value)} className={inputCls} placeholder="Year Make Model Trim Engine" />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className={labelCls}>Phone</label>
-                  <input type="tel" value={editPhone} onChange={e => setEditPhone(e.target.value)} className={inputCls} />
-                </div>
-                <div>
-                  <label className={labelCls}>Email</label>
-                  <input type="email" value={editEmail} onChange={e => setEditEmail(e.target.value)} className={inputCls} />
-                </div>
-              </div>
-              <div>
-                <label className={labelCls}>Notes</label>
-                <textarea value={editNotes} onChange={e => setEditNotes(e.target.value)} rows={3} className={inputCls + ' resize-none'} />
-              </div>
-            </div>
-            {saveError && <p className="text-red-400 text-xs mb-3">{saveError}</p>}
-            <div className="flex gap-2 mb-4">
-              <button onClick={handleSave} disabled={saving}
-                className={`flex-1 bg-red-600 hover:bg-red-500 text-white text-xs font-bold uppercase tracking-wider py-2.5 transition-colors ${saving ? 'opacity-50' : ''}`}>
-                {saving ? 'Saving…' : '✓ Save Changes'}
-              </button>
-              <button onClick={() => { setEditMode(false); setSaveError(null); }}
-                className="flex-1 border border-gray-700 text-gray-400 text-xs font-bold uppercase tracking-wider py-2.5 hover:border-gray-500 transition-colors">
-                Cancel
-              </button>
-            </div>
-            <p className="text-yellow-600/70 text-[10px] mb-4">⚠️ Changing date/time frees the old slot and blocks the new one — customer will not be auto-notified. Call or text them manually.</p>
-          </>
-        )}
-
-        {/* ── Admin-only photo uploads ── */}
-        <div className="border-t border-gray-800 pt-4 mt-2">
-          <p className="text-yellow-600 text-xs font-bold uppercase tracking-widest mb-1">🔒 Admin Photos</p>
-          <p className="text-gray-600 text-[10px] mb-3">Internal records only — VIN plate, license plate, damage, documentation. Not visible to customer.</p>
-
-          <input ref={fileInputRef} type="file" accept="image/*" multiple className="hidden"
-            onChange={async e => {
-              const files = Array.from(e.target.files || []);
-              for (const f of files) await handlePhotoUpload(f);
-              e.target.value = '';
-            }}
-          />
-          <button onClick={() => fileInputRef.current?.click()} disabled={uploadingPhoto}
-            className={`w-full border border-dashed border-gray-700 text-gray-500 hover:border-yellow-700 hover:text-yellow-600 text-xs font-bold uppercase tracking-wider py-3 transition-colors ${uploadingPhoto ? 'opacity-50 cursor-not-allowed' : ''}`}>
-            {uploadingPhoto ? '⏳ Uploading…' : '+ Upload Photos'}
-          </button>
-          {photoError && <p className="text-red-400 text-xs mt-2">{photoError}</p>}
-
-          {photos.length > 0 && (
-            <div className="mt-3 space-y-3">
-              {photos.map(p => (
-                <div key={p.key} className="bg-gray-900 border border-gray-800">
-                  <div className="relative">
-                    <a href={p.url} target="_blank" rel="noopener noreferrer">
-                      <img src={p.url} alt={p.name} className="w-full max-h-48 object-cover" />
-                    </a>
-                    <button onClick={() => deletePhoto(p.key)}
-                      className="absolute top-2 right-2 w-7 h-7 bg-black/70 text-red-500 hover:bg-red-900/80 flex items-center justify-center text-sm transition-colors">×</button>
-                    <span className="absolute bottom-2 left-2 text-[10px] text-gray-400 bg-black/60 px-1.5 py-0.5">{p.name}</span>
-                  </div>
-                  <div className="p-2">
-                    <input
-                      type="text"
-                      value={p.note}
-                      onChange={e => updatePhotoNote(p.key, e.target.value)}
-                      placeholder="Add a note…"
-                      className="w-full bg-gray-800 border border-gray-700 text-white text-xs px-2.5 py-1.5 outline-none focus:border-yellow-700 placeholder-gray-600 transition-colors"
-                    />
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-          {photos.length > 0 && (
-            <button
-              onClick={saveAllNotes}
-              disabled={savingNotes || !hasNoteChanges}
-              className={`mt-3 w-full border text-xs font-bold uppercase tracking-wider py-2.5 transition-colors ${
-                notesSaved ? 'border-emerald-800 text-emerald-600' :
-                hasNoteChanges ? 'border-yellow-700 text-yellow-600 hover:bg-yellow-900/20' :
-                'border-gray-800 text-gray-700 cursor-default'
-              }`}
-            >
-              {savingNotes ? 'Saving…' : notesSaved ? '✓ Notes Saved' : hasNoteChanges ? 'Save Notes' : '✓ Saved'}
-            </button>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
 // ── GARAGE NOTES FIELD ──────────────────────────────────────────────────────
 function GarageNotesField({ booking, onSave }: { booking: Booking; onSave: (id: string, notes: string) => Promise<void> }) {
   const [text, setText] = useState(booking.garageNotes || '');
@@ -2239,8 +1952,17 @@ export function AdminSchedule() {
   const [view, setView] = useState<'list' | 'month' | 'week' | 'day'>('month');
   const [calDate, setCalDate] = useState(new Date());
   const [loading, setLoading] = useState(true);
-  const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
+  // Clicking a booking on the calendar opens the *full* job record (same
+  // rich panel the Jobs tab uses — pipeline, estimate, payment, inspection),
+  // not just a quick-glance summary. We only have the slim Booking in the
+  // calendar's own state, so track the id and fetch the full Job separately.
+  const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
+  const [selectedJob, setSelectedJob] = useState<Job | null>(null);
+  const [jobLoading, setJobLoading] = useState(false);
   const [showBlackoutManager, setShowBlackoutManager] = useState(false);
+  // Drag-to-reschedule on the calendar
+  const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [dropTargetKey, setDropTargetKey] = useState<string | null>(null);
   const [notifPerm, setNotifPerm] = useState<NotificationPermission | 'unsupported'>(() => {
     if (!('Notification' in window)) return 'unsupported';
     return Notification.permission;
@@ -2375,6 +2097,70 @@ export function AdminSchedule() {
     deleteLocalBooking(id);
     try { await deleteSupabaseBooking(id); } catch (e) { console.warn('Supabase delete failed', e); }
     setBookings(prev => prev.filter(b => b.id !== id));
+  }
+
+  // Fetch the full job record whenever a calendar entry is opened.
+  useEffect(() => {
+    if (!selectedJobId) { setSelectedJob(null); return; }
+    let cancelled = false;
+    setJobLoading(true);
+    getJobById(selectedJobId).then(j => {
+      if (cancelled) return;
+      setSelectedJob(j);
+      setJobLoading(false);
+    }).catch(() => { if (!cancelled) setJobLoading(false); });
+    return () => { cancelled = true; };
+  }, [selectedJobId]);
+
+  function handleJobUpdate(updated: Job) {
+    setSelectedJob(updated);
+    setBookings(prev => prev.map(b => b.id === updated.id ? {
+      ...b,
+      date: updated.date,
+      time: updated.time,
+      fname: updated.fname,
+      lname: updated.lname,
+      phone: updated.phone,
+      email: updated.email,
+      vehicle: updated.vehicle,
+      notes: updated.notes,
+      status: (updated.status as Booking['status']) ?? b.status,
+    } : b));
+  }
+
+  // Formats a date/time for the reschedule confirm prompt, e.g.
+  // "Tuesday, August 11th at 11:00 AM".
+  function ordinal(n: number) {
+    const s = ['th', 'st', 'nd', 'rd'];
+    const v = n % 100;
+    return n + (s[(v - 20) % 10] || s[v] || s[0]);
+  }
+  function fmtConfirmWhen(dateStr: string, time: string) {
+    const d = new Date(dateStr + 'T12:00:00');
+    const weekday = d.toLocaleDateString('en-US', { weekday: 'long' });
+    const month = d.toLocaleDateString('en-US', { month: 'long' });
+    return `${weekday}, ${month} ${ordinal(d.getDate())} at ${time}`;
+  }
+
+  // Drag-and-drop reschedule — used by the month/week/day calendar views.
+  async function handleDropReschedule(bookingId: string, newDate: string, newTime: string) {
+    setDropTargetKey(null);
+    setDraggingId(null);
+    const b = bookings.find(x => x.id === bookingId);
+    if (!b) return;
+    if (b.date === newDate && b.time === newTime) return;
+    const vehiclePart = b.vehicle ? ` (${b.vehicle})` : '';
+    const ok = confirm(`Reschedule ${b.fname} ${b.lname}${vehiclePart} for ${fmtConfirmWhen(newDate, newTime)}?`);
+    if (!ok) return;
+    const prevDate = b.date, prevTime = b.time;
+    setBookings(prev => prev.map(x => x.id === bookingId ? { ...x, date: newDate, time: newTime } : x));
+    try {
+      await adminPost('patch-booking', { id: bookingId, fields: { date: newDate, time: newTime } });
+    } catch (e: any) {
+      // Roll back on failure
+      setBookings(prev => prev.map(x => x.id === bookingId ? { ...x, date: prevDate, time: prevTime } : x));
+      alert('Failed to reschedule: ' + (e?.message ?? String(e)));
+    }
   }
 
   const STATUS_ORDER: Record<string, number> = { confirmed: 0, pending: 1, completed: 2, cancelled: 3 };
@@ -2530,12 +2316,28 @@ export function AdminSchedule() {
                 const k = dateKey(calYear, calMonth, d);
                 const dayBookings = bookingsForDay(k);
                 const isToday = k === today;
+                const isDropTarget = dropTargetKey === k;
                 return (
-                  <div key={d} className={`min-h-[60px] p-1.5 border text-xs ${isToday ? 'border-red-600' : 'border-gray-800'} bg-gray-900`}>
+                  <div key={d}
+                    className={`min-h-[60px] p-1.5 border text-xs transition-colors ${isDropTarget ? 'border-yellow-500 bg-yellow-900/10' : isToday ? 'border-red-600' : 'border-gray-800'} bg-gray-900`}
+                    onDragOver={e => { if (draggingId) { e.preventDefault(); setDropTargetKey(k); } }}
+                    onDragLeave={() => { if (dropTargetKey === k) setDropTargetKey(null); }}
+                    onDrop={e => {
+                      e.preventDefault();
+                      const id = e.dataTransfer.getData('text/plain') || draggingId;
+                      if (id) {
+                        const dropped = bookings.find(x => x.id === id);
+                        handleDropReschedule(id, k, dropped?.time ?? '');
+                      }
+                    }}
+                  >
                     <div className={`font-bold mb-1 ${isToday ? 'text-red-500' : 'text-gray-400'}`}>{d}</div>
                     {dayBookings.slice(0, 2).map(b => (
-                      <button key={b.id} onClick={() => setSelectedBooking(b)}
-                        className="w-full text-left bg-red-900/50 hover:bg-red-900/80 text-red-300 text-[10px] px-1 py-0.5 mb-0.5 truncate transition-colors cursor-pointer">
+                      <button key={b.id} onClick={() => setSelectedJobId(b.id)}
+                        draggable
+                        onDragStart={e => { e.dataTransfer.setData('text/plain', b.id); setDraggingId(b.id); }}
+                        onDragEnd={() => { setDraggingId(null); setDropTargetKey(null); }}
+                        className={`w-full text-left bg-red-900/50 hover:bg-red-900/80 text-red-300 text-[10px] px-1 py-0.5 mb-0.5 truncate transition-colors cursor-grab active:cursor-grabbing ${draggingId === b.id ? 'opacity-40' : ''}`}>
                         {b.time} {b.fname}
                       </button>
                     ))}
@@ -2576,11 +2378,25 @@ export function AdminSchedule() {
                   {weekDates.map(d => {
                     const dKey = dateKey(d.getFullYear(), d.getMonth(), d.getDate());
                     const slotBookings = bookings.filter(b => b.date === dKey && b.time === slot && b.status !== 'cancelled');
+                    const cellKey = `${dKey}|${slot}`;
+                    const isDropTarget = dropTargetKey === cellKey;
                     return (
-                      <div key={dKey} className="py-1 min-h-[32px]">
+                      <div key={dKey}
+                        className={`py-1 min-h-[32px] transition-colors ${isDropTarget ? 'bg-yellow-900/20 outline outline-1 outline-yellow-500' : ''}`}
+                        onDragOver={e => { if (draggingId) { e.preventDefault(); setDropTargetKey(cellKey); } }}
+                        onDragLeave={() => { if (dropTargetKey === cellKey) setDropTargetKey(null); }}
+                        onDrop={e => {
+                          e.preventDefault();
+                          const id = e.dataTransfer.getData('text/plain') || draggingId;
+                          if (id) handleDropReschedule(id, dKey, slot);
+                        }}
+                      >
                         {slotBookings.map(b => (
-                          <button key={b.id} onClick={() => setSelectedBooking(b)}
-                            className="w-full text-left bg-red-900/50 hover:bg-red-900/80 text-red-300 text-[10px] px-1 py-0.5 truncate transition-colors">
+                          <button key={b.id} onClick={() => setSelectedJobId(b.id)}
+                            draggable
+                            onDragStart={e => { e.dataTransfer.setData('text/plain', b.id); setDraggingId(b.id); }}
+                            onDragEnd={() => { setDraggingId(null); setDropTargetKey(null); }}
+                            className={`w-full text-left bg-red-900/50 hover:bg-red-900/80 text-red-300 text-[10px] px-1 py-0.5 truncate transition-colors cursor-grab active:cursor-grabbing ${draggingId === b.id ? 'opacity-40' : ''}`}>
                             {b.fname} {b.lname[0]}.
                           </button>
                         ))}
@@ -2605,15 +2421,25 @@ export function AdminSchedule() {
               const dKey = dateKey(calDate.getFullYear(), calDate.getMonth(), calDate.getDate());
               const dayBookings = bookingsForDay(dKey).sort((a,b) => a.time.localeCompare(b.time));
               const slots = getSlotsForDate(dKey);
-              if (dayBookings.length === 0) {
-                return <div className="text-center py-10 text-gray-600 text-sm font-bold uppercase tracking-wider">No appointments</div>;
-              }
               return (
                 <div className="space-y-2">
+                  {dayBookings.length === 0 && (
+                    <div className="text-center py-6 text-gray-600 text-sm font-bold uppercase tracking-wider">No appointments</div>
+                  )}
                   {slots.map(slot => {
                     const slotBookings = dayBookings.filter(b => b.time === slot);
+                    const isDropTarget = dropTargetKey === `${dKey}|${slot}`;
                     return (
-                      <div key={slot} className="grid grid-cols-[80px_1fr] gap-3 border-t border-gray-800 pt-2">
+                      <div key={slot}
+                        className={`grid grid-cols-[80px_1fr] gap-3 border-t border-gray-800 pt-2 transition-colors ${isDropTarget ? 'bg-yellow-900/20' : ''}`}
+                        onDragOver={e => { if (draggingId) { e.preventDefault(); setDropTargetKey(`${dKey}|${slot}`); } }}
+                        onDragLeave={() => { if (dropTargetKey === `${dKey}|${slot}`) setDropTargetKey(null); }}
+                        onDrop={e => {
+                          e.preventDefault();
+                          const id = e.dataTransfer.getData('text/plain') || draggingId;
+                          if (id) handleDropReschedule(id, dKey, slot);
+                        }}
+                      >
                         <div className="text-gray-600 text-xs font-mono pt-1">{slot}</div>
                         <div className="space-y-1">
                           {slotBookings.length === 0
@@ -2621,8 +2447,11 @@ export function AdminSchedule() {
                             : slotBookings.map(b => {
                                 const si = SERVICES.find(s => s.id === b.service);
                                 return (
-                                  <button key={b.id} onClick={() => setSelectedBooking(b)}
-                                    className="w-full text-left bg-red-900/40 hover:bg-red-900/70 border border-red-900/60 px-3 py-2 transition-colors">
+                                  <button key={b.id} onClick={() => setSelectedJobId(b.id)}
+                                    draggable
+                                    onDragStart={e => { e.dataTransfer.setData('text/plain', b.id); setDraggingId(b.id); }}
+                                    onDragEnd={() => { setDraggingId(null); setDropTargetKey(null); }}
+                                    className={`w-full text-left bg-red-900/40 hover:bg-red-900/70 border border-red-900/60 px-3 py-2 transition-colors cursor-grab active:cursor-grabbing ${draggingId === b.id ? 'opacity-40' : ''}`}>
                                     <span className="text-white text-sm font-bold">{b.fname} {b.lname}</span>
                                     <span className="text-gray-400 text-xs ml-2">{si?.icon} {si?.name}</span>
                                     <span className="text-gray-500 text-xs block mt-0.5">{b.vehicle}</span>
@@ -2653,7 +2482,7 @@ export function AdminSchedule() {
               return (
                 <div key={b.id} className={`bg-gray-900 border p-5 flex flex-col gap-3 ${b.status === 'cancelled' ? 'border-gray-800 opacity-50' : b.status === 'completed' ? 'border-green-900' : isPast ? 'border-yellow-900/50' : 'border-gray-800 border-l-4 border-l-red-600'}`}>
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                    <button className="flex items-start gap-4 text-left flex-1" onClick={() => setSelectedBooking(b)}>
+                    <button className="flex items-start gap-4 text-left flex-1" onClick={() => setSelectedJobId(b.id)}>
                       <div className="text-2xl mt-0.5">{svcInfo?.icon ?? '🔧'}</div>
                       <div>
                         <div className="text-white font-bold text-base">{b.fname} {b.lname}</div>
@@ -2748,15 +2577,18 @@ export function AdminSchedule() {
         })()}
       </div>
 
-      {selectedBooking && (
-        <BookingDetailModal
-          booking={selectedBooking}
-          onClose={() => setSelectedBooking(null)}
-          onUpdate={updateStatus}
-          onBookingPatched={(updated) => {
-            setBookings(prev => prev.map(b => b.id === updated.id ? { ...b, ...updated } : b));
-            setSelectedBooking(prev => prev ? { ...prev, ...updated } : prev);
-          }}
+      {selectedJobId && jobLoading && !selectedJob && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
+          <div className="text-gray-400 text-sm font-bold uppercase tracking-widest">Loading job…</div>
+        </div>
+      )}
+
+      {selectedJobId && selectedJob && (
+        <JobDetailPanel
+          job={selectedJob}
+          backLabel="Back to Calendar"
+          onClose={() => setSelectedJobId(null)}
+          onJobUpdate={handleJobUpdate}
         />
       )}
 

@@ -3853,10 +3853,11 @@ function JobMileageBox({ job }: { job: Job }) {
 
 const JOB_PIPELINE: JobStatus[] = ['BOOKED', 'ESTIMATE_SENT', 'SIGNED', 'IN_PROGRESS', 'COMPLETED', 'INVOICED', 'PAID'];
 
-function JobDetailPanel({ job: initialJob, onClose, onJobUpdate }: {
+export function JobDetailPanel({ job: initialJob, onClose, onJobUpdate, backLabel = 'Back' }: {
   job: Job;
   onClose: () => void;
   onJobUpdate: (j: Job) => void;
+  backLabel?: string;
 }) {
   const [job, setJob] = useState(initialJob);
 
@@ -3981,7 +3982,7 @@ function JobDetailPanel({ job: initialJob, onClose, onJobUpdate }: {
             <p className="text-gray-500 text-sm">{resolveServiceName(job.service, job.notes)} · {job.vehicle}</p>
             <p className="text-gray-600 text-xs mt-0.5">{dateStr}{apptTimeLabel(job.time)}</p>
           </div>
-          <button onClick={onClose} className="no-print text-gray-600 hover:text-white text-2xl leading-none mt-1 transition-colors">×</button>
+          <button onClick={onClose} className="no-print flex-shrink-0 text-gray-400 hover:text-white text-xs font-bold uppercase tracking-widest border border-gray-700 hover:border-red-600 px-3 py-2 mt-0.5 transition-colors whitespace-nowrap">← {backLabel}</button>
         </div>
 
         {/* Pipeline stepper — interactive status control, not useful on paper */}
