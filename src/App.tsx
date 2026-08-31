@@ -1,9 +1,17 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, lazy, Suspense } from 'react';
 import { Phone, Mail, Menu, X, MessageCircle } from 'lucide-react';
-import BookingWidget, { AdminSchedule, verifyCancelToken, deleteLocalBooking, sendCancellationNotification } from './BookingWidget';
-import { EstimatePage, InvoicePage, PPIPage } from './JobOps';
-import GamesPage from './GamesPage';
 import GameRedeem from './GameRedeem';
+
+// These route-only bundles (admin dashboard, estimate/invoice/PPI docs, the
+// booking modal, games) are never needed for the homepage's first paint —
+// lazy-loading them keeps the marketing site's JS small so it doesn't choke
+// mobile Safari (source of the "grey screen until refresh" reports).
+const BookingWidget = lazy(() => import('./BookingWidget'));
+const AdminSchedule = lazy(() => import('./BookingWidget').then(m => ({ default: m.AdminSchedule })));
+const EstimatePage = lazy(() => import('./JobOps').then(m => ({ default: m.EstimatePage })));
+const InvoicePage = lazy(() => import('./JobOps').then(m => ({ default: m.InvoicePage })));
+const PPIPage = lazy(() => import('./JobOps').then(m => ({ default: m.PPIPage })));
+const GamesPage = lazy(() => import('./GamesPage'));
 
 // Cancel flow now validates server-side (secret lives in the worker, not here).
 async function apiPost(action: string, args: Record<string, any> = {}) {
@@ -887,6 +895,7 @@ function CancelPage({ bookingId, token }: { bookingId: string; token: string }) 
   useEffect(() => {
     async function verify() {
       try {
+        const { verifyCancelToken } = await import('./BookingWidget');
         const result = await verifyCancelToken(bookingId, token);
         if (!result || !result.valid || !result.booking) { setState('invalid'); return; }
         if (result.booking.status === 'cancelled') { setState('done'); return; }
@@ -902,6 +911,7 @@ function CancelPage({ bookingId, token }: { bookingId: string; token: string }) 
   async function confirmCancel() {
     setState('cancelling');
     try {
+      const { deleteLocalBooking, sendCancellationNotification } = await import('./BookingWidget');
       deleteLocalBooking(bookingId);
       const result = await apiPost('cancel', { id: bookingId, token });
       const cancelled = result?.booking ?? booking;
@@ -1136,11 +1146,11 @@ export default function App() {
     setModalOpen(true);
   }
 
-  if (isAdmin) return <AdminSchedule />;
-  if (isEstimate) return <EstimatePage />;
-  if (isInvoice) return <InvoicePage />;
-  if (isPPI) return <PPIPage />;
-  if (isGames) return <GamesPage />;
+  if (isAdmin) return <Suspense fallback={null}><AdminSchedule /></Suspense>;
+  if (isEstimate) return <Suspense fallback={null}><EstimatePage /></Suspense>;
+  if (isInvoice) return <Suspense fallback={null}><InvoicePage /></Suspense>;
+  if (isPPI) return <Suspense fallback={null}><PPIPage /></Suspense>;
+  if (isGames) return <Suspense fallback={null}><GamesPage /></Suspense>;
   if (isGameRedeem) return <GameRedeem />;
   if (isServiceArea) return <ServiceAreaPage slug={serviceAreaSlug ?? ''} />;
   if (isPrivacy) return <PrivacyPolicyPage />;
@@ -1163,11 +1173,13 @@ export default function App() {
       <Footer />
       {!modalOpen && <StickyMobileCTA openBooking={openBooking} />}
       {modalOpen && (
-        <BookingWidget
-          autoOpen
-          preselectedService={bookingServiceId ?? undefined}
-          onClose={() => { setModalOpen(false); setBookingServiceId(null); }}
-        />
+        <Suspense fallback={null}>
+          <BookingWidget
+            autoOpen
+            preselectedService={bookingServiceId ?? undefined}
+            onClose={() => { setModalOpen(false); setBookingServiceId(null); }}
+          />
+        </Suspense>
       )}
     </div>
   );
