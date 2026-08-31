@@ -678,7 +678,7 @@ export async function onRequestPost({ request, env }) {
           taxReservePct: row.owner_tax_reserve_pct != null ? Number(row.owner_tax_reserve_pct) : 0.3,
           payAnchorDate: row.owner_pay_anchor_date || null,
           overheadItems: Array.isArray(row.owner_overhead_items) ? row.owner_overhead_items : [],
-          stripeFeePct: row.owner_stripe_fee_pct != null ? Number(row.owner_stripe_fee_pct) : 0.0285,
+          stripeFeePct: row.owner_stripe_fee_pct != null ? Number(row.owner_stripe_fee_pct) : 0.02928,
         });
       }
 

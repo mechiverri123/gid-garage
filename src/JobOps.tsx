@@ -8018,7 +8018,7 @@ export function OwnerPayPanel() {
   const [newItemName, setNewItemName] = useState('');
   const [newItemAmount, setNewItemAmount] = useState('');
   const [taxReservePct, setTaxReservePct] = useState('30');
-  const [stripeFeePct, setStripeFeePct] = useState('2.85');
+  const [stripeFeePct, setStripeFeePct] = useState('2.928');
   const [payAnchorDate, setPayAnchorDate] = useState('');
   const [settingsLoading, setSettingsLoading] = useState(true);
   const [savingSettings, setSavingSettings] = useState(false);
@@ -8041,7 +8041,7 @@ export function OwnerPayPanel() {
       .then((data: any) => {
         setOverheadItems(Array.isArray(data?.overheadItems) ? data.overheadItems : []);
         setTaxReservePct(data?.taxReservePct != null ? String(Math.round(data.taxReservePct * 100)) : '30');
-        setStripeFeePct(data?.stripeFeePct != null ? String(Math.round(data.stripeFeePct * 10000) / 100) : '2.85');
+        setStripeFeePct(data?.stripeFeePct != null ? String(Math.round(data.stripeFeePct * 10000) / 100) : '2.928');
         setPayAnchorDate(data?.payAnchorDate || '');
         setSettingsLoading(false);
       })
@@ -8199,7 +8199,7 @@ export function OwnerPayPanel() {
       <div className="border border-gray-800 p-3 mb-4 space-y-2">
         <div className="grid grid-cols-2 gap-2">
           <div>
-            <label className="block text-gray-600 text-[10px] font-bold uppercase tracking-wider mb-1">Stripe Fee % (blended)</label>
+            <label className="block text-gray-600 text-[10px] font-bold uppercase tracking-wider mb-1">Card Processing Fee % (Bluevine)</label>
             <div className="flex items-center gap-1 bg-gray-900 border border-gray-700 px-2.5">
               <input type="number" min="0" max="100" step="0.01" value={stripeFeePct} onChange={e => setStripeFeePct(e.target.value)}
                 className="bg-transparent text-white py-2 text-sm font-mono w-full outline-none" />
@@ -8215,7 +8215,7 @@ export function OwnerPayPanel() {
             </div>
           </div>
         </div>
-        <p className="text-gray-700 text-[10px]">Default 2.85% is the blended rate from your own $605/$16.64, $234.22/$6.62, and $100/$3.50 fee examples — adjust as your real numbers drift.</p>
+        <p className="text-gray-700 text-[10px]">2.928% is your real July 2026 blended rate — $76.71 application fee (Bluevine's markup on Stripe) on $2,620.16 gross card sales, per your Stripe dashboard. Update this whenever you check a fresh month.</p>
         <div>
           <label className="block text-gray-600 text-[10px] font-bold uppercase tracking-wider mb-1">Any Payday Tuesday (sets the cadence)</label>
           <input type="date" value={payAnchorDate} onChange={e => setPayAnchorDate(e.target.value)}
@@ -8236,7 +8236,7 @@ export function OwnerPayPanel() {
           <div className="border border-gray-800 p-3 mb-4">
             {row('Job Margin (last 30 days)', `$${(jobMargin30 ?? 0).toFixed(2)}`)}
             {row('− Monthly Overhead', `-$${overheadTotal.toFixed(2)}`, 'text-red-400')}
-            {row(`− Est. Stripe Fees (${stripeFeePct || 0}% of $${(cardRevenue30 ?? 0).toFixed(2)} card revenue)`, `-$${estStripeFees30.toFixed(2)}`, 'text-red-400')}
+            {row(`− Est. Card Processing Fees (${stripeFeePct || 0}% of $${(cardRevenue30 ?? 0).toFixed(2)} card revenue)`, `-$${estStripeFees30.toFixed(2)}`, 'text-red-400')}
             <div className="border-t border-gray-800 my-1" />
             {row('= Business Net Profit (30d)', `$${(businessNetProfit30 ?? 0).toFixed(2)}`, (businessNetProfit30 ?? 0) >= 0 ? 'text-white' : 'text-red-500')}
             {row(`− Tax Reserve (${taxReservePct || 0}%)`, `-$${taxReserveAmt.toFixed(2)}`, 'text-yellow-500')}
