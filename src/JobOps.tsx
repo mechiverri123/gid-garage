@@ -452,7 +452,7 @@ export async function getPPIPublic(id: string): Promise<PPIRecord | null> {
 // Sentry project DSN to turn this on; no-ops silently if unset.
 const SENTRY_DSN = (import.meta as any).env?.VITE_SENTRY_DSN as string | undefined;
 
-async function reportError(error: unknown, extra: Record<string, any> = {}) {
+export async function reportError(error: unknown, extra: Record<string, any> = {}) {
   try {
     if (!SENTRY_DSN) return;
     const m = SENTRY_DSN.match(/^https:\/\/([^@]+)@([^/]+)\/(.+)$/);
