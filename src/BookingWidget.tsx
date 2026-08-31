@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, type Dispatch, type SetStateAction } from 'react';
-import { JobsTab, BusinessHub, MileageTab, JobDetailPanel, getJobById, type Job } from './JobOps';
+import { JobsTab, BusinessHub, MileageTab, JobDetailPanel, getJobById, OwnerPayPanel, type Job } from './JobOps';
 import { getEngines } from './engineData';
 import { getTrims } from './trimData';
 
@@ -1947,7 +1947,7 @@ function BlackoutDatesModal({ onClose }: { onClose: () => void }) {
 export function AdminSchedule() {
   const [unlocked, setUnlocked] = useState(() => sessionStorage.getItem('gg_admin_auth') === '1');
   const [bookings, setBookings] = useState<Booking[]>([]);
-  const [adminTab, setAdminTab] = useState<'jobs' | 'schedule' | 'history' | 'mileage' | 'hub'>('jobs');
+  const [adminTab, setAdminTab] = useState<'jobs' | 'schedule' | 'history' | 'mileage' | 'hub' | 'pay'>('jobs');
   const [filter, setFilter] = useState<'all' | 'confirmed' | 'completed' | 'cancelled'>('all');
   const [view, setView] = useState<'list' | 'month' | 'week' | 'day'>('month');
   const [calDate, setCalDate] = useState(new Date());
@@ -2254,10 +2254,10 @@ export function AdminSchedule() {
 
         {/* Main Tabs */}
         <div className="flex gap-0 mb-8 border-b border-gray-800">
-          {(['jobs', 'schedule', 'history', 'mileage', 'hub'] as const).map(tab => (
+          {(['jobs', 'schedule', 'history', 'mileage', 'hub', 'pay'] as const).map(tab => (
             <button key={tab} onClick={() => setAdminTab(tab)}
               className={`text-xs font-bold uppercase tracking-widest px-6 py-3 transition-colors border-b-2 -mb-px ${adminTab === tab ? 'border-red-600 text-white' : 'border-transparent text-gray-500 hover:text-gray-300'}`}>
-              {tab === 'jobs' ? '💼 Jobs' : tab === 'schedule' ? '📅 Schedule' : tab === 'history' ? '🗂️ History' : tab === 'mileage' ? '🚗 Mileage' : '🏢 Hub'}
+              {tab === 'jobs' ? '💼 Jobs' : tab === 'schedule' ? '📅 Schedule' : tab === 'history' ? '🗂️ History' : tab === 'mileage' ? '🚗 Mileage' : tab === 'hub' ? '🏢 Hub' : '💵 Pay'}
             </button>
           ))}
         </div>
@@ -2595,6 +2595,13 @@ export function AdminSchedule() {
       {adminTab === 'jobs' && <JobsTab />}
       {adminTab === 'mileage' && <div className="max-w-4xl mx-auto py-4 px-3 sm:px-6"><MileageTab /></div>}
       {adminTab === 'hub' && <BusinessHub />}
+      {adminTab === 'pay' && (
+        <div className="max-w-2xl mx-auto py-4 px-3 sm:px-6">
+          <p className="text-red-600 text-xs font-bold uppercase tracking-[0.25em] mb-1">Admin · GID Garage</p>
+          <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tight mb-5">Owner Pay</h2>
+          <OwnerPayPanel />
+        </div>
+      )}
     </div>
   );
 }

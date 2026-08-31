@@ -44,8 +44,8 @@
 //   delete-mileage        { id }                  -> { ok }
 //   get-tax-rate             {}                     -> { taxRate }
 //   set-tax-rate             { taxRate }            -> { ok }
-//   get-owner-pay-settings   {}                     -> { monthlyOverhead, taxReservePct, payAnchorDate }
-//   set-owner-pay-settings   { monthlyOverhead, taxReservePct, payAnchorDate } -> { ok }
+//   get-owner-pay-settings   {}                     -> { taxReservePct, payAnchorDate, overheadItems, stripeFeePct }
+//   set-owner-pay-settings   { taxReservePct, payAnchorDate, overheadItems, stripeFeePct } -> { ok }
 
 import { runBackup, readBackupStatus, listBackups, restoreBackup, inspectBackupBookings } from './_lib/backup.js';
 import { reportError } from './_lib/sentry.js';
@@ -662,49 +662,54 @@ export async function onRequestPost({ request, env }) {
       }
 
       // ---- Owner pay settings — the inputs the biweekly draw calculator
-      // can't get from job data alone: recurring overhead (insurance,
-      // subscriptions, licensing — anything not already captured as a
-      // job's parts_cost), a tax-reserve percentage, and an anchor date
-      // used to compute the "every 2nd Tuesday" payday cadence.
+      // can't get from job data alone: itemized monthly overhead (insurance,
+      // subscriptions, licensing — anything not already captured as a job's
+      // parts_cost), an estimated Stripe fee %, a tax-reserve percentage,
+      // and an anchor date used to compute the "every 2nd Tuesday" cadence.
       case 'get-owner-pay-settings': {
         const res = await fetch(
-          `${base}/business_settings?id=eq.default&select=owner_monthly_overhead,owner_tax_reserve_pct,owner_pay_anchor_date`,
+          `${base}/business_settings?id=eq.default&select=owner_tax_reserve_pct,owner_pay_anchor_date,owner_overhead_items,owner_stripe_fee_pct`,
           { headers }
         );
         if (!res.ok) return json({ error: await res.text() }, 502);
         const rows = await res.json();
         const row = rows?.[0] || {};
         return json({
-          monthlyOverhead: row.owner_monthly_overhead != null ? Number(row.owner_monthly_overhead) : 0,
           taxReservePct: row.owner_tax_reserve_pct != null ? Number(row.owner_tax_reserve_pct) : 0.3,
           payAnchorDate: row.owner_pay_anchor_date || null,
+          overheadItems: Array.isArray(row.owner_overhead_items) ? row.owner_overhead_items : [],
+          stripeFeePct: row.owner_stripe_fee_pct != null ? Number(row.owner_stripe_fee_pct) : 0.0285,
         });
       }
 
       case 'set-owner-pay-settings': {
-        const { monthlyOverhead, taxReservePct, payAnchorDate } = payload;
-        if (typeof monthlyOverhead !== 'number' || !(monthlyOverhead >= 0)) {
-          return json({ error: 'Invalid monthlyOverhead — expected a number >= 0' }, 400);
-        }
+        const { taxReservePct, payAnchorDate, overheadItems, stripeFeePct } = payload;
         if (typeof taxReservePct !== 'number' || !(taxReservePct >= 0) || taxReservePct > 1) {
           return json({ error: 'Invalid taxReservePct — expected a decimal like 0.3 for 30%' }, 400);
         }
         if (payAnchorDate != null && typeof payAnchorDate !== 'string') {
           return json({ error: 'Invalid payAnchorDate' }, 400);
         }
+        if (!Array.isArray(overheadItems) || overheadItems.some(i => typeof i.name !== 'string' || typeof i.amount !== 'number')) {
+          return json({ error: 'Invalid overheadItems — expected [{ id, name, amount }]' }, 400);
+        }
+        if (typeof stripeFeePct !== 'number' || !(stripeFeePct >= 0) || stripeFeePct > 1) {
+          return json({ error: 'Invalid stripeFeePct — expected a decimal like 0.0285 for 2.85%' }, 400);
+        }
         const res = await fetch(`${base}/business_settings`, {
           method: 'POST',
           headers: { ...headers, Prefer: 'resolution=merge-duplicates,return=minimal' },
           body: JSON.stringify({
             id: 'default',
-            owner_monthly_overhead: monthlyOverhead,
             owner_tax_reserve_pct: taxReservePct,
             owner_pay_anchor_date: payAnchorDate || null,
+            owner_overhead_items: overheadItems,
+            owner_stripe_fee_pct: stripeFeePct,
             updated_at: new Date().toISOString(),
           }),
         });
         if (!res.ok) return json({ error: await res.text() }, 502);
-        return json({ ok: true, monthlyOverhead, taxReservePct, payAnchorDate });
+        return json({ ok: true, taxReservePct, payAnchorDate, overheadItems, stripeFeePct });
       }
 
       case 'paid-bookings': {

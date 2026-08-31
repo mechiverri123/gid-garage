@@ -7965,15 +7965,7 @@ function TaxSummary() {
 
 // ── OWNER PAY CALCULATOR (Hub → Banking & Credit) ─────────────────────────────
 // Suggests a safe biweekly draw off *real, live* job data instead of a gut
-// number. Two things it deliberately does NOT know on its own, because
-// nothing in this app tracks them per-job:
-//   1. Overhead — insurance, software subscriptions, licensing, anything
-//      that isn't a job's parts_cost. You enter a monthly figure below
-//      (pull it from Zoho) and it gets treated as a real cost.
-//   2. Stripe fees — not itemized per job anywhere in this codebase, so
-//      they're NOT subtracted. The number will run slightly optimistic by
-//      whatever Stripe actually took. Small at this volume, but real.
-// Job margin itself (revenue − sales tax − parts cost) uses the exact same
+// number. Job margin (revenue − sales tax − parts cost) uses the exact same
 // PAID/paidAt-gated methodology as JobsTab's monthNetProfit, just over a
 // rolling 30-day window instead of calendar month — steadier while volume
 // is still ramping up post-W2.
@@ -7983,6 +7975,22 @@ function netProfitInRange(jobs: Job[], startISO: string, endISO: string): number
     if (j.paidAt < startISO || j.paidAt > endISO) return sum;
     const paid = j.amountPaid ?? ((j.invoiceAmount || 0) + (j.taxAmount || 0));
     return sum + (paid - (j.taxAmount || 0) - (j.partsCost || 0));
+  }, 0);
+}
+
+// Card revenue actually run through Stripe, for estimating the fee. Only
+// counts payments explicitly logged with method 'Card (Stripe)' — both
+// payment paths (chargeCardOnFile, markPaid) always log a payments[] entry
+// now, so this covers current jobs. Older/edge-case jobs that fell back to
+// a single paidAt lump without a full payments[] log aren't included —
+// undercounts fees on those rather than guessing, since the fallback lump
+// has no reliable way to tell card from cash/manual.
+function cardRevenueInRange(jobs: Job[], startISO: string, endISO: string): number {
+  return jobs.reduce((sum, j) => {
+    for (const p of j.payments || []) {
+      if (p.method === 'Card (Stripe)' && p.at >= startISO && p.at <= endISO) sum += p.amount;
+    }
+    return sum;
   }, 0);
 }
 
@@ -8000,12 +8008,17 @@ function nextBiweeklyDate(anchorDate: string, today: string): string {
   return next.toLocaleDateString('en-CA'); // YYYY-MM-DD, local
 }
 
-function OwnerPayPanel() {
+interface OverheadItem { id: string; name: string; amount: number }
+
+export function OwnerPayPanel() {
   const [jobs, setJobs] = useState<Job[] | null>(null);
   const [jobsError, setJobsError] = useState<string | null>(null);
 
-  const [monthlyOverhead, setMonthlyOverhead] = useState('');
+  const [overheadItems, setOverheadItems] = useState<OverheadItem[]>([]);
+  const [newItemName, setNewItemName] = useState('');
+  const [newItemAmount, setNewItemAmount] = useState('');
   const [taxReservePct, setTaxReservePct] = useState('30');
+  const [stripeFeePct, setStripeFeePct] = useState('2.85');
   const [payAnchorDate, setPayAnchorDate] = useState('');
   const [settingsLoading, setSettingsLoading] = useState(true);
   const [savingSettings, setSavingSettings] = useState(false);
@@ -8026,31 +8039,55 @@ function OwnerPayPanel() {
   useEffect(() => {
     adminPost('get-owner-pay-settings')
       .then((data: any) => {
-        setMonthlyOverhead(data?.monthlyOverhead ? String(data.monthlyOverhead) : '');
+        setOverheadItems(Array.isArray(data?.overheadItems) ? data.overheadItems : []);
         setTaxReservePct(data?.taxReservePct != null ? String(Math.round(data.taxReservePct * 100)) : '30');
+        setStripeFeePct(data?.stripeFeePct != null ? String(Math.round(data.stripeFeePct * 10000) / 100) : '2.85');
         setPayAnchorDate(data?.payAnchorDate || '');
         setSettingsLoading(false);
       })
       .catch(() => setSettingsLoading(false));
   }, []);
 
-  async function saveSettings() {
+  async function persistSettings(items: OverheadItem[]) {
     setSavingSettings(true);
     setSettingsError(null);
     setSettingsSaved(false);
     try {
-      const overheadNum = parseFloat(monthlyOverhead) || 0;
-      const pctNum = (parseFloat(taxReservePct) || 0) / 100;
       await adminPost('set-owner-pay-settings', {
-        monthlyOverhead: overheadNum,
-        taxReservePct: pctNum,
+        taxReservePct: (parseFloat(taxReservePct) || 0) / 100,
         payAnchorDate: payAnchorDate || null,
+        overheadItems: items,
+        stripeFeePct: (parseFloat(stripeFeePct) || 0) / 100,
       });
       setSettingsSaved(true);
     } catch (e: any) {
       setSettingsError(e.message ?? 'Failed to save');
     }
     setSavingSettings(false);
+  }
+
+  function addOverheadItem() {
+    const name = newItemName.trim();
+    const amount = parseFloat(newItemAmount);
+    if (!name || !(amount >= 0)) return;
+    const updated = [...overheadItems, { id: Math.random().toString(36).slice(2), name, amount }];
+    setOverheadItems(updated);
+    setNewItemName('');
+    setNewItemAmount('');
+    persistSettings(updated);
+  }
+
+  function updateOverheadItem(id: string, field: 'name' | 'amount', value: string) {
+    const updated = overheadItems.map(i => i.id === id
+      ? { ...i, [field]: field === 'amount' ? (parseFloat(value) || 0) : value }
+      : i);
+    setOverheadItems(updated);
+  }
+
+  function removeOverheadItem(id: string) {
+    const updated = overheadItems.filter(i => i.id !== id);
+    setOverheadItems(updated);
+    persistSettings(updated);
   }
 
   const todayStr = new Date().toLocaleDateString('en-CA');
@@ -8060,11 +8097,14 @@ function OwnerPayPanel() {
     return d.toISOString();
   })();
 
-  const overheadNum = parseFloat(monthlyOverhead) || 0;
+  const overheadTotal = overheadItems.reduce((s, i) => s + (i.amount || 0), 0);
   const taxPctNum = (parseFloat(taxReservePct) || 0) / 100;
+  const stripePctNum = (parseFloat(stripeFeePct) || 0) / 100;
 
   const jobMargin30 = jobs ? netProfitInRange(jobs, trailing30Start, new Date().toISOString()) : null;
-  const businessNetProfit30 = jobMargin30 != null ? jobMargin30 - overheadNum : null;
+  const cardRevenue30 = jobs ? cardRevenueInRange(jobs, trailing30Start, new Date().toISOString()) : null;
+  const estStripeFees30 = cardRevenue30 != null ? cardRevenue30 * stripePctNum : 0;
+  const businessNetProfit30 = jobMargin30 != null ? jobMargin30 - overheadTotal - estStripeFees30 : null;
   const inDeficit = businessNetProfit30 != null && businessNetProfit30 <= 0;
   const taxReserveAmt = businessNetProfit30 != null && !inDeficit ? businessNetProfit30 * taxPctNum : 0;
   const spendable30 = businessNetProfit30 != null && !inDeficit ? businessNetProfit30 - taxReserveAmt : 0;
@@ -8106,21 +8146,64 @@ function OwnerPayPanel() {
   );
 
   return (
-    <div className="border border-gray-800 bg-gray-900/30 p-4 mb-4">
-      <p className="text-gray-400 text-xs font-bold uppercase tracking-widest mb-1">💵 Owner Pay — Every 2nd Tuesday</p>
-      <p className="text-gray-600 text-[10px] mb-3">
-        Sized off your actual last 30 days of paid jobs, not a guess. Doesn't know Stripe fees (not itemized per job anywhere in the app) — runs a little optimistic by that much. Keep Monthly Overhead current below or this number is meaningless.
+    <div>
+      <p className="text-gray-600 text-[10px] mb-4">
+        Sized off your actual last 30 days of paid jobs, not a guess. Line up your real monthly overhead below and it's treated as a real cost — same for the Stripe fee estimate, which only covers card payments logged since payment tracking started (older jobs without a full log aren't included).
       </p>
 
-      {/* Settings */}
+      {/* Overhead line items */}
+      <div className="border border-gray-800 p-3 mb-4">
+        <p className="text-gray-500 text-[10px] font-bold uppercase tracking-wider mb-2">Monthly Overhead</p>
+        {overheadItems.length === 0 && (
+          <p className="text-gray-700 text-xs italic py-2">No line items yet — add insurance, subscriptions, licensing, etc. below.</p>
+        )}
+        <div className="space-y-1.5 mb-2">
+          {overheadItems.map(item => (
+            <div key={item.id} className="flex items-center gap-2">
+              <input type="text" value={item.name}
+                onChange={e => updateOverheadItem(item.id, 'name', e.target.value)}
+                onBlur={() => persistSettings(overheadItems)}
+                placeholder="e.g. Progressive Insurance"
+                className="flex-1 bg-gray-900 border border-gray-700 text-white text-xs px-2.5 py-2 outline-none focus:border-cyan-700" />
+              <div className="flex items-center gap-1 bg-gray-900 border border-gray-700 px-2 w-28 flex-shrink-0">
+                <span className="text-gray-500 text-xs font-bold">$</span>
+                <input type="number" min="0" step="1" value={item.amount || ''}
+                  onChange={e => updateOverheadItem(item.id, 'amount', e.target.value)}
+                  onBlur={() => persistSettings(overheadItems)}
+                  className="bg-transparent text-white py-2 text-xs font-mono w-full outline-none" />
+              </div>
+              <button onClick={() => removeOverheadItem(item.id)} className="text-gray-600 hover:text-red-500 text-lg leading-none flex-shrink-0 px-1">×</button>
+            </div>
+          ))}
+        </div>
+        <div className="flex items-center gap-2 pt-2 border-t border-gray-800">
+          <input type="text" value={newItemName} onChange={e => setNewItemName(e.target.value)}
+            placeholder="+ Add line item (name)"
+            className="flex-1 bg-gray-900 border border-gray-700 text-white text-xs px-2.5 py-2 outline-none focus:border-cyan-700 placeholder-gray-700" />
+          <div className="flex items-center gap-1 bg-gray-900 border border-gray-700 px-2 w-28 flex-shrink-0">
+            <span className="text-gray-500 text-xs font-bold">$</span>
+            <input type="number" min="0" step="1" value={newItemAmount} onChange={e => setNewItemAmount(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') addOverheadItem(); }}
+              placeholder="0" className="bg-transparent text-white py-2 text-xs font-mono w-full outline-none placeholder-gray-700" />
+          </div>
+          <button onClick={addOverheadItem} disabled={!newItemName.trim() || !newItemAmount}
+            className="text-xs font-bold uppercase tracking-wider px-3 py-2 border border-cyan-700 text-cyan-500 hover:bg-cyan-900/20 transition-colors disabled:opacity-30 flex-shrink-0">Add</button>
+        </div>
+        <div className="flex justify-between text-xs pt-2 mt-2 border-t border-gray-800">
+          <span className="text-gray-500 font-bold uppercase tracking-wider">Total</span>
+          <span className="text-white font-mono font-bold">${overheadTotal.toFixed(2)}/mo</span>
+        </div>
+      </div>
+
+      {/* Other settings */}
       <div className="border border-gray-800 p-3 mb-4 space-y-2">
         <div className="grid grid-cols-2 gap-2">
           <div>
-            <label className="block text-gray-600 text-[10px] font-bold uppercase tracking-wider mb-1">Monthly Overhead $</label>
+            <label className="block text-gray-600 text-[10px] font-bold uppercase tracking-wider mb-1">Stripe Fee % (blended)</label>
             <div className="flex items-center gap-1 bg-gray-900 border border-gray-700 px-2.5">
-              <span className="text-gray-500 text-xs font-bold">$</span>
-              <input type="number" min="0" step="1" value={monthlyOverhead} onChange={e => setMonthlyOverhead(e.target.value)}
-                placeholder="0" className="bg-transparent text-white py-2 text-sm font-mono w-full outline-none placeholder-gray-700" />
+              <input type="number" min="0" max="100" step="0.01" value={stripeFeePct} onChange={e => setStripeFeePct(e.target.value)}
+                className="bg-transparent text-white py-2 text-sm font-mono w-full outline-none" />
+              <span className="text-gray-500 text-xs font-bold">%</span>
             </div>
           </div>
           <div>
@@ -8132,12 +8215,13 @@ function OwnerPayPanel() {
             </div>
           </div>
         </div>
+        <p className="text-gray-700 text-[10px]">Default 2.85% is the blended rate from your own $605/$16.64, $234.22/$6.62, and $100/$3.50 fee examples — adjust as your real numbers drift.</p>
         <div>
           <label className="block text-gray-600 text-[10px] font-bold uppercase tracking-wider mb-1">Any Payday Tuesday (sets the cadence)</label>
           <input type="date" value={payAnchorDate} onChange={e => setPayAnchorDate(e.target.value)}
             className="w-full bg-gray-900 border border-gray-700 text-white px-2.5 py-2 text-sm outline-none" />
         </div>
-        <button onClick={saveSettings} disabled={savingSettings || settingsLoading}
+        <button onClick={() => persistSettings(overheadItems)} disabled={savingSettings || settingsLoading}
           className="w-full py-2 text-xs font-bold uppercase tracking-wider border border-cyan-700 text-cyan-500 hover:bg-cyan-900/20 transition-colors disabled:opacity-50">
           {savingSettings ? 'Saving…' : settingsSaved ? '✓ Saved' : 'Save Settings'}
         </button>
@@ -8151,7 +8235,8 @@ function OwnerPayPanel() {
           {/* Breakdown */}
           <div className="border border-gray-800 p-3 mb-4">
             {row('Job Margin (last 30 days)', `$${(jobMargin30 ?? 0).toFixed(2)}`)}
-            {row('− Monthly Overhead', `-$${overheadNum.toFixed(2)}`, 'text-red-400')}
+            {row('− Monthly Overhead', `-$${overheadTotal.toFixed(2)}`, 'text-red-400')}
+            {row(`− Est. Stripe Fees (${stripeFeePct || 0}% of $${(cardRevenue30 ?? 0).toFixed(2)} card revenue)`, `-$${estStripeFees30.toFixed(2)}`, 'text-red-400')}
             <div className="border-t border-gray-800 my-1" />
             {row('= Business Net Profit (30d)', `$${(businessNetProfit30 ?? 0).toFixed(2)}`, (businessNetProfit30 ?? 0) >= 0 ? 'text-white' : 'text-red-500')}
             {row(`− Tax Reserve (${taxReservePct || 0}%)`, `-$${taxReserveAmt.toFixed(2)}`, 'text-yellow-500')}
@@ -8161,8 +8246,8 @@ function OwnerPayPanel() {
 
           {inDeficit && (
             <div className="border border-red-900 bg-red-900/10 px-3 py-2.5 mb-4">
-              <p className="text-red-400 text-xs font-bold uppercase tracking-wider mb-1">⚠ Job margin doesn't cover overhead</p>
-              <p className="text-red-300/80 text-[11px]">Last 30 days of paid jobs didn't clear your monthly overhead — this window supports a $0 draw. Wait for the next payday to reassess rather than drawing from savings.</p>
+              <p className="text-red-400 text-xs font-bold uppercase tracking-wider mb-1">⚠ Job margin doesn't cover overhead + fees</p>
+              <p className="text-red-300/80 text-[11px]">Last 30 days of paid jobs didn't clear your overhead and estimated Stripe fees — this window supports a $0 draw. Wait for the next payday to reassess rather than drawing from savings.</p>
             </div>
           )}
 
@@ -8194,7 +8279,7 @@ function OwnerPayPanel() {
             </div>
             <button onClick={logDraw} disabled={loggingDraw}
               className="w-full py-2.5 text-xs font-bold uppercase tracking-wider border border-emerald-700 text-emerald-500 hover:bg-emerald-900/20 transition-colors disabled:opacity-50">
-              {loggingDraw ? 'Logging…' : drawLogged ? '✓ Logged — see ledger below' : '+ Log This Draw'}
+              {loggingDraw ? 'Logging…' : drawLogged ? '✓ Logged — see Equity Ledger in Hub → Banking' : '+ Log This Draw'}
             </button>
             {drawError && <p className="text-red-400 text-xs">{drawError}</p>}
           </div>
@@ -9050,8 +9135,8 @@ function HubCategoryPanel({ cat }: { cat: HubCategory }) {
       {cat.id === 'taxes' && <JobsCSVExport />}
       {cat.id === 'taxes' && <InvoiceExport />}
 
-      {/* Owner Pay calculator + Owner's Equity ledger auto-embedded in banking tab */}
-      {cat.id === 'banking' && <OwnerPayPanel />}
+      {/* Owner's Equity ledger auto-embedded in banking tab — Owner Pay
+          calculator moved to its own top-level admin tab */}
       {cat.id === 'banking' && <EquityTracker />}
 
       {/* Add note */}
