@@ -42,6 +42,10 @@
 //   add-mileage           { row }                -> MileageLog
 //   patch-mileage         { id, fields }          -> { ok }
 //   delete-mileage        { id }                  -> { ok }
+//   get-tax-rate             {}                     -> { taxRate }
+//   set-tax-rate             { taxRate }            -> { ok }
+//   get-owner-pay-settings   {}                     -> { monthlyOverhead, taxReservePct, payAnchorDate }
+//   set-owner-pay-settings   { monthlyOverhead, taxReservePct, payAnchorDate } -> { ok }
 
 import { runBackup, readBackupStatus, listBackups, restoreBackup, inspectBackupBookings } from './_lib/backup.js';
 import { reportError } from './_lib/sentry.js';
@@ -655,6 +659,52 @@ export async function onRequestPost({ request, env }) {
         });
         if (!res.ok) return json({ error: await res.text() }, 502);
         return json({ ok: true, taxRate });
+      }
+
+      // ---- Owner pay settings — the inputs the biweekly draw calculator
+      // can't get from job data alone: recurring overhead (insurance,
+      // subscriptions, licensing — anything not already captured as a
+      // job's parts_cost), a tax-reserve percentage, and an anchor date
+      // used to compute the "every 2nd Tuesday" payday cadence.
+      case 'get-owner-pay-settings': {
+        const res = await fetch(
+          `${base}/business_settings?id=eq.default&select=owner_monthly_overhead,owner_tax_reserve_pct,owner_pay_anchor_date`,
+          { headers }
+        );
+        if (!res.ok) return json({ error: await res.text() }, 502);
+        const rows = await res.json();
+        const row = rows?.[0] || {};
+        return json({
+          monthlyOverhead: row.owner_monthly_overhead != null ? Number(row.owner_monthly_overhead) : 0,
+          taxReservePct: row.owner_tax_reserve_pct != null ? Number(row.owner_tax_reserve_pct) : 0.3,
+          payAnchorDate: row.owner_pay_anchor_date || null,
+        });
+      }
+
+      case 'set-owner-pay-settings': {
+        const { monthlyOverhead, taxReservePct, payAnchorDate } = payload;
+        if (typeof monthlyOverhead !== 'number' || !(monthlyOverhead >= 0)) {
+          return json({ error: 'Invalid monthlyOverhead — expected a number >= 0' }, 400);
+        }
+        if (typeof taxReservePct !== 'number' || !(taxReservePct >= 0) || taxReservePct > 1) {
+          return json({ error: 'Invalid taxReservePct — expected a decimal like 0.3 for 30%' }, 400);
+        }
+        if (payAnchorDate != null && typeof payAnchorDate !== 'string') {
+          return json({ error: 'Invalid payAnchorDate' }, 400);
+        }
+        const res = await fetch(`${base}/business_settings`, {
+          method: 'POST',
+          headers: { ...headers, Prefer: 'resolution=merge-duplicates,return=minimal' },
+          body: JSON.stringify({
+            id: 'default',
+            owner_monthly_overhead: monthlyOverhead,
+            owner_tax_reserve_pct: taxReservePct,
+            owner_pay_anchor_date: payAnchorDate || null,
+            updated_at: new Date().toISOString(),
+          }),
+        });
+        if (!res.ok) return json({ error: await res.text() }, 502);
+        return json({ ok: true, monthlyOverhead, taxReservePct, payAnchorDate });
       }
 
       case 'paid-bookings': {

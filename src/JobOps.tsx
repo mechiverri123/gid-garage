@@ -7963,6 +7963,249 @@ function TaxSummary() {
   );
 }
 
+// ── OWNER PAY CALCULATOR (Hub → Banking & Credit) ─────────────────────────────
+// Suggests a safe biweekly draw off *real, live* job data instead of a gut
+// number. Two things it deliberately does NOT know on its own, because
+// nothing in this app tracks them per-job:
+//   1. Overhead — insurance, software subscriptions, licensing, anything
+//      that isn't a job's parts_cost. You enter a monthly figure below
+//      (pull it from Zoho) and it gets treated as a real cost.
+//   2. Stripe fees — not itemized per job anywhere in this codebase, so
+//      they're NOT subtracted. The number will run slightly optimistic by
+//      whatever Stripe actually took. Small at this volume, but real.
+// Job margin itself (revenue − sales tax − parts cost) uses the exact same
+// PAID/paidAt-gated methodology as JobsTab's monthNetProfit, just over a
+// rolling 30-day window instead of calendar month — steadier while volume
+// is still ramping up post-W2.
+function netProfitInRange(jobs: Job[], startISO: string, endISO: string): number {
+  return jobs.reduce((sum, j) => {
+    if (j.jobStatus !== 'PAID' || !j.paidAt) return sum;
+    if (j.paidAt < startISO || j.paidAt > endISO) return sum;
+    const paid = j.amountPaid ?? ((j.invoiceAmount || 0) + (j.taxAmount || 0));
+    return sum + (paid - (j.taxAmount || 0) - (j.partsCost || 0));
+  }, 0);
+}
+
+// Next occurrence of a biweekly (every-14-days) cadence on/after `today`,
+// anchored to any date on the cycle — past or future, doesn't matter.
+function nextBiweeklyDate(anchorDate: string, today: string): string {
+  const MS_DAY = 86400000;
+  const anchor = new Date(anchorDate + 'T12:00:00');
+  const now = new Date(today + 'T12:00:00');
+  const diffDays = Math.round((now.getTime() - anchor.getTime()) / MS_DAY);
+  const periods = Math.ceil(diffDays / 14);
+  const next = new Date(anchor);
+  next.setDate(anchor.getDate() + periods * 14);
+  if (next.getTime() < now.getTime()) next.setDate(next.getDate() + 14);
+  return next.toLocaleDateString('en-CA'); // YYYY-MM-DD, local
+}
+
+function OwnerPayPanel() {
+  const [jobs, setJobs] = useState<Job[] | null>(null);
+  const [jobsError, setJobsError] = useState<string | null>(null);
+
+  const [monthlyOverhead, setMonthlyOverhead] = useState('');
+  const [taxReservePct, setTaxReservePct] = useState('30');
+  const [payAnchorDate, setPayAnchorDate] = useState('');
+  const [settingsLoading, setSettingsLoading] = useState(true);
+  const [savingSettings, setSavingSettings] = useState(false);
+  const [settingsSaved, setSettingsSaved] = useState(false);
+  const [settingsError, setSettingsError] = useState<string | null>(null);
+
+  const [drawAmount, setDrawAmount] = useState('');
+  const [drawDate, setDrawDate] = useState('');
+  const [loggingDraw, setLoggingDraw] = useState(false);
+  const [drawLogged, setDrawLogged] = useState(false);
+  const [drawError, setDrawError] = useState<string | null>(null);
+  const [drawTouched, setDrawTouched] = useState(false);
+
+  useEffect(() => {
+    getAllJobs().then(setJobs).catch(e => setJobsError(e.message ?? 'Failed to load jobs'));
+  }, []);
+
+  useEffect(() => {
+    adminPost('get-owner-pay-settings')
+      .then((data: any) => {
+        setMonthlyOverhead(data?.monthlyOverhead ? String(data.monthlyOverhead) : '');
+        setTaxReservePct(data?.taxReservePct != null ? String(Math.round(data.taxReservePct * 100)) : '30');
+        setPayAnchorDate(data?.payAnchorDate || '');
+        setSettingsLoading(false);
+      })
+      .catch(() => setSettingsLoading(false));
+  }, []);
+
+  async function saveSettings() {
+    setSavingSettings(true);
+    setSettingsError(null);
+    setSettingsSaved(false);
+    try {
+      const overheadNum = parseFloat(monthlyOverhead) || 0;
+      const pctNum = (parseFloat(taxReservePct) || 0) / 100;
+      await adminPost('set-owner-pay-settings', {
+        monthlyOverhead: overheadNum,
+        taxReservePct: pctNum,
+        payAnchorDate: payAnchorDate || null,
+      });
+      setSettingsSaved(true);
+    } catch (e: any) {
+      setSettingsError(e.message ?? 'Failed to save');
+    }
+    setSavingSettings(false);
+  }
+
+  const todayStr = new Date().toLocaleDateString('en-CA');
+  const trailing30Start = (() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 30);
+    return d.toISOString();
+  })();
+
+  const overheadNum = parseFloat(monthlyOverhead) || 0;
+  const taxPctNum = (parseFloat(taxReservePct) || 0) / 100;
+
+  const jobMargin30 = jobs ? netProfitInRange(jobs, trailing30Start, new Date().toISOString()) : null;
+  const businessNetProfit30 = jobMargin30 != null ? jobMargin30 - overheadNum : null;
+  const inDeficit = businessNetProfit30 != null && businessNetProfit30 <= 0;
+  const taxReserveAmt = businessNetProfit30 != null && !inDeficit ? businessNetProfit30 * taxPctNum : 0;
+  const spendable30 = businessNetProfit30 != null && !inDeficit ? businessNetProfit30 - taxReserveAmt : 0;
+  const suggestedPerPayday = spendable30 > 0 ? Math.max(0, Math.round((spendable30 / 30) * 14 * 100) / 100) : 0;
+
+  const nextPayday = payAnchorDate ? nextBiweeklyDate(payAnchorDate, todayStr) : null;
+
+  const effectiveDrawAmount = drawTouched ? drawAmount : String(suggestedPerPayday || '');
+  const effectiveDrawDate = drawDate || nextPayday || todayStr;
+
+  async function logDraw() {
+    const amt = parseFloat(effectiveDrawAmount);
+    if (!(amt > 0)) { setDrawError('Enter an amount greater than 0'); return; }
+    setLoggingDraw(true);
+    setDrawError(null);
+    setDrawLogged(false);
+    try {
+      await adminPost('add-equity-entry', {
+        entryType: 'draw',
+        amount: amt,
+        note: 'Biweekly owner pay',
+        entryDate: effectiveDrawDate,
+      });
+      setDrawLogged(true);
+      setDrawTouched(false);
+      setDrawAmount('');
+      setDrawDate('');
+    } catch (e: any) {
+      setDrawError(e.message ?? 'Failed to log draw');
+    }
+    setLoggingDraw(false);
+  }
+
+  const row = (label: string, val: string, cls = 'text-gray-300') => (
+    <div className="flex justify-between text-xs py-1">
+      <span className="text-gray-500">{label}</span>
+      <span className={`font-mono font-bold ${cls}`}>{val}</span>
+    </div>
+  );
+
+  return (
+    <div className="border border-gray-800 bg-gray-900/30 p-4 mb-4">
+      <p className="text-gray-400 text-xs font-bold uppercase tracking-widest mb-1">💵 Owner Pay — Every 2nd Tuesday</p>
+      <p className="text-gray-600 text-[10px] mb-3">
+        Sized off your actual last 30 days of paid jobs, not a guess. Doesn't know Stripe fees (not itemized per job anywhere in the app) — runs a little optimistic by that much. Keep Monthly Overhead current below or this number is meaningless.
+      </p>
+
+      {/* Settings */}
+      <div className="border border-gray-800 p-3 mb-4 space-y-2">
+        <div className="grid grid-cols-2 gap-2">
+          <div>
+            <label className="block text-gray-600 text-[10px] font-bold uppercase tracking-wider mb-1">Monthly Overhead $</label>
+            <div className="flex items-center gap-1 bg-gray-900 border border-gray-700 px-2.5">
+              <span className="text-gray-500 text-xs font-bold">$</span>
+              <input type="number" min="0" step="1" value={monthlyOverhead} onChange={e => setMonthlyOverhead(e.target.value)}
+                placeholder="0" className="bg-transparent text-white py-2 text-sm font-mono w-full outline-none placeholder-gray-700" />
+            </div>
+          </div>
+          <div>
+            <label className="block text-gray-600 text-[10px] font-bold uppercase tracking-wider mb-1">Tax Reserve %</label>
+            <div className="flex items-center gap-1 bg-gray-900 border border-gray-700 px-2.5">
+              <input type="number" min="0" max="100" step="1" value={taxReservePct} onChange={e => setTaxReservePct(e.target.value)}
+                className="bg-transparent text-white py-2 text-sm font-mono w-full outline-none" />
+              <span className="text-gray-500 text-xs font-bold">%</span>
+            </div>
+          </div>
+        </div>
+        <div>
+          <label className="block text-gray-600 text-[10px] font-bold uppercase tracking-wider mb-1">Any Payday Tuesday (sets the cadence)</label>
+          <input type="date" value={payAnchorDate} onChange={e => setPayAnchorDate(e.target.value)}
+            className="w-full bg-gray-900 border border-gray-700 text-white px-2.5 py-2 text-sm outline-none" />
+        </div>
+        <button onClick={saveSettings} disabled={savingSettings || settingsLoading}
+          className="w-full py-2 text-xs font-bold uppercase tracking-wider border border-cyan-700 text-cyan-500 hover:bg-cyan-900/20 transition-colors disabled:opacity-50">
+          {savingSettings ? 'Saving…' : settingsSaved ? '✓ Saved' : 'Save Settings'}
+        </button>
+        {settingsError && <p className="text-red-400 text-xs">{settingsError}</p>}
+      </div>
+
+      {jobsError && <p className="text-red-400 text-xs mb-3">{jobsError}</p>}
+
+      {jobs && (
+        <>
+          {/* Breakdown */}
+          <div className="border border-gray-800 p-3 mb-4">
+            {row('Job Margin (last 30 days)', `$${(jobMargin30 ?? 0).toFixed(2)}`)}
+            {row('− Monthly Overhead', `-$${overheadNum.toFixed(2)}`, 'text-red-400')}
+            <div className="border-t border-gray-800 my-1" />
+            {row('= Business Net Profit (30d)', `$${(businessNetProfit30 ?? 0).toFixed(2)}`, (businessNetProfit30 ?? 0) >= 0 ? 'text-white' : 'text-red-500')}
+            {row(`− Tax Reserve (${taxReservePct || 0}%)`, `-$${taxReserveAmt.toFixed(2)}`, 'text-yellow-500')}
+            <div className="border-t border-gray-800 my-1" />
+            {row('= Spendable (30d)', `$${spendable30.toFixed(2)}`, spendable30 >= 0 ? 'text-emerald-400' : 'text-red-500')}
+          </div>
+
+          {inDeficit && (
+            <div className="border border-red-900 bg-red-900/10 px-3 py-2.5 mb-4">
+              <p className="text-red-400 text-xs font-bold uppercase tracking-wider mb-1">⚠ Job margin doesn't cover overhead</p>
+              <p className="text-red-300/80 text-[11px]">Last 30 days of paid jobs didn't clear your monthly overhead — this window supports a $0 draw. Wait for the next payday to reassess rather than drawing from savings.</p>
+            </div>
+          )}
+
+          {/* Suggested draw */}
+          <div className="bg-gray-950 border border-emerald-900/50 p-4 text-center mb-4">
+            <p className="text-gray-500 text-[10px] font-bold uppercase tracking-widest mb-1">Suggested Per Payday</p>
+            <p className={`text-3xl font-black font-mono ${suggestedPerPayday > 0 ? 'text-emerald-400' : 'text-gray-600'}`}>
+              ${suggestedPerPayday.toFixed(2)}
+            </p>
+            {nextPayday && (
+              <p className="text-gray-600 text-[10px] mt-1">Next payday: {new Date(nextPayday + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}</p>
+            )}
+            {!payAnchorDate && <p className="text-gray-700 text-[10px] mt-1">Set a payday Tuesday above to see the next date.</p>}
+          </div>
+
+          {/* Log the draw */}
+          <div className="border border-gray-800 p-3 space-y-2">
+            <p className="text-gray-500 text-[10px] font-bold uppercase tracking-wider">Log This Draw to the Equity Ledger</p>
+            <div className="flex gap-2">
+              <div className="flex items-center gap-1 bg-gray-900 border border-gray-700 px-2.5 flex-1">
+                <span className="text-gray-500 text-xs font-bold">$</span>
+                <input type="number" min="0" step="0.01"
+                  value={effectiveDrawAmount}
+                  onChange={e => { setDrawAmount(e.target.value); setDrawTouched(true); }}
+                  className="bg-transparent text-white py-2 text-sm font-mono w-full outline-none" />
+              </div>
+              <input type="date" value={effectiveDrawDate} onChange={e => setDrawDate(e.target.value)}
+                className="bg-gray-900 border border-gray-700 text-white px-2.5 py-2 text-sm outline-none" />
+            </div>
+            <button onClick={logDraw} disabled={loggingDraw}
+              className="w-full py-2.5 text-xs font-bold uppercase tracking-wider border border-emerald-700 text-emerald-500 hover:bg-emerald-900/20 transition-colors disabled:opacity-50">
+              {loggingDraw ? 'Logging…' : drawLogged ? '✓ Logged — see ledger below' : '+ Log This Draw'}
+            </button>
+            {drawError && <p className="text-red-400 text-xs">{drawError}</p>}
+          </div>
+        </>
+      )}
+
+      {!jobs && !jobsError && <p className="text-gray-600 text-xs py-4 text-center">Loading job data…</p>}
+    </div>
+  );
+}
+
 // ── OWNER'S EQUITY LEDGER (Hub → Banking & Credit) ────────────────────────────
 // Tracks the two sides Michael needs: Contributions (personal money put into
 // the business — parts fronted on a personal card, seed cash, etc.) and Draws
@@ -7987,6 +8230,7 @@ function EquityTracker() {
   const [dateInput, setDateInput] = useState(() => new Date().toISOString().slice(0, 10));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
 
   function load() {
     setLoading(true);
@@ -8806,7 +9050,8 @@ function HubCategoryPanel({ cat }: { cat: HubCategory }) {
       {cat.id === 'taxes' && <JobsCSVExport />}
       {cat.id === 'taxes' && <InvoiceExport />}
 
-      {/* Owner's Equity ledger auto-embedded in banking tab */}
+      {/* Owner Pay calculator + Owner's Equity ledger auto-embedded in banking tab */}
+      {cat.id === 'banking' && <OwnerPayPanel />}
       {cat.id === 'banking' && <EquityTracker />}
 
       {/* Add note */}
