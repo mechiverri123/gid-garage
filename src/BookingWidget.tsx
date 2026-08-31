@@ -2079,6 +2079,23 @@ export function AdminSchedule() {
     return () => clearInterval(dataInterval);
   }, [unlocked]);
 
+  // Fetch the full job record whenever a calendar entry is opened. Must run
+  // unconditionally (before the `if (!unlocked) return` gate below) — a hook
+  // placed after an early return executes on some renders but not others,
+  // which is exactly the "Rendered more hooks than during the previous
+  // render" crash.
+  useEffect(() => {
+    if (!selectedJobId) { setSelectedJob(null); return; }
+    let cancelled = false;
+    setJobLoading(true);
+    getJobById(selectedJobId).then(j => {
+      if (cancelled) return;
+      setSelectedJob(j);
+      setJobLoading(false);
+    }).catch(() => { if (!cancelled) setJobLoading(false); });
+    return () => { cancelled = true; };
+  }, [selectedJobId]);
+
   if (!unlocked) return <AdminPasswordGate onUnlock={() => setUnlocked(true)} />;
 
   async function updateStatus(id: string, status: Booking['status']) {
@@ -2098,19 +2115,6 @@ export function AdminSchedule() {
     try { await deleteSupabaseBooking(id); } catch (e) { console.warn('Supabase delete failed', e); }
     setBookings(prev => prev.filter(b => b.id !== id));
   }
-
-  // Fetch the full job record whenever a calendar entry is opened.
-  useEffect(() => {
-    if (!selectedJobId) { setSelectedJob(null); return; }
-    let cancelled = false;
-    setJobLoading(true);
-    getJobById(selectedJobId).then(j => {
-      if (cancelled) return;
-      setSelectedJob(j);
-      setJobLoading(false);
-    }).catch(() => { if (!cancelled) setJobLoading(false); });
-    return () => { cancelled = true; };
-  }, [selectedJobId]);
 
   function handleJobUpdate(updated: Job) {
     setSelectedJob(updated);
