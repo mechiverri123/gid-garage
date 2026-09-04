@@ -4374,42 +4374,74 @@ function ExternalLeadModal({ onClose, onAdded, jobs }: { onClose: () => void; on
   // safely (blank phone just falls back to name+email matching).
   const [phoneUnknown, setPhoneUnknown] = useState(false);
 
-  // ── Previous-customer search: one entry per (customer, vehicle) — a repeat
-  // customer with two vehicles shows up as two separate picks, e.g. "Brian
-  // Hinshaw (2021 Chevrolet Colorado)" and "Brian Hinshaw (2002 Honda Civic)".
+  // ── Previous-customer search: step 1 matches by IDENTITY (name/phone/
+  // email/address) only — vehicle is deliberately excluded here so the same
+  // person doesn't show up as multiple rows. Picking a match clears the
+  // vehicle field and surfaces that person's known vehicles as a separate
+  // step 2 (chips below), instead of jumping straight to one vehicle.
   const [custQuery, setCustQuery] = useState('');
   const [custPickerOpen, setCustPickerOpen] = useState(false);
-  const priorCustomers = useMemo(() => {
-    const byCustomerVehicle = new Map<string, { fname: string; lname: string; phone: string; email: string; vehicle: string; address: string; createdAt: string }>();
+  const [selectedVehicles, setSelectedVehicles] = useState<string[]>([]);
+  const priorIdentities = useMemo(() => {
+    const byIdentity = new Map<string, { fname: string; lname: string; phone: string; email: string; address: string; createdAt: string; vehicles: Map<string, { label: string; createdAt: string }> }>();
     for (const j of jobs) {
       const custKey = (j.phone || '').replace(/\D/g, '') || `${j.fname}|${j.lname}|${j.email}`;
       if (!custKey) continue;
-      const key = `${custKey}::${(j.vehicle || '').trim().toLowerCase()}`;
-      const existing = byCustomerVehicle.get(key);
-      if (!existing || (j.createdAt || '') > existing.createdAt) {
-        byCustomerVehicle.set(key, { fname: j.fname || '', lname: j.lname || '', phone: j.phone || '', email: j.email || '', vehicle: j.vehicle || '', address: j.serviceAddress || '', createdAt: j.createdAt || '' });
+      let entry = byIdentity.get(custKey);
+      if (!entry) {
+        entry = { fname: j.fname || '', lname: j.lname || '', phone: j.phone || '', email: j.email || '', address: j.serviceAddress || '', createdAt: j.createdAt || '', vehicles: new Map() };
+        byIdentity.set(custKey, entry);
+      }
+      // Keep identity fields (name/phone/email/address) from whichever job is most recent.
+      if ((j.createdAt || '') > entry.createdAt) {
+        entry.fname = j.fname || entry.fname;
+        entry.lname = j.lname || entry.lname;
+        entry.phone = j.phone || entry.phone;
+        entry.email = j.email || entry.email;
+        entry.address = j.serviceAddress || entry.address;
+        entry.createdAt = j.createdAt || entry.createdAt;
+      }
+      const vehicle = (j.vehicle || '').trim();
+      if (vehicle) {
+        const vKey = vehicle.toLowerCase();
+        const vExisting = entry.vehicles.get(vKey);
+        if (!vExisting || (j.createdAt || '') > vExisting.createdAt) {
+          entry.vehicles.set(vKey, { label: vehicle, createdAt: j.createdAt || '' });
+        }
       }
     }
-    return Array.from(byCustomerVehicle.values()).sort((a, b) => (a.fname + a.lname + a.vehicle).localeCompare(b.fname + b.lname + b.vehicle));
+    return Array.from(byIdentity.values())
+      .map(e => ({
+        fname: e.fname, lname: e.lname, phone: e.phone, email: e.email, address: e.address,
+        vehicles: Array.from(e.vehicles.values()).sort((a, b) => b.createdAt.localeCompare(a.createdAt)).map(v => v.label),
+      }))
+      .sort((a, b) => (a.fname + a.lname).localeCompare(b.fname + b.lname));
   }, [jobs]);
 
   const custMatches = useMemo(() => {
     const q = custQuery.trim().toLowerCase();
     if (!q) return [];
-    return priorCustomers.filter(c =>
+    return priorIdentities.filter(c =>
       `${c.fname} ${c.lname}`.toLowerCase().includes(q) ||
       c.phone.toLowerCase().includes(q) ||
       c.email.toLowerCase().includes(q) ||
-      c.vehicle.toLowerCase().includes(q) ||
       c.address.toLowerCase().includes(q)
     ).slice(0, 8);
-  }, [priorCustomers, custQuery]);
+  }, [priorIdentities, custQuery]);
 
-  function pickCustomer(c: { fname: string; lname: string; phone: string; email: string; vehicle: string; address: string }) {
-    setF(p => ({ ...p, fname: c.fname, lname: c.lname, phone: c.phone, email: c.email, vehicle: c.vehicle, address: c.address }));
+  function pickCustomer(c: { fname: string; lname: string; phone: string; email: string; address: string; vehicles: string[] }) {
+    // Step 1 result: fills identity only. Vehicle is left blank on purpose —
+    // step 2 (chips) or manual typing decides the vehicle for THIS job.
+    setF(p => ({ ...p, fname: c.fname, lname: c.lname, phone: c.phone, email: c.email, address: c.address, vehicle: '' }));
     setFieldErr({});
-    setCustQuery(`${c.fname} ${c.lname}${c.vehicle ? ` (${c.vehicle})` : ''}`.trim());
+    setCustQuery(`${c.fname} ${c.lname}`.trim());
     setCustPickerOpen(false);
+    setSelectedVehicles(c.vehicles);
+  }
+
+  function pickVehicle(vehicle: string) {
+    setF(p => ({ ...p, vehicle }));
+    setFieldErr(p => ({ ...p, vehicle: '' }));
   }
 
   const [lineItems, setLineItems] = useState<LineItem[]>([
@@ -4564,10 +4596,10 @@ function ExternalLeadModal({ onClose, onAdded, jobs }: { onClose: () => void; on
                 <input
                   type="text"
                   value={custQuery}
-                  onChange={e => { setCustQuery(e.target.value); setCustPickerOpen(true); }}
+                  onChange={e => { setCustQuery(e.target.value); setCustPickerOpen(true); setSelectedVehicles([]); }}
                   onFocus={() => setCustPickerOpen(true)}
                   onBlur={() => setTimeout(() => setCustPickerOpen(false), 150)}
-                  placeholder="Search by name, phone, email, vehicle, or address…"
+                  placeholder="Search by name, phone, email, or address…"
                   className="w-full bg-gray-900 text-white text-sm px-3 py-2.5 outline-none border border-gray-700 focus:border-indigo-600 transition-colors"
                 />
                 {custPickerOpen && custMatches.length > 0 && (
@@ -4579,8 +4611,8 @@ function ExternalLeadModal({ onClose, onAdded, jobs }: { onClose: () => void; on
                         onMouseDown={() => pickCustomer(c)}
                         className="w-full text-left px-3 py-2 hover:bg-gray-800 border-b border-gray-800 last:border-b-0 transition-colors"
                       >
-                        <div className="text-white text-sm font-bold">{c.fname} {c.lname}{c.vehicle ? ` (${c.vehicle})` : ''}</div>
-                        <div className="text-gray-500 text-xs">{c.phone}{c.address ? ` · ${c.address}` : ''}</div>
+                        <div className="text-white text-sm font-bold">{c.fname} {c.lname}</div>
+                        <div className="text-gray-500 text-xs">{c.phone}{c.address ? ` · ${c.address}` : ''}{c.vehicles.length > 0 ? ` · ${c.vehicles.length} vehicle${c.vehicles.length > 1 ? 's' : ''} on file` : ''}</div>
                       </button>
                     ))}
                   </div>
@@ -4610,6 +4642,24 @@ function ExternalLeadModal({ onClose, onAdded, jobs }: { onClose: () => void; on
                 {inp('email', 'Email (optional)', 'email', 'customer@email.com')}
               </div>
 
+              {selectedVehicles.length > 0 && (
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider mb-1 text-gray-500">Select Vehicle</label>
+                  <div className="flex flex-wrap gap-2">
+                    {selectedVehicles.map((v, i) => (
+                      <button
+                        key={i}
+                        type="button"
+                        onClick={() => pickVehicle(v)}
+                        className={`px-3 py-1.5 text-xs font-bold border transition-colors ${f.vehicle === v ? 'border-indigo-500 text-white bg-indigo-500/10' : 'border-gray-700 text-gray-400 hover:border-gray-500'}`}
+                      >
+                        {v}
+                      </button>
+                    ))}
+                  </div>
+                  <p className="text-gray-600 text-[11px] mt-1">Or type a new vehicle for this customer below.</p>
+                </div>
+              )}
               {inp('vehicle', 'Vehicle * (Year Make Model Trim)', 'text', '2019 Toyota Camry LE')}
               {inp('address', 'Service Address (optional)', 'text', '123 Main St, Flagstaff, AZ')}
 
