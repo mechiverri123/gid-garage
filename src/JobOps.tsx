@@ -3906,21 +3906,23 @@ export function JobDetailPanel({ job: initialJob, onClose, onJobUpdate, backLabe
     if (!editFname.trim()) { setApptErr('First name is required.'); return; }
     setApptSaving(true);
     setApptErr(null);
-    // Fields that live on the customer file (not per-job): identity + vehicle.
+    // Fields that live on the customer file (not per-job): identity only.
     // date/time/notes stay per-job on purpose — those are appointment-specific.
-    // mileage and service_address are ALSO per-job, not customer identity —
-    // odometer reading and job location both change every visit, so they
-    // must never cascade to the customer's other jobs.
+    // vin, vehicle, mileage, and service_address are ALSO per-job, not
+    // customer identity — a customer can bring different vehicles to
+    // different jobs, and odometer/job-location change every visit — so
+    // none of the four may cascade to the customer's other jobs.
     const customerFields = {
       fname: editFname.trim(), lname: editLname.trim(), phone: editPhone, email: editEmail,
-      vin: editVin, vehicle: editVehicle,
     };
-    const jobOnlyFields = { mileage: editMileage, service_address: editServiceAddress };
+    const jobOnlyFields = {
+      vin: editVin, vehicle: editVehicle, mileage: editMileage, service_address: editServiceAddress,
+    };
     try {
       let customerId = job.customerId;
       if (customerId) {
         // Existing customer file — patch-customer cascades these fields to
-        // every other job under the same file, which is the whole point.
+        // every other job under the same file (name/phone/email only now).
         await adminPost('patch-customer', { id: customerId, fields: customerFields });
       } else if (editFname.trim()) {
         // Legacy job with no customer file yet (created before the

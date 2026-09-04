@@ -212,11 +212,13 @@ export async function onRequestPost({ request, env }) {
       //   guessing.
       // patch-customer          { id, fields }               -> { ok }
       //   Updates the customer row AND cascades identity fields (fname,
-      //   lname, phone, email, vin, vehicle) to every booking with that
-      //   customer_id — this is what actually keeps VIN/phone/etc. in sync
-      //   across a customer's jobs. mileage and service_address are per-job
-      //   values and never cascade, even though they can still be passed in
-      //   `fields` to update just this customer row.
+      //   lname, phone, email) to every booking with that customer_id —
+      //   this is what actually keeps name/phone/email in sync across a
+      //   customer's jobs. vin, vehicle, mileage, and service_address are
+      //   per-job values and never cascade — a customer can have multiple
+      //   vehicles across different jobs — even though they can still be
+      //   passed in `fields` to update just this customer row (e.g. to set
+      //   their "last known" vehicle for new-booking prefill).
       case 'list-customers': {
         const res = await fetch(`${base}/customers?select=*&order=lname.asc,fname.asc`, { headers });
         if (!res.ok) return json({ error: await res.text() }, 502);
@@ -298,12 +300,13 @@ export async function onRequestPost({ request, env }) {
         if (!custRes.ok) return json({ error: await custRes.text() }, 502);
 
         // Cascade the same customer-identity fields to every booking under
-        // this customer, so VIN/phone/etc. stay in sync across all their jobs.
-        // mileage and service_address are deliberately excluded — both are
-        // per-visit values (odometer reading and job location change every
-        // trip), not customer identity, so they must never cascade.
+        // this customer, so name/phone/email stay in sync across all their
+        // jobs. vin, vehicle, mileage, and service_address are deliberately
+        // excluded — all four are per-visit values (a customer can bring
+        // different vehicles to different jobs), not customer identity, so
+        // they must never cascade.
         const cascadeFields = {};
-        for (const k of ['fname', 'lname', 'phone', 'email', 'vin', 'vehicle']) {
+        for (const k of ['fname', 'lname', 'phone', 'email']) {
           if (k in fields) cascadeFields[k] = fields[k];
         }
         if (Object.keys(cascadeFields).length > 0) {
