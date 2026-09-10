@@ -185,7 +185,7 @@ function MissionStatement() {
           <div className="grid grid-cols-2 gap-4 md:gap-6 pl-5 pr-5 md:pl-0 md:pr-0">
             <div className="relative aspect-[3/5] overflow-hidden bg-white/5">
               <img
-                src={img('IMG_1335.jpeg')}
+                src={img('rotor-new-install.jpeg')}
                 alt="New rotor and hub installed on a mobile brake job"
                 className="absolute inset-0 w-full h-full object-cover"
                 onError={(e) => { e.currentTarget.style.display = 'none'; }}
@@ -193,7 +193,7 @@ function MissionStatement() {
             </div>
             <div className="relative aspect-[3/5] overflow-hidden bg-white/5">
               <img
-                src={img('IMG_1334.jpeg')}
+                src={img('caliper-new-pads.jpeg')}
                 alt="Caliper with fresh brake pads reinstalled"
                 className="absolute inset-0 w-full h-full object-cover"
                 onError={(e) => { e.currentTarget.style.display = 'none'; }}
