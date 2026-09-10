@@ -166,27 +166,41 @@ function AnimatedWords({ text, as: Tag = 'span', className = '', delay = 0 }: { 
 // letters filling most of the viewport, not just a bigger paragraph.
 function MissionStatement() {
   return (
-    <section className="relative bg-dark border-t border-white/5 overflow-hidden">
-      <div className="grid md:grid-cols-2 min-h-[90vh] md:min-h-screen">
-        <div className="flex items-center px-5 md:px-10 py-16 md:py-0 order-2 md:order-1">
-          <div>
-            <Reveal>
-              <h2 className="text-white font-black uppercase leading-[0.82] tracking-tighter">
-                <span className="block text-[15vw] md:text-[7vw]">No Shop.</span>
-                <span className="block text-[15vw] md:text-[7vw] text-red-600">No Wait.</span>
-              </h2>
-            </Reveal>
-            <Reveal delay={200}>
-              <p className="text-white/50 mt-8 max-w-md text-base md:text-lg leading-relaxed">
-                We show up, we fix it right, you get your day back — full synthetic oil, honest diagnostics, and pricing you know upfront, right at your curb.
-              </p>
-            </Reveal>
+    <section className="relative bg-dark border-t border-white/5 py-16 md:py-24 overflow-hidden">
+      <div className="max-w-7xl mx-auto px-5 md:px-8 grid md:grid-cols-2 gap-10 md:gap-16 items-center">
+        <div>
+          <Reveal>
+            <h2 className="text-white font-black uppercase leading-[0.82] tracking-tighter">
+              <span className="block text-[15vw] md:text-[6.5vw]">No Shop.</span>
+              <span className="block text-[15vw] md:text-[6.5vw] text-red-600">No Wait.</span>
+            </h2>
+          </Reveal>
+          <Reveal delay={200}>
+            <p className="text-white/50 mt-8 max-w-md text-base md:text-lg leading-relaxed">
+              We show up, we fix it right, you get your day back — full synthetic oil, honest diagnostics, and pricing you know upfront, right at your curb.
+            </p>
+          </Reveal>
+        </div>
+        <Reveal delay={100}>
+          <div className="grid grid-cols-2 gap-3 md:gap-4">
+            <div className="relative aspect-[3/4] overflow-hidden bg-white/5">
+              <img
+                src={img('rotor-new-install.jpeg')}
+                alt="New rotor and hub installed on a mobile brake job"
+                className="absolute inset-0 w-full h-full object-cover"
+                onError={(e) => { e.currentTarget.style.display = 'none'; }}
+              />
+            </div>
+            <div className="relative aspect-[3/4] overflow-hidden bg-white/5 mt-8 md:mt-10">
+              <img
+                src={img('caliper-new-pads.jpeg')}
+                alt="Caliper with fresh brake pads reinstalled"
+                className="absolute inset-0 w-full h-full object-cover"
+                onError={(e) => { e.currentTarget.style.display = 'none'; }}
+              />
+            </div>
           </div>
-        </div>
-        <div className="relative min-h-[50vh] md:min-h-0 order-1 md:order-2">
-          <img src={img('photo-brakes.jpg')} alt="Brake caliper and rotor mid-service" className="absolute inset-0 w-full h-full object-cover" />
-          <div className="absolute inset-0 bg-gradient-to-t md:bg-gradient-to-l from-black/50 via-transparent to-transparent" />
-        </div>
+        </Reveal>
       </div>
     </section>
   );
@@ -523,8 +537,13 @@ function RealJobsStrip() {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           {shots.map((s, i) => (
             <Reveal key={s.src} delay={i * 80}>
-              <div className="relative aspect-square overflow-hidden group">
-                <img src={img(s.src)} alt={s.caption} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+              <div className="relative aspect-square overflow-hidden group bg-white/5">
+                <img
+                  src={img(s.src)}
+                  alt={s.caption}
+                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                  onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/0 to-transparent" />
                 <p className="absolute bottom-2 left-2 right-2 text-white text-[10px] md:text-xs font-semibold leading-tight">{s.caption}</p>
               </div>
@@ -573,10 +592,22 @@ function BeforeAfterSlider() {
           <div className="text-white/50 text-base mt-3">A rotor from one of our brake jobs — drag to compare.</div>
         </div>
         <Reveal>
-          <div className="relative select-none border border-white/10 overflow-hidden" style={{ aspectRatio: '4 / 3' }}>
-            <img src={img('rotor_before.jpg')} alt="Rotor before GID Garage brake service" className="absolute inset-0 w-full h-full object-cover" draggable={false} />
+          <div className="relative select-none border border-white/10 overflow-hidden bg-white/5" style={{ aspectRatio: '4 / 3' }}>
+            <img
+              src={img('rotor_before.jpg')}
+              alt="Rotor before GID Garage brake service"
+              className="absolute inset-0 w-full h-full object-cover"
+              draggable={false}
+              onError={(e) => { e.currentTarget.style.display = 'none'; }}
+            />
             <div className="absolute inset-0 overflow-hidden" style={{ clipPath: `inset(0 ${100 - pos}% 0 0)` }}>
-              <img src={img('rotor_after.jpg')} alt="Rotor after GID Garage brake service" className="absolute inset-0 w-full h-full object-cover" draggable={false} />
+              <img
+                src={img('rotor_after.jpg')}
+                alt="Rotor after GID Garage brake service"
+                className="absolute inset-0 w-full h-full object-cover"
+                draggable={false}
+                onError={(e) => { e.currentTarget.style.display = 'none'; }}
+              />
             </div>
             <div className="absolute top-0 bottom-0 w-0.5 bg-red-600 pointer-events-none" style={{ left: `${pos}%` }} />
             <div
