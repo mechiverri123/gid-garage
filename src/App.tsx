@@ -188,6 +188,8 @@ function MissionStatement() {
                 src={img('rotor-new-install.jpeg')}
                 alt="New rotor and hub installed on a mobile brake job"
                 className="absolute inset-0 w-full h-full object-cover"
+                loading="lazy"
+                decoding="async"
                 onError={(e) => { e.currentTarget.style.display = 'none'; }}
               />
             </div>
@@ -196,6 +198,8 @@ function MissionStatement() {
                 src={img('caliper-new-pads.jpeg')}
                 alt="Caliper with fresh brake pads reinstalled"
                 className="absolute inset-0 w-full h-full object-cover"
+                loading="lazy"
+                decoding="async"
                 onError={(e) => { e.currentTarget.style.display = 'none'; }}
               />
             </div>
@@ -552,6 +556,8 @@ function RealJobsStrip() {
                   src={img(s.src)}
                   alt={s.caption}
                   className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                  loading="lazy"
+                  decoding="async"
                   onError={(e) => { e.currentTarget.style.display = 'none'; }}
                 />
               </div>
@@ -606,6 +612,8 @@ function BeforeAfterSlider() {
               alt="Rotor before GID Garage brake service"
               className="absolute inset-0 w-full h-full object-cover"
               draggable={false}
+              loading="lazy"
+              decoding="async"
               onError={(e) => { e.currentTarget.style.display = 'none'; }}
             />
             <div className="absolute inset-0 overflow-hidden" style={{ clipPath: `inset(0 ${100 - pos}% 0 0)` }}>
@@ -614,6 +622,8 @@ function BeforeAfterSlider() {
                 alt="Rotor after GID Garage brake service"
                 className="absolute inset-0 w-full h-full object-cover"
                 draggable={false}
+                loading="lazy"
+                decoding="async"
                 onError={(e) => { e.currentTarget.style.display = 'none'; }}
               />
             </div>
@@ -897,7 +907,7 @@ function PhotoGallery() {
       {/* Desktop: 3 across, justified row — each photo keeps its natural aspect ratio */}
       <div className="hidden sm:flex relative bg-[#0f0f0f] overflow-hidden" style={{ height: '420px' }}>
         {desktopPhotos.map(({ src, alt }, i) => (
-          <img key={`${src}-${i}`} src={src} alt={alt}
+          <img key={`${src}-${i}`} src={src} alt={alt} loading="lazy" decoding="async"
             className="h-full w-auto grow shrink basis-auto object-contain hover:scale-105 transition-transform duration-500" />
         ))}
         {/* Arrows over desktop */}
@@ -913,7 +923,7 @@ function PhotoGallery() {
 
       {/* Mobile: single photo carousel */}
       <div className="sm:hidden relative bg-[#0f0f0f] flex items-center justify-center overflow-hidden" style={{ height: '360px' }}>
-        <img src={photos[current].src} alt={photos[current].alt}
+        <img src={photos[current].src} alt={photos[current].alt} loading="lazy" decoding="async"
           className="h-full w-auto max-w-full object-contain transition-opacity duration-300" />
         <button onClick={prev} aria-label="Previous"
           className="absolute left-2 top-1/2 -translate-y-1/2 z-10 w-9 h-9 bg-black/60 hover:bg-red-600 text-white flex items-center justify-center transition-colors text-xl">‹</button>
