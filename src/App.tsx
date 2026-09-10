@@ -161,27 +161,32 @@ function AnimatedWords({ text, as: Tag = 'span', className = '', delay = 0 }: { 
   );
 }
 
-// Full-bleed statement with a real job photo set inline in the headline —
-// only uses claims already established elsewhere on the site (full synthetic
-// oil, mobile service, honest pricing), just staged bigger.
+// Full-viewport, edge-to-edge split — massive stacked type on one side, a
+// real full-height job photo on the other. This is the actual scale move:
+// letters filling most of the viewport, not just a bigger paragraph.
 function MissionStatement() {
   return (
-    <section className="relative bg-dark py-20 md:py-32 border-t border-white/5 overflow-hidden">
-      <div className="max-w-6xl mx-auto px-5 md:px-8">
-        <Reveal>
-          <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-3 md:gap-x-6">
-            <span className="text-white font-extrabold uppercase tracking-tight leading-none text-5xl sm:text-6xl md:text-8xl">Flagstaff Cars,</span>
-            <span className="inline-block h-[0.85em] w-[1.5em] overflow-hidden align-middle flex-shrink-0">
-              <img src={img('photo-brakes.jpg')} alt="Brake caliper and rotor mid-service" className="w-full h-full object-cover" />
-            </span>
-            <span className="text-white font-extrabold uppercase tracking-tight leading-none text-5xl sm:text-6xl md:text-8xl">No <span className="text-red-600">Shop Wait.</span></span>
+    <section className="relative bg-dark border-t border-white/5 overflow-hidden">
+      <div className="grid md:grid-cols-2 min-h-[90vh] md:min-h-screen">
+        <div className="flex items-center px-5 md:px-10 py-16 md:py-0 order-2 md:order-1">
+          <div>
+            <Reveal>
+              <h2 className="text-white font-black uppercase leading-[0.82] tracking-tighter">
+                <span className="block text-[15vw] md:text-[7vw]">No Shop.</span>
+                <span className="block text-[15vw] md:text-[7vw] text-red-600">No Wait.</span>
+              </h2>
+            </Reveal>
+            <Reveal delay={200}>
+              <p className="text-white/50 mt-8 max-w-md text-base md:text-lg leading-relaxed">
+                We show up, we fix it right, you get your day back — full synthetic oil, honest diagnostics, and pricing you know upfront, right at your curb.
+              </p>
+            </Reveal>
           </div>
-        </Reveal>
-        <Reveal delay={150}>
-          <p className="text-white/50 text-center max-w-xl mx-auto mt-8 text-base md:text-lg leading-relaxed">
-            We show up, we fix it right, you get your day back — full synthetic oil, honest diagnostics, and pricing you know upfront, right at your curb.
-          </p>
-        </Reveal>
+        </div>
+        <div className="relative min-h-[50vh] md:min-h-0 order-1 md:order-2">
+          <img src={img('photo-brakes.jpg')} alt="Brake caliper and rotor mid-service" className="absolute inset-0 w-full h-full object-cover" />
+          <div className="absolute inset-0 bg-gradient-to-t md:bg-gradient-to-l from-black/50 via-transparent to-transparent" />
+        </div>
       </div>
     </section>
   );
@@ -235,34 +240,30 @@ function Nav({ openBooking }: { openBooking: () => void }) {
 
 function Hero({ openBooking }: { openBooking: () => void }) {
   return (
-    <section id="hero" className="relative min-h-screen flex items-center justify-center bg-dark overflow-hidden pt-20">
+    <section id="hero" className="relative min-h-screen flex items-center bg-dark overflow-hidden pt-28 pb-16">
       <div
         className="absolute inset-0"
-        style={{ background: 'radial-gradient(ellipse 80% 60% at 50% 35%, rgba(220,38,38,0.14), transparent 70%), linear-gradient(180deg, #0f0f0f 0%, #141414 45%, #0f0f0f 100%)' }}
+        style={{ background: 'radial-gradient(ellipse 80% 60% at 30% 30%, rgba(220,38,38,0.16), transparent 70%), linear-gradient(180deg, #0f0f0f 0%, #141414 45%, #0f0f0f 100%)' }}
       />
-      <div className="relative z-10 w-full text-center">
-        <div className="mb-4 w-full px-4 md:px-0 md:max-w-7xl mx-auto">
-          <img
-            src={img('banner.PNG')}
-            alt="GID Garage"
-            className="w-full object-contain drop-shadow-2xl"
-            style={{ maxHeight: '680px' }}
-          />
-        </div>
-        <div className="max-w-5xl mx-auto px-5 md:px-8">
-          <p className="text-red-400 text-xs font-bold uppercase tracking-[0.25em] mb-6">Get It Done Garage · Flagstaff, AZ</p>
-          <h1 className="text-5xl sm:text-6xl md:text-7xl font-extrabold text-white leading-tight tracking-tight mb-6">
-            <AnimatedWords text="Flagstaff Mobile Mechanic" />
-            <br />
-            <AnimatedWords text="Car Care at 7,000 Feet" className="text-3xl sm:text-4xl md:text-5xl" delay={0.35} />
+      <div className="relative z-10 w-full">
+        <div className="max-w-[1500px] mx-auto px-5 md:px-10">
+          <p className="text-red-400 text-xs font-bold uppercase tracking-[0.3em] mb-4 md:mb-6">Get It Done Garage · Flagstaff, AZ</p>
+          <h1 className="text-white font-black uppercase leading-[0.82] tracking-tighter">
+            <AnimatedWords as="div" text="Flagstaff" className="block text-[16vw] md:text-[9.5vw]" />
+            <AnimatedWords as="div" text="Mobile" className="block text-[16vw] md:text-[9.5vw]" delay={0.1} />
+            <AnimatedWords as="div" text="Mechanic." className="block text-[16vw] md:text-[9.5vw] text-red-600" delay={0.2} />
           </h1>
-          <Reveal delay={650}>
-            <div className="text-white/80 text-lg md:text-xl max-w-2xl mx-auto mb-10 leading-relaxed font-light">We come to you — Flagstaff, Bellemont, Kachina, Fort Valley &amp; beyond. Honest pricing, expert work, no shop wait.</div>
-            <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <button onClick={openBooking} className="btn-primary text-sm px-8 py-4">Get a Quote</button>
-              <a href={`tel:${PHONE}`} className="btn-outline text-sm px-8 py-4"><Phone className="w-4 h-4" />Call Now</a>
-            </div>
-          </Reveal>
+          <div className="mt-8 md:mt-12 flex flex-col md:flex-row md:items-end justify-between gap-8">
+            <Reveal delay={700}>
+              <p className="text-white/60 text-base md:text-xl max-w-md leading-relaxed">We come to you — Flagstaff, Bellemont, Kachina, Fort Valley &amp; beyond. Honest pricing, expert work, no shop wait. Car care at 7,000 feet.</p>
+            </Reveal>
+            <Reveal delay={850}>
+              <div className="flex flex-col sm:flex-row gap-4 flex-shrink-0">
+                <button onClick={openBooking} className="btn-primary text-sm px-8 py-4">Get a Quote</button>
+                <a href={`tel:${PHONE}`} className="btn-outline text-sm px-8 py-4"><Phone className="w-4 h-4" />Call Now</a>
+              </div>
+            </Reveal>
+          </div>
         </div>
       </div>
     </section>
@@ -435,10 +436,12 @@ function Services({ onBookService }: { onBookService: (id: string) => void }) {
   return (
     <section id="services" className="py-20 md:py-28 bg-dark">
       <div className="max-w-7xl mx-auto px-5 md:px-8">
-        <div className="text-center mb-12">
-          <p className="text-red-500 text-xs font-bold uppercase tracking-[0.25em] mb-2">What We Offer</p>
-          <div className="text-4xl md:text-5xl font-extrabold text-white tracking-tight">Our Services</div>
-          <div className="text-white/50 text-base mt-3 max-w-xl mx-auto">Everything handled at your home, office, or wherever you're parked in the Flagstaff area.</div>
+        <div className="mb-12 md:mb-16">
+          <Reveal>
+            <p className="text-red-500 text-xs font-bold uppercase tracking-[0.25em] mb-3">What We Offer</p>
+            <div className="text-white font-black uppercase tracking-tighter leading-[0.85] text-[14vw] md:text-[6vw]">Services</div>
+            <div className="text-white/50 text-base mt-4 max-w-xl">Everything handled at your home, office, or wherever you're parked in the Flagstaff area.</div>
+          </Reveal>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
           {services.map((s, i) => (
@@ -465,9 +468,11 @@ function WhyUs() {
   return (
     <section id="why" className="pt-4 pb-20 md:pb-28 bg-dark">
       <div className="max-w-7xl mx-auto px-5 md:px-8">
-        <div className="text-center mb-10">
-          <p className="text-red-400 text-xs font-bold uppercase tracking-[0.25em] mb-2">The GID Difference</p>
-          <div className="text-4xl md:text-5xl font-extrabold text-white tracking-tight">Why Choose GID Garage?</div>
+        <div className="mb-10 md:mb-14">
+          <Reveal>
+            <p className="text-red-400 text-xs font-bold uppercase tracking-[0.25em] mb-3">The GID Difference</p>
+            <div className="text-white font-black uppercase tracking-tighter leading-[0.85] text-[14vw] md:text-[6vw]">Why Us</div>
+          </Reveal>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-8">
           {reasons.map((t, i) => (
