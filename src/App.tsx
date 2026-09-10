@@ -299,7 +299,7 @@ function ServiceCard({ s, onBookService }: { s: typeof services[0]; onBookServic
   const dropdownItems = s.id === 'suspension' ? suspensionItems : s.id === 'brakes' ? brakeItems : s.id === 'audio' ? audioItems : null;
 
   return (
-    <div className="p-6 bg-white/5 border border-white/10 border-l-4 border-l-red-600 hover:bg-white/10 hover:border-red-600/40 hover:-translate-y-1 hover:shadow-[0_10px_40px_-10px_rgba(220,38,38,0.35)] transition-all duration-300 flex flex-col">
+    <div className="h-full p-6 bg-white/5 border border-white/10 border-l-4 border-l-red-600 hover:bg-white/10 hover:border-red-600/40 hover:-translate-y-1 hover:shadow-[0_10px_40px_-10px_rgba(220,38,38,0.35)] transition-all duration-300 flex flex-col">
       <div className="flex items-start justify-between mb-2">
         <h3 className="text-white font-bold text-lg tracking-tight">{s.title}</h3>
         {s.badge && <span className="text-[10px] font-black uppercase tracking-widest bg-red-600 text-white px-2 py-0.5 ml-2 flex-shrink-0">{s.badge}</span>}
