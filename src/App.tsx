@@ -1,6 +1,11 @@
 import { useEffect, useState, useRef, lazy, Suspense } from 'react';
 import { Phone, Mail, Menu, X, MessageCircle } from 'lucide-react';
+import gsap from 'gsap';
+import { ScrollTrigger } from 'gsap/ScrollTrigger';
+import Lenis from 'lenis';
 import GameRedeem from './GameRedeem';
+
+gsap.registerPlugin(ScrollTrigger);
 
 // These route-only bundles (admin dashboard, estimate/invoice/PPI docs, the
 // booking modal, games) are never needed for the homepage's first paint —
@@ -100,6 +105,56 @@ function Reveal({ children, className = '', delay = 0 }: { children: React.React
   );
 }
 
+// Drives the whole page's scroll through Lenis for that weighted, eased
+// scroll feel — then feeds it through gsap.ticker so ScrollTrigger-based
+// animations (hero, future scroll-linked effects) stay perfectly in sync
+// instead of drifting a frame behind.
+function useSmoothScroll(enabled: boolean) {
+  useEffect(() => {
+    if (!enabled) return;
+    const lenis = new Lenis({ duration: 1.1, easing: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t)) });
+    lenis.on('scroll', ScrollTrigger.update);
+    const tick = (time: number) => lenis.raf(time * 1000);
+    gsap.ticker.add(tick);
+    gsap.ticker.lagSmoothing(0);
+    return () => {
+      gsap.ticker.remove(tick);
+      lenis.destroy();
+    };
+  }, [enabled]);
+}
+
+// Splits text into words, each masked in its own overflow-hidden box, then
+// animates them up into place with a stagger on mount — the word-by-word
+// hero reveal used on Jeton / Truck'N Roll-style sites.
+function AnimatedWords({ text, as: Tag = 'span', className = '', delay = 0 }: { text: string; as?: 'span' | 'div'; className?: string; delay?: number }) {
+  const ref = useRef<HTMLSpanElement>(null);
+  const words = text.split(' ');
+
+  useEffect(() => {
+    if (!ref.current) return;
+    const targets = ref.current.querySelectorAll('.word-inner');
+    gsap.fromTo(
+      targets,
+      { yPercent: 115, opacity: 0 },
+      { yPercent: 0, opacity: 1, duration: 0.9, ease: 'power4.out', stagger: 0.06, delay }
+    );
+  }, [delay]);
+
+  return (
+    <Tag ref={ref as any} className={className}>
+      {words.map((w, i) => (
+        <span key={i} style={{ display: 'inline-block', overflow: 'hidden', verticalAlign: 'top' }}>
+          <span className="word-inner" style={{ display: 'inline-block' }}>
+            {w}
+            {i < words.length - 1 ? '\u00A0' : ''}
+          </span>
+        </span>
+      ))}
+    </Tag>
+  );
+}
+
 function Nav({ openBooking }: { openBooking: () => void }) {
   const [scrolled, setScrolled] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -153,11 +208,6 @@ function Hero({ openBooking }: { openBooking: () => void }) {
         className="absolute inset-0"
         style={{ background: 'radial-gradient(ellipse 80% 60% at 50% 35%, rgba(220,38,38,0.14), transparent 70%), linear-gradient(180deg, #0f0f0f 0%, #141414 45%, #0f0f0f 100%)' }}
       />
-      {/* Faint diagonal tread lines — cheap CSS gradient, reads as tire tread / garage floor grating without a texture asset */}
-      <div
-        className="absolute inset-0 opacity-[0.05]"
-        style={{ backgroundImage: 'repeating-linear-gradient(135deg, #ffffff 0px, #ffffff 1px, transparent 1px, transparent 28px)' }}
-      />
       <div className="relative z-10 w-full text-center">
         <div className="mb-4 w-full px-4 md:px-0 md:max-w-7xl mx-auto">
           <img
@@ -169,12 +219,18 @@ function Hero({ openBooking }: { openBooking: () => void }) {
         </div>
         <div className="max-w-5xl mx-auto px-5 md:px-8">
           <p className="text-red-400 text-xs font-bold uppercase tracking-[0.25em] mb-6">Get It Done Garage · Flagstaff, AZ</p>
-          <h1 className="text-5xl sm:text-6xl md:text-7xl font-extrabold text-white leading-tight tracking-tight mb-6">Flagstaff Mobile Mechanic<br /><span className="text-3xl sm:text-4xl md:text-5xl">Car Care at 7,000 Feet</span></h1>
-          <div className="text-white/80 text-lg md:text-xl max-w-2xl mx-auto mb-10 leading-relaxed font-light">We come to you — Flagstaff, Bellemont, Kachina, Fort Valley &amp; beyond. Honest pricing, expert work, no shop wait.</div>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <button onClick={openBooking} className="btn-primary text-sm px-8 py-4">Get a Quote</button>
-            <a href={`tel:${PHONE}`} className="btn-outline text-sm px-8 py-4"><Phone className="w-4 h-4" />Call Now</a>
-          </div>
+          <h1 className="text-5xl sm:text-6xl md:text-7xl font-extrabold text-white leading-tight tracking-tight mb-6">
+            <AnimatedWords text="Flagstaff Mobile Mechanic" />
+            <br />
+            <AnimatedWords text="Car Care at 7,000 Feet" className="text-3xl sm:text-4xl md:text-5xl" delay={0.35} />
+          </h1>
+          <Reveal delay={650}>
+            <div className="text-white/80 text-lg md:text-xl max-w-2xl mx-auto mb-10 leading-relaxed font-light">We come to you — Flagstaff, Bellemont, Kachina, Fort Valley &amp; beyond. Honest pricing, expert work, no shop wait.</div>
+            <div className="flex flex-col sm:flex-row gap-4 justify-center">
+              <button onClick={openBooking} className="btn-primary text-sm px-8 py-4">Get a Quote</button>
+              <a href={`tel:${PHONE}`} className="btn-outline text-sm px-8 py-4"><Phone className="w-4 h-4" />Call Now</a>
+            </div>
+          </Reveal>
         </div>
       </div>
     </section>
@@ -1198,6 +1254,11 @@ export default function App() {
   const serviceAreaSlug = isServiceArea ? window.location.pathname.split('/service-area/')[1]?.replace(/\/$/, '') : '';
   const isPrivacy = window.location.pathname === '/privacy';
   const isReview = window.location.pathname === '/review';
+
+  // Lenis is a marketing-site polish feature — never touch admin, ops
+  // (estimate/invoice/PPI), games, or the cancel flow.
+  const isAdminOrOps = isAdmin || isEstimate || isInvoice || isPPI || isGames || isGameRedeem || (!!cancelId && !!cancelToken);
+  useSmoothScroll(!isAdminOrOps);
 
   // Utility/account pages (quotes, invoices, games, cancellations, admin) aren't
   // content pages — indexing them creates thin/duplicate results that dilute
