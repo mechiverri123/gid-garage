@@ -183,7 +183,7 @@ function MissionStatement() {
         </div>
         <Reveal delay={100}>
           <div className="grid grid-cols-2 gap-3 md:gap-4">
-            <div className="relative aspect-[3/4] overflow-hidden bg-white/5">
+            <div className="relative aspect-[3/5] overflow-hidden bg-white/5">
               <img
                 src={img('rotor-new-install.jpeg')}
                 alt="New rotor and hub installed on a mobile brake job"
@@ -191,7 +191,7 @@ function MissionStatement() {
                 onError={(e) => { e.currentTarget.style.display = 'none'; }}
               />
             </div>
-            <div className="relative aspect-[3/4] overflow-hidden bg-white/5 mt-8 md:mt-10">
+            <div className="relative aspect-[3/5] overflow-hidden bg-white/5">
               <img
                 src={img('caliper-new-pads.jpeg')}
                 alt="Caliper with fresh brake pads reinstalled"
