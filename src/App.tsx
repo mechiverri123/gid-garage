@@ -177,7 +177,7 @@ function MissionStatement() {
           </Reveal>
           <Reveal delay={200}>
             <p className="text-white/50 mt-8 max-w-md text-base md:text-lg leading-relaxed">
-              We show up, we fix it right, you get your day back — full synthetic oil, honest diagnostics, and pricing you know upfront, right at your curb.
+              We show up, we fix it right, you get your day back — full synthetic oil, high quality brakes, honest diagnostics, and pricing you know upfront, right at your location.
             </p>
           </Reveal>
         </div>
