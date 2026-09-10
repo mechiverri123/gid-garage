@@ -69,6 +69,12 @@
   to { opacity: 1; transform: translateY(0); }
 }
 
+/* Infinite town-name ticker under the hero */
+@keyframes marquee {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+
 /* Scroll-reveal — fade + rise into place as sections enter viewport */
 .reveal {
   opacity: 0;

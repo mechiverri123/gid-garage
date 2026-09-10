@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef, lazy, Suspense } from 'react';
+import { useEffect, useState, useRef, lazy, Suspense, cloneElement } from 'react';
 import { Phone, Mail, Menu, X, MessageCircle } from 'lucide-react';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
@@ -117,7 +117,13 @@ function useSmoothScroll(enabled: boolean) {
     const tick = (time: number) => lenis.raf(time * 1000);
     gsap.ticker.add(tick);
     gsap.ticker.lagSmoothing(0);
+    // The hero banner image loads async and changes hero height, which the
+    // pinned-hero ScrollTrigger's "bottom top" end depends on — recalculate
+    // once everything (including images) has actually loaded.
+    const onLoad = () => ScrollTrigger.refresh();
+    window.addEventListener('load', onLoad);
     return () => {
+      window.removeEventListener('load', onLoad);
       gsap.ticker.remove(tick);
       lenis.destroy();
     };
@@ -155,6 +161,84 @@ function AnimatedWords({ text, as: Tag = 'span', className = '', delay = 0 }: { 
   );
 }
 
+// Pulls its child toward the cursor on hover — desktop-only by nature (no
+// mousemove on touch), used on primary CTAs for that "alive" button feel.
+function Magnetic({ children, strength = 0.35 }: { children: React.ReactElement<any>; strength?: number }) {
+  const ref = useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    function onMove(e: MouseEvent) {
+      const r = el!.getBoundingClientRect();
+      gsap.to(el, {
+        x: (e.clientX - r.left - r.width / 2) * strength,
+        y: (e.clientY - r.top - r.height / 2) * strength,
+        duration: 0.4,
+        ease: 'power3.out',
+      });
+    }
+    function onLeave() {
+      gsap.to(el, { x: 0, y: 0, duration: 0.6, ease: 'elastic.out(1, 0.4)' });
+    }
+    el.addEventListener('mousemove', onMove);
+    el.addEventListener('mouseleave', onLeave);
+    return () => {
+      el.removeEventListener('mousemove', onMove);
+      el.removeEventListener('mouseleave', onLeave);
+    };
+  }, [strength]);
+
+  return cloneElement(children, { ref });
+}
+
+// Oversized, low-opacity text that sits behind a section's real heading and
+// drifts sideways as the section scrolls through view (scrub, not trigger-once) —
+// the huge-type-as-texture move from Truck'N Roll / Jeton.
+function HugeLabel({ text }: { text: string }) {
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el?.parentElement) return;
+    const tween = gsap.fromTo(
+      el,
+      { xPercent: -6 },
+      {
+        xPercent: 6,
+        ease: 'none',
+        scrollTrigger: { trigger: el.parentElement, start: 'top bottom', end: 'bottom top', scrub: 0.6 },
+      }
+    );
+    return () => { tween.scrollTrigger?.kill(); tween.kill(); };
+  }, []);
+
+  return (
+    <div className="pointer-events-none select-none absolute inset-x-0 top-6 md:top-10 flex justify-center overflow-hidden z-0" aria-hidden="true">
+      <div ref={ref} className="text-[20vw] md:text-[13vw] font-extrabold text-white/[0.04] leading-none tracking-tighter whitespace-nowrap">
+        {text}
+      </div>
+    </div>
+  );
+}
+
+// Infinite-scrolling strip of the towns we serve — real data from SERVICE_AREAS,
+// constant motion right under the hero.
+function Marquee() {
+  const loopText = SERVICE_AREAS.map(a => a.name).join('   ·   ') + '   ·   ';
+  return (
+    <div className="relative z-10 bg-black border-y border-white/10 py-3 overflow-hidden">
+      <div className="flex whitespace-nowrap" style={{ animation: 'marquee 32s linear infinite' }}>
+        {[0, 1].map((i) => (
+          <span key={i} className="text-white/40 text-sm font-bold uppercase tracking-[0.3em] pr-8">
+            {loopText}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function Nav({ openBooking }: { openBooking: () => void }) {
   const [scrolled, setScrolled] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -183,7 +267,7 @@ function Nav({ openBooking }: { openBooking: () => void }) {
           {links.map((l) => (
             <a key={l.label} href={l.href} className="text-sm font-semibold uppercase tracking-wide transition-colors duration-200 text-white hover:text-red-400">{l.label}</a>
           ))}
-          <button onClick={openBooking} className="btn-primary text-xs px-8 py-4">Get a Quote</button>
+          <Magnetic><button onClick={openBooking} className="btn-primary text-xs px-8 py-4">Get a Quote</button></Magnetic>
         </nav>
         <button className="md:hidden p-1 text-white transition-colors" onClick={() => setMenuOpen(v => !v)} aria-label="Toggle menu">
           {menuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
@@ -202,8 +286,25 @@ function Nav({ openBooking }: { openBooking: () => void }) {
 }
 
 function Hero({ openBooking }: { openBooking: () => void }) {
+  const heroRef = useRef<HTMLElement>(null);
+
+  // Pin the hero in place for one viewport-height of scroll so the section
+  // that follows (the town ticker) slides up and visibly overlaps it instead
+  // of just scrolling past — the cinematic panel-transition Truck'N Roll uses.
+  useEffect(() => {
+    if (!heroRef.current) return;
+    const st = ScrollTrigger.create({
+      trigger: heroRef.current,
+      start: 'top top',
+      end: 'bottom top',
+      pin: true,
+      pinSpacing: false,
+    });
+    return () => st.kill();
+  }, []);
+
   return (
-    <section id="hero" className="relative min-h-screen flex items-center justify-center bg-dark overflow-hidden pt-20">
+    <section ref={heroRef} id="hero" className="relative z-0 min-h-screen flex items-center justify-center bg-dark overflow-hidden pt-20">
       <div
         className="absolute inset-0"
         style={{ background: 'radial-gradient(ellipse 80% 60% at 50% 35%, rgba(220,38,38,0.14), transparent 70%), linear-gradient(180deg, #0f0f0f 0%, #141414 45%, #0f0f0f 100%)' }}
@@ -227,8 +328,8 @@ function Hero({ openBooking }: { openBooking: () => void }) {
           <Reveal delay={650}>
             <div className="text-white/80 text-lg md:text-xl max-w-2xl mx-auto mb-10 leading-relaxed font-light">We come to you — Flagstaff, Bellemont, Kachina, Fort Valley &amp; beyond. Honest pricing, expert work, no shop wait.</div>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <button onClick={openBooking} className="btn-primary text-sm px-8 py-4">Get a Quote</button>
-              <a href={`tel:${PHONE}`} className="btn-outline text-sm px-8 py-4"><Phone className="w-4 h-4" />Call Now</a>
+              <Magnetic><button onClick={openBooking} className="btn-primary text-sm px-8 py-4">Get a Quote</button></Magnetic>
+              <Magnetic><a href={`tel:${PHONE}`} className="btn-outline text-sm px-8 py-4"><Phone className="w-4 h-4" />Call Now</a></Magnetic>
             </div>
           </Reveal>
         </div>
@@ -297,12 +398,14 @@ function ServiceCard({ s, onBookService }: { s: typeof services[0]; onBookServic
         </div>
       )}
 
-      <button
-        onClick={() => onBookService(s.id)}
-        className="mt-5 w-full bg-red-600 hover:bg-red-500 text-white text-xs font-bold uppercase tracking-widest py-2.5 px-4 transition-colors duration-200"
-      >
-        Get a Quote
-      </button>
+      <Magnetic strength={0.2}>
+        <button
+          onClick={() => onBookService(s.id)}
+          className="mt-5 w-full bg-red-600 hover:bg-red-500 text-white text-xs font-bold uppercase tracking-widest py-2.5 px-4 transition-colors duration-200"
+        >
+          Get a Quote
+        </button>
+      </Magnetic>
     </div>
   );
 }
@@ -401,8 +504,9 @@ function QuickQuoteForm() {
 
 function Services({ onBookService }: { onBookService: (id: string) => void }) {
   return (
-    <section id="services" className="py-20 md:py-28 bg-dark">
-      <div className="max-w-7xl mx-auto px-5 md:px-8">
+    <section id="services" className="relative py-20 md:py-28 bg-dark overflow-hidden">
+      <HugeLabel text="SERVICES" />
+      <div className="relative z-10 max-w-7xl mx-auto px-5 md:px-8">
         <div className="text-center mb-12">
           <p className="text-red-500 text-xs font-bold uppercase tracking-[0.25em] mb-2">What We Offer</p>
           <div className="text-4xl md:text-5xl font-extrabold text-white tracking-tight">Our Services</div>
@@ -417,7 +521,7 @@ function Services({ onBookService }: { onBookService: (id: string) => void }) {
         </div>
         <div className="mt-12 text-center">
           <p className="text-white/50 text-sm mb-6">Don't see what you need? Call us — we handle virtually all automotive repair.</p>
-          <a href={`tel:${PHONE}`} className="btn-primary inline-flex gap-2 items-center text-xs"><Phone className="w-4 h-4" />{PHONE}</a>
+          <Magnetic><a href={`tel:${PHONE}`} className="btn-primary inline-flex gap-2 items-center text-xs"><Phone className="w-4 h-4" />{PHONE}</a></Magnetic>
         </div>
       </div>
     </section>
@@ -426,8 +530,9 @@ function Services({ onBookService }: { onBookService: (id: string) => void }) {
 
 function WhyUs() {
   return (
-    <section id="why" className="pt-4 pb-20 md:pb-28 bg-dark">
-      <div className="max-w-7xl mx-auto px-5 md:px-8">
+    <section id="why" className="relative pt-4 pb-20 md:pb-28 bg-dark overflow-hidden">
+      <HugeLabel text="WHY US" />
+      <div className="relative z-10 max-w-7xl mx-auto px-5 md:px-8">
         <div className="text-center mb-10">
           <p className="text-red-400 text-xs font-bold uppercase tracking-[0.25em] mb-2">The GID Difference</p>
           <div className="text-4xl md:text-5xl font-extrabold text-white tracking-tight">Why Choose GID Garage?</div>
@@ -875,8 +980,8 @@ function ContactBar({ openBooking }: { openBooking: () => void }) {
           <h3 className="text-white text-2xl md:text-3xl font-extrabold tracking-tight">We Come to You, Flagstaff.</h3>
         </div>
         <div className="flex flex-col sm:flex-row gap-4">
-          <button onClick={openBooking} className="btn-primary text-xs px-8 py-4">Get a Quote</button>
-          <a href={`tel:${PHONE}`} className="inline-flex items-center justify-center gap-2 border-2 border-white text-white font-bold px-7 py-3 text-sm uppercase tracking-wide hover:bg-white/10 transition-colors duration-200"><Phone className="w-4 h-4" />{PHONE}</a>
+          <Magnetic><button onClick={openBooking} className="btn-primary text-xs px-8 py-4">Get a Quote</button></Magnetic>
+          <Magnetic><a href={`tel:${PHONE}`} className="inline-flex items-center justify-center gap-2 border-2 border-white text-white font-bold px-7 py-3 text-sm uppercase tracking-wide hover:bg-white/10 transition-colors duration-200"><Phone className="w-4 h-4" />{PHONE}</a></Magnetic>
         </div>
       </div>
     </section>
@@ -1300,6 +1405,7 @@ export default function App() {
       <div className="grain-overlay" />
       <Nav openBooking={openBooking} />
       <Hero openBooking={openBooking} />
+      <Marquee />
       <QuickQuoteForm />
       <Services onBookService={handleBookService} />
       <WhyUs />
