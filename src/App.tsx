@@ -423,7 +423,7 @@ function WhyUs() {
 }
 
 function BeforeAfterSlider() {
-  const [pos, setPos] = useState(50);
+  const [pos, setPos] = useState(0);
 
   return (
     <section className="py-20 md:py-28 bg-dark border-t border-white/5">
@@ -435,9 +435,9 @@ function BeforeAfterSlider() {
         </div>
         <Reveal>
           <div className="relative select-none border border-white/10 overflow-hidden" style={{ aspectRatio: '4 / 3' }}>
-            <img src={img('rotor_after.jpg')} alt="Rotor after GID Garage brake service" className="absolute inset-0 w-full h-full object-cover" draggable={false} />
+            <img src={img('rotor_before.jpg')} alt="Rotor before GID Garage brake service" className="absolute inset-0 w-full h-full object-cover" draggable={false} />
             <div className="absolute inset-0 overflow-hidden" style={{ clipPath: `inset(0 ${100 - pos}% 0 0)` }}>
-              <img src={img('rotor_before.jpg')} alt="Rotor before GID Garage brake service" className="absolute inset-0 w-full h-full object-cover" draggable={false} />
+              <img src={img('rotor_after.jpg')} alt="Rotor after GID Garage brake service" className="absolute inset-0 w-full h-full object-cover" draggable={false} />
             </div>
             <div className="absolute top-0 bottom-0 w-0.5 bg-red-600 pointer-events-none" style={{ left: `${pos}%` }} />
             <div
