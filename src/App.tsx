@@ -168,7 +168,7 @@ function MissionStatement() {
   return (
     <section className="relative bg-dark border-t border-white/5 py-16 md:py-24 overflow-hidden">
       <div className="grid md:grid-cols-[0.85fr_1.15fr] gap-10 md:gap-12 items-center">
-        <div className="pl-5 md:pl-8 lg:pl-[max(2rem,calc((100vw-80rem)/2+2rem))]">
+        <div className="pl-5 pr-5 md:pl-8 md:pr-8 lg:pl-[max(2rem,calc((100vw-80rem)/2+2rem))] lg:pr-8">
           <Reveal>
             <h2 className="text-white font-black uppercase leading-[0.82] tracking-tighter">
               <span className="block text-[15vw] md:text-[6.5vw]">No Shop.</span>
@@ -544,8 +544,6 @@ function RealJobsStrip() {
                   className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                   onError={(e) => { e.currentTarget.style.display = 'none'; }}
                 />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/0 to-transparent" />
-                <p className="absolute bottom-2 left-2 right-2 text-white text-[10px] md:text-xs font-semibold leading-tight">{s.caption}</p>
               </div>
             </Reveal>
           ))}
@@ -560,9 +558,9 @@ function RealJobsStrip() {
 function StatsBar() {
   const stats = [
     { value: String(SERVICE_AREAS.length), label: 'Flagstaff-Area Communities Served' },
-    { value: String(services.length), label: 'Core Services Offered' },
+    { value: 'Up to 40%', label: 'Below Local Shop Pricing' },
     { value: '100%', label: 'Full Synthetic Oil, Every Time' },
-    { value: '7,000 ft', label: 'Elevation We Know Best' },
+    { value: '7 Days', label: 'Open Every Day of the Week' },
   ];
   return (
     <section className="bg-black border-y border-white/10 py-12 md:py-16">
