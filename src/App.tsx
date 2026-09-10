@@ -185,7 +185,7 @@ function MissionStatement() {
           <div className="grid grid-cols-2 gap-4 md:gap-6 pl-5 pr-5 md:pl-0 md:pr-0">
             <div className="relative aspect-[3/5] overflow-hidden bg-white/5">
               <img
-                src={img('rotor-new-install.jpeg')}
+                src={img('IMG_1335.jpeg')}
                 alt="New rotor and hub installed on a mobile brake job"
                 className="absolute inset-0 w-full h-full object-cover"
                 onError={(e) => { e.currentTarget.style.display = 'none'; }}
@@ -193,7 +193,7 @@ function MissionStatement() {
             </div>
             <div className="relative aspect-[3/5] overflow-hidden bg-white/5">
               <img
-                src={img('caliper-new-pads.jpeg')}
+                src={img('IMG_1334.jpeg')}
                 alt="Caliper with fresh brake pads reinstalled"
                 className="absolute inset-0 w-full h-full object-cover"
                 onError={(e) => { e.currentTarget.style.display = 'none'; }}
@@ -529,6 +529,16 @@ function RealJobsStrip() {
     { src: 'magnaride.jpg', caption: 'Adaptive suspension strut' },
     { src: 'afba.jpg', caption: 'Cabin air filter — old vs. new' },
     { src: 'photo-audio.jpg', caption: 'Head unit setup after install' },
+    { src: 'IMG_0952.jpeg', caption: 'Full synthetic oil change' },
+    { src: 'IMG_0964.jpeg', caption: 'Radiator hose replacement' },
+    { src: 'IMG_1052.jpeg', caption: 'Brake pads — old vs. new' },
+    { src: 'IMG_1100.jpeg', caption: 'New strut assembly installed' },
+    { src: 'IMG_1179.jpeg', caption: 'Brake pads seated in caliper' },
+    { src: 'IMG_1292.jpeg', caption: 'Control arms — old vs. new' },
+    { src: 'IMG_1392.jpeg', caption: 'Spark plugs — old vs. new' },
+    { src: 'IMG_1193.jpeg', caption: 'Spark plugs — old vs. new' },
+    { src: 'IMG_0915.jpeg', caption: 'Coolant temp sensor — old vs. new' },
+    { src: 'IMG_1248.jpeg', caption: 'Timing cover and oil pan' },
   ];
   return (
     <section className="bg-dark border-t border-white/5 py-16 md:py-20">
