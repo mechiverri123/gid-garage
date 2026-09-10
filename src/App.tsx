@@ -71,6 +71,35 @@ const services = [
   },
 ];
 
+// Fades + rises content into place the first time it enters the viewport.
+// Pure IntersectionObserver, no animation library — keeps the bundle small.
+function Reveal({ children, className = '', delay = 0 }: { children: React.ReactNode; className?: string; delay?: number }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [visible, setVisible] = useState(false);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const obs = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setVisible(true);
+          obs.unobserve(el);
+        }
+      },
+      { threshold: 0.15, rootMargin: '0px 0px -40px 0px' }
+    );
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, []);
+
+  return (
+    <div ref={ref} className={`reveal ${visible ? 'is-visible' : ''} ${className}`} style={{ transitionDelay: `${delay}ms` }}>
+      {children}
+    </div>
+  );
+}
+
 function Nav({ openBooking }: { openBooking: () => void }) {
   const [scrolled, setScrolled] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -124,6 +153,11 @@ function Hero({ openBooking }: { openBooking: () => void }) {
         className="absolute inset-0"
         style={{ background: 'radial-gradient(ellipse 80% 60% at 50% 35%, rgba(220,38,38,0.14), transparent 70%), linear-gradient(180deg, #0f0f0f 0%, #141414 45%, #0f0f0f 100%)' }}
       />
+      {/* Faint diagonal tread lines — cheap CSS gradient, reads as tire tread / garage floor grating without a texture asset */}
+      <div
+        className="absolute inset-0 opacity-[0.05]"
+        style={{ backgroundImage: 'repeating-linear-gradient(135deg, #ffffff 0px, #ffffff 1px, transparent 1px, transparent 28px)' }}
+      />
       <div className="relative z-10 w-full text-center">
         <div className="mb-4 w-full px-4 md:px-0 md:max-w-7xl mx-auto">
           <img
@@ -176,7 +210,7 @@ function ServiceCard({ s, onBookService }: { s: typeof services[0]; onBookServic
   const dropdownItems = s.id === 'suspension' ? suspensionItems : s.id === 'brakes' ? brakeItems : s.id === 'audio' ? audioItems : null;
 
   return (
-    <div className="p-6 bg-white/5 border border-white/10 border-l-4 border-l-red-600 hover:bg-white/10 hover:border-red-600/40 transition-all duration-300 flex flex-col">
+    <div className="p-6 bg-white/5 border border-white/10 border-l-4 border-l-red-600 hover:bg-white/10 hover:border-red-600/40 hover:-translate-y-1 hover:shadow-[0_10px_40px_-10px_rgba(220,38,38,0.35)] transition-all duration-300 flex flex-col">
       <div className="flex items-start justify-between mb-2">
         <h3 className="text-white font-bold text-lg tracking-tight">{s.title}</h3>
         {s.badge && <span className="text-[10px] font-black uppercase tracking-widest bg-red-600 text-white px-2 py-0.5 ml-2 flex-shrink-0">{s.badge}</span>}
@@ -319,8 +353,10 @@ function Services({ onBookService }: { onBookService: (id: string) => void }) {
           <div className="text-white/50 text-base mt-3 max-w-xl mx-auto">Everything handled at your home, office, or wherever you're parked in the Flagstaff area.</div>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-          {services.map((s) => (
-            <ServiceCard key={s.id} s={s} onBookService={onBookService} />
+          {services.map((s, i) => (
+            <Reveal key={s.id} delay={(i % 3) * 90}>
+              <ServiceCard s={s} onBookService={onBookService} />
+            </Reveal>
           ))}
         </div>
         <div className="mt-12 text-center">
@@ -354,12 +390,14 @@ function WhyUs() {
               title: 'Mountain-Tough Service',
               desc: 'We know what high altitude, hard winters, and mountain roads do to your vehicle. Our work is built to last up here.',
             },
-          ].map((t) => (
-            <div key={t.title} className="bg-white/5 border border-white/10 p-8 hover:border-red-600/30 hover:bg-white/10 transition-all duration-300">
-              <div className="w-12 h-1 bg-red-600 mb-6" />
-              <h3 className="text-white font-bold text-xl mb-3 tracking-tight">{t.title}</h3>
-              <div className="text-white/70 leading-relaxed text-sm">{t.desc}</div>
-            </div>
+          ].map((t, i) => (
+            <Reveal key={t.title} delay={i * 100}>
+              <div className="bg-white/5 border border-white/10 p-8 hover:border-red-600/30 hover:bg-white/10 hover:-translate-y-1 transition-all duration-300">
+                <div className="w-12 h-1 bg-red-600 mb-6" />
+                <h3 className="text-white font-bold text-xl mb-3 tracking-tight">{t.title}</h3>
+                <div className="text-white/70 leading-relaxed text-sm">{t.desc}</div>
+              </div>
+            </Reveal>
           ))}
         </div>
 
@@ -379,6 +417,45 @@ function WhyUs() {
           </div>
           <p className="text-white/40 text-xs mt-3">Appointments required. Same-day bookings subject to availability.</p>
         </div>
+      </div>
+    </section>
+  );
+}
+
+function BeforeAfterSlider() {
+  const [pos, setPos] = useState(50);
+
+  return (
+    <section className="py-20 md:py-28 bg-dark border-t border-white/5">
+      <div className="max-w-3xl mx-auto px-5 md:px-8">
+        <div className="text-center mb-10">
+          <p className="text-red-500 text-xs font-bold uppercase tracking-[0.25em] mb-2">Real Work, Real Results</p>
+          <div className="text-4xl md:text-5xl font-extrabold text-white tracking-tight">Before &amp; After</div>
+          <div className="text-white/50 text-base mt-3">A rotor from one of our brake jobs — drag to compare.</div>
+        </div>
+        <Reveal>
+          <div className="relative select-none border border-white/10 overflow-hidden" style={{ aspectRatio: '4 / 3' }}>
+            <img src={img('rotor_after.jpg')} alt="Rotor after GID Garage brake service" className="absolute inset-0 w-full h-full object-cover" draggable={false} />
+            <div className="absolute inset-0 overflow-hidden" style={{ clipPath: `inset(0 ${100 - pos}% 0 0)` }}>
+              <img src={img('rotor_before.jpg')} alt="Rotor before GID Garage brake service" className="absolute inset-0 w-full h-full object-cover" draggable={false} />
+            </div>
+            <div className="absolute top-0 bottom-0 w-0.5 bg-red-600 pointer-events-none" style={{ left: `${pos}%` }} />
+            <div
+              className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-10 h-10 rounded-full bg-red-600 text-white flex items-center justify-center text-sm font-bold shadow-lg pointer-events-none"
+              style={{ left: `${pos}%` }}
+            >
+              ↔
+            </div>
+            <input
+              type="range" min={0} max={100} value={pos}
+              onChange={(e) => setPos(Number(e.target.value))}
+              aria-label="Drag to compare before and after"
+              className="absolute inset-0 w-full h-full opacity-0 cursor-ew-resize"
+            />
+            <span className="absolute top-3 left-3 bg-black/60 text-white text-[10px] font-bold uppercase tracking-widest px-2 py-1 pointer-events-none">Before</span>
+            <span className="absolute top-3 right-3 bg-black/60 text-white text-[10px] font-bold uppercase tracking-widest px-2 py-1 pointer-events-none">After</span>
+          </div>
+        </Reveal>
       </div>
     </section>
   );
@@ -1159,11 +1236,13 @@ export default function App() {
 
   return (
     <div className="bg-dark text-dark min-h-screen font-sans pb-16 md:pb-0">
+      <div className="grain-overlay" />
       <Nav openBooking={openBooking} />
       <Hero openBooking={openBooking} />
       <QuickQuoteForm />
       <Services onBookService={handleBookService} />
       <WhyUs />
+      <BeforeAfterSlider />
       <GoogleReviewsSection />
       <ServiceMap />
       <PhotoGallery />
