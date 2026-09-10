@@ -167,7 +167,7 @@ function AnimatedWords({ text, as: Tag = 'span', className = '', delay = 0 }: { 
 function MissionStatement() {
   return (
     <section className="relative bg-dark border-t border-white/5 py-16 md:py-24 overflow-hidden">
-      <div className="max-w-7xl mx-auto px-5 md:px-8 grid md:grid-cols-2 gap-10 md:gap-16 items-center">
+      <div className="max-w-7xl mx-auto px-5 md:px-8 grid md:grid-cols-[0.85fr_1.15fr] gap-10 md:gap-12 items-center">
         <div>
           <Reveal>
             <h2 className="text-white font-black uppercase leading-[0.82] tracking-tighter">
@@ -182,7 +182,7 @@ function MissionStatement() {
           </Reveal>
         </div>
         <Reveal delay={100}>
-          <div className="grid grid-cols-2 gap-3 md:gap-4">
+          <div className="grid grid-cols-2 gap-6 md:gap-8">
             <div className="relative aspect-[3/5] overflow-hidden bg-white/5">
               <img
                 src={img('rotor-new-install.jpeg')}
