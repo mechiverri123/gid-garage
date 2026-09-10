@@ -161,6 +161,32 @@ function AnimatedWords({ text, as: Tag = 'span', className = '', delay = 0 }: { 
   );
 }
 
+// Full-bleed statement with a real job photo set inline in the headline —
+// only uses claims already established elsewhere on the site (full synthetic
+// oil, mobile service, honest pricing), just staged bigger.
+function MissionStatement() {
+  return (
+    <section className="relative bg-dark py-20 md:py-32 border-t border-white/5 overflow-hidden">
+      <div className="max-w-6xl mx-auto px-5 md:px-8">
+        <Reveal>
+          <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-3 md:gap-x-6">
+            <span className="text-white font-extrabold uppercase tracking-tight leading-none text-5xl sm:text-6xl md:text-8xl">Flagstaff Cars,</span>
+            <span className="inline-block h-[0.85em] w-[1.5em] overflow-hidden align-middle flex-shrink-0">
+              <img src={img('photo-brakes.jpg')} alt="Brake caliper and rotor mid-service" className="w-full h-full object-cover" />
+            </span>
+            <span className="text-white font-extrabold uppercase tracking-tight leading-none text-5xl sm:text-6xl md:text-8xl">No <span className="text-red-600">Shop Wait.</span></span>
+          </div>
+        </Reveal>
+        <Reveal delay={150}>
+          <p className="text-white/50 text-center max-w-xl mx-auto mt-8 text-base md:text-lg leading-relaxed">
+            We show up, we fix it right, you get your day back — full synthetic oil, honest diagnostics, and pricing you know upfront, right at your curb.
+          </p>
+        </Reveal>
+      </div>
+    </section>
+  );
+}
+
 function Nav({ openBooking }: { openBooking: () => void }) {
   const [scrolled, setScrolled] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -431,6 +457,11 @@ function Services({ onBookService }: { onBookService: (id: string) => void }) {
 }
 
 function WhyUs() {
+  const reasons = [
+    { n: '01', title: 'We Come to You', desc: "Skip the shop, the waiting room, and the ride back. We show up at your door — home, work, side of the road, wherever you need us in the Flagstaff area." },
+    { n: '02', title: 'Honest Pricing', desc: "Clear estimates, no hidden fees, no pressure upsells. You always know exactly what you're paying for before we turn a wrench." },
+    { n: '03', title: 'Mountain-Tough Service', desc: 'We know what high altitude, hard winters, and mountain roads do to your vehicle. Our work is built to last up here.' },
+  ];
   return (
     <section id="why" className="pt-4 pb-20 md:pb-28 bg-dark">
       <div className="max-w-7xl mx-auto px-5 md:px-8">
@@ -439,23 +470,10 @@ function WhyUs() {
           <div className="text-4xl md:text-5xl font-extrabold text-white tracking-tight">Why Choose GID Garage?</div>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-8">
-          {[
-            {
-              title: 'We Come to You',
-              desc: "Skip the shop, the waiting room, and the ride back. We show up at your door — home, work, side of the road, wherever you need us in the Flagstaff area.",
-            },
-            {
-              title: 'Honest Pricing',
-              desc: "Clear estimates, no hidden fees, no pressure upsells. You always know exactly what you're paying for before we turn a wrench.",
-            },
-            {
-              title: 'Mountain-Tough Service',
-              desc: 'We know what high altitude, hard winters, and mountain roads do to your vehicle. Our work is built to last up here.',
-            },
-          ].map((t, i) => (
+          {reasons.map((t, i) => (
             <Reveal key={t.title} delay={i * 100}>
               <div className="bg-white/5 border border-white/10 p-8 hover:border-red-600/30 hover:bg-white/10 hover:-translate-y-1 transition-all duration-300">
-                <div className="w-12 h-1 bg-red-600 mb-6" />
+                <div className="text-red-600 font-extrabold text-4xl md:text-5xl tracking-tight mb-4">( {t.n} )</div>
                 <h3 className="text-white font-bold text-xl mb-3 tracking-tight">{t.title}</h3>
                 <div className="text-white/70 leading-relaxed text-sm">{t.desc}</div>
               </div>
@@ -479,6 +497,60 @@ function WhyUs() {
           </div>
           <p className="text-white/40 text-xs mt-3">Appointments required. Same-day bookings subject to availability.</p>
         </div>
+      </div>
+    </section>
+  );
+}
+
+// Real close-up shots from actual jobs — honestly captioned by what's in
+// frame, not tied to a marketing claim.
+function RealJobsStrip() {
+  const shots = [
+    { src: 'rav4shocks.jpg', caption: 'Front strut assembly, ready to install' },
+    { src: 'magnaride.jpg', caption: 'Adaptive suspension strut' },
+    { src: 'afba.jpg', caption: 'Cabin air filter — old vs. new' },
+    { src: 'photo-audio.jpg', caption: 'Head unit setup after install' },
+  ];
+  return (
+    <section className="bg-dark border-t border-white/5 py-16 md:py-20">
+      <div className="max-w-7xl mx-auto px-5 md:px-8">
+        <p className="text-red-500 text-xs font-bold uppercase tracking-[0.25em] mb-6 text-center">From the Garage</p>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          {shots.map((s, i) => (
+            <Reveal key={s.src} delay={i * 80}>
+              <div className="relative aspect-square overflow-hidden group">
+                <img src={img(s.src)} alt={s.caption} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/0 to-transparent" />
+                <p className="absolute bottom-2 left-2 right-2 text-white text-[10px] md:text-xs font-semibold leading-tight">{s.caption}</p>
+              </div>
+            </Reveal>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// Every number here is real and derived from data already on the page —
+// no invented stats.
+function StatsBar() {
+  const stats = [
+    { value: String(SERVICE_AREAS.length), label: 'Flagstaff-Area Communities Served' },
+    { value: String(services.length), label: 'Core Services Offered' },
+    { value: '100%', label: 'Full Synthetic Oil, Every Time' },
+    { value: '7,000 ft', label: 'Elevation We Know Best' },
+  ];
+  return (
+    <section className="bg-black border-y border-white/10 py-12 md:py-16">
+      <div className="max-w-6xl mx-auto px-5 md:px-8 grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
+        {stats.map((s, i) => (
+          <Reveal key={s.label} delay={i * 80}>
+            <div>
+              <div className="text-red-600 font-extrabold text-4xl md:text-5xl tracking-tight">{s.value}</div>
+              <div className="text-white/50 text-xs md:text-sm uppercase tracking-widest mt-2">{s.label}</div>
+            </div>
+          </Reveal>
+        ))}
       </div>
     </section>
   );
@@ -1306,9 +1378,12 @@ export default function App() {
       <div className="grain-overlay" />
       <Nav openBooking={openBooking} />
       <Hero openBooking={openBooking} />
+      <MissionStatement />
       <QuickQuoteForm />
       <Services onBookService={handleBookService} />
       <WhyUs />
+      <RealJobsStrip />
+      <StatsBar />
       <BeforeAfterSlider />
       <GoogleReviewsSection />
       <ServiceMap />
