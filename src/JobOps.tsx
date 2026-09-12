@@ -1851,7 +1851,7 @@ function PhotoPanel({ job, onUpdate }: { job: Job; onUpdate: (j: Job) => void })
                 className="absolute top-2 right-2 w-7 h-7 bg-black/70 text-red-500 hover:bg-red-900/80 flex items-center justify-center text-sm transition-colors"
               >×</button>
               <span className="absolute bottom-2 left-2 text-[10px] text-gray-400 bg-black/60 px-1.5 py-0.5">
-                {new Date(photo.takenAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+                {new Date(photo.takenAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZone: 'America/Phoenix' })}
               </span>
             </div>
             <div className="p-3">
@@ -2033,7 +2033,7 @@ function VideoPanel({ job, onUpdate }: { job: Job; onUpdate: (j: Job) => void })
                 className="absolute top-2 right-2 w-7 h-7 bg-black/70 text-red-500 hover:bg-red-900/80 flex items-center justify-center text-sm transition-colors"
               >×</button>
               <span className="absolute bottom-2 left-2 text-[10px] text-gray-400 bg-black/60 px-1.5 py-0.5">
-                {new Date(video.takenAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+                {new Date(video.takenAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZone: 'America/Phoenix' })}
               </span>
             </div>
             <div className="p-3">
@@ -2606,7 +2606,7 @@ function ReviewStatusToggle({ job, onUpdate }: { job: Job; onUpdate: (j: Job) =>
       title={reviewed ? 'Customer confirmed to have left a review — click to undo' : 'Mark that this customer left a Google review'}
     >
       {saving ? 'Saving…' : reviewed
-        ? `⭐ Review Left${job.reviewLeftAt ? ' — ' + new Date(job.reviewLeftAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : ''}`
+        ? `⭐ Review Left${job.reviewLeftAt ? ' — ' + new Date(job.reviewLeftAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'America/Phoenix' }) : ''}`
         : '☆ Mark Review Left'}
     </button>
   );
@@ -3124,7 +3124,7 @@ function PaymentPanel({ job, onUpdate, onRequote }: { job: Job; onUpdate: (j: Jo
           </button>
         )}
         <p className="text-gray-500 text-xs font-mono">{job.stripeTransactionId}</p>
-        <p className="text-gray-600 text-xs">{job.paidAt ? new Date(job.paidAt).toLocaleString('en-US', { timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone }) : ''}</p>
+        <p className="text-gray-600 text-xs">{job.paidAt ? new Date(job.paidAt).toLocaleString('en-US', { timeZone: 'America/Phoenix' }) : ''}</p>
         <a
           href={invoiceUrl}
           target="_blank"
@@ -3146,7 +3146,7 @@ function PaymentPanel({ job, onUpdate, onRequote }: { job: Job; onUpdate: (j: Jo
         <div className="flex items-center justify-between gap-2">
           <p className={`text-xs ${job.invoiceSentCount ? 'text-emerald-700' : 'text-yellow-600'}`}>
             {job.invoiceSentCount
-              ? `📧 Invoice emailed ${job.invoiceSentCount}× — last sent ${job.invoiceLastSentAt ? new Date(job.invoiceLastSentAt).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : ''}`
+              ? `📧 Invoice emailed ${job.invoiceSentCount}× — last sent ${job.invoiceLastSentAt ? new Date(job.invoiceLastSentAt).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: 'America/Phoenix' }) : ''}`
               : '⚠️ Invoice email never sent to this customer'}
           </p>
           <button
@@ -3179,7 +3179,7 @@ function PaymentPanel({ job, onUpdate, onRequote }: { job: Job; onUpdate: (j: Jo
       <div className="flex items-center justify-between gap-2 -mt-1">
         <p className={`text-xs ${job.invoiceSentCount ? 'text-gray-600' : 'text-yellow-600'}`}>
           {job.invoiceSentCount
-            ? `📧 Invoice emailed ${job.invoiceSentCount}× — last sent ${job.invoiceLastSentAt ? new Date(job.invoiceLastSentAt).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : ''}`
+            ? `📧 Invoice emailed ${job.invoiceSentCount}× — last sent ${job.invoiceLastSentAt ? new Date(job.invoiceLastSentAt).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: 'America/Phoenix' }) : ''}`
             : '⚠️ Invoice email never sent to this customer'}
         </p>
         <button
@@ -6025,7 +6025,7 @@ export function InvoicePage() {
     weekday: 'long', month: 'long', day: 'numeric', year: 'numeric',
   });
   const paidDateStr = job.paidAt
-    ? new Date(job.paidAt).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+    ? new Date(job.paidAt).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'America/Phoenix' })
     : null;
   const invoiceNumber = job.id.startsWith('GID-') ? job.id : `GID-${job.id.slice(0, 8).toUpperCase()}`;
 
@@ -6156,7 +6156,7 @@ export function InvoicePage() {
                   <div key={p.id} className="flex justify-between text-sm gap-3">
                     <span className="text-gray-400">
                       {p.method}{p.note ? ` — ${p.note}` : ''}
-                      <span className="text-gray-600"> · {new Date(p.at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
+                      <span className="text-gray-600"> · {new Date(p.at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'America/Phoenix' })}</span>
                       {p.stripeId && <span className="block text-gray-600 font-mono text-xs break-all">{p.stripeId}</span>}
                     </span>
                     <span className="text-emerald-400 font-mono flex-shrink-0">${p.amount.toFixed(2)}</span>
@@ -6171,7 +6171,7 @@ export function InvoicePage() {
         {job.customerAgreed && (
           <div className="mt-4 px-4 py-3 border border-white/10 bg-white/5">
             <p className="text-gray-600 text-xs">Estimate approved by <strong className="text-gray-400">{job.customerSignature}</strong>
-              {job.signedAt ? ` on ${new Date(job.signedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone })}` : ''}.
+              {job.signedAt ? ` on ${new Date(job.signedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'America/Phoenix' })}` : ''}.
             </p>
           </div>
         )}
@@ -7067,7 +7067,7 @@ export function PPIPage() {
   );
   const failCount = record.checklist.filter(it => it.status === 'fail').length;
   const completedDateStr = record.completedAt
-    ? new Date(record.completedAt).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })
+    ? new Date(record.completedAt).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric', timeZone: 'America/Phoenix' })
     : null;
 
   const statusPill = (s: PPIItemStatus) => {
@@ -7332,7 +7332,7 @@ function buildInvoicesPdf(JsPDF: any, jobs: Job[], periodLabel: string): any {
 
     // Details
     const svcDate = job.date ? new Date(job.date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }) : '';
-    const paidDate = job.paidAt ? new Date(job.paidAt).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : '';
+    const paidDate = job.paidAt ? new Date(job.paidAt).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'America/Phoenix' }) : '';
     y = labelValueRow(y, 'Customer', `${job.fname || ''} ${job.lname || ''}`.trim());
     y = labelValueRow(y, 'Vehicle', job.vehicle || '');
     y = labelValueRow(y, 'Service Date', svcDate);
@@ -7493,7 +7493,7 @@ function InvoiceExport() {
       const invoiceNum = job.id.startsWith('GID-') ? job.id : `GID-${job.id.slice(0, 8).toUpperCase()}`;
       const total = ((job.invoiceAmount || 0) + (job.taxAmount || 0)).toFixed(2);
       const svcDate = new Date(job.date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
-      const paidDate = job.paidAt ? new Date(job.paidAt).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : '';
+      const paidDate = job.paidAt ? new Date(job.paidAt).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'America/Phoenix' }) : '';
       const lineItemsHtml = job.lineItems?.length
         ? job.lineItems.map(li => `<tr><td style="padding:6px 0;color:#ccc;font-size:13px;">${li.label}</td><td style="padding:6px 0;text-align:right;font-family:monospace;font-size:13px;color:#fff;white-space:nowrap;">${li.amount === 0 ? 'FREE' : (li.amount < 0 ? '-$' + Math.abs(li.amount).toFixed(2) : '$' + li.amount.toFixed(2))}</td></tr>`).join('')
         : '';
@@ -7735,7 +7735,7 @@ function JobsCSVExport() {
           amountPaid.toFixed(2),
           partsCost.toFixed(2),
           netProfit.toFixed(2),
-          j.paidAt ? new Date(j.paidAt).toLocaleDateString('en-US') : '',
+          j.paidAt ? new Date(j.paidAt).toLocaleDateString('en-US', { timeZone: 'America/Phoenix' }) : '',
           j.stripeTransactionId || '',
         ];
       });
@@ -8142,7 +8142,7 @@ export function OwnerPayPanel() {
     persistSettings(updated);
   }
 
-  const todayStr = new Date().toLocaleDateString('en-CA');
+  const todayStr = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Phoenix' });
   const trailing30Start = (() => {
     const d = new Date();
     d.setDate(d.getDate() - 30);
@@ -8955,8 +8955,8 @@ function RecoveryPanel() {
     if (restoreMode === 'replace' && confirmText.trim().toUpperCase() !== 'REPLACE') return;
     if (!confirm(
       restoreMode === 'replace'
-        ? `This will DELETE everything currently in the database and replace it with the ${new Date(backups.find(b => b.key === selectedKey)?.uploaded ?? '').toLocaleString()} backup. This cannot be undone. Continue?`
-        : `This will restore jobs/notes/settings from the ${new Date(backups.find(b => b.key === selectedKey)?.uploaded ?? '').toLocaleString()} backup, without deleting anything created since. Continue?`
+        ? `This will DELETE everything currently in the database and replace it with the ${new Date(backups.find(b => b.key === selectedKey)?.uploaded ?? '').toLocaleString('en-US', { timeZone: 'America/Phoenix' })} backup. This cannot be undone. Continue?`
+        : `This will restore jobs/notes/settings from the ${new Date(backups.find(b => b.key === selectedKey)?.uploaded ?? '').toLocaleString('en-US', { timeZone: 'America/Phoenix' })} backup, without deleting anything created since. Continue?`
     )) return;
     setRestoring(true);
     setRestoreError(null);
@@ -8994,7 +8994,7 @@ function RecoveryPanel() {
             {status?.lastBackupAt ? (
               <>
                 <p className="text-gray-300 text-sm mb-0.5">
-                  Last backup: <span className="font-mono">{new Date(status.lastBackupAt).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })}</span>
+                  Last backup: <span className="font-mono">{new Date(status.lastBackupAt).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'America/Phoenix' })}</span>
                   {' '}({hoursAgo! < 1 ? '<1 hr' : `${Math.round(hoursAgo!)} hr${Math.round(hoursAgo!) === 1 ? '' : 's'}`} ago)
                 </p>
                 <p className="text-gray-500 text-xs">
@@ -9035,7 +9035,7 @@ function RecoveryPanel() {
             >
               {backups.map(b => (
                 <option key={b.key} value={b.key}>
-                  {new Date(b.uploaded).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })} — {(b.sizeBytes / 1024).toFixed(0)} KB
+                  {new Date(b.uploaded).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'America/Phoenix' })} — {(b.sizeBytes / 1024).toFixed(0)} KB
                 </option>
               ))}
             </select>
