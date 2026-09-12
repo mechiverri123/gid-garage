@@ -58,10 +58,21 @@
         "addressLocality": "Flagstaff",
         "addressRegion": "AZ",
         "addressCountry": "US"
+      },
+      "hasOfferCatalog": {
+        "@type": "OfferCatalog",
+        "name": "Mobile Auto Repair Services",
+        "itemListElement": [
+          { "@type": "Offer", "itemOffered": { "@type": "Service", "name": "Oil Change", "description": "Full synthetic oil change, mobile service." }, "priceCurrency": "USD", "price": "79.99" },
+          { "@type": "Offer", "itemOffered": { "@type": "Service", "name": "Brake Service", "description": "Pad and rotor replacement, complete brake system service, mobile." }, "priceCurrency": "USD", "price": "149.99" },
+          { "@type": "Offer", "itemOffered": { "@type": "Service", "name": "Diagnostics", "description": "OBD2 code scan and interpretation, mobile." }, "priceCurrency": "USD", "price": "89.99" },
+          { "@type": "Offer", "itemOffered": { "@type": "Service", "name": "Suspension Repair", "description": "Shocks, struts, control arms, tie rods, CV axles, mobile service." }, "priceCurrency": "USD", "price": "174.99" },
+          { "@type": "Offer", "itemOffered": { "@type": "Service", "name": "Full Vehicle Inspection", "description": "Comprehensive multi-point inspection, complimentary with any mechanical service." }, "priceCurrency": "USD", "price": "0" }
+        ]
       }
     }
     </script>
-    <script type="application/ld+json">
+    <script type="application/ld+json" id="faq-schema">
     {
       "@context": "https://schema.org",
       "@type": "FAQPage",

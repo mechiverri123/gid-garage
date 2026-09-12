@@ -742,6 +742,19 @@ function GoogleReviewsSection() {
 
 // ── SERVICE AREA MAP ─────────────────────────────────────────────────────────
 // Real coordinates from Google Maps / Places API
+const DEFAULT_FAQ_SCHEMA = JSON.stringify({
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    { "@type": "Question", "name": "Do you actually come to me?", "acceptedAnswer": { "@type": "Answer", "text": "Yes — GID Garage is 100% mobile. Home, work, roadside, wherever your vehicle is, that's where we work on it." } },
+    { "@type": "Question", "name": "What areas do you cover?", "acceptedAnswer": { "@type": "Answer", "text": "Flagstaff and the surrounding communities — Fort Valley, Kachina Village, Mountainaire, Doney Park, Bellemont, Munds Park, Winona, Parks, Sedona, and Winslow. Not sure if you're in range? Just call or text — 480-757-0476." } },
+    { "@type": "Question", "name": "How fast can you get to me?", "acceptedAnswer": { "@type": "Answer", "text": "Same-day or next-day appointments are usually available, depending on the schedule. Text us your details and we'll give you a real answer, not a runaround." } },
+    { "@type": "Question", "name": "What kind of work do you do?", "acceptedAnswer": { "@type": "Answer", "text": "Oil changes, brakes, diagnostics, suspension, and most general maintenance and repair. A few specialty jobs — wheel alignments, A/C system work, transmission overhauls, welding — we'll point you to a shop that specializes in it, no charge for the honesty." } },
+    { "@type": "Question", "name": "How do I pay?", "acceptedAnswer": { "@type": "Answer", "text": "Card on file, tap-to-pay in person, or a secure payment link sent to your phone — whatever's easiest for you." } },
+    { "@type": "Question", "name": "Do I need to be there while you work?", "acceptedAnswer": { "@type": "Answer", "text": "Not necessarily — as long as we can access the vehicle and get in touch if anything comes up, plenty of customers have us come by while they're at work or running errands." } },
+  ],
+});
+
 const SERVICE_AREAS = [
   { name: 'Flagstaff',       slug: 'flagstaff',       lat: 35.1983, lng: -111.6513, isHome: true,  miles: 0,
     blurb: 'Home base. Same-day and next-day mobile appointments are usually available anywhere in town.' },
@@ -1084,6 +1097,27 @@ function ServiceAreaPage({ slug }: { slug: string }) {
       document.head.appendChild(link);
     }
     link.setAttribute('href', canonicalHref);
+
+    // Localize the FAQPage schema per town so Google doesn't see identical
+    // FAQ content across every service-area URL (duplicate-content risk).
+    // Flagstaff (home) keeps the generic, broader FAQ set already in index.html.
+    const faqScript = document.getElementById('faq-schema');
+    if (faqScript) {
+      if (area.isHome) {
+        faqScript.textContent = DEFAULT_FAQ_SCHEMA;
+      } else {
+        faqScript.textContent = JSON.stringify({
+          "@context": "https://schema.org",
+          "@type": "FAQPage",
+          "mainEntity": [
+            { "@type": "Question", "name": `Do you come to ${area.name}?`, "acceptedAnswer": { "@type": "Answer", "text": `Yes — GID Garage is 100% mobile and regularly services ${area.name}, AZ, about ${area.miles} miles from our Flagstaff home base. ${area.blurb}` } },
+            { "@type": "Question", "name": `How fast can you get to me in ${area.name}?`, "acceptedAnswer": { "@type": "Answer", "text": `Same-day or next-day appointments are usually available in ${area.name}, depending on the schedule. Text us your details and we'll give you a real answer, not a runaround.` } },
+            { "@type": "Question", "name": `What kind of work do you do in ${area.name}?`, "acceptedAnswer": { "@type": "Answer", "text": "Oil changes, brakes, diagnostics, suspension, and most general maintenance and repair. A few specialty jobs — wheel alignments, A/C system work, transmission overhauls, welding — we'll point you to a shop that specializes in it, no charge for the honesty." } },
+            { "@type": "Question", "name": "How do I pay?", "acceptedAnswer": { "@type": "Answer", "text": "Card on file, tap-to-pay in person, or a secure payment link sent to your phone — whatever's easiest for you." } },
+          ],
+        });
+      }
+    }
   }, [area]);
 
   if (!area) {

@@ -1077,7 +1077,7 @@ function QuoteCalculator({ job, onApply }: { job: Job; onApply: (items: LineItem
         const parts = (parseFloat(c.parts) || 0) * (1 + PARTS_MARKUP);
         const labor = c.hours * LABOR_RATE;
         if (parts > 0) items.push({ id: `${key}_parts`, label: `${label} ${svcLabel} — Parts`, amount: parts, type: 'parts' });
-        if (labor > 0) items.push({ id: `${key}_labor`, label: `${label} ${svcLabel} — Labor (${c.hours}hr @ $${LABOR_RATE}/hr)`, amount: labor, type: 'labor' });
+        if (labor > 0) items.push({ id: `${key}_labor`, label: `${label} ${svcLabel} — Labor`, amount: labor, type: 'labor' });
       });
 
       // Shop avg scales per corner enabled
@@ -1087,7 +1087,7 @@ function QuoteCalculator({ job, onApply }: { job: Job; onApply: (items: LineItem
       const hrs = parseFloat(laborHours) || LABOR_HOURS[serviceType] || 1;
       const labor = hrs * LABOR_RATE;
       if (parts > 0) items.push({ id: 'parts', label: `Parts — ${serviceType.replace(/_/g, ' ')}`, amount: parts, type: 'parts' });
-      items.push({ id: 'labor', label: `Labor — ${hrs}hr @ $${LABOR_RATE}/hr`, amount: labor, type: 'labor' });
+      items.push({ id: 'labor', label: `Labor`, amount: labor, type: 'labor' });
     }
 
     const total = items.reduce((s, i) => s + i.amount, 0);
