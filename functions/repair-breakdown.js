@@ -32,7 +32,12 @@ function supabaseHeaders(serviceKey) {
 const NORMALIZE_SYSTEM_PROMPT = `You convert a repair description into a canonical cache key so \
 similar jobs across model years/trims that share the same underlying hardware map to the same key.
 
-Rules:
+You will be given a list of EXISTING canonical keys already in the database. Check that list \
+FIRST: if this repair genuinely matches one of them (same engine/platform and same repair type), \
+respond with that EXACT existing key, copied exactly as shown — same wording, same capitalization, \
+same punctuation. Do not paraphrase an existing key even slightly.
+
+Only if nothing in the list matches, create a NEW key following these rules:
 - For engine, drivetrain, fuel system, or electrical work: key by the ENGINE CODE \
   shared across years/trims (e.g. "Toyota 2AZ-FE 2.4L", "VW EA888 2.0T"), not the model year. \
   If you don't know the exact engine code with confidence, fall back to "MAKE MODEL YEAR-RANGE".
@@ -46,7 +51,17 @@ Rules:
 
 Respond with ONLY the canonical key string. No explanation, no quotes, no punctuation besides what's in the key itself.`;
 
-async function normalizeToCanonicalKey(repair, apiKey) {
+async function fetchExistingKeys(base, headers) {
+  const res = await fetch(`${base}/repair_breakdowns?select=key&limit=500`, { headers });
+  if (!res.ok) return [];
+  const rows = await res.json();
+  return rows.map((r) => r.key);
+}
+
+async function normalizeToCanonicalKey(repair, apiKey, existingKeys) {
+  const keysList = existingKeys.length
+    ? `Existing canonical keys already in the database:\n${existingKeys.map((k) => `- ${k}`).join('\n')}\n\n`
+    : 'No existing keys yet — this will be the first one.\n\n';
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
@@ -54,10 +69,10 @@ async function normalizeToCanonicalKey(repair, apiKey) {
       model: 'claude-haiku-4-5-20251001',
       max_tokens: 100,
       system: NORMALIZE_SYSTEM_PROMPT,
-      messages: [{ role: 'user', content: repair }],
+      messages: [{ role: 'user', content: `${keysList}Repair to classify: ${repair}` }],
     }),
   });
-  if (!res.ok) return normalizeRawKey(repair); // fall back to raw normalization if classification fails
+  if (!res.ok) return normalizeRawKey(repair);
   const data = await res.json();
   const text = (data.content ?? []).filter((b) => b.type === 'text').map((b) => b.text).join('').trim();
   return text || normalizeRawKey(repair);
@@ -86,7 +101,8 @@ export async function onRequestPost({ request, env, waitUntil }) {
   let wasMerged = false;
 
   if (!canonicalKey) {
-    canonicalKey = await normalizeToCanonicalKey(repair, env.ANTHROPIC_API_KEY);
+    const existingKeys = await fetchExistingKeys(base, headers);
+    canonicalKey = await normalizeToCanonicalKey(repair, env.ANTHROPIC_API_KEY, existingKeys);
     wasMerged = canonicalKey !== rawKey;
     // Record this alias (fire-and-forget, doesn't block the response)
     waitUntil(fetch(`${base}/repair_aliases`, {
