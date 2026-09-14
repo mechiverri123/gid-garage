@@ -57,7 +57,7 @@ export default function RepairBreakdown() {
     } catch { /* transient — try again next tick */ }
   }
 
-  async function runBreakdown() {
+  async function runBreakdown(force = false) {
     if (!repair.trim()) return;
     stopPolling();
     setError(null);
@@ -65,7 +65,7 @@ export default function RepairBreakdown() {
     setStatus('pending');
     try {
       const res = await fetch('/repair-breakdown', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ repair }),
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ repair, force }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Request failed');
@@ -116,7 +116,16 @@ export default function RepairBreakdown() {
 
         {status === 'done' && result && (
           <div className="space-y-10 mt-6">
-            <p className="text-white/70 italic">{result.overview}</p>
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-white/70 italic">{result.overview}</p>
+              <button
+                onClick={() => runBreakdown(true)}
+                disabled={status === 'pending'}
+                className="text-xs text-white/50 hover:text-red-500 underline underline-offset-2 whitespace-nowrap disabled:opacity-40"
+              >
+                Refresh (re-research)
+              </button>
+            </div>
             {result.merged && (
               <p className="text-xs text-white/40">
                 Matched via shared engine/platform ({result.key}) — worth a gut-check if your exact year/trim might differ on this one.

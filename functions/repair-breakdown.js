@@ -79,7 +79,7 @@ async function normalizeToCanonicalKey(repair, apiKey, existingKeys) {
 }
 
 export async function onRequestPost({ request, env, waitUntil }) {
-  const { repair } = await request.json();
+  const { repair, force } = await request.json();
   if (!repair || typeof repair !== 'string') {
     return new Response(JSON.stringify({ error: "Missing 'repair' field" }), { status: 400, headers: { 'Content-Type': 'application/json' } });
   }
@@ -114,7 +114,7 @@ export async function onRequestPost({ request, env, waitUntil }) {
   const existingRes = await fetch(`${base}/repair_breakdowns?key=eq.${encodeURIComponent(canonicalKey)}&select=*`, { headers });
   const existing = existingRes.ok ? await existingRes.json() : [];
 
-  if (existing.length > 0) {
+  if (existing.length > 0 && !force) {
     const row = existing[0];
     if (row.status === 'done') {
       waitUntil(fetch(`${base}/repair_breakdowns?key=eq.${encodeURIComponent(canonicalKey)}`, {
@@ -125,9 +125,10 @@ export async function onRequestPost({ request, env, waitUntil }) {
     return new Response(JSON.stringify({ status: row.status, key: canonicalKey, merged: wasMerged }), { headers: { 'Content-Type': 'application/json' } });
   }
 
+  // New key, or a forced refresh of an existing one — (re)queue it for research.
   await fetch(`${base}/repair_breakdowns`, {
-    method: 'POST', headers: { ...headers, Prefer: 'resolution=ignore-duplicates' },
-    body: JSON.stringify({ key: canonicalKey, status: 'pending' }),
+    method: 'POST', headers: { ...headers, Prefer: 'resolution=merge-duplicates' },
+    body: JSON.stringify({ key: canonicalKey, status: 'pending', breakdown: null, error_message: null }),
   });
 
   return new Response(JSON.stringify({ status: 'pending', key: canonicalKey, merged: wasMerged, queued: true }), { headers: { 'Content-Type': 'application/json' } });
