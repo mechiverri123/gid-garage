@@ -17,6 +17,7 @@ const EstimatePage = lazy(() => import('./JobOps').then(m => ({ default: m.Estim
 const InvoicePage = lazy(() => import('./JobOps').then(m => ({ default: m.InvoicePage })));
 const PPIPage = lazy(() => import('./JobOps').then(m => ({ default: m.PPIPage })));
 const GamesPage = lazy(() => import('./GamesPage'));
+const RepairBreakdown = lazy(() => import('./RepairBreakdown'));
 
 // Cancel flow now validates server-side (secret lives in the worker, not here).
 async function apiPost(action: string, args: Record<string, any> = {}) {
@@ -1416,6 +1417,7 @@ export default function App() {
   const isPPI = window.location.pathname === '/ppi';
   const isGames = window.location.pathname === '/games';
   const isGameRedeem = window.location.pathname === '/game-redeem';
+  const isRepairTool = window.location.pathname === '/repair-tool';
   const isServiceArea = window.location.pathname.startsWith('/service-area/');
   const serviceAreaSlug = isServiceArea ? window.location.pathname.split('/service-area/')[1]?.replace(/\/$/, '') : '';
   const isPrivacy = window.location.pathname === '/privacy';
@@ -1456,6 +1458,7 @@ export default function App() {
   if (isPPI) return <Suspense fallback={null}><PPIPage /></Suspense>;
   if (isGames) return <Suspense fallback={null}><GamesPage /></Suspense>;
   if (isGameRedeem) return <GameRedeem />;
+  if (isRepairTool) return <Suspense fallback={null}><RepairBreakdown /></Suspense>;
   if (isServiceArea) return <ServiceAreaPage slug={serviceAreaSlug ?? ''} />;
   if (isPrivacy) return <PrivacyPolicyPage />;
   if (isReview) return <ReviewRedirect />;
