@@ -92,7 +92,7 @@ async function normalizeToCanonicalKey(repair, apiKey, existingKeys) {
 }
 
 export async function onRequestPost({ request, env, waitUntil }) {
-  const { repair, force } = await request.json();
+  const { repair, force, canonical_key_hint } = await request.json();
   if (!repair || typeof repair !== 'string') {
     return new Response(JSON.stringify({ error: "Missing 'repair' field" }), { status: 400, headers: { 'Content-Type': 'application/json' } });
   }
@@ -107,21 +107,36 @@ export async function onRequestPost({ request, env, waitUntil }) {
   const headers = supabaseHeaders(serviceKey);
   const rawKey = normalizeRawKey(repair);
 
-  // Fast path: have we seen this exact phrasing before? Skip classification entirely.
-  const aliasRes = await fetch(`${base}/repair_aliases?raw_key=eq.${encodeURIComponent(rawKey)}&select=canonical_key`, { headers });
-  const aliasRows = aliasRes.ok ? await aliasRes.json() : [];
-  let canonicalKey = aliasRows[0]?.canonical_key;
+  let canonicalKey;
   let wasMerged = false;
 
-  if (!canonicalKey) {
-    const existingKeys = await fetchCandidateKeys(base, headers, repair);
-    canonicalKey = await normalizeToCanonicalKey(repair, env.ANTHROPIC_API_KEY, existingKeys);
-    wasMerged = canonicalKey !== rawKey;
-    // Record this alias (fire-and-forget, doesn't block the response)
+  if (canonical_key_hint && typeof canonical_key_hint === 'string' && canonical_key_hint.trim()) {
+    // Trusted caller (queue_batch.py, using your curated target_vehicles
+    // platform_key) already knows the correct chassis/engine grouping —
+    // skip AI classification entirely so batch-seeded jobs never depend on
+    // the model guessing consistently. Still record the alias so an organic
+    // /repair-tool query with similar phrasing later reuses this same key.
+    canonicalKey = canonical_key_hint.trim();
     waitUntil(fetch(`${base}/repair_aliases`, {
       method: 'POST', headers: { ...headers, Prefer: 'resolution=ignore-duplicates' },
       body: JSON.stringify({ raw_key: rawKey, canonical_key: canonicalKey }),
     }));
+  } else {
+    // Fast path: have we seen this exact phrasing before? Skip classification entirely.
+    const aliasRes = await fetch(`${base}/repair_aliases?raw_key=eq.${encodeURIComponent(rawKey)}&select=canonical_key`, { headers });
+    const aliasRows = aliasRes.ok ? await aliasRes.json() : [];
+    canonicalKey = aliasRows[0]?.canonical_key;
+
+    if (!canonicalKey) {
+      const existingKeys = await fetchCandidateKeys(base, headers, repair);
+      canonicalKey = await normalizeToCanonicalKey(repair, env.ANTHROPIC_API_KEY, existingKeys);
+      wasMerged = canonicalKey !== rawKey;
+      // Record this alias (fire-and-forget, doesn't block the response)
+      waitUntil(fetch(`${base}/repair_aliases`, {
+        method: 'POST', headers: { ...headers, Prefer: 'resolution=ignore-duplicates' },
+        body: JSON.stringify({ raw_key: rawKey, canonical_key: canonicalKey }),
+      }));
+    }
   }
 
   const existingRes = await fetch(`${base}/repair_breakdowns?key=eq.${encodeURIComponent(canonicalKey)}&select=*`, { headers });
