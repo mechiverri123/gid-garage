@@ -13,7 +13,7 @@ interface VerifiedSpec {
   all_sources: SourcedValue[];
 }
 interface PartRaw { name: string; oem_part_number: string | null; source_url: string | null; }
-interface StepWithPhoto { text: string; timestamp_seconds: number; photo_base64: string | null; }
+interface StepWithPhoto { text: string; timestamp_seconds: number; photo_url: string | null; }
 
 interface BreakdownResult {
   overview: string;
@@ -234,10 +234,11 @@ export default function RepairBreakdown() {
                       <span className="text-red-600 font-bold shrink-0">{i + 1}.</span>
                       <div>
                         {s.text}
-                        {s.photo_base64 && (
+                        {s.photo_url && (
                           <img
-                            src={`data:image/jpeg;base64,${s.photo_base64}`}
+                            src={s.photo_url}
                             alt={`Step ${i + 1}`}
+                            loading="lazy"
                             className="mt-2 max-w-xs rounded border border-white/10"
                           />
                         )}
