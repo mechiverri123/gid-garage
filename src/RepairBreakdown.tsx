@@ -93,7 +93,7 @@ export default function RepairBreakdown() {
             onKeyDown={(e) => e.key === 'Enter' && runBreakdown()}
           />
           <button
-            onClick={runBreakdown}
+            onClick={() => runBreakdown()}
             disabled={status === 'pending'}
             className="btn-primary rounded disabled:opacity-50 disabled:cursor-not-allowed"
           >
