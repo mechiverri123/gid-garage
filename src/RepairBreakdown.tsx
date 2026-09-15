@@ -61,7 +61,10 @@ export default function RepairBreakdown() {
     if (!repair.trim()) return;
     stopPolling();
     setError(null);
-    setResult(null);
+    // Only keep the stale result visible on a Refresh (force=true) of the
+    // same entry — a fresh lookup for a different repair should still clear
+    // whatever was previously on screen.
+    if (!force) setResult(null);
     setStatus('pending');
     try {
       const res = await fetch('/repair-breakdown', {
@@ -103,8 +106,10 @@ export default function RepairBreakdown() {
 
         {status === 'pending' && (
           <p className="text-white/50 text-sm italic mb-6">
-            Not researched yet — queued for the background worker. If repair_worker.py
-            is running on your laptop, this fills in on its own within a minute or two.
+            {result
+              ? 'Refreshing — the info below is the last known-good result while new research runs.'
+              : 'Not researched yet — queued for the background worker. If repair_worker.py ' +
+                'is running on your laptop, this fills in on its own within a minute or two.'}
           </p>
         )}
 
@@ -114,7 +119,7 @@ export default function RepairBreakdown() {
           </div>
         )}
 
-        {status === 'done' && result && (
+        {result && (
           <div className="space-y-10 mt-6">
             <div className="flex items-center justify-between gap-3">
               <p className="text-white/70 italic">{result.overview}</p>

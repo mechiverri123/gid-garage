@@ -51,8 +51,21 @@ Only if nothing in the list matches, create a NEW key following these rules:
 
 Respond with ONLY the canonical key string. No explanation, no quotes, no punctuation besides what's in the key itself.`;
 
-async function fetchExistingKeys(base, headers) {
-  const res = await fetch(`${base}/repair_breakdowns?select=key&limit=500`, { headers });
+function extractSearchTerm(repair) {
+  // Crude but effective: strip a leading year (or year range), keep the next
+  // two words — typically make + model — to narrow candidate keys instead of
+  // loading every canonical key ever created.
+  const noYear = repair.trim().replace(/^\d{4}(-\d{4})?\s+/, '');
+  return noYear.split(/\s+/).slice(0, 2).join(' ');
+}
+
+async function fetchCandidateKeys(base, headers, repair) {
+  const term = extractSearchTerm(repair);
+  if (!term) return [];
+  const res = await fetch(
+    `${base}/repair_breakdowns?key=ilike.*${encodeURIComponent(term)}*&select=key&limit=100`,
+    { headers }
+  );
   if (!res.ok) return [];
   const rows = await res.json();
   return rows.map((r) => r.key);
@@ -101,7 +114,7 @@ export async function onRequestPost({ request, env, waitUntil }) {
   let wasMerged = false;
 
   if (!canonicalKey) {
-    const existingKeys = await fetchExistingKeys(base, headers);
+    const existingKeys = await fetchCandidateKeys(base, headers, repair);
     canonicalKey = await normalizeToCanonicalKey(repair, env.ANTHROPIC_API_KEY, existingKeys);
     wasMerged = canonicalKey !== rawKey;
     // Record this alias (fire-and-forget, doesn't block the response)
@@ -126,9 +139,14 @@ export async function onRequestPost({ request, env, waitUntil }) {
   }
 
   // New key, or a forced refresh of an existing one — (re)queue it for research.
+  // NOTE: intentionally not setting breakdown: null here — omitting the
+  // column from this upsert leaves the existing (still-good) breakdown in
+  // place until the worker's mark_done() overwrites it with a fresh result.
+  // If the re-research run errors, mark_error() only sets status/error, so
+  // the last known-good breakdown stays visible instead of being wiped.
   await fetch(`${base}/repair_breakdowns`, {
     method: 'POST', headers: { ...headers, Prefer: 'resolution=merge-duplicates' },
-    body: JSON.stringify({ key: canonicalKey, status: 'pending', breakdown: null, error_message: null }),
+    body: JSON.stringify({ key: canonicalKey, status: 'pending', error_message: null }),
   });
 
   return new Response(JSON.stringify({ status: 'pending', key: canonicalKey, merged: wasMerged, queued: true }), { headers: { 'Content-Type': 'application/json' } });
