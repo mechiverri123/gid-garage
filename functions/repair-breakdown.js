@@ -225,11 +225,14 @@ async function repairToolKnowledgeGet(url, env) {
   if(!year||!make||!model)return jsonResponse({error:'Year, make, and model are required'},400);
   const base=`${supabaseUrl}/rest/v1`, headers=supabaseHeaders(serviceKey);
   try {
-    const select='vehicle_key,year,make,model,engine_model,engine_displacement_l,engine_cylinders,fuel_type,drive_type,transmission_speeds,transmission_style,trim,source';
+    const select='id,configuration_key,vehicle_key,year,make,model,engine_model,engine_displacement_l,engine_cylinders,fuel_type,drive_type,transmission_speeds,transmission_style,trim,source';
     const cfg=`${base}/knowledge_vehicle_configurations?year=eq.${encodeURIComponent(year)}&make=eq.${encodeURIComponent(make)}&model=eq.${encodeURIComponent(model)}&select=${select}&limit=1000`;
     const configurations=await sbGet(cfg,headers,'Vehicle configuration query');
     if(!configurations.length)return jsonResponse({error:`No exact catalog match for ${year} ${make} ${model}`},404);
-    const keys=[...new Set(configurations.map(c=>c.vehicle_key).filter(Boolean))];
+    const requestedConfigId=url.searchParams.get('configuration_id');
+    const selectedConfiguration=requestedConfigId?configurations.find(c=>String(c.id)===String(requestedConfigId)):null;
+    if(requestedConfigId&&!selectedConfiguration)return jsonResponse({error:'Selected vehicle configuration is not valid for this vehicle'},400);
+    const keys=[...new Set((selectedConfiguration?[selectedConfiguration]:configurations).map(c=>c.vehicle_key).filter(Boolean))];
     let raw=[];
     // Query each exact vehicle key independently. This avoids fragile PostgREST in.(...) quoting
     // and remains bounded because a year/make/model normally maps to very few vehicle keys.
@@ -237,17 +240,45 @@ async function repairToolKnowledgeGet(url, env) {
       const q=`${base}/knowledge_research_results?vehicle_key=eq.${encodeURIComponent(key)}&select=id,vehicle_key,category,field_name,value_text,value_json,units,source_name,source_url,source_record_id,evidence_text,confidence,verification_status,created_at&order=category.asc,field_name.asc&limit=5000`;
       raw.push(...await sbGet(q,headers,'Repair knowledge query'));
     }
+    // If the technician selected an exact engine/drivetrain configuration, reject facts whose
+    // applicability metadata explicitly excludes it. Vehicle-wide facts remain visible.
+    if(selectedConfiguration){
+      raw=raw.filter(r=>{const o=obj(r);const ids=Array.isArray(o.applicable_configuration_ids)?o.applicable_configuration_ids.map(String):[];if(ids.length)return ids.includes(String(selectedConfiguration.id));if(o.configuration_id!=null)return String(o.configuration_id)===String(selectedConfiguration.id);return true;});
+    }
     const rows=groupRows(raw); const counts={}; for(const r of rows)counts[r.category]=(counts[r.category]||0)+1;
     // Engine/configuration identity comes from the exact configuration table, not vPIC WMI candidate lists.
     const engineFacts=[]; const engineSeen=new Set();
     for(const c of configurations){const bits=[c.engine_model,c.engine_displacement_l?`${c.engine_displacement_l} L`:null,c.engine_cylinders?`${c.engine_cylinders} cylinders`:null,c.fuel_type,c.drive_type,[c.transmission_speeds?`${c.transmission_speeds}-speed`:null,c.transmission_style].filter(Boolean).join(' ')].filter(Boolean); if(!bits.length)continue;const s=bits.join(' · ');if(engineSeen.has(s))continue;engineSeen.add(s);engineFacts.push({category:'engine_identity',field_name:'configuration',title:'Verified Vehicle Configuration',summary:s,details:c.trim?[{label:'Trim',value:String(c.trim)}]:[],source_name:c.source||'Vehicle configuration database',source_url:null,verification_status:'configuration',evidence_text:'',search_text:s});}
     const noResearchEngine=rows.filter(r=>r.category!=='engine_identity'); rows.splice(0,rows.length,...noResearchEngine,...engineFacts); counts.engine_identity=engineFacts.length;
-    return jsonResponse({vehicle:{year:Number(year),make,model},configurations,rows,counts,raw_count:raw.length,hidden_count:Math.max(0,raw.length-(rows.length-engineFacts.length))});
+    return jsonResponse({vehicle:{year:Number(year),make,model},configurations,selected_configuration:selectedConfiguration,rows,counts,raw_count:raw.length,hidden_count:Math.max(0,raw.length-(rows.length-engineFacts.length))});
   } catch(e) { return jsonResponse({error:e instanceof Error?e.message:'Repair Tool query failed'},502); }
+}
+
+async function repairToolVinGet(url, env) {
+  const vin=clean(url.searchParams.get('vin')).toUpperCase();
+  if(!/^[A-HJ-NPR-Z0-9]{17}$/.test(vin))return jsonResponse({error:'Enter a valid 17-character VIN'},400);
+  try{
+    const r=await fetch(`https://vpic.nhtsa.dot.gov/api/vehicles/DecodeVinValuesExtended/${encodeURIComponent(vin)}?format=json`);
+    if(!r.ok)return jsonResponse({error:`VIN decoder unavailable (${r.status})`},502);
+    const j=await r.json(),v=j?.Results?.[0]||{};
+    const year=Number(v.ModelYear||0),make=clean(v.Make),model=clean(v.Model);
+    if(!year||!make||!model)return jsonResponse({error:'VIN decoded, but year/make/model could not be verified'},422);
+    const supabaseUrl=env.SUPABASE_URL??env.VITE_SUPABASE_URL, serviceKey=env.SUPABASE_SERVICE_KEY;
+    if(!supabaseUrl||!serviceKey)return jsonResponse({error:'Repair knowledge database is not configured'},500);
+    const headers=supabaseHeaders(serviceKey),base=`${supabaseUrl}/rest/v1`;
+    const select='id,configuration_key,vehicle_key,year,make,model,engine_model,engine_displacement_l,engine_cylinders,fuel_type,drive_type,transmission_speeds,transmission_style,trim,source';
+    const q=`${base}/knowledge_vehicle_configurations?year=eq.${year}&make=ilike.${encodeURIComponent(make)}&model=ilike.${encodeURIComponent(model)}&select=${select}&limit=1000`;
+    let configs=await sbGet(q,headers,'VIN configuration match');
+    const disp=Number(v.DisplacementL||0),cyl=Number(v.EngineCylinders||0),drive=clean(v.DriveType).toLowerCase();
+    const scored=configs.map(c=>{let score=0;if(disp&&c.engine_displacement_l&&Math.abs(Number(c.engine_displacement_l)-disp)<0.06)score+=4;if(cyl&&Number(c.engine_cylinders)===cyl)score+=2;const cd=clean(c.drive_type).toLowerCase();if(drive&&cd&&((drive.includes('4')&&cd.includes('4'))||(drive.includes('all')&&cd.includes('awd'))||(drive.includes('front')&&cd.includes('front'))||(drive.includes('rear')&&cd.includes('rear'))))score+=2;return {c,score};}).sort((a,b)=>b.score-a.score);
+    const best=scored[0]?.score>0?scored[0].c:null;
+    return jsonResponse({vin,year,make,model,engine:{model:clean(v.EngineModel)||null,displacement_l:disp||null,cylinders:cyl||null},drive_type:clean(v.DriveType)||null,configuration_id:best?.id||null,configuration_match:best||null,configurations:configs});
+  }catch(e){return jsonResponse({error:e instanceof Error?e.message:'VIN lookup failed'},502);}
 }
 
 export async function onRequestGet({ request, env }) {
   const url=new URL(request.url);
+  if(url.searchParams.get('mode')==='vin')return repairToolVinGet(url,env);
   if(url.searchParams.get('mode'))return repairToolKnowledgeGet(url,env);
   const key=url.searchParams.get('key'); if(!key)return jsonResponse({error:'Missing key param'},400);
   const supabaseUrl=env.SUPABASE_URL??env.VITE_SUPABASE_URL, serviceKey=env.SUPABASE_SERVICE_KEY;
