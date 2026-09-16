@@ -22,12 +22,16 @@ interface VerifiedFluid {
   all_sources: FluidSourcedValue[];
 }
 interface PartRaw { name: string; oem_part_number: string | null; source_url: string | null; }
+interface AdditionalSpec { name: string; value: string; source_url: string | null; }
+interface KnownIssue { description: string; tsb_number: string | null; source_url: string | null; }
 interface StepWithPhoto { text: string; timestamp_seconds: number; photo_url: string | null; }
 
 interface BreakdownResult {
   overview: string;
   torque_specs: VerifiedSpec[];
   fluid_capacities: VerifiedFluid[];
+  additional_specs: AdditionalSpec[];
+  known_issues: KnownIssue[];
   pitfalls: string[];
   tools_needed: string[];
   parts: PartRaw[];
@@ -318,6 +322,52 @@ export default function RepairBreakdown() {
                     </div>
                   ))}
                 </div>
+              </section>
+            )}
+
+            {result.additional_specs.length > 0 && (
+              <section>
+                <h2 className="text-red-600 text-xs font-bold uppercase tracking-widest mb-3">Additional Specs</h2>
+                <ul className="space-y-1.5">
+                  {result.additional_specs.map((s, i) => (
+                    <li key={i} className="text-white/80 text-sm">
+                      <b>{s.name}:</b> {s.value}
+                      {s.source_url && (
+                        <>
+                          {' '}
+                          <a href={s.source_url} target="_blank" rel="noreferrer" className="text-white/50 hover:text-red-500 underline underline-offset-2 text-xs">
+                            source
+                          </a>
+                        </>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
+
+            {result.known_issues.length > 0 && (
+              <section>
+                <h2 className="text-red-600 text-xs font-bold uppercase tracking-widest mb-3">Known Issues / TSBs</h2>
+                <ul className="space-y-1.5">
+                  {result.known_issues.map((k, i) => (
+                    <li key={i} className="text-white/80 text-sm flex gap-2">
+                      <span className="text-red-600">—</span>
+                      <span>
+                        {k.description}
+                        {k.tsb_number && <span className="text-white/40"> (TSB {k.tsb_number})</span>}
+                        {k.source_url && (
+                          <>
+                            {' '}
+                            <a href={k.source_url} target="_blank" rel="noreferrer" className="text-white/50 hover:text-red-500 underline underline-offset-2 text-xs">
+                              source
+                            </a>
+                          </>
+                        )}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
               </section>
             )}
 
