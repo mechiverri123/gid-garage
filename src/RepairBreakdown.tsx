@@ -1,39 +1,407 @@
-import { useEffect,useMemo,useState } from 'react';
+// src/RepairBreakdown.tsx
+// Styled to match the main site's design system (dark bg, red-600 accent,
+// Barlow font — inherited automatically from index.css/tailwind.config.js).
 
-type Source={title:string;url:string}; type Spec={fastener?:string;system?:string;specification?:string;capacity?:string;value?:string;qualifier?:string;status?:string;sources?:Source[]};
-type Vehicle={vin?:string;year:string;make:string;model:string;trim?:string;engine_size?:string;engine_code?:string;cylinders?:string;drive_type?:string;transmission?:string;fuel_type?:string};
-type Result={vehicle:Vehicle;baseline:any;guide?:any;cache:{baseline:boolean;job?:boolean}};
-const formatEngine=(v?:string)=>{const m=String(v||'').match(/(\d+(?:\.\d+)?)/);if(!m)return v||'';const n=Number(m[1]);return Number.isFinite(n)?`${n.toFixed(1)} L`:v||''};
-const years=Array.from({length:new Date().getFullYear()-1980},(_,i)=>String(new Date().getFullYear()-i));
-const engines=Array.from({length:81},(_,i)=>(0.5+i*.1).toFixed(1)+' L');
-const drives=['2WD','FWD','RWD','AWD','4WD'];
-const transmissions=['Automatic','Manual','CVT','1-speed Automatic','2-speed Automatic','3-speed Automatic','4-speed Automatic','5-speed Automatic','6-speed Automatic','7-speed Automatic','8-speed Automatic','9-speed Automatic','10-speed Automatic','4-speed Manual','5-speed Manual','6-speed Manual'];
-const Select=({value,onChange,children,disabled=false}:{value:string,onChange:(v:string)=>void,children:any,disabled?:boolean})=><select value={value} onChange={e=>onChange(e.target.value)} disabled={disabled} className="w-full bg-[#151515] border border-white/10 rounded px-3 py-3 text-light focus:outline-none focus:border-red-600 disabled:opacity-40">{children}</select>;
-const Input=({value,onChange,placeholder}:{value:string,onChange:(v:string)=>void,placeholder:string})=><input value={value} onChange={e=>onChange(e.target.value)} placeholder={placeholder} className="w-full bg-[#151515] border border-white/10 rounded px-3 py-3 text-light placeholder-white/30 focus:outline-none focus:border-red-600"/>;
-const Sources=({items=[]}:{items?:Source[]})=><div className="flex flex-wrap gap-2 mt-1">{items.slice(0,4).map((s,i)=><a key={i} href={s.url} target="_blank" rel="noreferrer" className="text-[11px] text-white/40 hover:text-red-500 underline">{s.title||'source'}</a>)}</div>;
-function Specs({title,items,fluid=false}:{title:string;items?:Spec[];fluid?:boolean}){if(!items?.length)return null;return <section><h2 className="text-red-600 text-xs font-bold uppercase tracking-widest mb-3">{title}</h2><div className="space-y-2">{items.map((x,i)=><div key={i} className="bg-[#151515] border border-white/10 rounded p-3"><div className="flex justify-between gap-4"><b>{fluid?x.system:x.fastener}</b><span className={x.status==='VERIFIED'?'text-green-400':'text-yellow-400'}>{fluid?[x.specification,x.capacity].filter(Boolean).join(' • '):x.value||'Not verified'}</span></div>{x.qualifier&&<div className="text-xs text-white/40 mt-1">{x.qualifier}</div>}<Sources items={x.sources}/></div>)}</div></section>}
-export default function RepairBreakdown(){
- const [vin,setVin]=useState(''),[vehicle,setVehicle]=useState<Vehicle>({year:'',make:'',model:'',trim:'',engine_size:'',engine_code:'',drive_type:'',transmission:''});
- const [makes,setMakes]=useState<string[]>([]),[models,setModels]=useState<string[]>([]),[job,setJob]=useState(''),[result,setResult]=useState<Result|null>(null),[busy,setBusy]=useState(''),[error,setError]=useState('');
- const post=async(body:any)=>{const r=await fetch('/vehicle-research',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});const d=await r.json();if(!r.ok)throw new Error(d.error||'Request failed');return d};
- const loadMakes=async()=>{try{const d=await post({action:'selector_options',year:vehicle.year});setMakes(d.makes||[])}catch{setMakes([])}};
- const loadModels=async()=>{if(!vehicle.year||!vehicle.make){setModels([]);return}try{const d=await post({action:'selector_options',year:vehicle.year,make:vehicle.make});setModels(d.models||[])}catch{setModels([])}};
- useEffect(()=>{loadMakes()},[vehicle.year]);
- useEffect(()=>{loadModels()},[vehicle.year,vehicle.make]);
- const setField=(k:keyof Vehicle,v:string)=>{setResult(null);setVehicle(x=>({...x,[k]:v}))};
- const decode=async()=>{try{setBusy('Decoding VIN…');setError('');const d=await post({action:'decode',vin});setVehicle(d.vehicle);setResult(null)}catch(e:any){setError(e.message)}finally{setBusy('')}};
- const research=async(force_job=false)=>{try{setBusy(result?'Researching repair…':'Building vehicle profile…');setError('');const d=await post({vehicle,job:job.trim()||undefined,force_job});setResult(d);setVehicle(d.vehicle)}catch(e:any){setError(e.message)}finally{setBusy('')}};
- const g=result?.guide,b=result?.baseline; const modelOptions=useMemo(()=>models.slice().sort((a,b)=>a.localeCompare(b)),[models]);
- return <div className="min-h-screen bg-dark text-light px-4 py-10"><div className="max-w-5xl mx-auto space-y-7"><div><p className="section-label">GID Garage • Internal</p><h1 className="text-3xl md:text-4xl font-extrabold">Repair Tool</h1><p className="text-white/45 text-sm mt-2">VIN decode or guided selectors → exact vehicle → cached research.</p></div>
- <div className="bg-[#101010] border border-white/10 rounded-xl p-5 space-y-5"><div><div className="text-xs font-bold text-white/50 mb-2 uppercase tracking-widest">VIN</div><div className="flex gap-2"><Input value={vin} onChange={setVin} placeholder="17-character VIN"/><button onClick={decode} disabled={!!busy||vin.length!==17} className="btn-primary rounded whitespace-nowrap disabled:opacity-40">Decode VIN</button></div></div><div className="text-xs text-white/30 text-center">OR SELECT VEHICLE</div>
- <div className="grid md:grid-cols-3 gap-3"><Select value={vehicle.year} onChange={v=>{setField('year',v);setField('make','');setField('model','')}}><option value="">Year</option>{years.map(x=><option key={x}>{x}</option>)}</Select><Select value={vehicle.make} onChange={v=>{setField('make',v);setField('model','')}} disabled={!vehicle.year}><option value="">Make</option>{makes.map(x=><option key={x}>{x}</option>)}</Select><Select value={vehicle.model} onChange={v=>setField('model',v)} disabled={!vehicle.make}><option value="">Model</option>{modelOptions.map(x=><option key={x}>{x}</option>)}</Select></div>
- <div className="grid md:grid-cols-3 gap-3"><Select value={formatEngine(vehicle.engine_size)} onChange={v=>setField('engine_size',v)} disabled={!vehicle.model}><option value="">Engine size</option>{engines.map(x=><option key={x}>{x}</option>)}</Select><Select value={vehicle.drive_type||''} onChange={v=>setField('drive_type',v)} disabled={!vehicle.model}><option value="">Drivetrain / optional</option>{drives.map(x=><option key={x}>{x}</option>)}</Select><Select value={vehicle.transmission||''} onChange={v=>setField('transmission',v)} disabled={!vehicle.model}><option value="">Transmission / optional</option>{transmissions.map(x=><option key={x}>{x}</option>)}</Select></div>
- <details className="text-sm"><summary className="cursor-pointer text-white/40 hover:text-white/70">More vehicle details</summary><div className="grid md:grid-cols-2 gap-3 mt-3"><Input value={vehicle.trim||''} onChange={v=>setField('trim',v)} placeholder="Trim (optional)"/><Input value={vehicle.engine_code||''} onChange={v=>setField('engine_code',v)} placeholder="Engine code (optional)"/></div></details>
- <button onClick={()=>research()} disabled={!!busy||!vehicle.year||!vehicle.make||!vehicle.model} className="btn-primary rounded disabled:opacity-40">Build / Load Vehicle Profile</button></div>
- {vehicle.year&&vehicle.make&&vehicle.model&&<div className="border-l-4 border-red-600 pl-4"><div className="font-bold text-xl">{vehicle.year} {vehicle.make} {vehicle.model} {vehicle.trim}</div><div className="text-white/50 text-sm">{[formatEngine(vehicle.engine_size),vehicle.engine_code,vehicle.cylinders&&`${vehicle.cylinders} cyl`,vehicle.drive_type,vehicle.transmission].filter(Boolean).join(' • ')}</div></div>}
- {busy&&<div className="bg-red-950/20 border border-red-700/30 rounded p-4 text-red-300">{busy} First-time research can take a minute. Cached vehicles/jobs return immediately.</div>}{error&&<div className="bg-red-950/40 border border-red-600/40 text-red-300 rounded p-4">{error}</div>}
- {result&&<><div className="flex gap-2 text-xs"><span className={`rounded px-2 py-1 ${result.cache.baseline?'bg-green-950 text-green-300':'bg-blue-950 text-blue-300'}`}>{result.cache.baseline?'Vehicle cache hit':'New vehicle research saved'}</span>{g&&<span className={`rounded px-2 py-1 ${result.cache.job?'bg-green-950 text-green-300':'bg-blue-950 text-blue-300'}`}>{result.cache.job?'Repair cache hit':'New repair saved'}</span>}</div><Specs title="Fluids & Capacities" items={b?.fluids} fluid/><Specs title="Common Torque Specs" items={b?.common_torque_specs}/>
- <div className="bg-[#101010] border border-white/10 rounded-xl p-5"><h2 className="font-bold text-lg mb-3">What are you repairing?</h2><div className="flex gap-2"><Input value={job} onChange={setJob} placeholder="front wheel bearing"/><button onClick={()=>research()} disabled={!!busy||!job.trim()} className="btn-primary rounded whitespace-nowrap disabled:opacity-40">Build Repair Guide</button></div></div></>}
- {g&&<div className="space-y-8"><div><h2 className="text-2xl font-bold">{g.job}</h2><p className="text-white/60 mt-2">{g.overview}</p>{g.applicability&&<p className="text-xs text-white/40 mt-2">Applicability: {g.applicability}</p>}</div><Specs title="Job Torque Specs" items={g.torque_specs}/><Specs title="Job Fluids" items={g.fluids} fluid/>{g.warnings?.length>0&&<section><h2 className="text-red-600 text-xs font-bold uppercase tracking-widest mb-3">Warnings / Pitfalls</h2><ul className="space-y-2">{g.warnings.map((x:string,i:number)=><li key={i}>• {x}</li>)}</ul></section>}{g.procedure?.length>0&&<section><h2 className="text-red-600 text-xs font-bold uppercase tracking-widest mb-3">Repair Procedure</h2><ol className="space-y-3">{g.procedure.map((x:any,i:number)=><li key={i} className="bg-[#151515] border border-white/10 rounded p-3"><b className="text-red-500 mr-2">{x.step||i+1}.</b>{x.instruction}{x.critical_spec&&<div className="text-yellow-300 text-xs mt-1">Critical: {x.critical_spec}</div>}</li>)}</ol></section>}{g.youtube?.length>0&&<section><h2 className="text-red-600 text-xs font-bold uppercase tracking-widest mb-3">Matching YouTube Videos</h2><div className="grid md:grid-cols-2 gap-3">{g.youtube.map((v:any,i:number)=><a key={i} href={v.url} target="_blank" rel="noreferrer" className="bg-[#151515] border border-white/10 hover:border-red-600/60 rounded p-4"><b>▶ {v.title}</b><div className="text-xs text-white/40 mt-1">{v.match_notes}</div></a>)}</div></section>}<button onClick={()=>research(true)} className="text-xs text-white/40 underline">Re-research this repair</button></div>}
- </div></div>
+import { useState, useRef } from 'react';
+
+interface SourcedValue { value_ft_lb: number; domain: string; url: string; }
+interface VerifiedSpec {
+  fastener: string;
+  status: 'verified' | 'unconfirmed';
+  value_ft_lb: number | null;
+  agreeing_sources: SourcedValue[];
+  all_sources: SourcedValue[];
+}
+interface FluidSourcedValue { value: number; unit: string; domain: string; url: string; }
+interface VerifiedFluid {
+  fluid: string;
+  status: 'verified' | 'unconfirmed';
+  value: number | null;
+  unit: string | null;
+  agreeing_sources: FluidSourcedValue[];
+  all_sources: FluidSourcedValue[];
+}
+interface PartRaw { name: string; oem_part_number: string | null; source_url: string | null; }
+interface StepWithPhoto { text: string; timestamp_seconds: number; photo_url: string | null; }
+
+interface BreakdownResult {
+  overview: string;
+  torque_specs: VerifiedSpec[];
+  fluid_capacities: VerifiedFluid[];
+  pitfalls: string[];
+  tools_needed: string[];
+  parts: PartRaw[];
+  steps: StepWithPhoto[];
+  estimated_labor_hours: string;
+  video_source: string | null;
+  merged?: boolean;
+  key?: string;
+}
+
+interface VehicleInfo {
+  year: string; make: string; model: string; trim: string;
+  engine: string; drivetrain: string;
+}
+
+const POLL_INTERVAL_MS = 4000;
+const POLL_TIMEOUT_MS = 5 * 60 * 1000;
+
+const Field = ({ value, onChange, placeholder }: { value: string; onChange: (v: string) => void; placeholder: string }) => (
+  <input
+    value={value}
+    onChange={(e) => onChange(e.target.value)}
+    placeholder={placeholder}
+    className="bg-[#1a1a1a] border border-white/10 rounded px-3 py-2 text-light placeholder-white/30 text-sm focus:outline-none focus:border-red-600"
+  />
+);
+
+export default function RepairBreakdown() {
+  const [vin, setVin] = useState('');
+  const [vinBusy, setVinBusy] = useState(false);
+  const [vinError, setVinError] = useState<string | null>(null);
+  const [vehicle, setVehicle] = useState<VehicleInfo>({ year: '', make: '', model: '', trim: '', engine: '', drivetrain: '' });
+  const [repairJob, setRepairJob] = useState('');
+  const [status, setStatus] = useState<'idle' | 'pending' | 'done' | 'error'>('idle');
+  const [result, setResult] = useState<BreakdownResult | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const pollHandle = useRef<number | null>(null);
+
+  function stopPolling() {
+    if (pollHandle.current) { clearInterval(pollHandle.current); pollHandle.current = null; }
+  }
+
+  // Free NHTSA lookup — no Claude involved, no cost, no queue.
+  async function decodeVin() {
+    if (vin.trim().length !== 17) { setVinError('VIN must be 17 characters'); return; }
+    setVinBusy(true);
+    setVinError(null);
+    try {
+      const res = await fetch(`https://vpic.nhtsa.dot.gov/api/vehicles/DecodeVinValuesExtended/${encodeURIComponent(vin.trim())}?format=json`);
+      const data = await res.json();
+      const row = data?.Results?.[0];
+      if (!row || !row.ModelYear || !row.Make || !row.Model) throw new Error('VIN did not decode to a valid vehicle');
+      setVehicle({
+        year: row.ModelYear || '',
+        make: row.Make || '',
+        model: row.Model || '',
+        trim: row.Trim || row.Series || '',
+        engine: row.DisplacementL ? `${Number(row.DisplacementL).toFixed(1)}L` : (row.EngineModel || ''),
+        drivetrain: row.DriveType || '',
+      });
+    } catch (e) {
+      setVinError(e instanceof Error ? e.message : 'VIN decode failed');
+    } finally {
+      setVinBusy(false);
+    }
+  }
+
+  function vehicleDescription(): string {
+    return [vehicle.year, vehicle.make, vehicle.model, vehicle.trim, vehicle.engine, vehicle.drivetrain]
+      .filter(Boolean).join(' ');
+  }
+
+  async function pollStatus(key: string, startedAt: number) {
+    if (Date.now() - startedAt > POLL_TIMEOUT_MS) {
+      stopPolling();
+      setStatus('error');
+      setError('Timed out waiting for a result. Is a repair_worker.py running somewhere?');
+      return;
+    }
+    try {
+      const res = await fetch(`/repair-breakdown?key=${encodeURIComponent(key)}`);
+      const data = await res.json();
+      if (data.status === 'done') { stopPolling(); setResult(data); setStatus('done'); }
+      else if (data.status === 'error') { stopPolling(); setStatus('error'); setError(data.error || 'Research failed'); }
+    } catch { /* transient — try again next tick */ }
+  }
+
+  async function runBreakdown(force = false) {
+    const vehicleDesc = vehicleDescription();
+    if (!vehicleDesc || !repairJob.trim()) return;
+    const repair = `${vehicleDesc} ${repairJob.trim()}`;
+    stopPolling();
+    setError(null);
+    // Only keep the stale result visible on a Refresh (force=true) of the
+    // same entry — a fresh lookup for a different repair should still clear
+    // whatever was previously on screen.
+    if (!force) setResult(null);
+    setStatus('pending');
+    try {
+      const res = await fetch('/repair-breakdown', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        // priority: true — this is a live, on-site lookup, so it jumps ahead
+        // of any background/batch jobs already queued.
+        body: JSON.stringify({ repair, force, priority: true }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Request failed');
+      if (data.status === 'done') { setResult(data); setStatus('done'); return; }
+      const startedAt = Date.now();
+      pollHandle.current = window.setInterval(() => pollStatus(data.key, startedAt), POLL_INTERVAL_MS);
+    } catch (e) {
+      setStatus('error');
+      setError(e instanceof Error ? e.message : 'Unknown error');
+    }
+  }
+
+  return (
+    <div className="min-h-screen bg-dark text-light px-4 py-10">
+      <div className="max-w-3xl mx-auto">
+        <p className="section-label">Internal Tool</p>
+        <h1 className="text-3xl md:text-4xl font-extrabold text-light mb-6">Repair Breakdown</h1>
+
+        <div className="bg-[#101010] border border-white/10 rounded-xl p-5 space-y-4 mb-6">
+          <div>
+            <div className="text-xs font-bold text-white/50 mb-2 uppercase tracking-widest">VIN (optional)</div>
+            <div className="flex gap-2">
+              <input
+                value={vin}
+                onChange={(e) => setVin(e.target.value.toUpperCase())}
+                placeholder="17-character VIN"
+                maxLength={17}
+                className="flex-1 bg-[#1a1a1a] border border-white/10 rounded px-3 py-2 text-light placeholder-white/30 text-sm focus:outline-none focus:border-red-600"
+              />
+              <button
+                onClick={decodeVin}
+                disabled={vinBusy || vin.trim().length !== 17}
+                className="btn-primary rounded text-sm disabled:opacity-40 whitespace-nowrap"
+              >
+                {vinBusy ? 'Decoding...' : 'Decode VIN'}
+              </button>
+            </div>
+            {vinError && <p className="text-red-400 text-xs mt-1">{vinError}</p>}
+          </div>
+
+          <div className="text-xs text-white/30">— or fill in / adjust manually —</div>
+
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+            <Field value={vehicle.year} onChange={(v) => setVehicle({ ...vehicle, year: v })} placeholder="Year" />
+            <Field value={vehicle.make} onChange={(v) => setVehicle({ ...vehicle, make: v })} placeholder="Make" />
+            <Field value={vehicle.model} onChange={(v) => setVehicle({ ...vehicle, model: v })} placeholder="Model" />
+            <Field value={vehicle.trim} onChange={(v) => setVehicle({ ...vehicle, trim: v })} placeholder="Trim (optional)" />
+            <Field value={vehicle.engine} onChange={(v) => setVehicle({ ...vehicle, engine: v })} placeholder="Engine (e.g. 2.5L)" />
+            <Field value={vehicle.drivetrain} onChange={(v) => setVehicle({ ...vehicle, drivetrain: v })} placeholder="Drivetrain (optional)" />
+          </div>
+        </div>
+
+        <div className="flex gap-3 mb-2">
+          <input
+            value={repairJob}
+            onChange={(e) => setRepairJob(e.target.value)}
+            placeholder="front wheel bearing"
+            className="flex-1 bg-[#1a1a1a] border border-white/10 rounded px-4 py-3 text-light placeholder-white/30 focus:outline-none focus:border-red-600"
+            onKeyDown={(e) => e.key === 'Enter' && runBreakdown()}
+          />
+          <button
+            onClick={() => runBreakdown()}
+            disabled={status === 'pending' || !vehicle.year || !vehicle.make || !vehicle.model || !repairJob.trim()}
+            className="btn-primary rounded disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {status === 'pending' ? 'Checking...' : 'Run'}
+          </button>
+        </div>
+
+        {status === 'pending' && (
+          <p className="text-white/50 text-sm italic mb-6">
+            {result
+              ? 'Refreshing — the info below is the last known-good result while new research runs.'
+              : 'Queued as priority — a worker will pick this up within ~30s and usually finish in a couple minutes.'}
+          </p>
+        )}
+
+        {error && (
+          <div className="bg-red-950/40 border border-red-600/40 text-red-300 rounded px-4 py-3 text-sm mb-6">
+            {error}
+          </div>
+        )}
+
+        {result && (
+          <div className="space-y-10 mt-6">
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-white/70 italic">{result.overview}</p>
+              <button
+                onClick={() => runBreakdown(true)}
+                disabled={status === 'pending'}
+                className="text-xs text-white/50 hover:text-red-500 underline underline-offset-2 whitespace-nowrap disabled:opacity-40"
+              >
+                Refresh (re-research)
+              </button>
+            </div>
+            {result.merged && (
+              <p className="text-xs text-white/40">
+                Matched via shared engine/platform ({result.key}) — worth a gut-check if your exact year/trim might differ on this one.
+              </p>
+            )}
+
+            <section>
+              <h2 className="text-red-600 text-xs font-bold uppercase tracking-widest mb-3">Torque Specs</h2>
+              <div className="space-y-2">
+                {result.torque_specs.map((spec, i) => (
+                  <div
+                    key={i}
+                    className={`rounded px-4 py-3 border ${
+                      spec.status === 'verified'
+                        ? 'bg-green-950/30 border-green-700/40'
+                        : 'bg-yellow-950/30 border-yellow-700/40'
+                    }`}
+                  >
+                    <div className="font-bold text-light">{spec.fastener}</div>
+                    {spec.status === 'verified' ? (
+                      <div className="text-sm mt-1">
+                        <span className="text-green-400">✅ {spec.value_ft_lb} ft-lb</span>
+                        <span className="text-white/40"> — {spec.agreeing_sources.length} sources agree</span>
+                        <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs">
+                          {spec.agreeing_sources.map((s, j) => (
+                            <a key={j} href={s.url} target="_blank" rel="noreferrer" className="text-white/50 hover:text-red-500 underline underline-offset-2">
+                              {s.domain}: {s.value_ft_lb}
+                            </a>
+                          ))}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="text-sm mt-1">
+                        <span className="text-yellow-400">⚠️ Unconfirmed</span>
+                        <span className="text-white/40"> — sources disagree, check yourself</span>
+                        <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs">
+                          {spec.all_sources.map((s, j) => (
+                            <a key={j} href={s.url} target="_blank" rel="noreferrer" className="text-white/50 hover:text-red-500 underline underline-offset-2">
+                              {s.domain}: {s.value_ft_lb}
+                            </a>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </section>
+
+            {result.fluid_capacities.length > 0 && (
+              <section>
+                <h2 className="text-red-600 text-xs font-bold uppercase tracking-widest mb-3">Fluid Capacities</h2>
+                <div className="space-y-2">
+                  {result.fluid_capacities.map((fluid, i) => (
+                    <div
+                      key={i}
+                      className={`rounded px-4 py-3 border ${
+                        fluid.status === 'verified'
+                          ? 'bg-green-950/30 border-green-700/40'
+                          : 'bg-yellow-950/30 border-yellow-700/40'
+                      }`}
+                    >
+                      <div className="font-bold text-light">{fluid.fluid}</div>
+                      {fluid.status === 'verified' ? (
+                        <div className="text-sm mt-1">
+                          <span className="text-green-400">✅ {fluid.value} {fluid.unit}</span>
+                          <span className="text-white/40"> — {fluid.agreeing_sources.length} sources agree</span>
+                          <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs">
+                            {fluid.agreeing_sources.map((s, j) => (
+                              <a key={j} href={s.url} target="_blank" rel="noreferrer" className="text-white/50 hover:text-red-500 underline underline-offset-2">
+                                {s.domain}: {s.value} {s.unit}
+                              </a>
+                            ))}
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="text-sm mt-1">
+                          <span className="text-yellow-400">⚠️ Unconfirmed</span>
+                          <span className="text-white/40"> — sources disagree, check yourself</span>
+                          <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs">
+                            {fluid.all_sources.map((s, j) => (
+                              <a key={j} href={s.url} target="_blank" rel="noreferrer" className="text-white/50 hover:text-red-500 underline underline-offset-2">
+                                {s.domain}: {s.value} {s.unit}
+                              </a>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </section>
+            )}
+
+            <section>
+              <h2 className="text-red-600 text-xs font-bold uppercase tracking-widest mb-3">What Can Go Wrong</h2>
+              <ul className="space-y-1.5">
+                {result.pitfalls.map((p, i) => (
+                  <li key={i} className="text-white/80 text-sm flex gap-2">
+                    <span className="text-red-600">—</span>{p}
+                  </li>
+                ))}
+              </ul>
+            </section>
+
+            <section>
+              <h2 className="text-red-600 text-xs font-bold uppercase tracking-widest mb-3">Tools Needed</h2>
+              <ul className="space-y-1.5">
+                {result.tools_needed.map((t, i) => (
+                  <li key={i} className="text-white/80 text-sm flex gap-2">
+                    <span className="text-red-600">—</span>{t}
+                  </li>
+                ))}
+              </ul>
+            </section>
+
+            <section>
+              <h2 className="text-red-600 text-xs font-bold uppercase tracking-widest mb-3">Parts</h2>
+              <ul className="space-y-1.5">
+                {result.parts.map((p, i) => (
+                  <li key={i} className="text-white/80 text-sm">
+                    {p.name}
+                    {p.oem_part_number && <span className="text-white/40"> — OEM# {p.oem_part_number}</span>}
+                    {p.source_url && (
+                      <>
+                        {' '}
+                        <a href={p.source_url} target="_blank" rel="noreferrer" className="text-white/50 hover:text-red-500 underline underline-offset-2 text-xs">
+                          source
+                        </a>
+                      </>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </section>
+
+            <section>
+              <h2 className="text-red-600 text-xs font-bold uppercase tracking-widest mb-3">Step by Step</h2>
+              {result.video_source && (
+                <p className="text-xs text-white/40 mb-3">
+                  Video walkthrough:{' '}
+                  <a href={result.video_source} target="_blank" rel="noreferrer" className="text-white/60 hover:text-red-500 underline underline-offset-2">
+                    {result.video_source}
+                  </a>
+                </p>
+              )}
+              <ol className="space-y-5">
+                {result.steps.map((s, i) => (
+                  <li key={i} className="text-white/80 text-sm">
+                    <div className="flex gap-3">
+                      <span className="text-red-600 font-bold shrink-0">{i + 1}.</span>
+                      <div>
+                        {s.text}
+                        {s.photo_url && (
+                          <img
+                            src={s.photo_url}
+                            alt={`Step ${i + 1}`}
+                            loading="lazy"
+                            className="mt-2 max-w-xs rounded border border-white/10"
+                          />
+                        )}
+                      </div>
+                    </div>
+                  </li>
+                ))}
+              </ol>
+            </section>
+
+            <section className="border-t border-white/10 pt-6">
+              <h2 className="text-red-600 text-xs font-bold uppercase tracking-widest mb-2">Estimated Labor</h2>
+              <p className="text-white/80 text-sm">{result.estimated_labor_hours}</p>
+            </section>
+          </div>
+        )}
+      </div>
+    </div>
+  );
 }
