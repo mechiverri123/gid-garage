@@ -5,9 +5,10 @@ type Option = { value: string; label: string };
 type KnowledgeRow = {
   id?: string; category: string; field_name: string; value_text: string | null; value_json?: unknown;
   units?: string | null; source_name?: string | null; source_url?: string | null; evidence_text?: string | null;
-  confidence?: number | null; verification_status?: string | null;
+  confidence?: number | null; verification_status?: string | null; source_record_id?: string | null;
+  title?: string; summary?: string; details?: { label: string; value: string }[];
 };
-type VehicleResponse = { vehicle: { year: number; make: string; model: string; vehicle_key: string }; rows: KnowledgeRow[]; counts: Record<string, number> };
+type VehicleResponse = { vehicle: { year: number; make: string; model: string; vehicle_key: string }; rows: KnowledgeRow[]; counts: Record<string, number>; raw_count?: number; configurations?: Record<string, unknown>[] };
 
 const GROUPS = [
   ['fluids_capacities', 'Fluids & Capacities', Gauge],
@@ -81,14 +82,15 @@ export default function RepairBreakdown() {
         <section className="min-w-0">
           <div className="bg-[#121212] border border-white/10 rounded-xl overflow-hidden">
             <div className="p-4 md:p-5 border-b border-white/10 flex flex-col md:flex-row md:items-center justify-between gap-3">
-              <div><div className="text-xs uppercase tracking-widest text-red-500 font-bold">{GROUPS.find(g=>g[0]===active)?.[1]}</div><div className="text-sm text-white/40 mt-1">{visible.length} record{visible.length===1?'':'s'} • {total} total vehicle records</div></div>
+              <div><div className="text-xs uppercase tracking-widest text-red-500 font-bold">{GROUPS.find(g=>g[0]===active)?.[1]}</div><div className="text-sm text-white/40 mt-1">{visible.length} usable record{visible.length===1?'':'s'} • {total} employee-ready records{typeof data.raw_count==='number' && data.raw_count!==total ? ` • ${data.raw_count-total} raw evidence rows hidden` : ''}</div></div>
               <div className="relative"><Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30"/><input value={filter} onChange={e=>setFilter(e.target.value)} placeholder="Filter this section..." className="bg-[#0d0d0d] border border-white/10 rounded-lg pl-9 pr-3 py-2 text-sm outline-none focus:border-red-600 w-full md:w-64"/></div>
             </div>
             {visible.length===0 ? <div className="p-10 text-center"><AlertTriangle size={28} className="mx-auto text-white/15"/><div className="font-bold mt-3">No verified records in this section yet</div><p className="text-sm text-white/35 mt-1">The research workers can continue filling this coverage gap.</p></div> : <div className="divide-y divide-white/[.07]">{visible.map((r,i)=><article key={`${r.id||r.field_name}-${i}`} className="p-4 md:p-5 hover:bg-white/[.02]">
-              <div className="flex items-start gap-3"><ChevronRight size={16} className="text-red-600 mt-1 shrink-0"/><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><h3 className="font-bold text-[15px]">{r.field_name.replaceAll('_',' ')}</h3>{r.verification_status && <span className="text-[10px] uppercase tracking-wider border border-white/10 rounded px-1.5 py-0.5 text-white/40">{r.verification_status}</span>}</div>
-              {r.value_text && <div className="text-white/85 mt-1.5 leading-relaxed">{r.value_text}{r.units ? ` ${r.units}` : ''}</div>}
-              {r.evidence_text && r.evidence_text!==r.value_text && <p className="text-xs text-white/40 mt-2 leading-relaxed line-clamp-3">{r.evidence_text}</p>}
-              <div className="flex flex-wrap gap-x-4 gap-y-1 mt-3 text-[11px] text-white/30">{r.source_name && <span>{r.source_name}</span>}{typeof r.confidence==='number' && <span>confidence {Math.round(r.confidence*100)}%</span>}{r.source_url && <a href={r.source_url} target="_blank" rel="noreferrer" className="text-red-500/80 hover:text-red-400">Open source ↗</a>}</div></div></div>
+              <div className="flex items-start gap-3"><ChevronRight size={16} className="text-red-600 mt-1 shrink-0"/><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><h3 className="font-bold text-[15px]">{r.title || r.field_name.replaceAll('_',' ')}</h3>{r.verification_status && <span className="text-[10px] uppercase tracking-wider border border-white/10 rounded px-1.5 py-0.5 text-white/40">{r.verification_status}</span>}</div>
+              {r.summary && <div className="text-white/90 mt-2 leading-relaxed text-[15px]">{r.summary}{r.units ? ` ${r.units}` : ''}</div>}
+              {!!r.details?.length && <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-2 mt-4">{r.details.map((d,j)=><div key={`${d.label}-${j}`} className="flex gap-2 text-xs border-t border-white/[.06] pt-2"><span className="text-white/35 shrink-0">{d.label}</span><span className="text-white/70 break-words">{d.value}</span></div>)}</div>}
+              {r.evidence_text && r.evidence_text!==r.summary && <details className="mt-4"><summary className="text-xs text-white/35 cursor-pointer hover:text-white/60">Source evidence</summary><p className="text-xs text-white/40 mt-2 leading-relaxed">{r.evidence_text}</p></details>}
+              <div className="flex flex-wrap gap-x-4 gap-y-1 mt-4 text-[11px] text-white/30">{r.source_name && <span>Source: {r.source_name}</span>}{r.source_record_id && <span>Record: {r.source_record_id}</span>}{typeof r.confidence==='number' && <span>confidence {Math.round(r.confidence*100)}%</span>}{r.source_url && <a href={r.source_url} target="_blank" rel="noreferrer" className="text-red-500/80 hover:text-red-400">View source ↗</a>}</div></div></div>
             </article>)}</div>}
           </div>
         </section>

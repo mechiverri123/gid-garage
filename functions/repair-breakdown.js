@@ -169,48 +169,135 @@ export async function onRequestPost({ request, env, waitUntil }) {
 
 
 
-// Repair Tool employee knowledge-browser API. This is intentionally read-only
-// against the research corpus and is isolated from admin/customer APIs.
+// Repair Tool employee knowledge-browser API. Read-only and isolated from
+// admin/customer APIs. Raw research rows stay intact; this endpoint shapes
+// them for an employee-facing repair tool and never exposes archive ZIPs as
+// "open source" links.
+function jsonResponse(body, status = 200, cache = 'private, max-age=30') {
+  return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json', 'Cache-Control': cache } });
+}
+
+async function fetchAllCatalogValues(base, headers, level, filters) {
+  const pageSize = 1000;
+  const query = `${base}/knowledge_vehicle_configurations?select=${level}${filters}&order=${level}.asc`;
+  const first = await fetch(query, { headers: { ...headers, Range: `0-${pageSize - 1}`, Prefer: 'count=exact' } });
+  if (!first.ok) throw new Error('Vehicle catalog query failed');
+  let rows = await first.json();
+  const cr = first.headers.get('content-range') || '';
+  const m = cr.match(/\/(\d+)$/);
+  const total = m ? Number(m[1]) : rows.length;
+  if (total > pageSize) {
+    const requests = [];
+    for (let from = pageSize; from < total; from += pageSize) {
+      requests.push(fetch(query, { headers: { ...headers, Range: `${from}-${Math.min(from + pageSize - 1, total - 1)}` } }));
+    }
+    const responses = await Promise.all(requests);
+    for (const r of responses) {
+      if (!r.ok) throw new Error('Vehicle catalog query failed');
+      rows = rows.concat(await r.json());
+    }
+  }
+  return [...new Set(rows.map(x => x[level]).filter(v => v !== null && v !== undefined && String(v).trim()))];
+}
+
+function safeObject(row) {
+  if (row.value_json && typeof row.value_json === 'object' && !Array.isArray(row.value_json)) return row.value_json;
+  if (typeof row.value_text === 'string') {
+    const t = row.value_text.trim();
+    if (t.startsWith('{') && t.endsWith('}')) { try { return JSON.parse(t); } catch {} }
+  }
+  return null;
+}
+function humanLabel(s) { return String(s || '').replaceAll('_', ' ').replace(/\b\w/g, c => c.toUpperCase()); }
+function cleanText(s) { return typeof s === 'string' ? s.replace(/\s+/g, ' ').trim() : s; }
+function usableSourceUrl(url) {
+  if (!url || typeof url !== 'string') return null;
+  const lower = url.toLowerCase().split('?')[0];
+  if (lower.endsWith('.zip') || lower.includes('mfr_comms_received_') || lower.includes('complaints_received_')) return null;
+  return /^https?:\/\//i.test(url) ? url : null;
+}
+function displayRow(row) {
+  const obj = safeObject(row);
+  const details = [];
+  if (obj) {
+    const skip = new Set(['summary','evidence','value','text','remedy']);
+    for (const [k,v] of Object.entries(obj)) {
+      if (skip.has(k) || v === null || v === '' || (Array.isArray(v) && !v.length)) continue;
+      let value = Array.isArray(v) ? v.join(', ') : (typeof v === 'object' ? null : String(v));
+      if (value) details.push({ label: humanLabel(k), value: cleanText(value) });
+    }
+  }
+  let title = humanLabel(row.field_name);
+  let summary = obj?.summary || obj?.remedy || obj?.service_action || obj?.symptom || obj?.value || row.value_text || row.evidence_text || '';
+  if (row.field_name === 'manufacturer_communication') title = 'Manufacturer Service Bulletin';
+  if (row.field_name === 'tsb_service_intelligence') title = 'Service Bulletin Intelligence';
+  if (row.field_name === 'tsb_diagnostic_signal') title = 'Diagnostic Bulletin';
+  if (row.field_name === 'known_failure_signal') title = 'Known Failure / Complaint Signal';
+  if (row.field_name === 'recall_service_signal') title = 'Safety Recall';
+  if (row.field_name === 'dtc_reference') title = obj?.dtc ? `DTC ${obj.dtc}` : 'Diagnostic Trouble Code';
+  if (row.field_name === 'explicit_torque_spec') title = 'Torque Specification';
+  if (row.field_name === 'explicit_numeric_spec') title = 'Service Specification';
+  if (row.field_name === 'service_action') title = 'Recommended Service Action';
+  if (row.field_name === 'software_calibration_action') title = 'Software / Calibration Action';
+  if (row.field_name === 'special_tool_reference') title = 'Special Tool';
+  if (obj && typeof row.value_text === 'string' && row.value_text.trim().startsWith('{')) summary = obj.summary || obj.remedy || obj.service_action || obj.symptom || row.evidence_text || '';
+  return { ...row, title, summary: cleanText(summary), details: details.slice(0, 10), source_url: usableSourceUrl(row.source_url) };
+}
+function employeeReady(rows) {
+  // These vPIC WMI candidate lists are provenance/research evidence, not an
+  // exact engine assignment. Never show them to a technician as vehicle data.
+  const filtered = rows.filter(r => r.field_name !== 'engine_models_vpic_wmi');
+  // W1 can derive the same recall into safety + diagnostic evidence. Keep the
+  // recall in Safety; don't pretend a recall campaign is a diagnostic procedure.
+  const noRecallDiagnostics = filtered.filter(r => !(r.category === 'diagnostics' && r.field_name === 'known_failure_signal' && safeObject(r)?.campaign_number));
+  const seen = new Set();
+  const out = [];
+  for (const r of noRecallDiagnostics) {
+    const o = safeObject(r);
+    const bulletin = o?.document_id || o?.nhtsa_id || o?.campaign_number || '';
+    const key = `${r.category}|${bulletin}|${cleanText(o?.summary || o?.remedy || r.evidence_text || r.value_text || '').slice(0,180)}`;
+    if (seen.has(key)) continue;
+    seen.add(key); out.push(displayRow(r));
+  }
+  return out;
+}
+
 async function repairToolKnowledgeGet(url, env) {
   const supabaseUrl = env.SUPABASE_URL ?? env.VITE_SUPABASE_URL;
   const serviceKey = env.SUPABASE_SERVICE_KEY;
-  if (!supabaseUrl || !serviceKey) return new Response(JSON.stringify({ error: 'Repair knowledge database is not configured' }), { status: 500, headers: { 'Content-Type': 'application/json' } });
+  if (!supabaseUrl || !serviceKey) return jsonResponse({ error: 'Repair knowledge database is not configured' }, 500);
   const base = `${supabaseUrl}/rest/v1`;
   const headers = supabaseHeaders(serviceKey);
   const mode = url.searchParams.get('mode');
 
   if (mode === 'options') {
-    const level = url.searchParams.get('level');
-    const year = url.searchParams.get('year');
-    const make = url.searchParams.get('make');
-    if (!['year','make','model'].includes(level)) return new Response(JSON.stringify({ error: 'Invalid option level' }), { status: 400, headers: { 'Content-Type': 'application/json' } });
-    let select = level;
+    const level = url.searchParams.get('level'); const year = url.searchParams.get('year'); const make = url.searchParams.get('make');
+    if (!['year','make','model'].includes(level)) return jsonResponse({ error: 'Invalid option level' }, 400);
     let filters = '';
     if (level !== 'year' && year) filters += `&year=eq.${encodeURIComponent(year)}`;
     if (level === 'model' && make) filters += `&make=eq.${encodeURIComponent(make)}`;
-    const r = await fetch(`${base}/knowledge_vehicle_configurations?select=${select}${filters}&order=${select}.asc&limit=30000`, { headers });
-    if (!r.ok) return new Response(JSON.stringify({ error: 'Vehicle catalog query failed' }), { status: 502, headers: { 'Content-Type': 'application/json' } });
-    const rows = await r.json();
-    const vals = [...new Set(rows.map(x => x[level]).filter(v => v !== null && v !== undefined && String(v).trim()))];
-    if (level === 'year') vals.sort((a,b) => Number(b)-Number(a)); else vals.sort((a,b) => String(a).localeCompare(String(b)));
-    return new Response(JSON.stringify({ options: vals.map(v => ({ value: String(v), label: String(v) })) }), { headers: { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=300' } });
+    try {
+      const vals = await fetchAllCatalogValues(base, headers, level, filters);
+      if (level === 'year') vals.sort((a,b) => Number(b)-Number(a)); else vals.sort((a,b) => String(a).localeCompare(String(b)));
+      return jsonResponse({ options: vals.map(v => ({ value: String(v), label: String(v) })) }, 200, 'public, max-age=3600');
+    } catch { return jsonResponse({ error: 'Vehicle catalog query failed' }, 502); }
   }
 
   if (mode === 'knowledge') {
     const year = url.searchParams.get('year'); const make = url.searchParams.get('make'); const model = url.searchParams.get('model');
-    if (!year || !make || !model) return new Response(JSON.stringify({ error: 'Year, make, and model are required' }), { status: 400, headers: { 'Content-Type': 'application/json' } });
-    const cfgUrl = `${base}/knowledge_vehicle_configurations?year=eq.${encodeURIComponent(year)}&make=eq.${encodeURIComponent(make)}&model=eq.${encodeURIComponent(model)}&select=vehicle_key,year,make,model&limit=100`;
+    if (!year || !make || !model) return jsonResponse({ error: 'Year, make, and model are required' }, 400);
+    const cfgUrl = `${base}/knowledge_vehicle_configurations?year=eq.${encodeURIComponent(year)}&make=eq.${encodeURIComponent(make)}&model=eq.${encodeURIComponent(model)}&select=vehicle_key,year,make,model,engine_model,engine_displacement_l,engine_cylinders,fuel_type,drive_type,transmission_speeds,transmission_style,trim,source&limit=1000`;
     const cfgRes = await fetch(cfgUrl, { headers }); const configs = cfgRes.ok ? await cfgRes.json() : [];
-    if (!configs.length) return new Response(JSON.stringify({ error: 'Vehicle is not in the repair catalog' }), { status: 404, headers: { 'Content-Type': 'application/json' } });
+    if (!configs.length) return jsonResponse({ error: 'Vehicle is not in the repair catalog' }, 404);
     const keys = [...new Set(configs.map(c => c.vehicle_key).filter(Boolean))];
     const encodedKeys = keys.map(k => `"${String(k).replaceAll('"','\\"')}"`).join(',');
-    const resultUrl = `${base}/knowledge_research_results?vehicle_key=in.(${encodeURIComponent(encodedKeys)})&select=id,vehicle_key,category,field_name,value_text,value_json,units,source_name,source_url,evidence_text,confidence,verification_status,created_at&order=category.asc,field_name.asc&limit=5000`;
+    const resultUrl = `${base}/knowledge_research_results?vehicle_key=in.(${encodeURIComponent(encodedKeys)})&select=id,vehicle_key,category,field_name,value_text,value_json,units,source_name,source_url,source_record_id,evidence_text,confidence,verification_status,created_at&order=category.asc,field_name.asc&limit=5000`;
     const rr = await fetch(resultUrl, { headers });
-    if (!rr.ok) return new Response(JSON.stringify({ error: 'Repair knowledge query failed' }), { status: 502, headers: { 'Content-Type': 'application/json' } });
-    const rows = await rr.json(); const counts = {};
+    if (!rr.ok) return jsonResponse({ error: 'Repair knowledge query failed' }, 502);
+    const rawRows = await rr.json(); const rows = employeeReady(rawRows); const counts = {};
     for (const row of rows) counts[row.category] = (counts[row.category] || 0) + 1;
     const v = configs[0];
-    return new Response(JSON.stringify({ vehicle: { year: v.year, make: v.make, model: v.model, vehicle_key: keys[0] }, vehicle_keys: keys, rows, counts }), { headers: { 'Content-Type': 'application/json', 'Cache-Control': 'private, max-age=30' } });
+    return jsonResponse({ vehicle: { year: v.year, make: v.make, model: v.model, vehicle_key: keys[0] }, configurations: configs, vehicle_keys: keys, rows, counts, raw_count: rawRows.length });
   }
   return null;
 }
