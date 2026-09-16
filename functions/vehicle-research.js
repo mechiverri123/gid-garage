@@ -60,6 +60,21 @@ export async function onRequestPost({request,env}){
  try{
   if(!env.CLAUDE_CODE_OAUTH_TOKEN) return json({error:'CLAUDE_CODE_OAUTH_TOKEN is not configured on the server'},500);
   const body=await request.json(); let vehicle=body.vehicle||null;
+  if(body.action==='selector_options'){
+    const year=clean(body.year), make=clean(body.make);
+    if(!year) return json({makes:[],models:[]});
+    if(!make){
+      const r=await fetch(`https://vpic.nhtsa.dot.gov/api/vehicles/GetMakesForVehicleType/car?format=json`);
+      const d=await r.json();
+      const makes=[...new Set((d.Results||[]).map(x=>clean(x.MakeName)).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
+      return json({makes,models:[]});
+    }
+    const r=await fetch(`https://vpic.nhtsa.dot.gov/api/vehicles/GetModelsForMakeYear/make/${encodeURIComponent(make)}/modelyear/${encodeURIComponent(year)}?format=json`);
+    if(!r.ok) return json({makes:[],models:[]});
+    const d=await r.json();
+    const models=[...new Set((d.Results||[]).map(x=>clean(x.Model_Name)).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
+    return json({models});
+  }
   if(body.action==='decode') return json({vehicle:await decodeVin(clean(body.vin))});
   if(body.vin) vehicle=await decodeVin(clean(body.vin));
   if(!vehicle?.year||!vehicle?.make||!vehicle?.model) return json({error:'Vehicle needs year, make, and model (or a VIN).'},400);
