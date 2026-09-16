@@ -167,8 +167,57 @@ export async function onRequestPost({ request, env, waitUntil }) {
   return new Response(JSON.stringify({ status: 'pending', key: canonicalKey, merged: wasMerged, queued: true }), { headers: { 'Content-Type': 'application/json' } });
 }
 
+
+
+// Repair Tool employee knowledge-browser API. This is intentionally read-only
+// against the research corpus and is isolated from admin/customer APIs.
+async function repairToolKnowledgeGet(url, env) {
+  const supabaseUrl = env.SUPABASE_URL ?? env.VITE_SUPABASE_URL;
+  const serviceKey = env.SUPABASE_SERVICE_KEY;
+  if (!supabaseUrl || !serviceKey) return new Response(JSON.stringify({ error: 'Repair knowledge database is not configured' }), { status: 500, headers: { 'Content-Type': 'application/json' } });
+  const base = `${supabaseUrl}/rest/v1`;
+  const headers = supabaseHeaders(serviceKey);
+  const mode = url.searchParams.get('mode');
+
+  if (mode === 'options') {
+    const level = url.searchParams.get('level');
+    const year = url.searchParams.get('year');
+    const make = url.searchParams.get('make');
+    if (!['year','make','model'].includes(level)) return new Response(JSON.stringify({ error: 'Invalid option level' }), { status: 400, headers: { 'Content-Type': 'application/json' } });
+    let select = level;
+    let filters = '';
+    if (level !== 'year' && year) filters += `&year=eq.${encodeURIComponent(year)}`;
+    if (level === 'model' && make) filters += `&make=eq.${encodeURIComponent(make)}`;
+    const r = await fetch(`${base}/knowledge_vehicle_configurations?select=${select}${filters}&order=${select}.asc&limit=30000`, { headers });
+    if (!r.ok) return new Response(JSON.stringify({ error: 'Vehicle catalog query failed' }), { status: 502, headers: { 'Content-Type': 'application/json' } });
+    const rows = await r.json();
+    const vals = [...new Set(rows.map(x => x[level]).filter(v => v !== null && v !== undefined && String(v).trim()))];
+    if (level === 'year') vals.sort((a,b) => Number(b)-Number(a)); else vals.sort((a,b) => String(a).localeCompare(String(b)));
+    return new Response(JSON.stringify({ options: vals.map(v => ({ value: String(v), label: String(v) })) }), { headers: { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=300' } });
+  }
+
+  if (mode === 'knowledge') {
+    const year = url.searchParams.get('year'); const make = url.searchParams.get('make'); const model = url.searchParams.get('model');
+    if (!year || !make || !model) return new Response(JSON.stringify({ error: 'Year, make, and model are required' }), { status: 400, headers: { 'Content-Type': 'application/json' } });
+    const cfgUrl = `${base}/knowledge_vehicle_configurations?year=eq.${encodeURIComponent(year)}&make=eq.${encodeURIComponent(make)}&model=eq.${encodeURIComponent(model)}&select=vehicle_key,year,make,model&limit=100`;
+    const cfgRes = await fetch(cfgUrl, { headers }); const configs = cfgRes.ok ? await cfgRes.json() : [];
+    if (!configs.length) return new Response(JSON.stringify({ error: 'Vehicle is not in the repair catalog' }), { status: 404, headers: { 'Content-Type': 'application/json' } });
+    const keys = [...new Set(configs.map(c => c.vehicle_key).filter(Boolean))];
+    const encodedKeys = keys.map(k => `"${String(k).replaceAll('"','\\"')}"`).join(',');
+    const resultUrl = `${base}/knowledge_research_results?vehicle_key=in.(${encodeURIComponent(encodedKeys)})&select=id,vehicle_key,category,field_name,value_text,value_json,units,source_name,source_url,evidence_text,confidence,verification_status,created_at&order=category.asc,field_name.asc&limit=5000`;
+    const rr = await fetch(resultUrl, { headers });
+    if (!rr.ok) return new Response(JSON.stringify({ error: 'Repair knowledge query failed' }), { status: 502, headers: { 'Content-Type': 'application/json' } });
+    const rows = await rr.json(); const counts = {};
+    for (const row of rows) counts[row.category] = (counts[row.category] || 0) + 1;
+    const v = configs[0];
+    return new Response(JSON.stringify({ vehicle: { year: v.year, make: v.make, model: v.model, vehicle_key: keys[0] }, vehicle_keys: keys, rows, counts }), { headers: { 'Content-Type': 'application/json', 'Cache-Control': 'private, max-age=30' } });
+  }
+  return null;
+}
+
 export async function onRequestGet({ request, env }) {
   const url = new URL(request.url);
+  if (url.searchParams.get('mode')) { const response = await repairToolKnowledgeGet(url, env); if (response) return response; }
   const key = url.searchParams.get('key');
   if (!key) return new Response(JSON.stringify({ error: 'Missing key param' }), { status: 400, headers: { 'Content-Type': 'application/json' } });
 
