@@ -237,8 +237,33 @@ export default function RepairBreakdown() {
               </p>
             )}
 
+            {(() => {
+              const verifiedTorque = (result.torque_specs || []).filter((s) => s.status === 'verified');
+              const verifiedFluids = (result.fluid_capacities || []).filter((f) => f.status === 'verified');
+              if (verifiedTorque.length === 0 && verifiedFluids.length === 0) return null;
+              return (
+                <section className="bg-[#101010] border border-green-700/30 rounded-xl p-5">
+                  <h2 className="text-green-500 text-xs font-bold uppercase tracking-widest mb-4">Key Verified Specs</h2>
+                  <div className="grid sm:grid-cols-2 gap-4">
+                    {verifiedTorque.map((spec, i) => (
+                      <div key={`t${i}`}>
+                        <div className="text-white/50 text-xs">{spec.fastener}</div>
+                        <div className="text-3xl font-extrabold text-light">{spec.value_ft_lb} <span className="text-base font-normal text-white/50">ft-lb</span></div>
+                      </div>
+                    ))}
+                    {verifiedFluids.map((fluid, i) => (
+                      <div key={`f${i}`}>
+                        <div className="text-white/50 text-xs">{fluid.fluid}</div>
+                        <div className="text-3xl font-extrabold text-light">{fluid.value} <span className="text-base font-normal text-white/50">{fluid.unit}</span></div>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              );
+            })()}
+
             <section>
-              <h2 className="text-red-600 text-xs font-bold uppercase tracking-widest mb-3">Torque Specs</h2>
+              <h2 className="text-red-600 text-xs font-bold uppercase tracking-widest mb-3">All Torque Specs</h2>
               <div className="space-y-2">
                 {(result.torque_specs || []).map((spec, i) => (
                   <div
@@ -246,7 +271,7 @@ export default function RepairBreakdown() {
                     className={`rounded px-4 py-3 border ${
                       spec.status === 'verified'
                         ? 'bg-green-950/30 border-green-700/40'
-                        : 'bg-yellow-950/30 border-yellow-700/40'
+                        : 'bg-white/[0.03] border-white/10'
                     }`}
                   >
                     <div className="font-bold text-light">{spec.fastener}</div>
@@ -264,7 +289,7 @@ export default function RepairBreakdown() {
                       </div>
                     ) : (
                       <div className="text-sm mt-1">
-                        <span className="text-yellow-400">⚠️ Unconfirmed</span>
+                        <span className="text-white/40">Unconfirmed</span>
                         <span className="text-white/40"> — sources disagree, check yourself</span>
                         <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs">
                           {spec.all_sources.map((s, j) => (
@@ -282,7 +307,7 @@ export default function RepairBreakdown() {
 
             {(result.fluid_capacities || []).length > 0 && (
               <section>
-                <h2 className="text-red-600 text-xs font-bold uppercase tracking-widest mb-3">Fluid Capacities</h2>
+                <h2 className="text-red-600 text-xs font-bold uppercase tracking-widest mb-3">All Fluid Capacities</h2>
                 <div className="space-y-2">
                   {(result.fluid_capacities || []).map((fluid, i) => (
                     <div
@@ -290,7 +315,7 @@ export default function RepairBreakdown() {
                       className={`rounded px-4 py-3 border ${
                         fluid.status === 'verified'
                           ? 'bg-green-950/30 border-green-700/40'
-                          : 'bg-yellow-950/30 border-yellow-700/40'
+                          : 'bg-white/[0.03] border-white/10'
                       }`}
                     >
                       <div className="font-bold text-light">{fluid.fluid}</div>
@@ -308,7 +333,7 @@ export default function RepairBreakdown() {
                         </div>
                       ) : (
                         <div className="text-sm mt-1">
-                          <span className="text-yellow-400">⚠️ Unconfirmed</span>
+                          <span className="text-white/40">Unconfirmed</span>
                           <span className="text-white/40"> — sources disagree, check yourself</span>
                           <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs">
                             {fluid.all_sources.map((s, j) => (
