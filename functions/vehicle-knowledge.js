@@ -13,8 +13,27 @@ export async function onRequestGet({request,env}){
   const cr=await fetch(cq,{headers:h}); const configurations=cr.ok?await cr.json():[];
   const disp=Number(x.DisplacementL)||0,cyl=Number(x.EngineCylinders)||0,speeds=Number(x.TransmissionSpeeds)||0,em=clean(x.EngineModel).toLowerCase(),drive=clean(x.DriveType).toLowerCase();
   const scored=configurations.map(c=>{let score=0,signals=0;if(disp&&Number(c.engine_displacement_l)){signals++;if(Math.abs(Number(c.engine_displacement_l)-disp)<0.08)score+=5;else score-=5}if(cyl&&Number(c.engine_cylinders)){signals++;if(Number(c.engine_cylinders)===cyl)score+=3;else score-=3}if(em&&c.engine_model){signals++;if(clean(c.engine_model).toLowerCase().includes(em)||em.includes(clean(c.engine_model).toLowerCase()))score+=5}if(speeds&&Number(c.transmission_speeds)){signals++;if(Number(c.transmission_speeds)===speeds)score+=2;else score-=2}if(drive&&c.drive_type){signals++;const cd=clean(c.drive_type).toLowerCase();if(cd&&((drive.includes('4')&&cd.includes('4'))||(drive.includes('all')&&(cd.includes('all')||cd.includes('awd')))||(drive.includes('front')&&(cd.includes('front')||cd.includes('fwd')))||(drive.includes('rear')&&(cd.includes('rear')||cd.includes('rwd')))))score+=2}return {c,score,signals}}).sort((a,b)=>b.score-a.score);
-  const selected_configuration=scored.length&&scored[0].signals>0&&scored[0].score>0&&(scored.length===1||scored[0].score>scored[1].score)?scored[0].c:null;
-  return json({vin,year,make,model,engine_model:x.EngineModel||'',displacement_l:x.DisplacementL||'',cylinders:x.EngineCylinders||'',drive_type:x.DriveType||'',transmission_style:x.TransmissionStyle||'',transmission_speeds:x.TransmissionSpeeds||'',error_code:x.ErrorCode||'',configurations,selected_configuration});
+  let selected_configuration=scored.length&&scored[0].signals>0&&scored[0].score>0&&(scored.length===1||scored[0].score>scored[1].score)?scored[0].c:null;
+  // A valid VIN decode must never dead-end just because our local catalog is incomplete.
+  // Build a VIN-derived configuration that can drive live research immediately.
+  const vin_configuration={
+   year,make,model,
+   configuration_key:`vin|${vin}`,
+   vehicle_key:`${year}|${make}|${model}`.toLowerCase(),
+   engine_displacement_l:Number(x.DisplacementL)||undefined,
+   engine_model:clean(x.EngineModel)||undefined,
+   engine_cylinders:Number(x.EngineCylinders)||undefined,
+   drive_type:clean(x.DriveType)||undefined,
+   transmission_style:clean(x.TransmissionStyle)||undefined,
+   transmission_speeds:Number(x.TransmissionSpeeds)||undefined,
+   fuel_type:clean(x.FuelTypePrimary)||undefined,
+   trim:clean(x.Trim)||undefined,
+   source:'NHTSA vPIC VIN decode',
+   confidence:0.95,
+   vin_derived:true
+  };
+  if(!selected_configuration && configurations.length===0) selected_configuration=vin_configuration;
+  return json({vin,year,make,model,engine_model:x.EngineModel||'',displacement_l:x.DisplacementL||'',cylinders:x.EngineCylinders||'',drive_type:x.DriveType||'',transmission_style:x.TransmissionStyle||'',transmission_speeds:x.TransmissionSpeeds||'',error_code:x.ErrorCode||'',configurations,selected_configuration,vin_configuration,catalog_match:configurations.length>0});
  }
  const year=Number(u.searchParams.get('year')), make=clean(u.searchParams.get('make')), model=clean(u.searchParams.get('model'));
  if(!year||!make||!model)return json({error:'year, make and model required'},400);
