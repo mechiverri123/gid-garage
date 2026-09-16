@@ -238,25 +238,44 @@ export default function RepairBreakdown() {
             )}
 
             {(() => {
-              const verifiedTorque = (result.torque_specs || []).filter((s) => s.status === 'verified');
-              const verifiedFluids = (result.fluid_capacities || []).filter((f) => f.status === 'verified');
-              if (verifiedTorque.length === 0 && verifiedFluids.length === 0) return null;
+              const allTorque = result.torque_specs || [];
+              const allFluids = result.fluid_capacities || [];
+              if (allTorque.length === 0 && allFluids.length === 0) return null;
               return (
-                <section className="bg-[#101010] border border-green-700/30 rounded-xl p-5">
-                  <h2 className="text-green-500 text-xs font-bold uppercase tracking-widest mb-4">Key Verified Specs</h2>
-                  <div className="grid sm:grid-cols-2 gap-4">
-                    {verifiedTorque.map((spec, i) => (
-                      <div key={`t${i}`}>
-                        <div className="text-white/50 text-xs">{spec.fastener}</div>
-                        <div className="text-3xl font-extrabold text-light">{spec.value_ft_lb} <span className="text-base font-normal text-white/50">ft-lb</span></div>
-                      </div>
-                    ))}
-                    {verifiedFluids.map((fluid, i) => (
-                      <div key={`f${i}`}>
-                        <div className="text-white/50 text-xs">{fluid.fluid}</div>
-                        <div className="text-3xl font-extrabold text-light">{fluid.value} <span className="text-base font-normal text-white/50">{fluid.unit}</span></div>
-                      </div>
-                    ))}
+                <section className="bg-[#101010] border border-white/10 rounded-xl p-5">
+                  <h2 className="text-red-600 text-xs font-bold uppercase tracking-widest mb-4">Specs Summary</h2>
+                  <div className="grid sm:grid-cols-2 gap-5">
+                    {allTorque.map((spec, i) => {
+                      const verified = spec.status === 'verified';
+                      const value = verified ? spec.value_ft_lb : spec.all_sources?.[0]?.value_ft_lb;
+                      return (
+                        <div key={`t${i}`}>
+                          <div className="text-white/50 text-xs">{spec.fastener}</div>
+                          <div className="text-3xl font-extrabold text-light">
+                            {value ?? '?'} <span className="text-base font-normal text-white/50">ft-lb</span>
+                          </div>
+                          <div className={`text-xs mt-0.5 ${verified ? 'text-green-500' : 'text-white/40'}`}>
+                            {verified ? `${spec.agreeing_sources.length} sources agree` : 'unconfirmed — verify before use'}
+                          </div>
+                        </div>
+                      );
+                    })}
+                    {allFluids.map((fluid, i) => {
+                      const verified = fluid.status === 'verified';
+                      const value = verified ? fluid.value : fluid.all_sources?.[0]?.value;
+                      const unit = verified ? fluid.unit : fluid.all_sources?.[0]?.unit;
+                      return (
+                        <div key={`f${i}`}>
+                          <div className="text-white/50 text-xs">{fluid.fluid}</div>
+                          <div className="text-3xl font-extrabold text-light">
+                            {value ?? '?'} <span className="text-base font-normal text-white/50">{unit}</span>
+                          </div>
+                          <div className={`text-xs mt-0.5 ${verified ? 'text-green-500' : 'text-white/40'}`}>
+                            {verified ? `${fluid.agreeing_sources.length} sources agree` : 'unconfirmed — verify before use'}
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 </section>
               );
