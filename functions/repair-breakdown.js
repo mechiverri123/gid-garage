@@ -169,155 +169,89 @@ export async function onRequestPost({ request, env, waitUntil }) {
 
 
 
-// Repair Tool employee knowledge-browser API. Read-only and isolated from
-// admin/customer APIs. Raw research rows stay intact; this endpoint shapes
-// them for an employee-facing repair tool and never exposes archive ZIPs as
-// "open source" links.
-function jsonResponse(body, status = 200, cache = 'private, max-age=30') {
-  return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json', 'Cache-Control': cache } });
+// Repair Tool employee knowledge-browser API. Read-only. The worker corpus is
+// evidence storage; this endpoint deliberately turns it into technician-readable
+// cards and suppresses research-only rows rather than printing JSON.
+function jsonResponse(body, status = 200) {
+  return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json', 'Cache-Control': 'private, max-age=30' } });
 }
-
-async function fetchAllCatalogValues(base, headers, level, filters) {
-  const pageSize = 1000;
-  const query = `${base}/knowledge_vehicle_configurations?select=${level}${filters}&order=${level}.asc`;
-  const first = await fetch(query, { headers: { ...headers, Range: `0-${pageSize - 1}`, Prefer: 'count=exact' } });
-  if (!first.ok) throw new Error('Vehicle catalog query failed');
-  let rows = await first.json();
-  const cr = first.headers.get('content-range') || '';
-  const m = cr.match(/\/(\d+)$/);
-  const total = m ? Number(m[1]) : rows.length;
-  if (total > pageSize) {
-    const requests = [];
-    for (let from = pageSize; from < total; from += pageSize) {
-      requests.push(fetch(query, { headers: { ...headers, Range: `${from}-${Math.min(from + pageSize - 1, total - 1)}` } }));
-    }
-    const responses = await Promise.all(requests);
-    for (const r of responses) {
-      if (!r.ok) throw new Error('Vehicle catalog query failed');
-      rows = rows.concat(await r.json());
-    }
-  }
-  return [...new Set(rows.map(x => x[level]).filter(v => v !== null && v !== undefined && String(v).trim()))];
-}
-
-function safeObject(row) {
+function clean(v) { return typeof v === 'string' ? v.replace(/\s+/g, ' ').trim() : ''; }
+function obj(row) {
   if (row.value_json && typeof row.value_json === 'object' && !Array.isArray(row.value_json)) return row.value_json;
-  if (typeof row.value_text === 'string') {
-    const t = row.value_text.trim();
-    if (t.startsWith('{') && t.endsWith('}')) { try { return JSON.parse(t); } catch {} }
+  if (typeof row.value_text === 'string') { const t=row.value_text.trim(); if (t.startsWith('{')&&t.endsWith('}')) try { return JSON.parse(t); } catch {} }
+  return {};
+}
+function label(v) { return String(v||'').replaceAll('_',' ').replace(/\b\w/g,c=>c.toUpperCase()); }
+function sourceUrl(v) { if (!v || typeof v !== 'string' || !/^https?:\/\//i.test(v)) return null; const x=v.toLowerCase().split('?')[0]; return (x.endsWith('.zip')||x.includes('mfr_comms_received_')||x.includes('complaints_received_')) ? null : v; }
+function detailPairs(o, skip=[]) { const banned=new Set(['summary','evidence','text','value',...skip]); const out=[]; for(const [k,v] of Object.entries(o||{})){ if(banned.has(k)||v==null||v===''||(Array.isArray(v)&&!v.length)||typeof v==='object'&&!Array.isArray(v))continue; out.push({label:label(k),value:clean(Array.isArray(v)?v.join(', '):String(v))}); } return out.slice(0,12); }
+function baseCard(r, title, summary, details=[]) { return { id:r.id, category:r.category, field_name:r.field_name, title, summary:clean(summary), details, units:r.units, source_name:r.source_name, source_url:sourceUrl(r.source_url), source_record_id:r.source_record_id, confidence:r.confidence, verification_status:r.verification_status, evidence_text:clean(r.evidence_text), search_text:clean([title,summary,...details.map(d=>`${d.label} ${d.value}`),r.evidence_text].join(' ')) }; }
+function isResearchOnly(r) {
+  if (r.field_name === 'engine_models_vpic_wmi') return true;
+  if (r.category === 'diagnostics' && r.field_name === 'known_failure_signal' && obj(r).campaign_number) return true;
+  return false;
+}
+function groupRows(raw) {
+  const rows=raw.filter(r=>!isResearchOnly(r)); const used=new Set(); const out=[];
+  // Merge W2 fragments belonging to one manufacturer communication into one card.
+  const bulletins=new Map();
+  for(const r of rows){ if(!['tsbs','diagnostics','procedures','torque_specs'].includes(r.category))continue; const o=obj(r); const id=o.document_id||o.nhtsa_id||r.source_record_id; if(!id)continue; const key=`${r.category}|${id}`; if(!bulletins.has(key))bulletins.set(key,[]); bulletins.get(key).push(r); }
+  for(const [key,group] of bulletins){ if(group.length<2)continue; const first=group.find(r=>r.field_name==='manufacturer_communication')||group[0]; const all=group.map(obj); const pick=(name)=>all.map(o=>o[name]).find(v=>v!=null&&v!==''); const dtcs=[...new Set(all.flatMap(o=>Array.isArray(o.dtcs)?o.dtcs:(o.dtc?[o.dtc]:[])))]; const symptoms=[...new Set(all.flatMap(o=>Array.isArray(o.symptoms)?o.symptoms:(o.symptom?[o.symptom]:[])))]; const actions=[...new Set(all.flatMap(o=>[o.service_action,o.action,o.remedy].filter(Boolean)))]; const conditions=[...new Set(all.flatMap(o=>[o.operating_condition,o.condition].filter(Boolean)))]; const summary=pick('summary')||actions[0]||first.evidence_text||first.value_text||''; const details=[]; const doc=pick('document_id')||pick('nhtsa_id')||first.source_record_id; if(doc)details.push({label:'Bulletin / Document',value:String(doc)}); if(dtcs.length)details.push({label:'DTCs',value:dtcs.join(', ')}); if(symptoms.length)details.push({label:'Symptoms',value:symptoms.join(', ')}); if(conditions.length)details.push({label:'Conditions',value:conditions.join('; ')}); if(actions.length)details.push({label:'Service Action',value:actions.join('; ')}); const title=first.category==='diagnostics'?'Diagnostic Service Bulletin':first.category==='torque_specs'?'Bulletin Torque Specification':first.category==='procedures'?'Service Procedure Bulletin':'Manufacturer Service Bulletin'; out.push(baseCard(first,title,summary,details)); group.forEach(r=>used.add(r.id)); }
+  for(const r of rows){ if(used.has(r.id))continue; const o=obj(r); let title=label(r.field_name); let summary=o.summary||o.remedy||o.service_action||o.action||o.symptom||o.value||r.value_text||r.evidence_text||'';
+    if(r.field_name==='manufacturer_communication')title='Manufacturer Service Bulletin';
+    else if(r.field_name==='tsb_service_intelligence')title='Service Bulletin';
+    else if(r.field_name==='tsb_diagnostic_signal')title='Diagnostic Service Bulletin';
+    else if(r.field_name==='recall_service_signal')title='Safety Recall';
+    else if(r.field_name==='known_failure_signal')title='Known Failure Signal';
+    else if(r.field_name==='dtc_reference')title=o.dtc?`DTC ${o.dtc}`:'Diagnostic Trouble Code';
+    else if(r.field_name==='explicit_torque_spec')title='Torque Specification';
+    else if(r.field_name==='explicit_numeric_spec')title='Service Specification';
+    else if(r.field_name==='service_action')title='Service Action';
+    else if(r.field_name==='software_calibration_action')title='Software / Calibration';
+    else if(r.field_name==='special_tool_reference')title='Special Tool';
+    // If value_text is serialized JSON, never display it. Use useful object fields/evidence only.
+    if(typeof r.value_text==='string'&&r.value_text.trim().startsWith('{')) summary=o.summary||o.remedy||o.service_action||o.action||o.symptom||r.evidence_text||'';
+    if(!clean(summary) && !Object.keys(o).length) continue;
+    out.push(baseCard(r,title,summary,detailPairs(o,['remedy','service_action','action','symptom'])));
   }
-  return null;
+  // Exact duplicate collapse after shaping.
+  const seen=new Set(); return out.filter(c=>{const k=`${c.category}|${c.title}|${c.summary}|${c.source_record_id||''}`;if(seen.has(k))return false;seen.add(k);return true;});
 }
-function humanLabel(s) { return String(s || '').replaceAll('_', ' ').replace(/\b\w/g, c => c.toUpperCase()); }
-function cleanText(s) { return typeof s === 'string' ? s.replace(/\s+/g, ' ').trim() : s; }
-function usableSourceUrl(url) {
-  if (!url || typeof url !== 'string') return null;
-  const lower = url.toLowerCase().split('?')[0];
-  if (lower.endsWith('.zip') || lower.includes('mfr_comms_received_') || lower.includes('complaints_received_')) return null;
-  return /^https?:\/\//i.test(url) ? url : null;
-}
-function displayRow(row) {
-  const obj = safeObject(row);
-  const details = [];
-  if (obj) {
-    const skip = new Set(['summary','evidence','value','text','remedy']);
-    for (const [k,v] of Object.entries(obj)) {
-      if (skip.has(k) || v === null || v === '' || (Array.isArray(v) && !v.length)) continue;
-      let value = Array.isArray(v) ? v.join(', ') : (typeof v === 'object' ? null : String(v));
-      if (value) details.push({ label: humanLabel(k), value: cleanText(value) });
-    }
-  }
-  let title = humanLabel(row.field_name);
-  let summary = obj?.summary || obj?.remedy || obj?.service_action || obj?.symptom || obj?.value || row.value_text || row.evidence_text || '';
-  if (row.field_name === 'manufacturer_communication') title = 'Manufacturer Service Bulletin';
-  if (row.field_name === 'tsb_service_intelligence') title = 'Service Bulletin Intelligence';
-  if (row.field_name === 'tsb_diagnostic_signal') title = 'Diagnostic Bulletin';
-  if (row.field_name === 'known_failure_signal') title = 'Known Failure / Complaint Signal';
-  if (row.field_name === 'recall_service_signal') title = 'Safety Recall';
-  if (row.field_name === 'dtc_reference') title = obj?.dtc ? `DTC ${obj.dtc}` : 'Diagnostic Trouble Code';
-  if (row.field_name === 'explicit_torque_spec') title = 'Torque Specification';
-  if (row.field_name === 'explicit_numeric_spec') title = 'Service Specification';
-  if (row.field_name === 'service_action') title = 'Recommended Service Action';
-  if (row.field_name === 'software_calibration_action') title = 'Software / Calibration Action';
-  if (row.field_name === 'special_tool_reference') title = 'Special Tool';
-  if (obj && typeof row.value_text === 'string' && row.value_text.trim().startsWith('{')) summary = obj.summary || obj.remedy || obj.service_action || obj.symptom || row.evidence_text || '';
-  return { ...row, title, summary: cleanText(summary), details: details.slice(0, 10), source_url: usableSourceUrl(row.source_url) };
-}
-function employeeReady(rows) {
-  // These vPIC WMI candidate lists are provenance/research evidence, not an
-  // exact engine assignment. Never show them to a technician as vehicle data.
-  const filtered = rows.filter(r => r.field_name !== 'engine_models_vpic_wmi');
-  // W1 can derive the same recall into safety + diagnostic evidence. Keep the
-  // recall in Safety; don't pretend a recall campaign is a diagnostic procedure.
-  const noRecallDiagnostics = filtered.filter(r => !(r.category === 'diagnostics' && r.field_name === 'known_failure_signal' && safeObject(r)?.campaign_number));
-  const seen = new Set();
-  const out = [];
-  for (const r of noRecallDiagnostics) {
-    const o = safeObject(r);
-    const bulletin = o?.document_id || o?.nhtsa_id || o?.campaign_number || '';
-    const key = `${r.category}|${bulletin}|${cleanText(o?.summary || o?.remedy || r.evidence_text || r.value_text || '').slice(0,180)}`;
-    if (seen.has(key)) continue;
-    seen.add(key); out.push(displayRow(r));
-  }
-  return out;
-}
-
+async function sbGet(url, headers, name) { const r=await fetch(url,{headers}); if(!r.ok){const t=await r.text().catch(()=> ''); throw new Error(`${name} failed (${r.status})${t?`: ${t.slice(0,180)}`:''}`);} return r.json(); }
 async function repairToolKnowledgeGet(url, env) {
-  const supabaseUrl = env.SUPABASE_URL ?? env.VITE_SUPABASE_URL;
-  const serviceKey = env.SUPABASE_SERVICE_KEY;
-  if (!supabaseUrl || !serviceKey) return jsonResponse({ error: 'Repair knowledge database is not configured' }, 500);
-  const base = `${supabaseUrl}/rest/v1`;
-  const headers = supabaseHeaders(serviceKey);
-  const mode = url.searchParams.get('mode');
-
-  if (mode === 'options') {
-    const level = url.searchParams.get('level'); const year = url.searchParams.get('year'); const make = url.searchParams.get('make');
-    if (!['year','make','model'].includes(level)) return jsonResponse({ error: 'Invalid option level' }, 400);
-    let filters = '';
-    if (level !== 'year' && year) filters += `&year=eq.${encodeURIComponent(year)}`;
-    if (level === 'model' && make) filters += `&make=eq.${encodeURIComponent(make)}`;
-    try {
-      const vals = await fetchAllCatalogValues(base, headers, level, filters);
-      if (level === 'year') vals.sort((a,b) => Number(b)-Number(a)); else vals.sort((a,b) => String(a).localeCompare(String(b)));
-      return jsonResponse({ options: vals.map(v => ({ value: String(v), label: String(v) })) }, 200, 'public, max-age=3600');
-    } catch { return jsonResponse({ error: 'Vehicle catalog query failed' }, 502); }
-  }
-
-  if (mode === 'knowledge') {
-    const year = url.searchParams.get('year'); const make = url.searchParams.get('make'); const model = url.searchParams.get('model');
-    if (!year || !make || !model) return jsonResponse({ error: 'Year, make, and model are required' }, 400);
-    const cfgUrl = `${base}/knowledge_vehicle_configurations?year=eq.${encodeURIComponent(year)}&make=eq.${encodeURIComponent(make)}&model=eq.${encodeURIComponent(model)}&select=vehicle_key,year,make,model,engine_model,engine_displacement_l,engine_cylinders,fuel_type,drive_type,transmission_speeds,transmission_style,trim,source&limit=1000`;
-    const cfgRes = await fetch(cfgUrl, { headers }); const configs = cfgRes.ok ? await cfgRes.json() : [];
-    if (!configs.length) return jsonResponse({ error: 'Vehicle is not in the repair catalog' }, 404);
-    const keys = [...new Set(configs.map(c => c.vehicle_key).filter(Boolean))];
-    const encodedKeys = keys.map(k => `"${String(k).replaceAll('"','\\"')}"`).join(',');
-    const resultUrl = `${base}/knowledge_research_results?vehicle_key=in.(${encodeURIComponent(encodedKeys)})&select=id,vehicle_key,category,field_name,value_text,value_json,units,source_name,source_url,source_record_id,evidence_text,confidence,verification_status,created_at&order=category.asc,field_name.asc&limit=5000`;
-    const rr = await fetch(resultUrl, { headers });
-    if (!rr.ok) return jsonResponse({ error: 'Repair knowledge query failed' }, 502);
-    const rawRows = await rr.json(); const rows = employeeReady(rawRows); const counts = {};
-    for (const row of rows) counts[row.category] = (counts[row.category] || 0) + 1;
-    const v = configs[0];
-    return jsonResponse({ vehicle: { year: v.year, make: v.make, model: v.model, vehicle_key: keys[0] }, configurations: configs, vehicle_keys: keys, rows, counts, raw_count: rawRows.length });
-  }
-  return null;
+  const supabaseUrl=env.SUPABASE_URL??env.VITE_SUPABASE_URL, serviceKey=env.SUPABASE_SERVICE_KEY;
+  if(!supabaseUrl||!serviceKey)return jsonResponse({error:'Repair knowledge database is not configured'},500);
+  if(url.searchParams.get('mode')!=='knowledge')return jsonResponse({error:'Unsupported Repair Tool request'},400);
+  const year=url.searchParams.get('year'), make=url.searchParams.get('make'), model=url.searchParams.get('model');
+  if(!year||!make||!model)return jsonResponse({error:'Year, make, and model are required'},400);
+  const base=`${supabaseUrl}/rest/v1`, headers=supabaseHeaders(serviceKey);
+  try {
+    const select='vehicle_key,year,make,model,engine_model,engine_displacement_l,engine_cylinders,fuel_type,drive_type,transmission_speeds,transmission_style,trim,source';
+    const cfg=`${base}/knowledge_vehicle_configurations?year=eq.${encodeURIComponent(year)}&make=eq.${encodeURIComponent(make)}&model=eq.${encodeURIComponent(model)}&select=${select}&limit=1000`;
+    const configurations=await sbGet(cfg,headers,'Vehicle configuration query');
+    if(!configurations.length)return jsonResponse({error:`No exact catalog match for ${year} ${make} ${model}`},404);
+    const keys=[...new Set(configurations.map(c=>c.vehicle_key).filter(Boolean))];
+    let raw=[];
+    // Query each exact vehicle key independently. This avoids fragile PostgREST in.(...) quoting
+    // and remains bounded because a year/make/model normally maps to very few vehicle keys.
+    for(const key of keys){
+      const q=`${base}/knowledge_research_results?vehicle_key=eq.${encodeURIComponent(key)}&select=id,vehicle_key,category,field_name,value_text,value_json,units,source_name,source_url,source_record_id,evidence_text,confidence,verification_status,created_at&order=category.asc,field_name.asc&limit=5000`;
+      raw.push(...await sbGet(q,headers,'Repair knowledge query'));
+    }
+    const rows=groupRows(raw); const counts={}; for(const r of rows)counts[r.category]=(counts[r.category]||0)+1;
+    // Engine/configuration identity comes from the exact configuration table, not vPIC WMI candidate lists.
+    const engineFacts=[]; const engineSeen=new Set();
+    for(const c of configurations){const bits=[c.engine_model,c.engine_displacement_l?`${c.engine_displacement_l} L`:null,c.engine_cylinders?`${c.engine_cylinders} cylinders`:null,c.fuel_type,c.drive_type,[c.transmission_speeds?`${c.transmission_speeds}-speed`:null,c.transmission_style].filter(Boolean).join(' ')].filter(Boolean); if(!bits.length)continue;const s=bits.join(' · ');if(engineSeen.has(s))continue;engineSeen.add(s);engineFacts.push({category:'engine_identity',field_name:'configuration',title:'Verified Vehicle Configuration',summary:s,details:c.trim?[{label:'Trim',value:String(c.trim)}]:[],source_name:c.source||'Vehicle configuration database',source_url:null,verification_status:'configuration',evidence_text:'',search_text:s});}
+    const noResearchEngine=rows.filter(r=>r.category!=='engine_identity'); rows.splice(0,rows.length,...noResearchEngine,...engineFacts); counts.engine_identity=engineFacts.length;
+    return jsonResponse({vehicle:{year:Number(year),make,model},configurations,rows,counts,raw_count:raw.length,hidden_count:Math.max(0,raw.length-(rows.length-engineFacts.length))});
+  } catch(e) { return jsonResponse({error:e instanceof Error?e.message:'Repair Tool query failed'},502); }
 }
 
 export async function onRequestGet({ request, env }) {
-  const url = new URL(request.url);
-  if (url.searchParams.get('mode')) { const response = await repairToolKnowledgeGet(url, env); if (response) return response; }
-  const key = url.searchParams.get('key');
-  if (!key) return new Response(JSON.stringify({ error: 'Missing key param' }), { status: 400, headers: { 'Content-Type': 'application/json' } });
-
-  const supabaseUrl = env.SUPABASE_URL ?? env.VITE_SUPABASE_URL;
-  const headers = supabaseHeaders(env.SUPABASE_SERVICE_KEY);
-  const base = `${supabaseUrl}/rest/v1`;
-
-  const res = await fetch(`${base}/repair_breakdowns?key=eq.${encodeURIComponent(key)}&select=*`, { headers });
-  const rows = res.ok ? await res.json() : [];
-  if (rows.length === 0) return new Response(JSON.stringify({ error: 'Not found' }), { status: 404, headers: { 'Content-Type': 'application/json' } });
-
-  const row = rows[0];
-  if (row.status === 'done') return new Response(JSON.stringify({ status: 'done', key, ...row.breakdown }), { headers: { 'Content-Type': 'application/json' } });
-  if (row.status === 'error') return new Response(JSON.stringify({ status: 'error', error: row.error_message }), { headers: { 'Content-Type': 'application/json' } });
-  return new Response(JSON.stringify({ status: row.status }), { headers: { 'Content-Type': 'application/json' } });
+  const url=new URL(request.url);
+  if(url.searchParams.get('mode'))return repairToolKnowledgeGet(url,env);
+  const key=url.searchParams.get('key'); if(!key)return jsonResponse({error:'Missing key param'},400);
+  const supabaseUrl=env.SUPABASE_URL??env.VITE_SUPABASE_URL, serviceKey=env.SUPABASE_SERVICE_KEY;
+  if(!supabaseUrl||!serviceKey)return jsonResponse({error:'Server not configured'},500);
+  const headers=supabaseHeaders(serviceKey), base=`${supabaseUrl}/rest/v1`;
+  try { const rows=await sbGet(`${base}/repair_breakdowns?key=eq.${encodeURIComponent(key)}&select=*`,headers,'Repair breakdown query'); if(!rows.length)return jsonResponse({error:'Not found'},404); const row=rows[0]; if(row.status==='done')return jsonResponse({status:'done',key,...row.breakdown}); if(row.status==='error')return jsonResponse({status:'error',error:row.error_message}); return jsonResponse({status:row.status}); } catch(e){return jsonResponse({error:e instanceof Error?e.message:'Lookup failed'},502);}
 }
