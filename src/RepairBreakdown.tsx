@@ -240,7 +240,7 @@ export default function RepairBreakdown() {
             <section>
               <h2 className="text-red-600 text-xs font-bold uppercase tracking-widest mb-3">Torque Specs</h2>
               <div className="space-y-2">
-                {result.torque_specs.map((spec, i) => (
+                {(result.torque_specs || []).map((spec, i) => (
                   <div
                     key={i}
                     className={`rounded px-4 py-3 border ${
@@ -280,11 +280,11 @@ export default function RepairBreakdown() {
               </div>
             </section>
 
-            {result.fluid_capacities.length > 0 && (
+            {(result.fluid_capacities || []).length > 0 && (
               <section>
                 <h2 className="text-red-600 text-xs font-bold uppercase tracking-widest mb-3">Fluid Capacities</h2>
                 <div className="space-y-2">
-                  {result.fluid_capacities.map((fluid, i) => (
+                  {(result.fluid_capacities || []).map((fluid, i) => (
                     <div
                       key={i}
                       className={`rounded px-4 py-3 border ${
@@ -325,11 +325,11 @@ export default function RepairBreakdown() {
               </section>
             )}
 
-            {result.additional_specs.length > 0 && (
+            {(result.additional_specs || []).length > 0 && (
               <section>
                 <h2 className="text-red-600 text-xs font-bold uppercase tracking-widest mb-3">Additional Specs</h2>
                 <ul className="space-y-1.5">
-                  {result.additional_specs.map((s, i) => (
+                  {(result.additional_specs || []).map((s, i) => (
                     <li key={i} className="text-white/80 text-sm">
                       <b>{s.name}:</b> {s.value}
                       {s.source_url && (
@@ -346,11 +346,11 @@ export default function RepairBreakdown() {
               </section>
             )}
 
-            {result.known_issues.length > 0 && (
+            {(result.known_issues || []).length > 0 && (
               <section>
                 <h2 className="text-red-600 text-xs font-bold uppercase tracking-widest mb-3">Known Issues / TSBs</h2>
                 <ul className="space-y-1.5">
-                  {result.known_issues.map((k, i) => (
+                  {(result.known_issues || []).map((k, i) => (
                     <li key={i} className="text-white/80 text-sm flex gap-2">
                       <span className="text-red-600">—</span>
                       <span>
@@ -374,7 +374,7 @@ export default function RepairBreakdown() {
             <section>
               <h2 className="text-red-600 text-xs font-bold uppercase tracking-widest mb-3">What Can Go Wrong</h2>
               <ul className="space-y-1.5">
-                {result.pitfalls.map((p, i) => (
+                {(result.pitfalls || []).map((p, i) => (
                   <li key={i} className="text-white/80 text-sm flex gap-2">
                     <span className="text-red-600">—</span>{p}
                   </li>
@@ -385,7 +385,7 @@ export default function RepairBreakdown() {
             <section>
               <h2 className="text-red-600 text-xs font-bold uppercase tracking-widest mb-3">Tools Needed</h2>
               <ul className="space-y-1.5">
-                {result.tools_needed.map((t, i) => (
+                {(result.tools_needed || []).map((t, i) => (
                   <li key={i} className="text-white/80 text-sm flex gap-2">
                     <span className="text-red-600">—</span>{t}
                   </li>
@@ -396,7 +396,7 @@ export default function RepairBreakdown() {
             <section>
               <h2 className="text-red-600 text-xs font-bold uppercase tracking-widest mb-3">Parts</h2>
               <ul className="space-y-1.5">
-                {result.parts.map((p, i) => (
+                {(result.parts || []).map((p, i) => (
                   <li key={i} className="text-white/80 text-sm">
                     {p.name}
                     {p.oem_part_number && <span className="text-white/40"> — OEM# {p.oem_part_number}</span>}
@@ -424,7 +424,7 @@ export default function RepairBreakdown() {
                 </p>
               )}
               <ol className="space-y-5">
-                {result.steps.map((s, i) => (
+                {(result.steps || []).map((s, i) => (
                   <li key={i} className="text-white/80 text-sm">
                     <div className="flex gap-3">
                       <span className="text-red-600 font-bold shrink-0">{i + 1}.</span>
