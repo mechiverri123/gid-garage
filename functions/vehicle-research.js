@@ -14,7 +14,7 @@ function extractJSON(text){
 }
 async function claude(env, prompt, maxTokens=7000, searches=6){
   const model=env.CLAUDE_REPAIR_MODEL || 'claude-sonnet-5';
-  const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'content-type':'application/json','x-api-key':env.ANTHROPIC_API_KEY,'anthropic-version':'2023-06-01'},body:JSON.stringify({
+  const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'content-type':'application/json','Authorization':`Bearer ${env.CLAUDE_CODE_OAUTH_TOKEN}`,'anthropic-version':'2023-06-01','anthropic-beta':'oauth-2025-04-20'},body:JSON.stringify({
     model,max_tokens:maxTokens,temperature:0,
     system:`You are the research engine for a professional automotive repair tool. Accuracy beats completeness. Use web search aggressively. Never invent a torque, capacity, fluid, procedure step, part number, or applicability. Prefer OEM/manufacturer service information, OEM manuals, NHTSA manufacturer communications, reputable technical sources, and high-quality repair references. Never silently substitute another engine, drivetrain, generation, or market. If sources conflict, preserve the conflict. If a value cannot be supported, use null and status NOT_VERIFIED. Return ONLY valid JSON matching the requested schema; no markdown fences. Source URLs must be real URLs you actually found.`,
     tools:[{type:'web_search_20250305',name:'web_search',max_uses:searches}],messages:[{role:'user',content:prompt}]
@@ -45,7 +45,7 @@ function jobPrompt(v,job,baseline){return `Research ONE repair job for this exac
 
 export async function onRequestPost({request,env}){
  try{
-  if(!env.ANTHROPIC_API_KEY) return json({error:'ANTHROPIC_API_KEY is not configured on the server'},500);
+  if(!env.CLAUDE_CODE_OAUTH_TOKEN) return json({error:'CLAUDE_CODE_OAUTH_TOKEN is not configured on the server'},500);
   const body=await request.json(); let vehicle=body.vehicle||null;
   if(body.action==='decode') return json({vehicle:await decodeVin(clean(body.vin))});
   if(body.vin) vehicle=await decodeVin(clean(body.vin));
