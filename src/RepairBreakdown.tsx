@@ -71,6 +71,7 @@ export default function RepairBreakdown() {
   const [status, setStatus] = useState<'idle' | 'pending' | 'done' | 'error'>('idle');
   const [result, setResult] = useState<BreakdownResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [newMatchInfo, setNewMatchInfo] = useState<{ generation: boolean; repair: boolean } | null>(null);
   const pollHandle = useRef<number | null>(null);
 
   function stopPolling() {
@@ -126,6 +127,7 @@ export default function RepairBreakdown() {
     // whatever was previously on screen.
     if (!force) setResult(null);
     setStatus('pending');
+    setNewMatchInfo(null);
     try {
       const res = await fetch('/repair-breakdown', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -135,6 +137,9 @@ export default function RepairBreakdown() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Request failed');
+      if (data.generation_is_provisional || data.repair_is_new) {
+        setNewMatchInfo({ generation: !!data.generation_is_provisional, repair: !!data.repair_is_new });
+      }
       if (data.status === 'done') { setResult(data); setStatus('done'); return; }
       const startedAt = Date.now();
       pollHandle.current = window.setInterval(() => pollStatus(data.key, startedAt), POLL_INTERVAL_MS);
@@ -207,6 +212,17 @@ export default function RepairBreakdown() {
               ? 'Refreshing — the info below is the last known-good result while new research runs.'
               : 'Queued as priority — a worker will pick this up within ~30s and usually finish in a couple minutes.'}
           </p>
+        )}
+
+        {newMatchInfo && (newMatchInfo.generation || newMatchInfo.repair) && (
+          <div className="bg-blue-950/40 border border-blue-600/40 text-blue-300 rounded px-4 py-3 text-sm mb-6">
+            {newMatchInfo.generation && (
+              <p>ℹ New vehicle generation — this year/make/model combo didn't match anything on file, so a provisional generation was created. If you expected this to match an existing one, that's worth checking (usually means a make/model naming mismatch, e.g. Dodge vs. Ram).</p>
+            )}
+            {newMatchInfo.repair && (
+              <p className={newMatchInfo.generation ? 'mt-2' : ''}>ℹ New repair type — "{repairJob.trim()}" didn't match anything in the existing taxonomy, so a new entry was created for it. If you expected this to match an existing repair, double-check the wording (scope words like front/rear or pads-only vs. pads+rotors count as different jobs).</p>
+            )}
+          </div>
         )}
 
         {error && (

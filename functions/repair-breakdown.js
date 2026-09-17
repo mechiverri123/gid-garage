@@ -48,12 +48,30 @@ async function sb(env, path, opt = {}) {
 // generations row, applying generation_make_model_aliases first so brand
 // splits (Dodge -> Ram) and similar naming drift resolve to the same lookup.
 // ---------------------------------------------------------------------------
+// Well-documented factory brand/name splits that should just work without
+// anyone having to remember to seed generation_make_model_aliases by hand.
+// This is a safety net, not a replacement for the alias table -- the alias
+// table (checked first) always wins if it has a specific override on file.
+// Each entry: [makeMatch, modelMatch] (case-insensitive, exact) -> [canonicalMake, canonicalModel]
+const BUILTIN_MAKE_MODEL_SPLITS = [
+  [['dodge', 'ram'], ['ram', '1500']], // Ram spun off from Dodge as its own brand in 2010; NHTSA VIN decode
+                                        // reports pre-split trucks as make=Dodge, model=Ram (no "1500" in model).
+];
+
+function normKey(v) { return clean(v).toLowerCase(); }
+
 async function resolveGenerationMakeModel(env, make, model) {
   const aliasRes = await sb(env, `/generation_make_model_aliases?alias_make=ilike.${encodeURIComponent(make)}&alias_model=ilike.${encodeURIComponent(model)}&select=canonical_make,canonical_model&limit=1`);
   if (aliasRes.ok) {
     const rows = await aliasRes.json();
     if (rows[0]) return { make: rows[0].canonical_make, model: rows[0].canonical_model };
   }
+
+  const nMake = normKey(make), nModel = normKey(model);
+  for (const [[m, mo], [canonMake, canonModel]] of BUILTIN_MAKE_MODEL_SPLITS) {
+    if (nMake === m && nModel === mo) return { make: canonMake, model: canonModel };
+  }
+
   return { make, model };
 }
 
@@ -98,15 +116,23 @@ const CLASSIFY_SYSTEM_PROMPT = `You map a repair description onto an existing ca
 automotive repair shop database.
 
 You will be given the full list of existing canonical repairs (slug and name). Check it FIRST: if the \
-requested repair genuinely matches one of them -- same job scope, same components -- respond with ONLY that \
-existing slug, copied exactly.
+requested repair genuinely matches one of them -- same job scope, same components, same side/axle -- respond \
+with ONLY that existing slug, copied exactly.
 
 Only if nothing matches, respond with a new line in this exact format (no other text):
 NEW|<slug-in-kebab-case>|<Human Readable Name>|<best matching category name from this list: Routine Maintenance, Brakes, Suspension/Steering, Cooling System, Electrical, Engine Accessory, Drivetrain/Transmission, Fuel System, Exhaust, Wheel Bearings/Hubs, HVAC, Other/Uncategorized>
 
-Do not invent a new slug if an existing one covers the same job scope, even if the wording differs. Do not \
-merge two repairs of different scope (e.g. "front brake pads" alone vs "front brake pads and rotors" are \
-different jobs -- keep them separate). Respond with ONLY the slug or the NEW| line -- no explanation.`;
+Scope words change the job and must never be merged onto a broader or narrower entry, even when the closest \
+existing entry differs by only one word:
+- Component count/bundle: "pads" alone is NOT the same job as "pads and rotors" / "pads and calipers" -- a \
+  bundled job requires parts and labor the narrower job doesn't, and vice versa the narrower job is cheaper \
+  and faster than what the bundle implies. Never fold one into the other.
+- Side: "front" and "rear" are always different jobs, never interchangeable.
+- Axle count on multi-axle vehicles: "both front" vs "single front" (dually/HD trucks) are different jobs.
+If the requested phrase and the closest existing taxonomy entry differ on any of these axes, that is grounds \
+for a NEW entry, not a match -- do not rationalize it into the existing one because everything else lines up.
+
+Respond with ONLY the slug or the NEW| line -- no explanation.`;
 
 async function classifyRepairPhrase(env, repairPhrase, existingTaxonomy) {
   const list = existingTaxonomy.map((t) => `${t.slug} :: ${t.name}`).join('\n');
@@ -240,12 +266,14 @@ export async function onRequestPost({ request, env }) {
   const make = clean(vehicle.make), model = clean(vehicle.model);
 
   let { generation } = await findGeneration(env, year, make, model);
+  let generationWasNew = false;
   if (!generation) {
     generation = await createProvisionalGeneration(env, year, make, model);
     if (!generation) return json({ error: 'Could not resolve or create a vehicle generation' }, 502);
+    generationWasNew = true;
   }
 
-  const { repairId, error: repairError } = await resolveRepair(env, repair);
+  const { repairId, error: repairError, wasNew: repairWasNew } = await resolveRepair(env, repair);
   if (!repairId) return json({ error: repairError || 'Could not classify repair' }, 502);
 
   const existing = await findMatchingGuide(env, generation.id, repairId, vehicle, year);
@@ -258,7 +286,7 @@ export async function onRequestPost({ request, env }) {
       });
       return json({ status: 'done', key: String(existing.id), generation: generation.name, caveats: existing.caveats || null, ...existing.content });
     }
-    return json({ status: existing.status, key: String(existing.id) });
+    return json({ status: existing.status, key: String(existing.id), generation_is_provisional: generationWasNew, repair_is_new: repairWasNew });
   }
 
   // New guide, or a forced refresh -- (re)queue for research. Intentionally
@@ -288,7 +316,15 @@ export async function onRequestPost({ request, env }) {
   const rows = await res.json();
   const row = existing || rows[0];
 
-  return json({ status: 'pending', key: String(row.id), queued: true, generation: generation.name });
+  return json({
+    status: 'pending', key: String(row.id), queued: true, generation: generation.name,
+    // Visible in the raw response/network tab so a mismatch (e.g. a make/model
+    // spinning up yet another "auto (unverified)" generation instead of hitting
+    // an existing one) is obvious immediately, not something that needs a SQL
+    // query to discover after the fact.
+    generation_is_provisional: generationWasNew,
+    repair_is_new: repairWasNew,
+  });
 }
 
 export async function onRequestGet({ request, env }) {
