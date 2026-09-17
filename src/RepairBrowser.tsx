@@ -35,7 +35,7 @@ const POLL_INTERVAL_MS = 4000;
 const CURRENT_YEAR = new Date().getFullYear();
 const YEARS = Array.from({ length: CURRENT_YEAR - 1979 + 1 }, (_, i) => CURRENT_YEAR - i);
 
-const selectCls = "bg-[#1a1a1a] border border-white/10 rounded px-3 py-2 text-light text-sm focus:outline-none focus:border-red-600 w-full";
+const selectCls = "bg-[#1a1a1a] border border-white/10 rounded px-3 py-2 text-light text-base focus:outline-none focus:border-red-600 w-full";
 
 function Picker({ label, value, onChange, options, placeholder, disabled }: {
   label: string; value: string; onChange: (v: string) => void;
@@ -43,7 +43,7 @@ function Picker({ label, value, onChange, options, placeholder, disabled }: {
 }) {
   return (
     <div>
-      <div className="text-xs font-bold text-white/50 mb-2 uppercase tracking-widest">{label}</div>
+      <div className="text-sm font-bold text-white/50 mb-2 uppercase tracking-widest">{label}</div>
       <select className={selectCls} value={value} onChange={(e) => onChange(e.target.value)} disabled={disabled}>
         <option value="">{placeholder}</option>
         {options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
@@ -178,7 +178,7 @@ export default function RepairBrowser() {
     <div className="min-h-screen bg-dark text-light px-4 py-10">
       <div className="max-w-3xl mx-auto">
         <p className="section-label">Internal Tool</p>
-        <h1 className="text-3xl md:text-4xl font-extrabold text-light mb-6">Repair Browser</h1>
+        <h1 className="text-4xl md:text-5xl font-extrabold text-light mb-6">Repair Browser</h1>
 
         <div className="bg-[#101010] border border-white/10 rounded-xl p-5 space-y-4 mb-6">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
@@ -190,33 +190,33 @@ export default function RepairBrowser() {
               options={models.map((m) => ({ value: m, label: m }))} disabled={!make} />
           </div>
 
-          {model && generationLoading && <p className="text-white/40 text-sm italic">Looking up generation…</p>}
+          {model && generationLoading && <p className="text-white/40 text-base italic">Looking up generation…</p>}
           {model && !generationLoading && !generation && (
-            <p className="text-yellow-500/80 text-sm">No generation on file for {year} {make} {model} yet — this combination hasn't been set up in the database.</p>
+            <p className="text-yellow-500/80 text-base">No generation on file for {year} {make} {model} yet — this combination hasn't been set up in the database.</p>
           )}
 
           {generation && (
             <>
-              <p className="text-white/40 text-xs">Generation: {generation.name} ({generation.year_start}-{generation.year_end})</p>
+              <p className="text-white/40 text-sm">Generation: {generation.name} ({generation.year_start}-{generation.year_end})</p>
               <div>
-                <div className="text-xs font-bold text-white/50 mb-2 uppercase tracking-widest">Engine</div>
+                <div className="text-sm font-bold text-white/50 mb-2 uppercase tracking-widest">Engine</div>
                 {!addingEngine ? (
                   <div className="flex gap-2">
                     <select className={selectCls} value={engine} onChange={(e) => setEngine(e.target.value)}>
                       <option value="">{engines.length ? 'Select engine' : 'No engines on file yet'}</option>
                       {engines.map((e) => <option key={e.id} value={e.engine_label}>{e.engine_label}</option>)}
                     </select>
-                    <button onClick={() => setAddingEngine(true)} className="btn-secondary rounded px-3 text-sm whitespace-nowrap">+ Add engine</button>
+                    <button onClick={() => setAddingEngine(true)} className="btn-secondary rounded px-3 text-base whitespace-nowrap">+ Add engine</button>
                   </div>
                 ) : (
                   <div className="flex gap-2">
                     <input autoFocus value={newEngineLabel} onChange={(e) => setNewEngineLabel(e.target.value)}
-                      placeholder="e.g. 5.7L HEMI" className="bg-[#1a1a1a] border border-white/10 rounded px-3 py-2 text-light placeholder-white/30 text-sm flex-1 focus:outline-none focus:border-red-600" />
-                    <button onClick={addEngine} className="btn-primary rounded px-3 text-sm">Save</button>
-                    <button onClick={() => { setAddingEngine(false); setNewEngineLabel(''); }} className="btn-secondary rounded px-3 text-sm">Cancel</button>
+                      placeholder="e.g. 5.7L HEMI" className="bg-[#1a1a1a] border border-white/10 rounded px-3 py-2 text-light placeholder-white/30 text-base flex-1 focus:outline-none focus:border-red-600" />
+                    <button onClick={addEngine} className="btn-primary rounded px-3 text-base">Save</button>
+                    <button onClick={() => { setAddingEngine(false); setNewEngineLabel(''); }} className="btn-secondary rounded px-3 text-base">Cancel</button>
                   </div>
                 )}
-                <p className="text-white/30 text-xs mt-1">Only engines confirmed here appear for everyone going forward — add it once, pick it forever after.</p>
+                <p className="text-white/30 text-sm mt-1">Only engines confirmed here appear for everyone going forward — add it once, pick it forever after.</p>
               </div>
             </>
           )}
@@ -231,50 +231,84 @@ export default function RepairBrowser() {
           )}
         </div>
 
-        {guideStatus === 'checking' && <p className="text-white/50 text-sm italic mb-6">Checking for an existing guide…</p>}
+        {guideStatus === 'checking' && <p className="text-white/50 text-base italic mb-6">Checking for an existing guide…</p>}
 
         {guideStatus === 'none' && (
           <div className="bg-[#101010] border border-white/10 rounded-xl p-5 mb-6 flex items-center justify-between">
-            <p className="text-white/60 text-sm">No research on file yet for this exact combination.</p>
-            <button onClick={sourceData} className="btn-primary rounded px-4 py-2 text-sm whitespace-nowrap">Source this data</button>
+            <p className="text-white/60 text-base">No research on file yet for this exact combination.</p>
+            <button onClick={sourceData} className="btn-primary rounded px-4 py-2 text-base whitespace-nowrap">Source this data</button>
           </div>
         )}
 
         {guideStatus === 'pending' && (
-          <p className="text-white/50 text-sm italic mb-6">Queued — a worker will pick this up shortly and usually finish in a couple minutes.</p>
+          <p className="text-white/50 text-base italic mb-6">Queued — a worker will pick this up shortly and usually finish in a couple minutes.</p>
         )}
 
         {guideStatus === 'error' && (
-          <div className="bg-red-950/40 border border-red-600/40 text-red-300 rounded px-4 py-3 text-sm mb-6">{guideError}</div>
+          <div className="bg-red-950/40 border border-red-600/40 text-red-300 rounded px-4 py-3 text-base mb-6">{guideError}</div>
         )}
 
         {guideStatus === 'done' && result && (
-          <div className="bg-[#101010] border border-white/10 rounded-xl p-5 space-y-4">
-            <p className="text-white/80">{result.overview}</p>
+          <div className="bg-[#101010] border border-white/10 rounded-xl p-6 space-y-6">
+            <p className="text-white/80 text-lg">{result.overview}</p>
             {result.caveats && (
-              <div className="bg-yellow-950/30 border border-yellow-600/40 text-yellow-300 rounded px-4 py-3 text-sm">
+              <div className="bg-yellow-950/30 border border-yellow-600/40 text-yellow-300 rounded px-4 py-3 text-base">
                 <span className="font-bold mr-1">⚠</span><span>{result.caveats}</span>
               </div>
             )}
             {result.torque_specs?.length > 0 && (
               <div>
-                <h3 className="text-white/70 font-bold text-sm uppercase tracking-widest mb-2">Torque Specs</h3>
-                <ul className="space-y-1 text-sm text-white/70">
+                <h3 className="text-white/70 font-bold text-base uppercase tracking-widest mb-3">Torque Specs</h3>
+                <ul className="space-y-3 text-base text-white/70">
                   {result.torque_specs.map((s, i) => (
-                    <li key={i}>{s.fastener}{s.applies_to ? ` [${s.applies_to}]` : ''}: {s.status === 'verified' ? `✅ ${s.value_ft_lb} ft-lb` : 'Unconfirmed — check sources'}</li>
+                    <li key={i}>
+                      <div>
+                        <span className="font-semibold text-white/90">{s.fastener}</span>
+                        {s.applies_to ? <span className="text-white/50"> [{s.applies_to}]</span> : null}
+                        {': '}
+                        {s.status === 'verified' ? <span className="text-green-400">✅ {s.value_ft_lb} ft-lb</span> : <span className="text-yellow-500">Unconfirmed</span>}
+                      </div>
+                      {/* The actual sources -- without these, "check sources" is an instruction with nothing to follow. */}
+                      {(s.all_sources?.length ?? 0) > 0 ? (
+                        <ul className="ml-4 mt-1 text-sm text-white/40 space-y-0.5">
+                          {s.all_sources.map((src, j) => (
+                            <li key={j}>
+                              {src.url ? (
+                                <a href={src.url} target="_blank" rel="noreferrer" className="underline hover:text-white/70">{src.domain}</a>
+                              ) : src.domain}
+                              {typeof src.value_ft_lb === 'number' ? `: ${src.value_ft_lb} ft-lb` : ''}
+                            </li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <p className="ml-4 mt-1 text-sm text-white/30 italic">No source recorded for this fastener.</p>
+                      )}
+                    </li>
                   ))}
                 </ul>
               </div>
             )}
             {result.steps?.length > 0 && (
               <div>
-                <h3 className="text-white/70 font-bold text-sm uppercase tracking-widest mb-2">Step by Step</h3>
-                <ol className="list-decimal list-inside space-y-1 text-sm text-white/70">
+                <h3 className="text-white/70 font-bold text-base uppercase tracking-widest mb-3">Step by Step</h3>
+                <ol className="list-decimal list-inside space-y-2 text-base text-white/70">
                   {result.steps.map((s, i) => <li key={i}>{s.text}</li>)}
                 </ol>
               </div>
             )}
-            <p className="text-white/40 text-xs">Estimated Labor: {result.estimated_labor_hours}</p>
+            <div>
+              <h3 className="text-white/70 font-bold text-base uppercase tracking-widest mb-2">Video</h3>
+              {result.video_source ? (
+                <a href={result.video_source} target="_blank" rel="noreferrer" className="text-red-500 underline text-base">{result.video_source}</a>
+              ) : (
+                <p className="text-white/40 text-base italic">No walkthrough video found for this repair.</p>
+              )}
+            </div>
+            <div className="border-t border-white/10 pt-4">
+              <p className="text-white/50 text-sm uppercase tracking-widest mb-1">Estimated Labor</p>
+              <p className="text-white text-3xl font-extrabold">{result.estimated_labor_hours}</p>
+              <p className="text-white/30 text-sm mt-1 italic">Single aggregate estimate only — the research doesn't currently break this down by task (diagnosis, removal, install, etc.). That would need a change to what's asked for during research, not just this display.</p>
+            </div>
           </div>
         )}
       </div>
