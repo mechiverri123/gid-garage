@@ -1,35 +1,61 @@
 /**
  * taxonomy-gap-check — Cloudflare Pages Function
  *
- * Finds MY make/model combinations reported through NHTSA vPIC that are not
- * currently covered by the GID Repair `generations` table.
+ * PURPOSE
+ * -------
+ * Discover the MY make/model taxonomy reported through the official
+ * NHTSA vPIC API and compare it against GID Repair's existing
+ * `generations` table.
  *
  * IMPORTANT:
- * vPIC establishes candidate make/model existence. It does NOT establish
- * generation boundaries. year_start/year_end must still be researched
- * separately using the project's source hierarchy.
  *
- * Raw vPIC model names are also not automatically canonical GID models.
- * Known variants are normalized through explicit aliases below.
+ * vPIC is the primary authority here for MODEL-YEAR EXISTENCE.
+ *
+ * A normal model returned by vPIC is NOT automatically a "gap" that
+ * requires research just because it does not exist in Supabase yet.
+ *
+ * Instead:
+ *
+ *   vPIC model
+ *      ↓
+ *   filter irrelevant vehicle types
+ *      ↓
+ *   explicit canonical normalization
+ *      ↓
+ *   deduplicate canonical models
+ *      ↓
+ *   compare against Supabase
+ *      ↓
+ *   acceptedModels / alreadyCovered / needsResearch
+ *
+ * Only genuinely suspicious or ambiguous vPIC records go into
+ * `needsResearch`.
+ *
+ * THIS FUNCTION NEVER WRITES TO SUPABASE.
+ *
+ * It also DOES NOT attempt to determine generation boundaries.
+ * Generation research belongs to a separate stage.
  *
  * GET /taxonomy-gap-check?year=2026
- *   -> checks all configured makes using internal batching.
  *
  * GET /taxonomy-gap-check?year=2026&makes=Toyota,Honda
- *   -> checks only specified makes.
  */
 
 function json(data, status = 200) {
-  return new Response(JSON.stringify(data, null, 2), {
-    status,
-    headers: {
-      'Content-Type': 'application/json',
-      'Cache-Control': 'no-store',
-    },
-  });
+  return new Response(
+    JSON.stringify(data, null, 2),
+    {
+      status,
+      headers: {
+        'Content-Type': 'application/json',
+        'Cache-Control': 'no-store',
+      },
+    }
+  );
 }
 
-const VPIC_BASE = 'https://vpic.nhtsa.dot.gov/api/vehicles';
+const VPIC_BASE =
+  'https://vpic.nhtsa.dot.gov/api/vehicles';
 
 const TIER_A_MAKES = [
   'Toyota',
@@ -57,6 +83,10 @@ const TIER_A_MAKES = [
 
 const DEFAULT_BATCH_SIZE = 5;
 
+/*
+ * Vehicle types that are definitely outside GID Repair's
+ * passenger/light-duty repair taxonomy.
+ */
 const EXCLUDED_VEHICLE_TYPES = new Set([
   'MOTORCYCLE',
   'TRAILER',
@@ -70,12 +100,22 @@ const EXCLUDED_VEHICLE_TYPES = new Set([
   'ALL TERRAIN VEHICLE',
 ]);
 
-/**
- * Explicit raw-vPIC-name -> canonical GID model mappings.
+/*
+ * Explicit vPIC → GID canonical model mappings.
+ *
+ * These are intentionally explicit.
  *
  * DO NOT replace this with generic suffix stripping.
- * Some apparently variant-looking names are genuinely separate marketed
- * vehicles. Example: Toyota bZ Woodland should remain separate from bZ.
+ *
+ * We do not want something like:
+ *
+ *   remove "N"
+ *   remove "RS"
+ *   remove "M"
+ *   remove "S"
+ *
+ * because those rules would eventually collapse genuinely
+ * distinct models.
  */
 const ALIAS_MAP = {
   toyota: {
@@ -129,6 +169,11 @@ const ALIAS_MAP = {
   },
 
   nissan: {
+    /*
+     * These normalize vPIC naming only.
+     *
+     * They do NOT independently claim generation boundaries.
+     */
     'ariya mpv': 'Ariya',
     'kicks mpv': 'Kicks',
     'nissan z': 'Z',
@@ -139,53 +184,101 @@ const ALIAS_MAP = {
   },
 };
 
-/**
- * Conservative suspicion rules.
+/*
+ * Known vPIC records that should NOT automatically become
+ * normal GID models.
  *
- * These DO NOT delete anything.
- * They send questionable vPIC results into needsReview.
+ * They are sent to needsResearch rather than silently removed.
+ */
+const KNOWN_REVIEW_NAMEPLATES = {
+  hyundai: {
+    xcient:
+      'commercial/heavy vehicle entry; outside normal GID passenger/light-duty taxonomy',
+  },
+
+  kia: {
+    miami:
+      'unexpected vPIC nameplate; verify before adding to GID taxonomy',
+  },
+
+  ford: {
+    "'34":
+      'historical/replica-style vPIC entry; not a normal current Ford retail nameplate',
+
+    'classic sedan':
+      'unexpected generic/historical vPIC model entry',
+
+    'cordova sedan':
+      'unexpected historical/generic vPIC model entry',
+
+    'gt mkii':
+      'specialty/motorsport-style vPIC entry; verify before treating as a normal retail model',
+
+    'malibu sedan':
+      'unexpected historical/generic vPIC model entry',
+  },
+};
+
+/*
+ * Generic suspicion patterns.
+ *
+ * IMPORTANT:
+ * These are deliberately conservative.
+ *
+ * A match means:
+ *
+ *     needsResearch
+ *
+ * NOT:
+ *
+ *     delete
  */
 const REVIEW_PATTERNS = [
   {
     re: /'\d{2}\b/,
     reason:
-      'looks like a historical/replica year designation (e.g. "\'34")',
-  },
-
-  {
-    re: /\b(sedan|coupe|convertible|wagon|roadster|hatchback|cab)$/i,
-    reason:
-      'ends in a generic body-style word, not a normal nameplate pattern for this make',
+      'looks like a historical/replica year designation',
   },
 
   {
     re: /\bmk\s?(i{1,3}|iv|v|\d+)\b/i,
     reason:
-      'looks like a motorsport/homologation-special suffix (e.g. "MKII")',
+      'looks like a specialty/motorsport MK designation',
   },
 ];
 
-/**
- * Known non-consumer / junk vPIC entries.
+/*
+ * Some legitimate manufacturers use body-style wording as
+ * part of vPIC's model string.
  *
- * We still expose these through needsReview rather than silently dropping them.
+ * We DO NOT globally reject Sedan/SUV/Coupe/etc anymore.
+ *
+ * That old rule incorrectly kicked legitimate records such as
+ * Mercedes EQE-Class Sedan into review.
  */
-const EXCLUDE_NAMEPLATES = {
-  hyundai: new Set([
-    'xcient',
-  ]),
 
-  kia: new Set([
-    'miami',
-  ]),
-};
+function normalizeLoose(name) {
+  return String(name ?? '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, '');
+}
+
+function normalizeKey(name) {
+  return String(name ?? '')
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, ' ');
+}
 
 async function vpic(path) {
-  const separator = path.includes('?') ? '&' : '?';
+  const separator =
+    path.includes('?') ? '&' : '?';
 
-  const res = await fetch(
-    `${VPIC_BASE}${path}${separator}format=json`
-  );
+  const url =
+    `${VPIC_BASE}${path}` +
+    `${separator}format=json`;
+
+  const res = await fetch(url);
 
   if (!res.ok) {
     throw new Error(
@@ -195,65 +288,78 @@ async function vpic(path) {
 
   const data = await res.json();
 
-  return data.Results || [];
+  if (!data || !Array.isArray(data.Results)) {
+    throw new Error(
+      `Unexpected vPIC response: ${path}`
+    );
+  }
+
+  return data.Results;
 }
 
+/*
+ * Supabase access in this file is READ ONLY.
+ */
 function sbHeaders(serviceKey) {
   return {
     apikey: serviceKey,
-    Authorization: `Bearer ${serviceKey}`,
+    Authorization:
+      `Bearer ${serviceKey}`,
   };
 }
 
 async function sb(env, path) {
   const base =
-    `${env.SUPABASE_URL ?? env.VITE_SUPABASE_URL}/rest/v1`;
+    `${
+      env.SUPABASE_URL ??
+      env.VITE_SUPABASE_URL
+    }/rest/v1`;
 
   const res = await fetch(
     `${base}${path}`,
     {
-      headers: sbHeaders(env.SUPABASE_SERVICE_KEY),
+      method: 'GET',
+      headers:
+        sbHeaders(
+          env.SUPABASE_SERVICE_KEY
+        ),
     }
   );
 
   if (!res.ok) {
     throw new Error(
-      `Supabase request failed (${res.status}): ${path}`
+      `Supabase read failed (${res.status}): ${path}`
     );
   }
 
   return res.json();
 }
 
-/**
- * Loose comparison ONLY for punctuation/spacing drift.
- *
- * Examples:
- * F-150 vs F150
- * ID.4 vs ID4
- *
- * This must NOT be used for general model-family collapsing.
- */
-function normalizeLoose(name) {
-  return name
-    .toLowerCase()
-    .replace(/[^a-z0-9]/g, '');
-}
-
-async function getAllowedVehicleTypesForMake(make) {
+async function getAllowedVehicleTypesForMake(
+  make
+) {
   const types = await vpic(
-    `/GetVehicleTypesForMake/${encodeURIComponent(make)}`
+    `/GetVehicleTypesForMake/` +
+    `${encodeURIComponent(make)}`
   );
 
-  return types
-    .map((t) => t.VehicleTypeName)
-    .filter(
-      (name) =>
-        name &&
-        !EXCLUDED_VEHICLE_TYPES.has(
-          name.toUpperCase()
-        )
-    );
+  const allowed =
+    types
+      .map(
+        (row) =>
+          row.VehicleTypeName
+      )
+      .filter(Boolean)
+      .filter(
+        (name) =>
+          !EXCLUDED_VEHICLE_TYPES.has(
+            name.toUpperCase()
+          )
+      );
+
+  return [
+    ...new Set(allowed),
+  ];
 }
 
 async function getModelsForMakeYear(
@@ -265,155 +371,121 @@ async function getModelsForMakeYear(
     `/GetModelsForMakeYear` +
     `/make/${encodeURIComponent(make)}` +
     `/modelyear/${year}` +
-    `/vehicletype/${encodeURIComponent(vehicleType)}`;
+    `/vehicletype/${encodeURIComponent(
+      vehicleType
+    )}`;
 
-  const results = await vpic(path);
+  const results =
+    await vpic(path);
 
   return results
-    .map((r) => r.Model_Name)
+    .map(
+      (row) =>
+        row.Model_Name
+    )
     .filter(Boolean);
 }
 
-/**
- * Classifies one raw vPIC model.
+/*
+ * Fetch all vPIC models for the requested make/year
+ * across allowed vehicle types.
  */
-function classifyRaw(
+async function getVpicModels(
   make,
-  rawName,
-  existingModels,
-  existingNormalizedMap
+  year
 ) {
-  const makeKey = make.toLowerCase();
-  const rawKey = rawName.toLowerCase().trim();
-
-  /*
-   * 1. Exact current-generation DB match.
-   */
-  const exact = existingModels.find(
-    (m) =>
-      m.toLowerCase() === rawName.toLowerCase()
-  );
-
-  if (exact) {
-    return {
-      bucket: 'alreadyCovered',
-      value: rawName,
-    };
-  }
-
-  /*
-   * 2. Explicit variant alias.
-   */
-  const aliasTarget =
-    ALIAS_MAP[makeKey]?.[rawKey];
-
-  if (aliasTarget) {
-    const canonicalCovered =
-      existingModels.find(
-        (m) =>
-          m.toLowerCase() ===
-          aliasTarget.toLowerCase()
-      );
-
-    if (canonicalCovered) {
-      return {
-        bucket: 'normalizedMatches',
-
-        value: {
-          raw: rawName,
-          canonical: aliasTarget,
-          status:
-            'already covered under canonical name',
-        },
-      };
-    }
-
-    return {
-      bucket: 'gaps',
-
-      value: {
-        raw: rawName,
-        canonical: aliasTarget,
-      },
-    };
-  }
-
-  /*
-   * 3. Possible formatting mismatch.
-   *
-   * Don't automatically equate it.
-   */
-  const looseMatch =
-    existingNormalizedMap.get(
-      normalizeLoose(rawName)
+  const allowedTypes =
+    await getAllowedVehicleTypesForMake(
+      make
     );
 
-  if (looseMatch) {
-    return {
-      bucket: 'needsReview',
+  const perType =
+    await Promise.all(
+      allowedTypes.map(
+        (vehicleType) =>
+          getModelsForMakeYear(
+            make,
+            year,
+            vehicleType
+          )
+      )
+    );
 
-      value: {
-        raw: rawName,
-        reason:
-          `possible name-formatting mismatch with ` +
-          `existing DB model "${looseMatch}"`,
-      },
-    };
+  return [
+    ...new Set(
+      perType.flat()
+    ),
+  ].sort(
+    (a, b) =>
+      a.localeCompare(b)
+  );
+}
+
+/*
+ * Determine whether a raw vPIC record needs manual research.
+ */
+function getReviewReason(
+  make,
+  rawName
+) {
+  const makeKey =
+    normalizeKey(make);
+
+  const rawKey =
+    normalizeKey(rawName);
+
+  const known =
+    KNOWN_REVIEW_NAMEPLATES[
+      makeKey
+    ]?.[rawKey];
+
+  if (known) {
+    return known;
   }
 
-  /*
-   * 4. Previously observed junk / non-consumer entry.
-   */
-  if (
-    EXCLUDE_NAMEPLATES[makeKey]?.has(rawKey)
+  for (
+    const rule
+    of REVIEW_PATTERNS
   ) {
-    return {
-      bucket: 'needsReview',
-
-      value: {
-        raw: rawName,
-        reason:
-          'confirmed non-consumer/junk nameplate from a prior run — verify before ever treating as real',
-      },
-    };
-  }
-
-  /*
-   * 5. Conservative pattern review.
-   */
-  for (const { re, reason } of REVIEW_PATTERNS) {
-    if (re.test(rawName)) {
-      return {
-        bucket: 'needsReview',
-
-        value: {
-          raw: rawName,
-          reason,
-        },
-      };
+    if (rule.re.test(rawName)) {
+      return rule.reason;
     }
   }
 
-  /*
-   * 6. Nothing suspicious.
-   *
-   * Treat as a candidate canonical gap.
-   * Generation years are NOT inferred here.
-   */
-  return {
-    bucket: 'gaps',
-
-    value: {
-      raw: rawName,
-      canonical: rawName,
-    },
-  };
+  return null;
 }
 
-/**
- * IMPORTANT:
+/*
+ * Convert a raw vPIC name into our canonical model.
  *
- * Multiple raw vPIC strings can map to ONE GID model.
+ * If no explicit alias exists, vPIC's model name itself
+ * becomes the canonical model.
+ *
+ * That is intentional.
+ *
+ * We trust normal vPIC model output rather than turning
+ * every unknown string into a research task.
+ */
+function canonicalizeModel(
+  make,
+  rawName
+) {
+  const makeKey =
+    normalizeKey(make);
+
+  const rawKey =
+    normalizeKey(rawName);
+
+  return (
+    ALIAS_MAP[
+      makeKey
+    ]?.[rawKey] ??
+    rawName.trim()
+  );
+}
+
+/*
+ * Collapse all raw vPIC model strings onto canonical models.
  *
  * Example:
  *
@@ -423,81 +495,172 @@ function classifyRaw(
  * F-550
  * F-600
  *
- * all map to:
+ * becomes:
  *
- * Super Duty
- *
- * We therefore deduplicate AFTER canonicalization.
- *
- * Raw source names remain attached so we can audit exactly
- * what vPIC returned.
+ * {
+ *   canonical: "Super Duty",
+ *   rawModels: [...]
+ * }
  */
-function dedupeCanonicalGaps(gaps) {
-  const byCanonical = new Map();
+function buildCanonicalModels(
+  make,
+  rawModels
+) {
+  const canonicalMap =
+    new Map();
 
-  for (const gap of gaps) {
-    const key =
-      normalizeLoose(gap.canonical);
+  const needsResearch = [];
 
-    const existing =
-      byCanonical.get(key);
-
-    if (!existing) {
-      byCanonical.set(
-        key,
-        {
-          canonical: gap.canonical,
-          rawModels: [gap.raw],
-        }
+  for (
+    const raw
+    of rawModels
+  ) {
+    const reviewReason =
+      getReviewReason(
+        make,
+        raw
       );
+
+    if (reviewReason) {
+      needsResearch.push({
+        raw,
+        reason:
+          reviewReason,
+      });
 
       continue;
     }
 
+    const canonical =
+      canonicalizeModel(
+        make,
+        raw
+      );
+
+    const key =
+      normalizeLoose(
+        canonical
+      );
+
+    let entry =
+      canonicalMap.get(key);
+
+    if (!entry) {
+      entry = {
+        canonical,
+        rawModels: [],
+      };
+
+      canonicalMap.set(
+        key,
+        entry
+      );
+    }
+
     if (
-      !existing.rawModels.includes(gap.raw)
+      !entry.rawModels.includes(
+        raw
+      )
     ) {
-      existing.rawModels.push(gap.raw);
+      entry.rawModels.push(
+        raw
+      );
     }
   }
 
-  return [...byCanonical.values()]
-    .sort(
-      (a, b) =>
-        a.canonical.localeCompare(
-          b.canonical
-        )
-    );
+  const models =
+    [...canonicalMap.values()]
+      .sort(
+        (a, b) =>
+          a.canonical.localeCompare(
+            b.canonical
+          )
+      );
+
+  needsResearch.sort(
+    (a, b) =>
+      a.raw.localeCompare(
+        b.raw
+      )
+  );
+
+  return {
+    models,
+    needsResearch,
+  };
 }
 
-async function checkMakeGaps(
+/*
+ * Find an existing Supabase generation row corresponding
+ * to a canonical vPIC model.
+ *
+ * Exact case-insensitive match is preferred.
+ *
+ * Punctuation-only differences are also accepted:
+ *
+ *     ID4  == ID.4
+ *     F150 == F-150
+ *
+ * This is safe because it does NOT perform generic
+ * model-family stripping.
+ */
+function findExistingModel(
+  canonical,
+  existingModels
+) {
+  const lower =
+    canonical.toLowerCase();
+
+  const exact =
+    existingModels.find(
+      (model) =>
+        model.toLowerCase() ===
+        lower
+    );
+
+  if (exact) {
+    return {
+      model: exact,
+      matchType: 'exact',
+    };
+  }
+
+  const loose =
+    normalizeLoose(
+      canonical
+    );
+
+  const looseMatch =
+    existingModels.find(
+      (model) =>
+        normalizeLoose(model) ===
+        loose
+    );
+
+  if (looseMatch) {
+    return {
+      model: looseMatch,
+      matchType:
+        'punctuation/spacing',
+    };
+  }
+
+  return null;
+}
+
+async function checkMake(
   env,
   make,
   year
 ) {
-  let vpicModels = [];
+  let rawModels;
 
   try {
-    const allowedTypes =
-      await getAllowedVehicleTypesForMake(
-        make
+    rawModels =
+      await getVpicModels(
+        make,
+        year
       );
-
-    const perType =
-      await Promise.all(
-        allowedTypes.map(
-          (type) =>
-            getModelsForMakeYear(
-              make,
-              year,
-              type
-            )
-        )
-      );
-
-    vpicModels = [
-      ...new Set(perType.flat()),
-    ].sort();
   } catch (err) {
     return {
       make,
@@ -506,17 +669,26 @@ async function checkMakeGaps(
     };
   }
 
-  let existingRows = [];
+  /*
+   * READ ONLY Supabase query.
+   *
+   * We only care about rows whose range includes
+   * the requested model year.
+   */
+  let existingRows;
 
   try {
-    existingRows = await sb(
-      env,
-      `/generations` +
-        `?make=eq.${encodeURIComponent(make)}` +
+    existingRows =
+      await sb(
+        env,
+        `/generations` +
+        `?make=eq.${encodeURIComponent(
+          make
+        )}` +
         `&year_start=lte.${year}` +
         `&year_end=gte.${year}` +
-        `&select=model`
-    );
+        `&select=model,year_start,year_end`
+      );
   } catch (err) {
     return {
       make,
@@ -526,66 +698,236 @@ async function checkMakeGaps(
   }
 
   const existingModels =
-    existingRows.map(
-      (r) => r.model
-    );
+    [
+      ...new Set(
+        existingRows
+          .map(
+            (row) =>
+              row.model
+          )
+          .filter(Boolean)
+      ),
+    ];
 
-  const existingNormalizedMap =
-    new Map(
-      existingModels.map(
-        (model) => [
-          normalizeLoose(model),
-          model,
-        ]
-      )
+  const {
+    models:
+      canonicalModels,
+    needsResearch,
+  } =
+    buildCanonicalModels(
+      make,
+      rawModels
     );
 
   const alreadyCovered = [];
-  const normalizedMatches = [];
-  const rawGaps = [];
-  const needsReview = [];
 
-  for (const rawName of vpicModels) {
-    const { bucket, value } =
-      classifyRaw(
-        make,
-        rawName,
-        existingModels,
-        existingNormalizedMap
+  const acceptedModels = [];
+
+  for (
+    const candidate
+    of canonicalModels
+  ) {
+    const existing =
+      findExistingModel(
+        candidate.canonical,
+        existingModels
       );
 
-    if (
-      bucket === 'alreadyCovered'
-    ) {
-      alreadyCovered.push(value);
-    } else if (
-      bucket === 'normalizedMatches'
-    ) {
-      normalizedMatches.push(value);
-    } else if (
-      bucket === 'gaps'
-    ) {
-      rawGaps.push(value);
-    } else {
-      needsReview.push(value);
-    }
-  }
+    if (existing) {
+      const generationRows =
+        existingRows.filter(
+          (row) =>
+            normalizeLoose(
+              row.model
+            ) ===
+            normalizeLoose(
+              existing.model
+            )
+        );
 
-  /*
-   * Canonical deduplication happens here.
-   */
-  const gaps =
-    dedupeCanonicalGaps(rawGaps);
+      alreadyCovered.push({
+        canonical:
+          candidate.canonical,
+
+        rawModels:
+          candidate.rawModels,
+
+        existingModel:
+          existing.model,
+
+        matchType:
+          existing.matchType,
+
+        generations:
+          generationRows.map(
+            (row) => ({
+              yearStart:
+                row.year_start,
+              yearEnd:
+                row.year_end,
+            })
+          ),
+      });
+
+      continue;
+    }
+
+    /*
+     * THIS IS THE IMPORTANT CHANGE.
+     *
+     * A normal vPIC model that is not already in Supabase
+     * is accepted as a valid MY model.
+     *
+     * It is NOT sent to needsResearch merely because
+     * Supabase doesn't contain it yet.
+     */
+    acceptedModels.push({
+      canonical:
+        candidate.canonical,
+
+      rawModels:
+        candidate.rawModels,
+
+      modelYear:
+        year,
+
+      source:
+        'NHTSA vPIC',
+
+      status:
+        'accepted-vpic-model',
+    });
+  }
 
   return {
     make,
-    vpicModelCount:
-      vpicModels.length,
+
+    vpicRawModelCount:
+      rawModels.length,
+
+    canonicalModelCount:
+      canonicalModels.length,
 
     alreadyCovered,
-    normalizedMatches,
-    gaps,
-    needsReview,
+
+    acceptedModels,
+
+    needsResearch,
+  };
+}
+
+function summarize(
+  year,
+  results
+) {
+  const makesWithErrors =
+    results.filter(
+      (result) =>
+        Boolean(result.error)
+    ).length;
+
+  const totalVpicRawModels =
+    results.reduce(
+      (sum, result) =>
+        sum +
+        (
+          result
+            .vpicRawModelCount ??
+          0
+        ),
+      0
+    );
+
+  const totalCanonicalModels =
+    results.reduce(
+      (sum, result) =>
+        sum +
+        (
+          result
+            .canonicalModelCount ??
+          0
+        ),
+      0
+    );
+
+  const totalAlreadyCovered =
+    results.reduce(
+      (sum, result) =>
+        sum +
+        (
+          result
+            .alreadyCovered
+            ?.length ??
+          0
+        ),
+      0
+    );
+
+  const totalAcceptedModels =
+    results.reduce(
+      (sum, result) =>
+        sum +
+        (
+          result
+            .acceptedModels
+            ?.length ??
+          0
+        ),
+      0
+    );
+
+  const totalNeedsResearch =
+    results.reduce(
+      (sum, result) =>
+        sum +
+        (
+          result
+            .needsResearch
+            ?.length ??
+          0
+        ),
+      0
+    );
+
+  return {
+    year,
+
+    source: {
+      name:
+        'NHTSA vPIC',
+
+      purpose:
+        'model-year make/model discovery',
+
+      generationBoundaries:
+        false,
+
+      supabaseWrites:
+        false,
+    },
+
+    totalMakesConfigured:
+      TIER_A_MAKES.length,
+
+    summary: {
+      makesChecked:
+        results.length,
+
+      makesWithErrors,
+
+      totalVpicRawModels,
+
+      totalCanonicalModels,
+
+      totalAlreadyCovered,
+
+      totalAcceptedModels,
+
+      totalNeedsResearch,
+    },
+
+    makes:
+      results,
   };
 }
 
@@ -594,18 +936,25 @@ export async function onRequestGet({
   env,
 }) {
   const url =
-    new URL(request.url);
+    new URL(
+      request.url
+    );
 
   const year =
     Number(
-      url.searchParams.get('year')
+      url.searchParams.get(
+        'year'
+      )
     );
 
-  if (!Number.isInteger(year)) {
+  if (
+    !Number.isInteger(year) ||
+    year < 1996
+  ) {
     return json(
       {
         error:
-          'year is required, e.g. ?year=2026',
+          'year is required and must be >= 1996, e.g. ?year=2026',
       },
       400
     );
@@ -629,21 +978,27 @@ export async function onRequestGet({
   }
 
   const makesParam =
-    url.searchParams.get('makes');
+    url.searchParams.get(
+      'makes'
+    );
 
   const isBatchWorker =
-    url.searchParams.get('_batch') ===
-    '1';
+    url.searchParams.get(
+      '_batch'
+    ) === '1';
 
   /*
-   * Explicit make selection.
+   * Explicit make request:
+   *
+   * ?year=2026&makes=Toyota,Honda
    */
   if (makesParam) {
     const requestedMakes =
       makesParam
         .split(',')
         .map(
-          (m) => m.trim()
+          (make) =>
+            make.trim()
         )
         .filter(Boolean);
 
@@ -653,22 +1008,19 @@ export async function onRequestGet({
       const requestedMake
       of requestedMakes
     ) {
-      /*
-       * Resolve configured make case-insensitively when possible.
-       */
-      const configuredMake =
+      const configured =
         TIER_A_MAKES.find(
-          (m) =>
-            m.toLowerCase() ===
+          (make) =>
+            make.toLowerCase() ===
             requestedMake.toLowerCase()
         );
 
       const make =
-        configuredMake ??
+        configured ??
         requestedMake;
 
       results.push(
-        await checkMakeGaps(
+        await checkMake(
           env,
           make,
           year
@@ -685,24 +1037,31 @@ export async function onRequestGet({
   }
 
   /*
-   * Internal batch worker.
+   * Internal batch invocation.
    *
-   * Each self-request is a new Worker invocation with its
-   * own subrequest budget.
+   * We intentionally keep batches small because each make
+   * can require several NHTSA requests depending on its
+   * supported vehicle types.
    */
   if (isBatchWorker) {
     const offset =
       Number(
-        url.searchParams.get('offset')
+        url.searchParams.get(
+          'offset'
+        )
       ) || 0;
 
     const requestedLimit =
       Number(
-        url.searchParams.get('limit')
+        url.searchParams.get(
+          'limit'
+        )
       );
 
     const limit =
-      Number.isInteger(requestedLimit) &&
+      Number.isInteger(
+        requestedLimit
+      ) &&
       requestedLimit > 0
         ? Math.min(
             requestedLimit,
@@ -723,7 +1082,7 @@ export async function onRequestGet({
       of batchMakes
     ) {
       results.push(
-        await checkMakeGaps(
+        await checkMake(
           env,
           make,
           year
@@ -732,16 +1091,19 @@ export async function onRequestGet({
     }
 
     return json({
-      makes: results,
+      makes:
+        results,
     });
   }
 
   /*
-   * Default:
+   * MAIN REQUEST
    *
-   * Caller makes ONE request.
+   * Browser makes ONE request.
    *
-   * This invocation calls itself in safe 5-make batches.
+   * This function splits the work across multiple internal
+   * Cloudflare invocations so we do not burn through the
+   * per-invocation external subrequest budget.
    */
   const allResults = [];
 
@@ -749,10 +1111,13 @@ export async function onRequestGet({
     let offset = 0;
     offset <
     TIER_A_MAKES.length;
-    offset += DEFAULT_BATCH_SIZE
+    offset +=
+      DEFAULT_BATCH_SIZE
   ) {
     const batchUrl =
-      new URL(request.url);
+      new URL(
+        request.url
+      );
 
     batchUrl.searchParams.set(
       '_batch',
@@ -766,7 +1131,9 @@ export async function onRequestGet({
 
     batchUrl.searchParams.set(
       'limit',
-      String(DEFAULT_BATCH_SIZE)
+      String(
+        DEFAULT_BATCH_SIZE
+      )
     );
 
     let res;
@@ -780,29 +1147,62 @@ export async function onRequestGet({
       allResults.push({
         make:
           `[batch offset ${offset}]`,
+
         error:
-          `Batch sub-request failed: ${err.message}`,
+          `Batch request failed: ${err.message}`,
       });
 
       continue;
     }
 
     if (!res.ok) {
+      let body = '';
+
+      try {
+        body =
+          await res.text();
+      } catch {
+        // ignore body failure
+      }
+
       allResults.push({
         make:
           `[batch offset ${offset}]`,
+
         error:
-          `Batch sub-request failed (${res.status})`,
+          `Batch request failed (${res.status})` +
+          (
+            body
+              ? `: ${body.slice(
+                  0,
+                  300
+                )}`
+              : ''
+          ),
       });
 
       continue;
     }
 
-    const data =
-      await res.json();
+    let data;
+
+    try {
+      data =
+        await res.json();
+    } catch (err) {
+      allResults.push({
+        make:
+          `[batch offset ${offset}]`,
+
+        error:
+          `Invalid batch JSON: ${err.message}`,
+      });
+
+      continue;
+    }
 
     allResults.push(
-      ...(data.makes || [])
+      ...(data.makes ?? [])
     );
   }
 
@@ -812,59 +1212,4 @@ export async function onRequestGet({
       allResults
     )
   );
-}
-
-function summarize(
-  year,
-  results
-) {
-  const totalGaps =
-    results.reduce(
-      (sum, result) =>
-        sum +
-        (
-          result.gaps?.length ||
-          0
-        ),
-      0
-    );
-
-  const totalReview =
-    results.reduce(
-      (sum, result) =>
-        sum +
-        (
-          result.needsReview
-            ?.length ||
-          0
-        ),
-      0
-    );
-
-  const makesWithErrors =
-    results.filter(
-      (result) =>
-        Boolean(result.error)
-    ).length;
-
-  return {
-    year,
-
-    totalMakesConfigured:
-      TIER_A_MAKES.length,
-
-    summary: {
-      makesChecked:
-        results.length,
-
-      makesWithErrors,
-
-      totalGaps,
-
-      totalNeedsReview:
-        totalReview,
-    },
-
-    makes: results,
-  };
 }
