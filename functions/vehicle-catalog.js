@@ -19,6 +19,12 @@
  * (vehicle_catalog.generation_id / vehicle_configurations.generation_id).
  * No generation is required, looked up, or created here.
  *
+ * A year that vPIC genuinely has no data for yet (e.g. a future model
+ * year manufacturers haven't submitted VIN specs for) is still recorded
+ * as "checked" in vehicle_catalog_ingest_log, so it's never re-fetched
+ * from NHTSA on a later request -- only { entity: 'ingest' } forces a
+ * fresh check.
+ *
  * GET  /vehicle-catalog?level=makes&year=2026
  *   -> { makes: string[] }  (ingests from vPIC once if the year is empty)
  * GET  /vehicle-catalog?level=models&year=2026&make=Toyota
@@ -124,11 +130,20 @@ async function getVpicModels(make, year) {
   return [...new Set(perType.flat())];
 }
 
-// Ingest one year across every Tier-A make: fetch vPIC, canonicalize, upsert
-// into vehicle_catalog. Duplicate (year, make, model) is a harmless no-op
-// via ON CONFLICT DO NOTHING at the DB level (unique index), so calling
-// this twice for the same year is always safe.
-async function ingestYear(env, year, makes = TIER_A_MAKES) {
+const DEFAULT_BATCH_SIZE = 5;
+
+// Ingests a SMALL slice of makes for one year: fetch vPIC, canonicalize,
+// upsert into vehicle_catalog. Duplicate (year, make, model) is a harmless
+// no-op via ON CONFLICT DO NOTHING at the DB level (unique index). Does
+// NOT write the ingest log -- that only happens once every batch for the
+// whole year has completed (see ingestYear below). Kept small and
+// self-contained on purpose: looping over all 21 Tier-A makes' vPIC calls
+// in a single Cloudflare Pages Function invocation risks hitting the
+// per-invocation subrequest/CPU-time limit before it finishes, which would
+// silently produce zero rows for every year, not just a slow one (this is
+// exactly the problem taxonomy-gap-check.js's own _batch/offset/limit
+// splitting already works around -- same fix, applied here).
+async function ingestMakesBatch(env, year, makes) {
   const rows = [];
   const errors = [];
   for (const make of makes) {
@@ -146,23 +161,81 @@ async function ingestYear(env, year, makes = TIER_A_MAKES) {
       errors.push({ make, error: err.message });
     }
   }
-  if (rows.length === 0) return { inserted: 0, errors };
 
-  const res = await sb(env, '/vehicle_catalog', {
-    method: 'POST',
-    headers: { Prefer: 'resolution=ignore-duplicates,return=representation' },
-    body: JSON.stringify(rows),
-  });
-  if (!res.ok) {
-    errors.push({ make: '[bulk insert]', error: await res.text() });
-    return { inserted: 0, errors };
+  let inserted = 0;
+  if (rows.length > 0) {
+    const res = await sb(env, '/vehicle_catalog', {
+      method: 'POST',
+      headers: { Prefer: 'resolution=ignore-duplicates,return=representation' },
+      body: JSON.stringify(rows),
+    });
+    if (!res.ok) {
+      errors.push({ make: '[bulk insert]', error: await res.text() });
+    } else {
+      const insertedRows = await res.json();
+      inserted = insertedRows.length;
+    }
   }
-  const inserted = await res.json();
-  return { inserted: inserted.length, errors };
+
+  return { inserted, errors };
 }
 
-async function yearHasCatalogRows(env, year) {
-  const res = await sb(env, `/vehicle_catalog?year=eq.${year}&select=id&limit=1`);
+// Orchestrates a full year's ingest by chaining several small internal
+// requests back to THIS SAME function (each handling DEFAULT_BATCH_SIZE
+// makes), the same self-fetch splitting pattern taxonomy-gap-check.js
+// uses -- one browser-facing request fans out across multiple Cloudflare
+// invocations instead of doing all 21 makes' worth of vPIC calls in one.
+// Writes the ingest log exactly once, after every batch has finished,
+// regardless of whether any rows came back -- so a year vPIC has no data
+// for yet (a future model year, or a genuinely empty historical gap) is
+// still marked "checked" and isn't retried on the next dropdown open.
+async function ingestYear(request, env, year, makes = TIER_A_MAKES) {
+  let totalInserted = 0;
+  const allErrors = [];
+
+  for (let offset = 0; offset < makes.length; offset += DEFAULT_BATCH_SIZE) {
+    const batchUrl = new URL(request.url);
+    batchUrl.searchParams.set('_batch', '1');
+    batchUrl.searchParams.set('year', String(year));
+    batchUrl.searchParams.set('offset', String(offset));
+    batchUrl.searchParams.set('limit', String(DEFAULT_BATCH_SIZE));
+    batchUrl.searchParams.set('makes', makes.join(','));
+
+    let res;
+    try {
+      res = await fetch(batchUrl.toString());
+    } catch (err) {
+      allErrors.push({ make: `[batch offset ${offset}]`, error: `Batch request failed: ${err.message}` });
+      continue;
+    }
+    if (!res.ok) {
+      let bodyText = '';
+      try { bodyText = await res.text(); } catch { /* ignore */ }
+      allErrors.push({ make: `[batch offset ${offset}]`, error: `Batch request failed (${res.status})${bodyText ? `: ${bodyText.slice(0, 300)}` : ''}` });
+      continue;
+    }
+
+    let data;
+    try { data = await res.json(); } catch (err) {
+      allErrors.push({ make: `[batch offset ${offset}]`, error: `Invalid batch JSON: ${err.message}` });
+      continue;
+    }
+
+    totalInserted += data.inserted || 0;
+    allErrors.push(...(data.errors || []));
+  }
+
+  await sb(env, '/vehicle_catalog_ingest_log', {
+    method: 'POST',
+    headers: { Prefer: 'resolution=merge-duplicates' },
+    body: JSON.stringify({ year, ingested_at: new Date().toISOString(), make_count: makes.length, error_count: allErrors.length }),
+  });
+
+  return { inserted: totalInserted, errors: allErrors };
+}
+
+async function yearAlreadyIngested(env, year) {
+  const res = await sb(env, `/vehicle_catalog_ingest_log?year=eq.${year}&select=year&limit=1`);
   if (!res.ok) return false;
   const rows = await res.json();
   return rows.length > 0;
@@ -170,21 +243,40 @@ async function yearHasCatalogRows(env, year) {
 
 export async function onRequestGet({ request, env }) {
   const url = new URL(request.url);
-  const level = url.searchParams.get('level');
 
   const supabaseUrl = env.SUPABASE_URL ?? env.VITE_SUPABASE_URL;
   if (!supabaseUrl || !env.SUPABASE_SERVICE_KEY) {
     return json({ error: 'Server not configured — check SUPABASE_URL / SUPABASE_SERVICE_KEY env vars' }, 500);
   }
 
+  // Internal batch invocation -- see ingestYear above. Never called directly
+  // by the frontend; ingestYear calls this same URL with these params set.
+  if (url.searchParams.get('_batch') === '1') {
+    const year = Number(url.searchParams.get('year'));
+    const offset = Number(url.searchParams.get('offset')) || 0;
+    const requestedLimit = Number(url.searchParams.get('limit'));
+    const limit = Number.isInteger(requestedLimit) && requestedLimit > 0 ? Math.min(requestedLimit, DEFAULT_BATCH_SIZE) : DEFAULT_BATCH_SIZE;
+    const makesParam = url.searchParams.get('makes');
+    const allMakes = makesParam ? makesParam.split(',').map((m) => m.trim()).filter(Boolean) : TIER_A_MAKES;
+    const batchMakes = allMakes.slice(offset, offset + limit);
+    const result = await ingestMakesBatch(env, year, batchMakes);
+    return json(result);
+  }
+
+  const level = url.searchParams.get('level');
+
   if (level === 'makes') {
     const year = Number(url.searchParams.get('year'));
     if (!Number.isInteger(year)) return json({ error: 'year is required' }, 400);
 
-    // Cache-first: only ever hits vPIC the first time this year has zero
-    // rows. Every dropdown open after that is a plain Supabase read.
-    if (!(await yearHasCatalogRows(env, year))) {
-      await ingestYear(env, year);
+    // Cache-first: only ever hits vPIC the first time this year has never
+    // been ingested (checked via the log, not "does it have rows" -- a
+    // year vPIC has zero data for yet still counts as checked). Every
+    // dropdown open after that is a plain Supabase read, even for a year
+    // that turned up nothing. To force a re-check later (e.g. once NHTSA
+    // has caught up on a future model year), POST { entity: 'ingest', year }.
+    if (!(await yearAlreadyIngested(env, year))) {
+      await ingestYear(request, env, year);
     }
 
     const res = await sb(env, `/vehicle_catalog?year=eq.${year}&status=eq.active&select=make`);
@@ -243,7 +335,7 @@ export async function onRequestPost({ request, env }) {
     const year = Number(body?.year);
     if (!Number.isInteger(year)) return json({ error: 'year is required' }, 400);
     const makes = Array.isArray(body?.makes) && body.makes.length ? body.makes : TIER_A_MAKES;
-    const result = await ingestYear(env, year, makes);
+    const result = await ingestYear(request, env, year, makes);
     return json({ year, ...result });
   }
 
