@@ -252,8 +252,8 @@ export async function onRequestPost({ request, env }) {
   try { body = await request.json(); } catch { return json({ error: 'Invalid JSON' }, 400); }
 
   const { vehicle, repair, force, priority } = body || {};
-  if (!vehicle?.year || !vehicle?.make || !vehicle?.model || !repair?.trim()) {
-    return json({ error: 'vehicle.year, vehicle.make, vehicle.model and repair are required' }, 400);
+  if (!vehicle?.year || !vehicle?.make || !vehicle?.model || !clean(vehicle?.engine) || !repair?.trim()) {
+    return json({ error: 'vehicle.year, vehicle.make, vehicle.model, vehicle.engine and repair are required' }, 400);
   }
   const year = Number(vehicle.year);
   if (!Number.isInteger(year) || year < 1886 || year > 2100) return json({ error: 'vehicle.year must be a valid year' }, 400);

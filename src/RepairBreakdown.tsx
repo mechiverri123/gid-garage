@@ -119,7 +119,7 @@ export default function RepairBreakdown() {
   }
 
   async function runBreakdown(force = false) {
-    if (!vehicle.year || !vehicle.make || !vehicle.model || !repairJob.trim()) return;
+    if (!vehicle.year || !vehicle.make || !vehicle.model || !vehicle.engine || !repairJob.trim()) return;
     stopPolling();
     setError(null);
     // Only keep the stale result visible on a Refresh (force=true) of the
@@ -184,7 +184,7 @@ export default function RepairBreakdown() {
             <Field value={vehicle.make} onChange={(v) => setVehicle({ ...vehicle, make: v })} placeholder="Make" />
             <Field value={vehicle.model} onChange={(v) => setVehicle({ ...vehicle, model: v })} placeholder="Model" />
             <Field value={vehicle.trim} onChange={(v) => setVehicle({ ...vehicle, trim: v })} placeholder="Trim (optional)" />
-            <Field value={vehicle.engine} onChange={(v) => setVehicle({ ...vehicle, engine: v })} placeholder="Engine (e.g. 2.5L)" />
+            <Field value={vehicle.engine} onChange={(v) => setVehicle({ ...vehicle, engine: v })} placeholder="Engine (required, e.g. 2.5L)" />
             <Field value={vehicle.drivetrain} onChange={(v) => setVehicle({ ...vehicle, drivetrain: v })} placeholder="Drivetrain (optional)" />
           </div>
         </div>
@@ -199,7 +199,7 @@ export default function RepairBreakdown() {
           />
           <button
             onClick={() => runBreakdown()}
-            disabled={status === 'pending' || !vehicle.year || !vehicle.make || !vehicle.model || !repairJob.trim()}
+            disabled={status === 'pending' || !vehicle.year || !vehicle.make || !vehicle.model || !vehicle.engine || !repairJob.trim()}
             className="btn-primary rounded disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {status === 'pending' ? 'Checking...' : 'Run'}
