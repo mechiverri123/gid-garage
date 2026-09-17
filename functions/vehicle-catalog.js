@@ -164,7 +164,11 @@ async function ingestMakesBatch(env, year, makes) {
 
   let inserted = 0;
   if (rows.length > 0) {
-    const res = await sb(env, '/vehicle_catalog', {
+    // on_conflict is required for `resolution=ignore-duplicates` to target
+    // the (year, make, model) unique constraint -- without it PostgREST
+    // falls back to the primary key, which never collides on insert, and
+    // a genuine duplicate throws a raw 23505 instead of being skipped.
+    const res = await sb(env, '/vehicle_catalog?on_conflict=year,make,model', {
       method: 'POST',
       headers: { Prefer: 'resolution=ignore-duplicates,return=representation' },
       body: JSON.stringify(rows),
@@ -225,7 +229,7 @@ async function ingestYear(request, env, year, makes = TIER_A_MAKES) {
     allErrors.push(...(data.errors || []));
   }
 
-  await sb(env, '/vehicle_catalog_ingest_log', {
+  await sb(env, '/vehicle_catalog_ingest_log?on_conflict=year', {
     method: 'POST',
     headers: { Prefer: 'resolution=merge-duplicates' },
     body: JSON.stringify({ year, ingested_at: new Date().toISOString(), make_count: makes.length, error_count: allErrors.length }),
@@ -344,7 +348,7 @@ export async function onRequestPost({ request, env }) {
     const make = clean(body?.make);
     const model = clean(body?.model);
     if (!Number.isInteger(year) || !make || !model) return json({ error: 'year, make and model are required' }, 400);
-    const res = await sb(env, '/vehicle_catalog', {
+    const res = await sb(env, '/vehicle_catalog?on_conflict=year,make,model', {
       method: 'POST',
       headers: { Prefer: 'resolution=ignore-duplicates,return=representation' },
       body: JSON.stringify({ year, make, model, source: 'manual', status: 'active' }),
@@ -362,22 +366,28 @@ export async function onRequestPost({ request, env }) {
     const engineLabel = clean(body?.engine_label);
     if (!vehicleCatalogId || !engineLabel) return json({ error: 'vehicle_catalog_id and engine_label are required' }, 400);
 
+    // The four fields that make up the mechanical-identity unique
+    // constraint use '' (empty string) as the "unspecified" sentinel, not
+    // null -- on_conflict can only target a real column-list unique
+    // constraint, and Postgres' NULL != NULL rules would otherwise let a
+    // second "no drivetrain specified" row past a NULL-based constraint.
+    // See sql/002_fix_upsert_conflict_targets.sql.
     const payload = {
       vehicle_catalog_id: vehicleCatalogId,
       engine_label: engineLabel,
       engine_code: clean(body?.engine_code) || null,
       displacement: clean(body?.displacement) || null,
       powertrain_type: clean(body?.powertrain_type) || null,
-      drivetrain: clean(body?.drivetrain) || null,
-      transmission: clean(body?.transmission) || null,
       fuel_type: clean(body?.fuel_type) || null,
-      trim_constraint: clean(body?.trim_constraint) || null,
-      emissions_market: clean(body?.emissions_market) || null,
+      drivetrain: clean(body?.drivetrain) || '',
+      transmission: clean(body?.transmission) || '',
+      trim_constraint: clean(body?.trim_constraint) || '',
+      emissions_market: clean(body?.emissions_market) || '',
       source: 'manual',
       status: 'active',
     };
 
-    const res = await sb(env, '/vehicle_configurations', {
+    const res = await sb(env, '/vehicle_configurations?on_conflict=vehicle_catalog_id,engine_label,drivetrain,transmission,trim_constraint,emissions_market', {
       method: 'POST',
       headers: { Prefer: 'resolution=ignore-duplicates,return=representation' },
       body: JSON.stringify(payload),
@@ -390,10 +400,10 @@ export async function onRequestPost({ request, env }) {
     const filters = [
       `vehicle_catalog_id=eq.${vehicleCatalogId}`,
       `engine_label=eq.${encodeURIComponent(engineLabel)}`,
-      payload.drivetrain ? `drivetrain=eq.${encodeURIComponent(payload.drivetrain)}` : 'drivetrain=is.null',
-      payload.transmission ? `transmission=eq.${encodeURIComponent(payload.transmission)}` : 'transmission=is.null',
-      payload.trim_constraint ? `trim_constraint=eq.${encodeURIComponent(payload.trim_constraint)}` : 'trim_constraint=is.null',
-      payload.emissions_market ? `emissions_market=eq.${encodeURIComponent(payload.emissions_market)}` : 'emissions_market=is.null',
+      `drivetrain=eq.${encodeURIComponent(payload.drivetrain)}`,
+      `transmission=eq.${encodeURIComponent(payload.transmission)}`,
+      `trim_constraint=eq.${encodeURIComponent(payload.trim_constraint)}`,
+      `emissions_market=eq.${encodeURIComponent(payload.emissions_market)}`,
     ].join('&');
     const existingRes = await sb(env, `/vehicle_configurations?${filters}&select=*`);
     const existingRows = existingRes.ok ? await existingRes.json() : [];
