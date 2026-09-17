@@ -303,5 +303,15 @@ export async function onRequestGet({ request, env }) {
   const row = rows[0];
   if (row.status === 'done') return json({ status: 'done', key, caveats: row.caveats || null, ...row.content });
   if (row.status === 'error') return json({ status: 'error', error: row.error_message });
+  if (row.status === 'superseded') {
+    // This row was replaced by another (e.g. a duplicate cleaned up by hand,
+    // or a future automated dedup pass) -- rather than leaving the frontend
+    // polling a dead key forever, redirect to the current live guide for the
+    // same generation+repair pair if one exists yet.
+    const liveRes = await sb(env, `/repair_guides?generation_id=eq.${row.generation_id}&repair_id=eq.${row.repair_id}&status=eq.done&select=*&order=last_used_at.desc.nullslast&limit=1`);
+    const liveRows = liveRes.ok ? await liveRes.json() : [];
+    if (liveRows[0]) return json({ status: 'done', key: String(liveRows[0].id), caveats: liveRows[0].caveats || null, ...liveRows[0].content });
+    return json({ status: 'pending' }); // superseded but no done replacement yet -- keep polling rather than dead-ending
+  }
   return json({ status: row.status });
 }
