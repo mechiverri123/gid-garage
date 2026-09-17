@@ -383,7 +383,7 @@ export default function RepairBrowser() {
           {!addingVehicle ? (
             <div className="flex gap-3 items-center flex-wrap">
               <button onClick={() => setAddingVehicle(true)} className="btn-secondary rounded px-3 py-1.5 text-base">
-                + Add new vehicle {year ? `(no ${!make ? 'makes' : 'models'} for ${year}${make ? ` ${make}` : ''}?)` : ''}
+                + Add new vehicle{year && make && models.length === 0 ? ` (no models for ${year} ${make}?)` : ''}{year && !make && makes.length === 0 ? ` (no makes for ${year}?)` : ''}
               </button>
               <button onClick={() => setAddingBulkVehicle(true)} className="text-white/40 text-sm underline hover:text-white/70">bulk add vehicles</button>
             </div>
