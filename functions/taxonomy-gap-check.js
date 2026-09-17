@@ -288,36 +288,65 @@ export async function onRequestGet({ request, env }) {
   }
 
   const makesParam = url.searchParams.get('makes');
-  let makesToProcess;
-  let offset = 0;
-  let nextOffset = null;
+  const isBatchWorker = url.searchParams.get('_batch') === '1';
 
   if (makesParam) {
-    // Explicit make list — no pagination, caller controls batch size directly.
-    makesToProcess = makesParam.split(',').map((m) => m.trim()).filter(Boolean);
-  } else {
-    offset = Number(url.searchParams.get('offset')) || 0;
+    // Explicit, small make list — process directly, no orchestration needed.
+    const results = [];
+    for (const make of makesParam.split(',').map((m) => m.trim()).filter(Boolean)) {
+      results.push(await checkMakeGaps(env, make, year));
+    }
+    return json(summarize(year, results));
+  }
+
+  if (isBatchWorker) {
+    // One batch, invoked BY the orchestrator below (self-fetch) — this is
+    // its own Worker invocation with its own fresh subrequest budget, so
+    // it can safely make its own set of vPIC + Supabase calls without
+    // touching the orchestrator's budget at all.
+    const offset = Number(url.searchParams.get('offset')) || 0;
     const limit = Number(url.searchParams.get('limit')) || DEFAULT_BATCH_SIZE;
-    makesToProcess = TIER_A_MAKES.slice(offset, offset + limit);
-    nextOffset = offset + limit < TIER_A_MAKES.length ? offset + limit : null;
+    const batchMakes = TIER_A_MAKES.slice(offset, offset + limit);
+    const results = [];
+    for (const make of batchMakes) {
+      results.push(await checkMakeGaps(env, make, year));
+    }
+    return json({ makes: results });
   }
 
-  // Sequential, not Promise.all across makes: vPIC rate-limits, and this
-  // also keeps per-invocation subrequest count predictable for batching.
-  const results = [];
-  for (const make of makesToProcess) {
-    results.push(await checkMakeGaps(env, make, year));
+  // Default path: ONE call, fully resolved. Orchestrates internally by
+  // fetching this same endpoint in small batches (each self-fetch is a
+  // single subrequest from THIS invocation's budget, regardless of how
+  // much work happens inside the invocation it triggers — that's what
+  // keeps this within Cloudflare's per-invocation subrequest limit even
+  // though the total work across all makes would exceed it if done in
+  // one invocation directly). The caller never sees offsets or has to
+  // loop themselves.
+  const allResults = [];
+  for (let offset = 0; offset < TIER_A_MAKES.length; offset += DEFAULT_BATCH_SIZE) {
+    const batchUrl = new URL(request.url);
+    batchUrl.searchParams.set('_batch', '1');
+    batchUrl.searchParams.set('offset', String(offset));
+    batchUrl.searchParams.set('limit', String(DEFAULT_BATCH_SIZE));
+    const res = await fetch(batchUrl.toString());
+    if (!res.ok) {
+      allResults.push({ make: `[batch offset ${offset}]`, error: `Batch sub-request failed (${res.status})` });
+      continue;
+    }
+    const data = await res.json();
+    allResults.push(...(data.makes || []));
   }
 
+  return json(summarize(year, allResults));
+}
+
+function summarize(year, results) {
   const totalGaps = results.reduce((sum, r) => sum + (r.gaps?.length || 0), 0);
   const totalReview = results.reduce((sum, r) => sum + (r.needsReview?.length || 0), 0);
-
-  return json({
+  return {
     year,
-    offset,
-    nextOffset,
     totalMakesConfigured: TIER_A_MAKES.length,
     summary: { makesChecked: results.length, totalGaps, totalNeedsReview: totalReview },
     makes: results,
-  });
+  };
 }
