@@ -98,8 +98,45 @@ export async function onRequestPost({ request, env }) {
     return json({ error: 'make, model, year_start and year_end (year_end >= year_start) are required' }, 400);
   }
 
+  // Overlap guard: two generations of the same make+model must never cover
+  // overlapping years (that's what caused the 2019-2024 / 2019-2026 Silverado
+  // duplicate). year_start <= existing.year_end AND existing.year_start <= year_end
+  // is the standard range-overlap test. This also catches an EXACT duplicate
+  // (identical range), since an identical range always overlaps itself.
+  const overlapRes = await sb(
+    env,
+    `/generations?make=eq.${encodeURIComponent(make)}&model=eq.${encodeURIComponent(model)}&year_start=lte.${yearEnd}&year_end=gte.${yearStart}&select=*`
+  );
+  if (overlapRes.ok) {
+    const overlapping = await overlapRes.json();
+    if (overlapping.length > 0) {
+      return json({
+        error: `${make} ${model} ${yearStart}-${yearEnd} overlaps an existing generation. Use the existing one, or fix its year range instead of adding a new one.`,
+        existing: overlapping,
+      }, 409);
+    }
+  }
+
   const res = await fetch(`${supabaseUrl}/rest/v1/generations`, { method: 'POST', headers, body: JSON.stringify({ make, model, name, year_start: yearStart, year_end: yearEnd }) });
-  if (!res.ok) return json({ error: 'Could not create generation', detail: await res.text() }, 502);
+  if (!res.ok) {
+    const detail = await res.text();
+    // Fallback safety net: if a DB-level exclusion constraint (see the
+    // generations_no_overlapping_years migration) rejects an insert that
+    // slipped past the check above (e.g. a race between two concurrent
+    // bulk-adds), report it the same friendly way instead of a raw 502.
+    if (/exclu|overlap/i.test(detail)) {
+      const retryRes = await sb(
+        env,
+        `/generations?make=eq.${encodeURIComponent(make)}&model=eq.${encodeURIComponent(model)}&year_start=lte.${yearEnd}&year_end=gte.${yearStart}&select=*`
+      );
+      const existing = retryRes.ok ? await retryRes.json() : [];
+      return json({
+        error: `${make} ${model} ${yearStart}-${yearEnd} overlaps an existing generation. Use the existing one, or fix its year range instead of adding a new one.`,
+        existing,
+      }, 409);
+    }
+    return json({ error: 'Could not create generation', detail }, 502);
+  }
   const rows = await res.json();
   return json({ generation: rows[0] || null });
 }

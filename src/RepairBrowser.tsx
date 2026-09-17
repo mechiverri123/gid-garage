@@ -197,14 +197,17 @@ export default function RepairBrowser() {
     return text.split('\n').map((l) => l.trim()).filter(Boolean);
   }
 
-  async function createVehicle(m: string, mo: string, ys: number, ye: number, name?: string) {
-    if (!m.trim() || !mo.trim() || !Number.isInteger(ys)) return null;
+  async function createVehicle(m: string, mo: string, ys: number, ye: number, name?: string): Promise<{ generation: Generation | null; error: string | null }> {
+    if (!m.trim() || !mo.trim() || !Number.isInteger(ys)) return { generation: null, error: 'make, model and a valid year are required' };
     const res = await fetch('/taxonomy-browse', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ make: m.trim(), model: mo.trim(), year_start: ys, year_end: Number.isInteger(ye) ? ye : ys, name: name?.trim() || undefined }),
     });
     const data = await res.json();
-    return data.generation || null;
+    // 409 here means the server's overlap guard rejected this range as a
+    // duplicate/overlap of an existing generation for this make+model --
+    // surface that reason instead of treating it as a generic failure.
+    return { generation: data.generation || null, error: res.ok ? null : (data.error || 'Could not add vehicle') };
   }
 
   async function createCategory(name: string) {
@@ -239,7 +242,7 @@ export default function RepairBrowser() {
 
   async function addVehicle() {
     const { make: m, model: mo, yearStart, yearEnd, name } = newVehicle;
-    const gen = await createVehicle(m, mo, Number(yearStart), Number(yearEnd || yearStart), name);
+    const { generation: gen, error } = await createVehicle(m, mo, Number(yearStart), Number(yearEnd || yearStart), name);
     if (gen) {
       setYear(String(gen.year_start));
       setMake(gen.make);
@@ -249,6 +252,9 @@ export default function RepairBrowser() {
       // those would wipe out the generation we just created in the same
       // tick. Restore it once those resets have already run.
       setTimeout(() => setGeneration(gen), 0);
+      setBulkResult(null);
+    } else if (error) {
+      setBulkResult(error);
     }
     setNewVehicle({ make: '', model: '', yearStart: '', yearEnd: '', name: '' });
     setAddingVehicle(false);
@@ -256,14 +262,15 @@ export default function RepairBrowser() {
 
   async function bulkAddVehicles(text: string) {
     const lines = parseLines(text);
-    let added = 0, failed = 0;
+    let added = 0;
+    const failures: string[] = [];
     for (const line of lines) {
       const parts = line.split(',').map((p) => p.trim());
       const [m, mo, ys, ye, name] = parts;
-      const gen = await createVehicle(m || '', mo || '', Number(ys), Number(ye || ys), name);
-      if (gen) added++; else failed++;
+      const { generation: gen, error } = await createVehicle(m || '', mo || '', Number(ys), Number(ye || ys), name);
+      if (gen) added++; else failures.push(`"${line}" — ${error || 'failed'}`);
     }
-    setBulkResult(`vehicles: added ${added}${failed ? `, ${failed} failed (check "Make, Model, YearStart, YearEnd" format on each line)` : ''}`);
+    setBulkResult(`vehicles: added ${added}${failures.length ? `, ${failures.length} skipped:\n${failures.join('\n')}` : ''}`);
     setBulkVehicleText('');
     setAddingBulkVehicle(false);
     // Refresh the makes list for whatever year is currently selected, in case
@@ -417,7 +424,9 @@ export default function RepairBrowser() {
           )}
 
           {bulkResult && (
-            <p className="text-green-400/80 text-sm">{bulkResult} <button onClick={() => setBulkResult(null)} className="underline ml-2">dismiss</button></p>
+            <p className={`text-sm whitespace-pre-wrap ${/skipped|overlap|required|failed/i.test(bulkResult) ? 'text-yellow-500/80' : 'text-green-400/80'}`}>
+              {bulkResult} <button onClick={() => setBulkResult(null)} className="underline ml-2">dismiss</button>
+            </p>
           )}
 
           {generation && (
