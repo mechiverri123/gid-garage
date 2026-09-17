@@ -99,11 +99,6 @@ export default function RepairBreakdown() {
     }
   }
 
-  function vehicleDescription(): string {
-    return [vehicle.year, vehicle.make, vehicle.model, vehicle.trim, vehicle.engine, vehicle.drivetrain]
-      .filter(Boolean).join(' ');
-  }
-
   async function pollStatus(key: string, startedAt: number) {
     if (Date.now() - startedAt > POLL_TIMEOUT_MS) {
       stopPolling();
@@ -120,9 +115,7 @@ export default function RepairBreakdown() {
   }
 
   async function runBreakdown(force = false) {
-    const vehicleDesc = vehicleDescription();
-    if (!vehicleDesc || !repairJob.trim()) return;
-    const repair = `${vehicleDesc} ${repairJob.trim()}`;
+    if (!vehicle.year || !vehicle.make || !vehicle.model || !repairJob.trim()) return;
     stopPolling();
     setError(null);
     // Only keep the stale result visible on a Refresh (force=true) of the
@@ -135,7 +128,7 @@ export default function RepairBreakdown() {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         // priority: true — this is a live, on-site lookup, so it jumps ahead
         // of any background/batch jobs already queued.
-        body: JSON.stringify({ repair, force, priority: true }),
+        body: JSON.stringify({ vehicle, repair: repairJob.trim(), force, priority: true }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Request failed');

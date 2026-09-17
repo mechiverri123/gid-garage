@@ -1,187 +1,307 @@
 /**
  * repair-breakdown — Cloudflare Pages Function
- * v5: normalizes each repair into a CANONICAL key before checking the
- * cache, so "2007 RAV4" and "2006 RAV4 2.4L" doing engine work share one
- * cached entry (keyed by shared engine code), and suspension/brake/body
- * work shares one entry per chassis platform generation instead. This
- * still does no research itself — just a small, fast classification call
- * — the actual research still happens in repair_worker.py on your laptop.
+ * v6: rebuilt against the structured taxonomy schema (generations /
+ * repair_taxonomy / repair_guides) instead of the old free-text
+ * AI-classified cache key. Generation lookup is now deterministic
+ * (year/make/model -> a real generations row); only the REPAIR PHRASE
+ * still goes through a small classification call, because repair
+ * wording varies a lot more than vehicle identity does.
  *
- * POST /repair-breakdown   { "repair": "..." }
- * GET  /repair-breakdown?key=...
+ * This still does no research itself -- a new/uncached combination is
+ * queued (status: 'pending') and the actual research worker (wherever
+ * it runs -- Claude, a laptop script, etc.) is responsible for filling
+ * in `content` and flipping status to 'done'.
+ *
+ * POST /repair-breakdown
+ *   {
+ *     vehicle: { year, make, model, trim?, engine?, drivetrain?, transmission? },
+ *     repair: "front wheel bearing",   // free text, any phrasing
+ *     force?: boolean,                 // re-queue even if a done guide exists
+ *     priority?: boolean               // jump the research queue
+ *   }
+ *   -> { status: 'done'|'pending'|'error', key: <repair_guides.id>, ...content }
+ *
+ * GET /repair-breakdown?key=<repair_guides.id>
+ *   -> { status, ...content }
  *
  * Setup required (Pages > Settings > Environment variables):
- *   - ANTHROPIC_API_KEY   (small/cheap classification calls only — a few
- *     hundred tokens each, effectively fractions of a cent; the actual
- *     research stays on your subscription via the laptop worker)
+ *   - ANTHROPIC_API_KEY   (small classification calls only, a few hundred
+ *     tokens each -- the actual repair research is a separate process)
  *   - SUPABASE_URL (or reuses VITE_SUPABASE_URL)
  *   - SUPABASE_SERVICE_KEY
- *
- * Run the (updated) supabase_migration.sql once before using this —
- * it adds the repair_aliases table this version needs.
  */
 
-function normalizeRawKey(repair) {
-  return repair.trim().toLowerCase().replace(/\s+/g, ' ');
+function json(data, status = 200) {
+  return new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' } });
+}
+function clean(v) { return typeof v === 'string' ? v.trim().replace(/\s+/g, ' ') : ''; }
+function sbHeaders(serviceKey) { return { apikey: serviceKey, Authorization: `Bearer ${serviceKey}`, 'Content-Type': 'application/json' }; }
+
+async function sb(env, path, opt = {}) {
+  const base = `${env.SUPABASE_URL ?? env.VITE_SUPABASE_URL}/rest/v1`;
+  const res = await fetch(`${base}${path}`, { ...opt, headers: { ...sbHeaders(env.SUPABASE_SERVICE_KEY), ...(opt.headers || {}) } });
+  return res;
 }
 
-function supabaseHeaders(serviceKey) {
-  return { apikey: serviceKey, Authorization: `Bearer ${serviceKey}`, 'Content-Type': 'application/json' };
+// ---------------------------------------------------------------------------
+// Generation resolution -- deterministic, no AI. year/make/model -> the real
+// generations row, applying generation_make_model_aliases first so brand
+// splits (Dodge -> Ram) and similar naming drift resolve to the same lookup.
+// ---------------------------------------------------------------------------
+async function resolveGenerationMakeModel(env, make, model) {
+  const aliasRes = await sb(env, `/generation_make_model_aliases?alias_make=ilike.${encodeURIComponent(make)}&alias_model=ilike.${encodeURIComponent(model)}&select=canonical_make,canonical_model&limit=1`);
+  if (aliasRes.ok) {
+    const rows = await aliasRes.json();
+    if (rows[0]) return { make: rows[0].canonical_make, model: rows[0].canonical_model };
+  }
+  return { make, model };
 }
 
-const NORMALIZE_SYSTEM_PROMPT = `You convert a repair description into a canonical cache key so \
-similar jobs across model years/trims that share the same underlying hardware map to the same key.
-
-You will be given a list of EXISTING canonical keys already in the database. Check that list \
-FIRST: if this repair genuinely matches one of them (same engine/platform and same repair type), \
-respond with that EXACT existing key, copied exactly as shown — same wording, same capitalization, \
-same punctuation. Do not paraphrase an existing key even slightly.
-
-Only if nothing in the list matches, create a NEW key following these rules:
-- For engine, drivetrain, fuel system, or electrical work: key by the ENGINE CODE \
-  shared across years/trims (e.g. "Toyota 2AZ-FE 2.4L", "VW EA888 2.0T"), not the model year. \
-  If you don't know the exact engine code with confidence, fall back to "MAKE MODEL YEAR-RANGE".
-- For suspension, brakes, body, or interior work: key by the CHASSIS PLATFORM generation \
-  shared across years (e.g. "Toyota RAV4 XA30 2006-2012"), not a single model year, \
-  UNLESS the repair description gives a specific year that narrows to a mid-cycle change \
-  you're aware of — in that case keep the specific year.
-- Always end the key with " - " followed by the repair type in a few words.
-- If you're not confident about grouping (unfamiliar vehicle, ambiguous description), \
-  just normalize the original description minimally instead of guessing a platform/engine code.
-
-Respond with ONLY the canonical key string. No explanation, no quotes, no punctuation besides what's in the key itself.`;
-
-function extractSearchTerm(repair) {
-  // Crude but effective: strip a leading year (or year range), keep the next
-  // two words — typically make + model — to narrow candidate keys instead of
-  // loading every canonical key ever created.
-  const noYear = repair.trim().replace(/^\d{4}(-\d{4})?\s+/, '');
-  return noYear.split(/\s+/).slice(0, 2).join(' ');
-}
-
-async function fetchCandidateKeys(base, headers, repair) {
-  const term = extractSearchTerm(repair);
-  if (!term) return [];
-  const res = await fetch(
-    `${base}/repair_breakdowns?key=ilike.*${encodeURIComponent(term)}*&select=key&limit=100`,
-    { headers }
-  );
-  if (!res.ok) return [];
+async function findGeneration(env, year, make, model) {
+  const { make: canonMake, model: canonModel } = await resolveGenerationMakeModel(env, make, model);
+  const q = `/generations?make=ilike.${encodeURIComponent(canonMake)}&model=ilike.${encodeURIComponent(canonModel)}&year_start=lte.${year}&year_end=gte.${year}&select=*&limit=5`;
+  const res = await sb(env, q);
+  if (!res.ok) return { generation: null, canonMake, canonModel };
   const rows = await res.json();
-  return rows.map((r) => r.key);
+  // Multiple matches shouldn't normally happen (generation year ranges for the
+  // same make/model shouldn't overlap) -- if it does, prefer the narrowest range.
+  rows.sort((a, b) => (a.year_end - a.year_start) - (b.year_end - b.year_start));
+  return { generation: rows[0] || null, canonMake, canonModel };
 }
 
-async function normalizeToCanonicalKey(repair, apiKey, existingKeys) {
-  const keysList = existingKeys.length
-    ? `Existing canonical keys already in the database:\n${existingKeys.map((k) => `- ${k}`).join('\n')}\n\n`
-    : 'No existing keys yet — this will be the first one.\n\n';
-  const res = await fetch('https://api.anthropic.com/v1/messages', {
+async function createProvisionalGeneration(env, year, make, model) {
+  // No known generation covers this vehicle yet. Rather than dead-ending,
+  // create a single-year provisional row so research/lookup can proceed --
+  // clearly marked so it gets reconciled into a real generation range later
+  // instead of silently being treated as an established one.
+  const res = await sb(env, '/generations', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
+    headers: { Prefer: 'resolution=merge-duplicates,return=representation' },
     body: JSON.stringify({
-      model: 'claude-haiku-4-5-20251001',
-      max_tokens: 100,
-      system: NORMALIZE_SYSTEM_PROMPT,
-      messages: [{ role: 'user', content: `${keysList}Repair to classify: ${repair}` }],
+      make, model, name: 'auto (unverified) — needs generation research',
+      year_start: year, year_end: year,
+      notes: 'Created automatically by repair-breakdown lookup for a vehicle not yet in the generations table. Verify and widen/merge into the correct real generation range.',
     }),
   });
-  if (!res.ok) return normalizeRawKey(repair);
-  const data = await res.json();
-  const text = (data.content ?? []).filter((b) => b.type === 'text').map((b) => b.text).join('').trim();
-  return text || normalizeRawKey(repair);
+  if (!res.ok) return null;
+  const rows = await res.json();
+  return rows[0] || null;
 }
 
-export async function onRequestPost({ request, env, waitUntil }) {
-  const { repair, force, canonical_key_hint, priority } = await request.json();
-  if (!repair || typeof repair !== 'string') {
-    return new Response(JSON.stringify({ error: "Missing 'repair' field" }), { status: 400, headers: { 'Content-Type': 'application/json' } });
+// ---------------------------------------------------------------------------
+// Repair phrase resolution -- alias table first (fast path, no AI), then a
+// small classification call against the EXISTING taxonomy list so near-
+// duplicate phrasing collapses onto the same canonical repair instead of
+// silently forking a new one.
+// ---------------------------------------------------------------------------
+const CLASSIFY_SYSTEM_PROMPT = `You map a repair description onto an existing canonical repair taxonomy for an \
+automotive repair shop database.
+
+You will be given the full list of existing canonical repairs (slug and name). Check it FIRST: if the \
+requested repair genuinely matches one of them -- same job scope, same components -- respond with ONLY that \
+existing slug, copied exactly.
+
+Only if nothing matches, respond with a new line in this exact format (no other text):
+NEW|<slug-in-kebab-case>|<Human Readable Name>|<best matching category name from this list: Routine Maintenance, Brakes, Suspension/Steering, Cooling System, Electrical, Engine Accessory, Drivetrain/Transmission, Fuel System, Exhaust, Wheel Bearings/Hubs, HVAC, Other/Uncategorized>
+
+Do not invent a new slug if an existing one covers the same job scope, even if the wording differs. Do not \
+merge two repairs of different scope (e.g. "front brake pads" alone vs "front brake pads and rotors" are \
+different jobs -- keep them separate). Respond with ONLY the slug or the NEW| line -- no explanation.`;
+
+async function classifyRepairPhrase(env, repairPhrase, existingTaxonomy) {
+  const list = existingTaxonomy.map((t) => `${t.slug} :: ${t.name}`).join('\n');
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-api-key': env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' },
+    body: JSON.stringify({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 120,
+      system: CLASSIFY_SYSTEM_PROMPT,
+      messages: [{ role: 'user', content: `Existing canonical repairs:\n${list}\n\nRepair to classify: ${repairPhrase}` }],
+    }),
+  });
+  if (!res.ok) return null;
+  const data = await res.json();
+  return (data.content ?? []).filter((b) => b.type === 'text').map((b) => b.text).join('').trim();
+}
+
+async function resolveRepair(env, repairPhraseRaw) {
+  const rawKey = clean(repairPhraseRaw).toLowerCase();
+
+  const aliasRes = await sb(env, `/repair_taxonomy_aliases?raw_phrase=eq.${encodeURIComponent(rawKey)}&select=repair_id`);
+  if (aliasRes.ok) {
+    const rows = await aliasRes.json();
+    if (rows[0]) return { repairId: rows[0].repair_id, wasNew: false };
   }
 
-  const supabaseUrl = env.SUPABASE_URL ?? env.VITE_SUPABASE_URL;
-  const serviceKey = env.SUPABASE_SERVICE_KEY;
-  if (!supabaseUrl || !serviceKey || !env.ANTHROPIC_API_KEY) {
-    return new Response(JSON.stringify({ error: 'Server not configured — check ANTHROPIC_API_KEY / SUPABASE_URL / SUPABASE_SERVICE_KEY env vars' }), { status: 500, headers: { 'Content-Type': 'application/json' } });
-  }
+  const taxRes = await sb(env, '/repair_taxonomy?select=slug,name');
+  const taxonomy = taxRes.ok ? await taxRes.json() : [];
 
-  const base = `${supabaseUrl}/rest/v1`;
-  const headers = supabaseHeaders(serviceKey);
-  const rawKey = normalizeRawKey(repair);
+  const classification = await classifyRepairPhrase(env, repairPhraseRaw, taxonomy);
+  if (!classification) return { repairId: null, wasNew: false, error: 'Repair classification failed' };
 
-  let canonicalKey;
-  let wasMerged = false;
+  let repairId = null;
+  let wasNew = false;
 
-  if (canonical_key_hint && typeof canonical_key_hint === 'string' && canonical_key_hint.trim()) {
-    // Trusted caller (queue_batch.py, using your curated target_vehicles
-    // platform_key) already knows the correct chassis/engine grouping —
-    // skip AI classification entirely so batch-seeded jobs never depend on
-    // the model guessing consistently. Still record the alias so an organic
-    // /repair-tool query with similar phrasing later reuses this same key.
-    canonicalKey = canonical_key_hint.trim();
-    waitUntil(fetch(`${base}/repair_aliases`, {
-      method: 'POST', headers: { ...headers, Prefer: 'resolution=ignore-duplicates' },
-      body: JSON.stringify({ raw_key: rawKey, canonical_key: canonicalKey }),
-    }));
+  if (classification.startsWith('NEW|')) {
+    const [, slug, name, categoryName] = classification.split('|').map((s) => s.trim());
+    if (!slug || !name) return { repairId: null, wasNew: false, error: 'Classification returned an invalid NEW entry' };
+
+    let categoryId = null;
+    if (categoryName) {
+      const catRes = await sb(env, `/repair_categories?name=eq.${encodeURIComponent(categoryName)}&select=id`);
+      if (catRes.ok) { const rows = await catRes.json(); categoryId = rows[0]?.id ?? null; }
+    }
+
+    const insertRes = await sb(env, '/repair_taxonomy', {
+      method: 'POST',
+      headers: { Prefer: 'resolution=merge-duplicates,return=representation' },
+      body: JSON.stringify({ slug, name, category_id: categoryId }),
+    });
+    if (!insertRes.ok) return { repairId: null, wasNew: false, error: 'Could not create new taxonomy entry' };
+    const rows = await insertRes.json();
+    repairId = rows[0]?.id ?? null;
+    wasNew = true;
   } else {
-    // Fast path: have we seen this exact phrasing before? Skip classification entirely.
-    const aliasRes = await fetch(`${base}/repair_aliases?raw_key=eq.${encodeURIComponent(rawKey)}&select=canonical_key`, { headers });
-    const aliasRows = aliasRes.ok ? await aliasRes.json() : [];
-    canonicalKey = aliasRows[0]?.canonical_key;
-
-    if (!canonicalKey) {
-      const existingKeys = await fetchCandidateKeys(base, headers, repair);
-      canonicalKey = await normalizeToCanonicalKey(repair, env.ANTHROPIC_API_KEY, existingKeys);
-      wasMerged = canonicalKey !== rawKey;
-      // Record this alias (fire-and-forget, doesn't block the response)
-      waitUntil(fetch(`${base}/repair_aliases`, {
-        method: 'POST', headers: { ...headers, Prefer: 'resolution=ignore-duplicates' },
-        body: JSON.stringify({ raw_key: rawKey, canonical_key: canonicalKey }),
-      }));
-    }
+    const slug = classification;
+    const matchRes = await sb(env, `/repair_taxonomy?slug=eq.${encodeURIComponent(slug)}&select=id`);
+    if (matchRes.ok) { const rows = await matchRes.json(); repairId = rows[0]?.id ?? null; }
   }
 
-  const existingRes = await fetch(`${base}/repair_breakdowns?key=eq.${encodeURIComponent(canonicalKey)}&select=*`, { headers });
-  const existing = existingRes.ok ? await existingRes.json() : [];
+  if (!repairId) return { repairId: null, wasNew: false, error: 'Could not resolve repair to a taxonomy entry' };
 
-  if (existing.length > 0 && !force) {
-    const row = existing[0];
-    if (row.status === 'done') {
-      waitUntil(fetch(`${base}/repair_breakdowns?key=eq.${encodeURIComponent(canonicalKey)}`, {
-        method: 'PATCH', headers, body: JSON.stringify({ use_count: (row.use_count || 1) + 1, last_used_at: new Date().toISOString() }),
-      }));
-      return new Response(JSON.stringify({ status: 'done', key: canonicalKey, merged: wasMerged, ...row.breakdown }), { headers: { 'Content-Type': 'application/json' } });
-    }
-    return new Response(JSON.stringify({ status: row.status, key: canonicalKey, merged: wasMerged }), { headers: { 'Content-Type': 'application/json' } });
-  }
-
-  // New key, or a forced refresh of an existing one — (re)queue it for research.
-  // NOTE: intentionally not setting breakdown: null here — omitting the
-  // column from this upsert leaves the existing (still-good) breakdown in
-  // place until the worker's mark_done() overwrites it with a fresh result.
-  // If the re-research run errors, mark_error() only sets status/error, so
-  // the last known-good breakdown stays visible instead of being wiped.
-  await fetch(`${base}/repair_breakdowns`, {
-    method: 'POST', headers: { ...headers, Prefer: 'resolution=merge-duplicates' },
-    body: JSON.stringify({ key: canonicalKey, status: 'pending', error_message: null, priority: !!priority }),
+  // Record the alias so this exact phrasing skips classification next time.
+  await sb(env, '/repair_taxonomy_aliases', {
+    method: 'POST',
+    headers: { Prefer: 'resolution=ignore-duplicates' },
+    body: JSON.stringify({ raw_phrase: rawKey, repair_id: repairId }),
   });
 
-  return new Response(JSON.stringify({ status: 'pending', key: canonicalKey, merged: wasMerged, queued: true }), { headers: { 'Content-Type': 'application/json' } });
+  return { repairId, wasNew };
+}
+
+// ---------------------------------------------------------------------------
+// Guide lookup -- within a generation+repair, prefer the most specific
+// matching row (most non-null narrowing columns satisfied) over a broader one.
+// ---------------------------------------------------------------------------
+function specificity(row) {
+  return ['engine', 'powertrain_type', 'drivetrain', 'transmission', 'trim_constraint', 'emissions_market']
+    .filter((k) => row[k] != null).length + (row.year_start != null || row.year_end != null ? 1 : 0);
+}
+
+async function resolveEngineLabel(env, generationId, engineRaw) {
+  const raw = clean(engineRaw).toLowerCase();
+  if (!raw) return null;
+  const res = await sb(env, `/engine_aliases?generation_id=eq.${generationId}&raw_label=eq.${encodeURIComponent(raw)}&select=canonical_label`);
+  if (res.ok) { const rows = await res.json(); if (rows[0]) return rows[0].canonical_label; }
+  return clean(engineRaw); // no known alias yet -- use as given
+}
+
+async function findMatchingGuide(env, generationId, repairId, vehicle, year) {
+  const res = await sb(env, `/repair_guides?generation_id=eq.${generationId}&repair_id=eq.${repairId}&select=*`);
+  if (!res.ok) return null;
+  const rows = await res.json();
+
+  const engineCanonical = vehicle.engine ? await resolveEngineLabel(env, generationId, vehicle.engine) : null;
+  const drivetrain = clean(vehicle.drivetrain).toLowerCase();
+  const transmission = clean(vehicle.transmission).toLowerCase();
+
+  const candidates = rows.filter((r) => {
+    if (r.engine && engineCanonical && r.engine.toLowerCase() !== engineCanonical.toLowerCase()) return false;
+    if (r.drivetrain && drivetrain && r.drivetrain.toLowerCase() !== drivetrain) return false;
+    if (r.transmission && transmission && r.transmission.toLowerCase() !== transmission) return false;
+    if (r.year_start != null && year < r.year_start) return false;
+    if (r.year_end != null && year > r.year_end) return false;
+    return true;
+  });
+
+  candidates.sort((a, b) => specificity(b) - specificity(a));
+  return candidates[0] || null;
+}
+
+// ---------------------------------------------------------------------------
+
+export async function onRequestPost({ request, env }) {
+  let body;
+  try { body = await request.json(); } catch { return json({ error: 'Invalid JSON' }, 400); }
+
+  const { vehicle, repair, force, priority } = body || {};
+  if (!vehicle?.year || !vehicle?.make || !vehicle?.model || !repair?.trim()) {
+    return json({ error: 'vehicle.year, vehicle.make, vehicle.model and repair are required' }, 400);
+  }
+  const year = Number(vehicle.year);
+  if (!Number.isInteger(year) || year < 1886 || year > 2100) return json({ error: 'vehicle.year must be a valid year' }, 400);
+
+  const supabaseUrl = env.SUPABASE_URL ?? env.VITE_SUPABASE_URL;
+  if (!supabaseUrl || !env.SUPABASE_SERVICE_KEY || !env.ANTHROPIC_API_KEY) {
+    return json({ error: 'Server not configured — check ANTHROPIC_API_KEY / SUPABASE_URL / SUPABASE_SERVICE_KEY env vars' }, 500);
+  }
+
+  const make = clean(vehicle.make), model = clean(vehicle.model);
+
+  let { generation } = await findGeneration(env, year, make, model);
+  if (!generation) {
+    generation = await createProvisionalGeneration(env, year, make, model);
+    if (!generation) return json({ error: 'Could not resolve or create a vehicle generation' }, 502);
+  }
+
+  const { repairId, error: repairError } = await resolveRepair(env, repair);
+  if (!repairId) return json({ error: repairError || 'Could not classify repair' }, 502);
+
+  const existing = await findMatchingGuide(env, generation.id, repairId, vehicle, year);
+
+  if (existing && !force) {
+    if (existing.status === 'done') {
+      await sb(env, `/repair_guides?id=eq.${existing.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ use_count: (existing.use_count || 1) + 1, last_used_at: new Date().toISOString() }),
+      });
+      return json({ status: 'done', key: String(existing.id), generation: generation.name, ...existing.content });
+    }
+    return json({ status: existing.status, key: String(existing.id) });
+  }
+
+  // New guide, or a forced refresh -- (re)queue for research. Intentionally
+  // NOT clearing `content` on a forced refresh of an existing row: leave the
+  // last known-good content in place until the research worker overwrites it.
+  const engineCanonical = vehicle.engine ? await resolveEngineLabel(env, generation.id, vehicle.engine) : null;
+  const upsertBody = {
+    generation_id: generation.id,
+    repair_id: repairId,
+    status: 'pending',
+    error_message: null,
+    priority: !!priority,
+  };
+  // Only set narrowing columns on a brand-new row -- don't narrow an existing
+  // guide's applicability just because this particular request happened to
+  // supply an engine/drivetrain value; that's the research worker's call.
+  if (!existing) {
+    upsertBody.engine = engineCanonical || null;
+    upsertBody.drivetrain = clean(vehicle.drivetrain) || null;
+    upsertBody.transmission = clean(vehicle.transmission) || null;
+  }
+
+  const path = existing ? `/repair_guides?id=eq.${existing.id}` : '/repair_guides';
+  const method = existing ? 'PATCH' : 'POST';
+  const res = await sb(env, path, { method, headers: { Prefer: 'return=representation' }, body: JSON.stringify(upsertBody) });
+  if (!res.ok) return json({ error: 'Could not queue repair guide', detail: await res.text() }, 502);
+  const rows = await res.json();
+  const row = existing || rows[0];
+
+  return json({ status: 'pending', key: String(row.id), queued: true, generation: generation.name });
 }
 
 export async function onRequestGet({ request, env }) {
   const url = new URL(request.url);
   const key = url.searchParams.get('key');
-  if (!key) return new Response(JSON.stringify({ error: 'Missing key param' }), { status: 400, headers: { 'Content-Type': 'application/json' } });
+  if (!key) return json({ error: 'Missing key param' }, 400);
 
-  const supabaseUrl = env.SUPABASE_URL ?? env.VITE_SUPABASE_URL;
-  const headers = supabaseHeaders(env.SUPABASE_SERVICE_KEY);
-  const base = `${supabaseUrl}/rest/v1`;
-
-  const res = await fetch(`${base}/repair_breakdowns?key=eq.${encodeURIComponent(key)}&select=*`, { headers });
+  const res = await sb(env, `/repair_guides?id=eq.${encodeURIComponent(key)}&select=*`);
   const rows = res.ok ? await res.json() : [];
-  if (rows.length === 0) return new Response(JSON.stringify({ error: 'Not found' }), { status: 404, headers: { 'Content-Type': 'application/json' } });
+  if (rows.length === 0) return json({ error: 'Not found' }, 404);
 
   const row = rows[0];
-  if (row.status === 'done') return new Response(JSON.stringify({ status: 'done', key, ...row.breakdown }), { headers: { 'Content-Type': 'application/json' } });
-  if (row.status === 'error') return new Response(JSON.stringify({ status: 'error', error: row.error_message }), { headers: { 'Content-Type': 'application/json' } });
-  return new Response(JSON.stringify({ status: row.status }), { headers: { 'Content-Type': 'application/json' } });
+  if (row.status === 'done') return json({ status: 'done', key, ...row.content });
+  if (row.status === 'error') return json({ status: 'error', error: row.error_message });
+  return json({ status: row.status });
 }
