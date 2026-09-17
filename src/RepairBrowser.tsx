@@ -1,47 +1,46 @@
 // src/RepairBrowser.tsx
-// Browse-only companion to RepairBreakdown.tsx: pick your way down
-// Year -> Make -> Model -> Engine -> Category -> Repair Type instead of
-// typing a vehicle description and a free-text repair phrase. Every level
-// here only ever offers options that already exist in the database --
-// nothing on this screen is generated or guessed. The only "write" this
-// screen ever does before the final Source step is adding a new engine
-// label to generation_engines, and that's a human confirming a real
-// engine exists, not an AI inventing one.
+// v2 (configuration-first): Year -> Make -> Model now come from
+// vehicle_catalog (NHTSA/vPIC-backed, cached in Supabase) instead of the
+// `generations` table, so a valid model-year appears in this browser the
+// moment vPIC reports it -- it does NOT need a researched generation first.
+// Engine/Powertrain/Drivetrain/Transmission now come from
+// vehicle_configurations, keyed to one vehicle_catalog row, instead of
+// generation_engines keyed to a generation. `generations` still exists and
+// can still be linked for platform-grouping metadata, but nothing on this
+// screen requires it anymore.
 //
 // ============================================================================
-// NOTE FOR ANY AI SESSION EDITING THIS FILE (read before touching add/bulk-add)
+// NOTE FOR ANY AI SESSION EDITING THIS FILE
 // ============================================================================
-// DATA MODEL: Make and Model are NOT independent entities and there is no
-// `makes` or `models` table. Both are just plain text columns bundled
-// together with a year range on ONE `generations` row -- a "generation" IS
-// the combination of make + model + year_start + year_end. This is why
-// adding a vehicle requires all four fields at once: there is nowhere else
-// to put a bare "Toyota" without a model and a year range attached to it.
-// If you're asked to let someone add "just a make" or "just a model" on its
-// own, that requires an actual schema migration (real `makes`/`models`
-// tables, with `generations` moved underneath `models`) -- it is NOT a small
-// form tweak, and the person maintaining this (non-engineer, works across
-// multiple AI sessions) explicitly asked for this constraint to be written
-// down rather than silently reinterpreted. Check with them before starting
-// that migration; do not assume it's wanted just because it would make the
-// UI more "consistent."
+// DATA MODEL (post configuration-first migration, see
+// sql/001_configuration_first_architecture.sql):
+//   vehicle_catalog:        one row per (year, make, model)
+//   vehicle_configurations: one row per mechanical identity within a
+//                            vehicle_catalog row (engine/drivetrain/
+//                            transmission/trim/market)
+//   repair_guides:          anchored by configuration_id (new) OR
+//                            generation_id (legacy) -- never neither
+// Do not reintroduce a hard dependency on `generations` for Year/Make/Model
+// to appear here. `generations`/generation_id are optional grouping
+// metadata only, attached to a vehicle_catalog or vehicle_configurations
+// row, never required for either to exist.
 //
 // BULK-ADD FORMAT: every bulk-add textarea in this file uses ONE ENTRY PER
-// LINE, deliberately, NOT space-separated. Vehicles additionally use commas
-// to separate their four fields within a line (Make, Model, YearStart,
-// YearEnd). Do not "simplify" this to split on whitespace -- real values
-// routinely contain spaces ("5.7L HEMI", "Grand Cherokee", "Ram 1500"), and
-// splitting on space would silently chop a single value into multiple wrong
-// entries with no error. This is the same class of bug this whole file
-// exists to prevent elsewhere (see: the front-brake-pads/pads-and-rotors
-// taxonomy conflation and the Dodge/Ram generation-naming bugs from this
-// project's history) -- don't reintroduce it here via a "cleaner" parser.
+// LINE, deliberately, NOT space-separated. Vehicles use commas to separate
+// fields within a line (Make, Model, Year). Do not "simplify" this to split
+// on whitespace -- real values routinely contain spaces ("5.7L HEMI",
+// "Grand Cherokee"), and splitting on space would silently chop a single
+// value into multiple wrong entries with no error.
 // ============================================================================
 
 import { useState, useEffect, useRef } from 'react';
 
-interface Generation { id: number; make: string; model: string; name: string; year_start: number; year_end: number; }
-interface EngineOption { id: number; engine_label: string; }
+interface VehicleCatalogEntry { id: number; year: number; make: string; model: string; }
+interface ConfigurationOption {
+  id: number; engine_label: string; engine_code: string | null; displacement: string | null;
+  powertrain_type: string | null; drivetrain: string | null; transmission: string | null;
+  fuel_type: string | null; trim_constraint: string | null; emissions_market: string | null;
+}
 interface Category { id: number; name: string; }
 interface RepairType { id: number; slug: string; name: string; }
 
@@ -63,9 +62,17 @@ interface BreakdownResult {
 
 const POLL_INTERVAL_MS = 4000;
 const CURRENT_YEAR = new Date().getFullYear();
-const YEARS = Array.from({ length: CURRENT_YEAR - 1979 + 1 }, (_, i) => CURRENT_YEAR - i);
+const YEARS = Array.from({ length: CURRENT_YEAR + 1 - 1980 + 1 }, (_, i) => CURRENT_YEAR + 1 - i);
 
 const selectCls = "bg-[#1a1a1a] border border-white/10 rounded px-3 py-2 text-light text-base focus:outline-none focus:border-red-600 w-full";
+
+function configLabel(c: ConfigurationOption): string {
+  const parts = [c.engine_label];
+  if (c.drivetrain) parts.push(c.drivetrain);
+  if (c.transmission) parts.push(c.transmission);
+  if (c.trim_constraint) parts.push(`[${c.trim_constraint}]`);
+  return parts.join(' · ');
+}
 
 function Picker({ label, value, onChange, options, placeholder, disabled }: {
   label: string; value: string; onChange: (v: string) => void;
@@ -88,20 +95,20 @@ export default function RepairBrowser() {
   const [make, setMake] = useState('');
   const [models, setModels] = useState<string[]>([]);
   const [model, setModel] = useState('');
-  const [generation, setGeneration] = useState<Generation | null>(null);
-  const [generationLoading, setGenerationLoading] = useState(false);
+  const [vehicle, setVehicle] = useState<VehicleCatalogEntry | null>(null);
+  const [vehicleLoading, setVehicleLoading] = useState(false);
   const [addingVehicle, setAddingVehicle] = useState(false);
-  const [newVehicle, setNewVehicle] = useState({ make: '', model: '', yearStart: '', yearEnd: '', name: '' });
+  const [newVehicle, setNewVehicle] = useState({ make: '', model: '', year: '' });
   const [addingBulkVehicle, setAddingBulkVehicle] = useState(false);
   const [bulkVehicleText, setBulkVehicleText] = useState('');
   const [bulkResult, setBulkResult] = useState<string | null>(null);
 
-  const [engines, setEngines] = useState<EngineOption[]>([]);
-  const [engine, setEngine] = useState('');
-  const [addingEngine, setAddingEngine] = useState(false);
-  const [newEngineLabel, setNewEngineLabel] = useState('');
-  const [addingBulkEngine, setAddingBulkEngine] = useState(false);
-  const [bulkEngineText, setBulkEngineText] = useState('');
+  const [configurations, setConfigurations] = useState<ConfigurationOption[]>([]);
+  const [configurationId, setConfigurationId] = useState('');
+  const [addingConfig, setAddingConfig] = useState(false);
+  const [newConfig, setNewConfig] = useState({ engine_label: '', drivetrain: '', transmission: '', trim_constraint: '' });
+  const [addingBulkConfig, setAddingBulkConfig] = useState(false);
+  const [bulkConfigText, setBulkConfigText] = useState('');
 
   const [categories, setCategories] = useState<Category[]>([]);
   const [categoryId, setCategoryId] = useState('');
@@ -123,36 +130,35 @@ export default function RepairBrowser() {
 
   function stopPolling() { if (pollHandle.current) { clearInterval(pollHandle.current); pollHandle.current = null; } }
 
-  // Reset everything downstream whenever an upstream pick changes -- this is
-  // what makes it feel like navigating into folders rather than a form.
-  useEffect(() => { setMake(''); setMakes([]); setModel(''); setModels([]); setGeneration(null); }, [year]);
-  useEffect(() => { setModel(''); setModels([]); setGeneration(null); }, [make]);
-  useEffect(() => { setGeneration(null); }, [model]);
-  useEffect(() => { setEngine(''); setEngines([]); }, [generation]);
+  // Reset everything downstream whenever an upstream pick changes.
+  useEffect(() => { setMake(''); setMakes([]); setModel(''); setModels([]); setVehicle(null); }, [year]);
+  useEffect(() => { setModel(''); setModels([]); setVehicle(null); }, [make]);
+  useEffect(() => { setVehicle(null); }, [model]);
+  useEffect(() => { setConfigurationId(''); setConfigurations([]); }, [vehicle]);
   useEffect(() => { setRepairId(''); setRepairTypes([]); }, [categoryId]);
-  useEffect(() => { stopPolling(); setGuideStatus('idle'); setResult(null); setGuideError(null); }, [generation, engine, repairId]);
+  useEffect(() => { stopPolling(); setGuideStatus('idle'); setResult(null); setGuideError(null); }, [configurationId, repairId]);
 
   useEffect(() => {
     if (!year) return;
-    fetch(`/taxonomy-browse?level=makes&year=${encodeURIComponent(year)}`).then((r) => r.json()).then((d) => setMakes(d.makes || []));
+    fetch(`/vehicle-catalog?level=makes&year=${encodeURIComponent(year)}`).then((r) => r.json()).then((d) => setMakes(d.makes || []));
   }, [year]);
 
   useEffect(() => {
     if (!year || !make) return;
-    fetch(`/taxonomy-browse?level=models&year=${encodeURIComponent(year)}&make=${encodeURIComponent(make)}`).then((r) => r.json()).then((d) => setModels(d.models || []));
+    fetch(`/vehicle-catalog?level=models&year=${encodeURIComponent(year)}&make=${encodeURIComponent(make)}`).then((r) => r.json()).then((d) => setModels(d.models || []));
   }, [year, make]);
 
   useEffect(() => {
     if (!year || !make || !model) return;
-    setGenerationLoading(true);
-    fetch(`/taxonomy-browse?level=generation&year=${encodeURIComponent(year)}&make=${encodeURIComponent(make)}&model=${encodeURIComponent(model)}`)
-      .then((r) => r.json()).then((d) => setGeneration(d.generation || null)).finally(() => setGenerationLoading(false));
+    setVehicleLoading(true);
+    fetch(`/vehicle-catalog?level=vehicle&year=${encodeURIComponent(year)}&make=${encodeURIComponent(make)}&model=${encodeURIComponent(model)}`)
+      .then((r) => r.json()).then((d) => setVehicle(d.vehicle || null)).finally(() => setVehicleLoading(false));
   }, [year, make, model]);
 
   useEffect(() => {
-    if (!generation) return;
-    fetch(`/taxonomy-browse?level=engines&generation_id=${generation.id}`).then((r) => r.json()).then((d) => setEngines(d.engines || []));
-  }, [generation]);
+    if (!vehicle) return;
+    fetch(`/vehicle-catalog?level=configurations&vehicle_catalog_id=${vehicle.id}`).then((r) => r.json()).then((d) => setConfigurations(d.configurations || []));
+  }, [vehicle]);
 
   useEffect(() => {
     fetch('/taxonomy-browse?level=categories').then((r) => r.json()).then((d) => setCategories(d.categories || []));
@@ -165,9 +171,9 @@ export default function RepairBrowser() {
 
   // Once the full path is picked, check whether a guide already exists.
   useEffect(() => {
-    if (!generation || !engine || !repairId) return;
+    if (!configurationId || !repairId) return;
     setGuideStatus('checking');
-    fetch(`/repair-guide-direct?generation_id=${generation.id}&engine=${encodeURIComponent(engine)}&repair_id=${repairId}`)
+    fetch(`/repair-guide-direct?configuration_id=${configurationId}&repair_id=${repairId}`)
       .then((r) => r.json())
       .then((d) => {
         if (d.status === 'done') { setResult(d); setGuideStatus('done'); }
@@ -176,13 +182,13 @@ export default function RepairBrowser() {
         else setGuideStatus('none');
       });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [generation, engine, repairId]);
+  }, [configurationId, repairId]);
 
   function startPolling() {
     stopPolling();
     pollHandle.current = window.setInterval(() => {
-      if (!generation) return;
-      fetch(`/repair-guide-direct?generation_id=${generation.id}&engine=${encodeURIComponent(engine)}&repair_id=${repairId}`)
+      if (!configurationId || !repairId) return;
+      fetch(`/repair-guide-direct?configuration_id=${configurationId}&repair_id=${repairId}`)
         .then((r) => r.json())
         .then((d) => {
           if (d.status === 'done') { stopPolling(); setResult(d); setGuideStatus('done'); }
@@ -191,23 +197,29 @@ export default function RepairBrowser() {
     }, POLL_INTERVAL_MS);
   }
 
-  // One entry per line, deliberately -- see the file-header note above
-  // ("BULK-ADD FORMAT") before changing this to split on anything else.
+  // One entry per line, deliberately -- see the file-header note above.
   function parseLines(text: string): string[] {
     return text.split('\n').map((l) => l.trim()).filter(Boolean);
   }
 
-  async function createVehicle(m: string, mo: string, ys: number, ye: number, name?: string): Promise<{ generation: Generation | null; error: string | null }> {
-    if (!m.trim() || !mo.trim() || !Number.isInteger(ys)) return { generation: null, error: 'make, model and a valid year are required' };
-    const res = await fetch('/taxonomy-browse', {
+  async function createVehicle(m: string, mo: string, y: number): Promise<{ vehicle: VehicleCatalogEntry | null; error: string | null }> {
+    if (!m.trim() || !mo.trim() || !Number.isInteger(y)) return { vehicle: null, error: 'make, model and a valid year are required' };
+    const res = await fetch('/vehicle-catalog', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ make: m.trim(), model: mo.trim(), year_start: ys, year_end: Number.isInteger(ye) ? ye : ys, name: name?.trim() || undefined }),
+      body: JSON.stringify({ entity: 'vehicle', make: m.trim(), model: mo.trim(), year: y }),
     });
     const data = await res.json();
-    // 409 here means the server's overlap guard rejected this range as a
-    // duplicate/overlap of an existing generation for this make+model --
-    // surface that reason instead of treating it as a generic failure.
-    return { generation: data.generation || null, error: res.ok ? null : (data.error || 'Could not add vehicle') };
+    return { vehicle: data.vehicle || null, error: res.ok ? null : (data.error || 'Could not add vehicle') };
+  }
+
+  async function createConfiguration(vehicleCatalogId: number, engineLabel: string, extra: { drivetrain?: string; transmission?: string; trim_constraint?: string } = {}) {
+    if (!engineLabel.trim()) return null;
+    const res = await fetch('/vehicle-catalog', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ entity: 'configuration', vehicle_catalog_id: vehicleCatalogId, engine_label: engineLabel.trim(), ...extra }),
+    });
+    const data = await res.json();
+    return data.configuration || null;
   }
 
   async function createCategory(name: string) {
@@ -230,33 +242,19 @@ export default function RepairBrowser() {
     return data.repair || null;
   }
 
-  async function createEngine(label: string, genId: number) {
-    if (!label.trim()) return null;
-    const res = await fetch('/generation-engines', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ generation_id: genId, engine_label: label.trim() }),
-    });
-    const data = await res.json();
-    return data.engine || null;
-  }
-
   async function addVehicle() {
-    const { make: m, model: mo, yearStart, yearEnd, name } = newVehicle;
-    const { generation: gen, error } = await createVehicle(m, mo, Number(yearStart), Number(yearEnd || yearStart), name);
-    if (gen) {
-      setYear(String(gen.year_start));
-      setMake(gen.make);
-      setModel(gen.model);
-      // Setting make/model above triggers the reset effects that normally
-      // clear `generation` when the user picks a different make/model --
-      // those would wipe out the generation we just created in the same
-      // tick. Restore it once those resets have already run.
-      setTimeout(() => setGeneration(gen), 0);
+    const { make: m, model: mo, year: y } = newVehicle;
+    const { vehicle: v, error } = await createVehicle(m, mo, Number(y));
+    if (v) {
+      setYear(String(v.year));
+      setMake(v.make);
+      setModel(v.model);
+      setTimeout(() => setVehicle(v), 0);
       setBulkResult(null);
     } else if (error) {
       setBulkResult(error);
     }
-    setNewVehicle({ make: '', model: '', yearStart: '', yearEnd: '', name: '' });
+    setNewVehicle({ make: '', model: '', year: '' });
     setAddingVehicle(false);
   }
 
@@ -266,16 +264,14 @@ export default function RepairBrowser() {
     const failures: string[] = [];
     for (const line of lines) {
       const parts = line.split(',').map((p) => p.trim());
-      const [m, mo, ys, ye, name] = parts;
-      const { generation: gen, error } = await createVehicle(m || '', mo || '', Number(ys), Number(ye || ys), name);
-      if (gen) added++; else failures.push(`"${line}" — ${error || 'failed'}`);
+      const [m, mo, y] = parts;
+      const { vehicle: v, error } = await createVehicle(m || '', mo || '', Number(y));
+      if (v) added++; else failures.push(`"${line}" — ${error || 'failed'}`);
     }
     setBulkResult(`vehicles: added ${added}${failures.length ? `, ${failures.length} skipped:\n${failures.join('\n')}` : ''}`);
     setBulkVehicleText('');
     setAddingBulkVehicle(false);
-    // Refresh the makes list for whatever year is currently selected, in case
-    // one of the newly-added vehicles covers it.
-    if (year) fetch(`/taxonomy-browse?level=makes&year=${encodeURIComponent(year)}`).then((r) => r.json()).then((d) => setMakes(d.makes || []));
+    if (year) fetch(`/vehicle-catalog?level=makes&year=${encodeURIComponent(year)}`).then((r) => r.json()).then((d) => setMakes(d.makes || []));
   }
 
   async function addCategory() {
@@ -327,38 +323,45 @@ export default function RepairBrowser() {
     setAddingBulkRepairType(false);
   }
 
-  async function addEngine() {
-    if (!generation) return;
-    const eng = await createEngine(newEngineLabel, generation.id);
-    if (eng) {
-      setEngines((prev) => [...prev, eng].sort((a, b) => a.engine_label.localeCompare(b.engine_label)));
-      setEngine(eng.engine_label);
+  async function addConfig() {
+    if (!vehicle) return;
+    const cfg = await createConfiguration(vehicle.id, newConfig.engine_label, {
+      drivetrain: newConfig.drivetrain || undefined,
+      transmission: newConfig.transmission || undefined,
+      trim_constraint: newConfig.trim_constraint || undefined,
+    });
+    if (cfg) {
+      setConfigurations((prev) => [...prev, cfg].sort((a, b) => a.engine_label.localeCompare(b.engine_label)));
+      setConfigurationId(String(cfg.id));
     }
-    setNewEngineLabel('');
-    setAddingEngine(false);
+    setNewConfig({ engine_label: '', drivetrain: '', transmission: '', trim_constraint: '' });
+    setAddingConfig(false);
   }
 
-  async function bulkAddEngines(text: string) {
-    if (!generation) return;
+  // Bulk config lines are just engine labels (the common case) -- drivetrain/
+  // transmission/trim variants are rare enough to add one at a time via the
+  // regular form when they matter.
+  async function bulkAddConfigs(text: string) {
+    if (!vehicle) return;
     const lines = parseLines(text);
     let added = 0, failed = 0;
-    const newOnes: EngineOption[] = [];
+    const newOnes: ConfigurationOption[] = [];
     for (const line of lines) {
-      const eng = await createEngine(line, generation.id);
-      if (eng) { added++; newOnes.push(eng); } else failed++;
+      const cfg = await createConfiguration(vehicle.id, line);
+      if (cfg) { added++; newOnes.push(cfg); } else failed++;
     }
-    setEngines((prev) => [...prev, ...newOnes].sort((a, b) => a.engine_label.localeCompare(b.engine_label)));
-    setBulkResult(`engines: added ${added}${failed ? `, ${failed} failed` : ''}`);
-    setBulkEngineText('');
-    setAddingBulkEngine(false);
+    setConfigurations((prev) => [...prev, ...newOnes].sort((a, b) => a.engine_label.localeCompare(b.engine_label)));
+    setBulkResult(`configurations: added ${added}${failed ? `, ${failed} failed` : ''}`);
+    setBulkConfigText('');
+    setAddingBulkConfig(false);
   }
 
   async function sourceData() {
-    if (!generation || !engine || !repairId) return;
+    if (!configurationId || !repairId) return;
     setGuideStatus('pending');
     const res = await fetch('/repair-guide-direct', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ generation_id: generation.id, engine, repair_id: Number(repairId), priority: true }),
+      body: JSON.stringify({ configuration_id: Number(configurationId), repair_id: Number(repairId), priority: true }),
     });
     const data = await res.json();
     if (data.status === 'done') { setResult(data); setGuideStatus('done'); return; }
@@ -382,9 +385,9 @@ export default function RepairBrowser() {
               options={models.map((m) => ({ value: m, label: m }))} disabled={!make} />
           </div>
 
-          {model && generationLoading && <p className="text-white/40 text-base italic">Looking up generation…</p>}
-          {model && !generationLoading && !generation && (
-            <p className="text-yellow-500/80 text-base">No generation on file for {year} {make} {model} yet — this combination hasn't been set up in the database.</p>
+          {model && vehicleLoading && <p className="text-white/40 text-base italic">Looking up vehicle…</p>}
+          {model && !vehicleLoading && !vehicle && (
+            <p className="text-yellow-500/80 text-base">{year} {make} {model} isn't in the catalog yet.</p>
           )}
 
           {!addingVehicle ? (
@@ -396,25 +399,23 @@ export default function RepairBrowser() {
             </div>
           ) : (
             <div className="bg-[#151515] border border-white/10 rounded-lg p-4 space-y-3">
-              <p className="text-white/50 text-sm">Adding a real generation — this becomes browsable for everyone immediately, so only add vehicles you're sure actually exist.</p>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+              <p className="text-white/50 text-sm">This becomes browsable for everyone immediately. Normal vPIC-discovered vehicles are already cached automatically — use this only for something vPIC doesn't have yet.</p>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
                 <input value={newVehicle.make} onChange={(e) => setNewVehicle({ ...newVehicle, make: e.target.value })} placeholder="Make" className="bg-[#1a1a1a] border border-white/10 rounded px-3 py-2 text-light placeholder-white/30 text-base focus:outline-none focus:border-red-600" />
                 <input value={newVehicle.model} onChange={(e) => setNewVehicle({ ...newVehicle, model: e.target.value })} placeholder="Model" className="bg-[#1a1a1a] border border-white/10 rounded px-3 py-2 text-light placeholder-white/30 text-base focus:outline-none focus:border-red-600" />
-                <input value={newVehicle.yearStart} onChange={(e) => setNewVehicle({ ...newVehicle, yearStart: e.target.value })} placeholder="Year start" className="bg-[#1a1a1a] border border-white/10 rounded px-3 py-2 text-light placeholder-white/30 text-base focus:outline-none focus:border-red-600" />
-                <input value={newVehicle.yearEnd} onChange={(e) => setNewVehicle({ ...newVehicle, yearEnd: e.target.value })} placeholder="Year end (optional)" className="bg-[#1a1a1a] border border-white/10 rounded px-3 py-2 text-light placeholder-white/30 text-base focus:outline-none focus:border-red-600" />
+                <input value={newVehicle.year} onChange={(e) => setNewVehicle({ ...newVehicle, year: e.target.value })} placeholder="Year" className="bg-[#1a1a1a] border border-white/10 rounded px-3 py-2 text-light placeholder-white/30 text-base focus:outline-none focus:border-red-600" />
               </div>
-              <input value={newVehicle.name} onChange={(e) => setNewVehicle({ ...newVehicle, name: e.target.value })} placeholder="Generation name (optional, e.g. '5th Gen')" className="w-full bg-[#1a1a1a] border border-white/10 rounded px-3 py-2 text-light placeholder-white/30 text-base focus:outline-none focus:border-red-600" />
               <div className="flex gap-2">
                 <button onClick={addVehicle} className="btn-primary rounded px-3 py-1.5 text-base">Save</button>
-                <button onClick={() => { setAddingVehicle(false); setNewVehicle({ make: '', model: '', yearStart: '', yearEnd: '', name: '' }); }} className="btn-secondary rounded px-3 py-1.5 text-base">Cancel</button>
+                <button onClick={() => { setAddingVehicle(false); setNewVehicle({ make: '', model: '', year: '' }); }} className="btn-secondary rounded px-3 py-1.5 text-base">Cancel</button>
               </div>
             </div>
           )}
 
           {addingBulkVehicle && (
             <div className="bg-[#151515] border border-white/10 rounded-lg p-4 space-y-3">
-              <p className="text-white/50 text-sm">One vehicle per line: <code className="text-white/70">Make, Model, YearStart, YearEnd</code> — e.g. paste a whole year's lineup at once from a research session.</p>
-              <textarea value={bulkVehicleText} onChange={(e) => setBulkVehicleText(e.target.value)} rows={6} placeholder={"Toyota, Camry, 2018, 2024\nHonda, Accord, 2018, 2022\nFord, F-150, 2015, 2020"}
+              <p className="text-white/50 text-sm">One vehicle per line: <code className="text-white/70">Make, Model, Year</code>.</p>
+              <textarea value={bulkVehicleText} onChange={(e) => setBulkVehicleText(e.target.value)} rows={6} placeholder={"Toyota, Camry, 2024\nHonda, Accord, 2022\nFord, F-150, 2020"}
                 className="w-full bg-[#1a1a1a] border border-white/10 rounded px-3 py-2 text-light placeholder-white/30 text-base font-mono focus:outline-none focus:border-red-600" />
               <div className="flex gap-2">
                 <button onClick={() => bulkAddVehicles(bulkVehicleText)} className="btn-primary rounded px-3 py-1.5 text-base">Add all</button>
@@ -429,36 +430,43 @@ export default function RepairBrowser() {
             </p>
           )}
 
-          {generation && (
+          {vehicle && (
             <>
-              <p className="text-white/40 text-sm">Generation: {generation.name} ({generation.year_start}-{generation.year_end})</p>
+              <p className="text-white/40 text-sm">{vehicle.year} {vehicle.make} {vehicle.model}</p>
               <div>
-                <div className="text-sm font-bold text-white/50 mb-2 uppercase tracking-widest">Engine</div>
-                {!addingEngine ? (
+                <div className="text-sm font-bold text-white/50 mb-2 uppercase tracking-widest">Configuration</div>
+                {!addingConfig ? (
                   <div className="flex gap-2">
-                    <select className={selectCls} value={engine} onChange={(e) => setEngine(e.target.value)}>
-                      <option value="">{engines.length ? 'Select engine' : 'No engines on file yet'}</option>
-                      {engines.map((e) => <option key={e.id} value={e.engine_label}>{e.engine_label}</option>)}
+                    <select className={selectCls} value={configurationId} onChange={(e) => setConfigurationId(e.target.value)}>
+                      <option value="">{configurations.length ? 'Select configuration' : 'No configurations on file yet'}</option>
+                      {configurations.map((c) => <option key={c.id} value={String(c.id)}>{configLabel(c)}</option>)}
                     </select>
-                    <button onClick={() => setAddingEngine(true)} className="btn-secondary rounded px-3 text-base whitespace-nowrap">+ Add engine</button>
+                    <button onClick={() => setAddingConfig(true)} className="btn-secondary rounded px-3 text-base whitespace-nowrap">+ Add configuration</button>
                   </div>
                 ) : (
-                  <div className="flex gap-2">
-                    <input autoFocus value={newEngineLabel} onChange={(e) => setNewEngineLabel(e.target.value)}
-                      placeholder="e.g. 5.7L HEMI" className="bg-[#1a1a1a] border border-white/10 rounded px-3 py-2 text-light placeholder-white/30 text-base flex-1 focus:outline-none focus:border-red-600" />
-                    <button onClick={addEngine} className="btn-primary rounded px-3 text-base">Save</button>
-                    <button onClick={() => { setAddingEngine(false); setNewEngineLabel(''); }} className="btn-secondary rounded px-3 text-base">Cancel</button>
+                  <div className="space-y-2">
+                    <input autoFocus value={newConfig.engine_label} onChange={(e) => setNewConfig({ ...newConfig, engine_label: e.target.value })}
+                      placeholder="Engine, e.g. 5.7L HEMI" className="w-full bg-[#1a1a1a] border border-white/10 rounded px-3 py-2 text-light placeholder-white/30 text-base focus:outline-none focus:border-red-600" />
+                    <div className="grid grid-cols-3 gap-2">
+                      <input value={newConfig.drivetrain} onChange={(e) => setNewConfig({ ...newConfig, drivetrain: e.target.value })} placeholder="Drivetrain (optional)" className="bg-[#1a1a1a] border border-white/10 rounded px-3 py-2 text-light placeholder-white/30 text-base focus:outline-none focus:border-red-600" />
+                      <input value={newConfig.transmission} onChange={(e) => setNewConfig({ ...newConfig, transmission: e.target.value })} placeholder="Transmission (optional)" className="bg-[#1a1a1a] border border-white/10 rounded px-3 py-2 text-light placeholder-white/30 text-base focus:outline-none focus:border-red-600" />
+                      <input value={newConfig.trim_constraint} onChange={(e) => setNewConfig({ ...newConfig, trim_constraint: e.target.value })} placeholder="Trim (optional)" className="bg-[#1a1a1a] border border-white/10 rounded px-3 py-2 text-light placeholder-white/30 text-base focus:outline-none focus:border-red-600" />
+                    </div>
+                    <div className="flex gap-2">
+                      <button onClick={addConfig} className="btn-primary rounded px-3 py-1.5 text-base">Save</button>
+                      <button onClick={() => { setAddingConfig(false); setNewConfig({ engine_label: '', drivetrain: '', transmission: '', trim_constraint: '' }); }} className="btn-secondary rounded px-3 py-1.5 text-base">Cancel</button>
+                    </div>
                   </div>
                 )}
-                <p className="text-white/30 text-sm mt-1">Only engines confirmed here appear for everyone going forward — add it once, pick it forever after. <button onClick={() => setAddingBulkEngine(true)} className="underline hover:text-white/60">bulk add engines</button></p>
-                {addingBulkEngine && (
+                <p className="text-white/30 text-sm mt-1">Only configurations confirmed here appear for everyone going forward. <button onClick={() => setAddingBulkConfig(true)} className="underline hover:text-white/60">bulk add (engine labels only)</button></p>
+                {addingBulkConfig && (
                   <div className="bg-[#151515] border border-white/10 rounded-lg p-4 space-y-3 mt-2">
-                    <p className="text-white/50 text-sm">One engine per line — e.g. every factory engine option for this generation.</p>
-                    <textarea value={bulkEngineText} onChange={(e) => setBulkEngineText(e.target.value)} rows={5} placeholder={"3.7L V6\n4.7L V8\n5.7L HEMI"}
+                    <p className="text-white/50 text-sm">One engine label per line — for drivetrain/transmission/trim variants, add those one at a time above instead.</p>
+                    <textarea value={bulkConfigText} onChange={(e) => setBulkConfigText(e.target.value)} rows={5} placeholder={"3.7L V6\n4.7L V8\n5.7L HEMI"}
                       className="w-full bg-[#1a1a1a] border border-white/10 rounded px-3 py-2 text-light placeholder-white/30 text-base font-mono focus:outline-none focus:border-red-600" />
                     <div className="flex gap-2">
-                      <button onClick={() => bulkAddEngines(bulkEngineText)} className="btn-primary rounded px-3 py-1.5 text-base">Add all</button>
-                      <button onClick={() => { setAddingBulkEngine(false); setBulkEngineText(''); }} className="btn-secondary rounded px-3 py-1.5 text-base">Cancel</button>
+                      <button onClick={() => bulkAddConfigs(bulkConfigText)} className="btn-primary rounded px-3 py-1.5 text-base">Add all</button>
+                      <button onClick={() => { setAddingBulkConfig(false); setBulkConfigText(''); }} className="btn-secondary rounded px-3 py-1.5 text-base">Cancel</button>
                     </div>
                   </div>
                 )}
@@ -466,7 +474,7 @@ export default function RepairBrowser() {
             </>
           )}
 
-          {engine && (
+          {configurationId && (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <div>
                 {!addingCategory ? (
@@ -571,7 +579,6 @@ export default function RepairBrowser() {
                         {': '}
                         {s.status === 'verified' ? <span className="text-green-400">✅ {s.value_ft_lb} ft-lb</span> : <span className="text-yellow-500">Unconfirmed</span>}
                       </div>
-                      {/* The actual sources -- without these, "check sources" is an instruction with nothing to follow. */}
                       {(s.all_sources?.length ?? 0) > 0 ? (
                         <ul className="ml-4 mt-1 text-sm text-white/40 space-y-0.5">
                           {s.all_sources.map((src, j) => (
@@ -610,7 +617,7 @@ export default function RepairBrowser() {
             <div className="border-t border-white/10 pt-4">
               <p className="text-white/50 text-sm uppercase tracking-widest mb-1">Estimated Labor</p>
               <p className="text-white text-3xl font-extrabold">{result.estimated_labor_hours}</p>
-              <p className="text-white/30 text-sm mt-1 italic">Single aggregate estimate only — the research doesn't currently break this down by task (diagnosis, removal, install, etc.). That would need a change to what's asked for during research, not just this display.</p>
+              <p className="text-white/30 text-sm mt-1 italic">Single aggregate estimate only.</p>
             </div>
           </div>
         )}

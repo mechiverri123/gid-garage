@@ -1,42 +1,29 @@
 /**
  * taxonomy-browse — Cloudflare Pages Function
  *
- * Read-only endpoints powering the "browse, don't type" navigation UI:
- * Year -> Make -> Model -> Engine -> Category -> Repair Type -> guide.
- * Every level here only ever returns values that actually exist in the
- * database (real generations, human-confirmed engines, real taxonomy
- * entries) -- nothing here invents or guesses anything. That's the whole
- * point of this endpoint versus the free-text /repair-breakdown flow.
+ * v2 (configuration-first): Year -> Make -> Model -> Configuration lookups
+ * moved to vehicle-catalog.js. This file now only serves the parts of the
+ * tree that never depended on generations in the first place: repair
+ * categories and repair types. It also keeps a LEGACY endpoint for
+ * creating/editing a `generations` row directly, because generations
+ * still exists as optional platform/grouping metadata (see the
+ * configuration-first migration) — it's just no longer on the critical
+ * path for a vehicle to be browsable.
  *
- * GET /taxonomy-browse?level=makes&year=2009
- *   -> string[] of distinct makes with a generation covering that year
- * GET /taxonomy-browse?level=models&year=2009&make=Ram
- *   -> string[] of distinct models for that year+make
- * GET /taxonomy-browse?level=generation&year=2009&make=Ram&model=1500
- *   -> the single matching generations row, or { generation: null }
- * GET /taxonomy-browse?level=engines&generation_id=25
- *   -> generation_engines rows for that generation (human-confirmed only)
  * GET /taxonomy-browse?level=categories
  *   -> repair_categories, all of them
  * GET /taxonomy-browse?level=repairs&category_id=2
  *   -> repair_taxonomy rows for that category
  *
- * Setup required (same env vars as repair-breakdown.js):
- *   SUPABASE_URL (or VITE_SUPABASE_URL), SUPABASE_SERVICE_KEY
+ * POST /taxonomy-browse { entity: 'category', name }
+ * POST /taxonomy-browse { entity: 'repair_type', name, category_id }
+ * POST /taxonomy-browse { entity: 'generation', make, model, year_start,
+ *                          year_end, name? }
+ *   -> LEGACY / optional: creates a `generations` row for platform
+ *      grouping. Not required for a vehicle to appear in the browser —
+ *      see vehicle-catalog.js for that.
  *
- * ==========================================================================
- * NOTE FOR ANY AI SESSION EDITING THIS FILE
- * ==========================================================================
- * Make and Model are NOT independent entities and there is no `makes` or
- * `models` table -- both are plain text columns bundled with a year range
- * on one `generations` row. onRequestPost's default (non-`entity`) branch
- * therefore requires make + model + year_start + year_end together; there
- * is nowhere to store a bare make or model on its own. Making Make/Model
- * independently addable would require an actual schema migration (real
- * `makes`/`models` tables, `generations` moved underneath `models`), which
- * the person maintaining this explicitly wants confirmed with them first,
- * not assumed. See the matching note at the top of src/RepairBrowser.tsx.
- * ==========================================================================
+ * Setup required: SUPABASE_URL (or VITE_SUPABASE_URL), SUPABASE_SERVICE_KEY
  */
 
 function json(data, status = 200) {
@@ -87,58 +74,54 @@ export async function onRequestPost({ request, env }) {
     return json({ repair: rows[0] || null });
   }
 
-  // Default / existing behavior: create a generation.
-  const make = clean(body?.make);
-  const model = clean(body?.model);
-  const yearStart = Number(body?.year_start);
-  const yearEnd = Number(body?.year_end);
-  const name = clean(body?.name) || `${make} ${model} (${yearStart}-${yearEnd})`;
+  if (entity === 'generation') {
+    // LEGACY / optional platform-grouping metadata. See vehicle-catalog.js
+    // for the primary (required) Year -> Make -> Model path.
+    const make = clean(body?.make);
+    const model = clean(body?.model);
+    const yearStart = Number(body?.year_start);
+    const yearEnd = Number(body?.year_end);
+    const name = clean(body?.name) || `${make} ${model} (${yearStart}-${yearEnd})`;
 
-  if (!make || !model || !Number.isInteger(yearStart) || !Number.isInteger(yearEnd) || yearEnd < yearStart) {
-    return json({ error: 'make, model, year_start and year_end (year_end >= year_start) are required' }, 400);
-  }
-
-  // Overlap guard: two generations of the same make+model must never cover
-  // overlapping years (that's what caused the 2019-2024 / 2019-2026 Silverado
-  // duplicate). year_start <= existing.year_end AND existing.year_start <= year_end
-  // is the standard range-overlap test. This also catches an EXACT duplicate
-  // (identical range), since an identical range always overlaps itself.
-  const overlapRes = await sb(
-    env,
-    `/generations?make=eq.${encodeURIComponent(make)}&model=eq.${encodeURIComponent(model)}&year_start=lte.${yearEnd}&year_end=gte.${yearStart}&select=*`
-  );
-  if (overlapRes.ok) {
-    const overlapping = await overlapRes.json();
-    if (overlapping.length > 0) {
-      return json({
-        error: `${make} ${model} ${yearStart}-${yearEnd} overlaps an existing generation. Use the existing one, or fix its year range instead of adding a new one.`,
-        existing: overlapping,
-      }, 409);
+    if (!make || !model || !Number.isInteger(yearStart) || !Number.isInteger(yearEnd) || yearEnd < yearStart) {
+      return json({ error: 'make, model, year_start and year_end (year_end >= year_start) are required' }, 400);
     }
+
+    const overlapRes = await sb(
+      env,
+      `/generations?make=eq.${encodeURIComponent(make)}&model=eq.${encodeURIComponent(model)}&year_start=lte.${yearEnd}&year_end=gte.${yearStart}&select=*`
+    );
+    if (overlapRes.ok) {
+      const overlapping = await overlapRes.json();
+      if (overlapping.length > 0) {
+        return json({
+          error: `${make} ${model} ${yearStart}-${yearEnd} overlaps an existing generation. Use the existing one, or fix its year range instead of adding a new one.`,
+          existing: overlapping,
+        }, 409);
+      }
+    }
+
+    const res = await fetch(`${supabaseUrl}/rest/v1/generations`, { method: 'POST', headers, body: JSON.stringify({ make, model, name, year_start: yearStart, year_end: yearEnd }) });
+    if (!res.ok) {
+      const detail = await res.text();
+      if (/exclu|overlap/i.test(detail)) {
+        const retryRes = await sb(
+          env,
+          `/generations?make=eq.${encodeURIComponent(make)}&model=eq.${encodeURIComponent(model)}&year_start=lte.${yearEnd}&year_end=gte.${yearStart}&select=*`
+        );
+        const existing = retryRes.ok ? await retryRes.json() : [];
+        return json({
+          error: `${make} ${model} ${yearStart}-${yearEnd} overlaps an existing generation. Use the existing one, or fix its year range instead of adding a new one.`,
+          existing,
+        }, 409);
+      }
+      return json({ error: 'Could not create generation', detail }, 502);
+    }
+    const rows = await res.json();
+    return json({ generation: rows[0] || null });
   }
 
-  const res = await fetch(`${supabaseUrl}/rest/v1/generations`, { method: 'POST', headers, body: JSON.stringify({ make, model, name, year_start: yearStart, year_end: yearEnd }) });
-  if (!res.ok) {
-    const detail = await res.text();
-    // Fallback safety net: if a DB-level exclusion constraint (see the
-    // generations_no_overlapping_years migration) rejects an insert that
-    // slipped past the check above (e.g. a race between two concurrent
-    // bulk-adds), report it the same friendly way instead of a raw 502.
-    if (/exclu|overlap/i.test(detail)) {
-      const retryRes = await sb(
-        env,
-        `/generations?make=eq.${encodeURIComponent(make)}&model=eq.${encodeURIComponent(model)}&year_start=lte.${yearEnd}&year_end=gte.${yearStart}&select=*`
-      );
-      const existing = retryRes.ok ? await retryRes.json() : [];
-      return json({
-        error: `${make} ${model} ${yearStart}-${yearEnd} overlaps an existing generation. Use the existing one, or fix its year range instead of adding a new one.`,
-        existing,
-      }, 409);
-    }
-    return json({ error: 'Could not create generation', detail }, 502);
-  }
-  const rows = await res.json();
-  return json({ generation: rows[0] || null });
+  return json({ error: "Unknown entity. Use one of: 'category', 'repair_type', 'generation'" }, 400);
 }
 
 export async function onRequestGet({ request, env }) {
@@ -148,47 +131,6 @@ export async function onRequestGet({ request, env }) {
   const supabaseUrl = env.SUPABASE_URL ?? env.VITE_SUPABASE_URL;
   if (!supabaseUrl || !env.SUPABASE_SERVICE_KEY) {
     return json({ error: 'Server not configured — check SUPABASE_URL / SUPABASE_SERVICE_KEY env vars' }, 500);
-  }
-
-  if (level === 'makes') {
-    const year = Number(url.searchParams.get('year'));
-    if (!Number.isInteger(year)) return json({ error: 'year is required' }, 400);
-    const res = await sb(env, `/generations?year_start=lte.${year}&year_end=gte.${year}&select=make`);
-    if (!res.ok) return json({ error: 'Lookup failed' }, 502);
-    const rows = await res.json();
-    const makes = [...new Set(rows.map((r) => r.make))].sort();
-    return json({ makes });
-  }
-
-  if (level === 'models') {
-    const year = Number(url.searchParams.get('year'));
-    const make = clean(url.searchParams.get('make'));
-    if (!Number.isInteger(year) || !make) return json({ error: 'year and make are required' }, 400);
-    const res = await sb(env, `/generations?year_start=lte.${year}&year_end=gte.${year}&make=eq.${encodeURIComponent(make)}&select=model`);
-    if (!res.ok) return json({ error: 'Lookup failed' }, 502);
-    const rows = await res.json();
-    const models = [...new Set(rows.map((r) => r.model))].sort();
-    return json({ models });
-  }
-
-  if (level === 'generation') {
-    const year = Number(url.searchParams.get('year'));
-    const make = clean(url.searchParams.get('make'));
-    const model = clean(url.searchParams.get('model'));
-    if (!Number.isInteger(year) || !make || !model) return json({ error: 'year, make and model are required' }, 400);
-    const res = await sb(env, `/generations?year_start=lte.${year}&year_end=gte.${year}&make=eq.${encodeURIComponent(make)}&model=eq.${encodeURIComponent(model)}&select=*`);
-    if (!res.ok) return json({ error: 'Lookup failed' }, 502);
-    const rows = await res.json();
-    return json({ generation: rows[0] || null });
-  }
-
-  if (level === 'engines') {
-    const generationId = url.searchParams.get('generation_id');
-    if (!generationId) return json({ error: 'generation_id is required' }, 400);
-    const res = await sb(env, `/generation_engines?generation_id=eq.${encodeURIComponent(generationId)}&select=*&order=engine_label.asc`);
-    if (!res.ok) return json({ error: 'Lookup failed' }, 502);
-    const engines = await res.json();
-    return json({ engines });
   }
 
   if (level === 'categories') {
@@ -207,5 +149,5 @@ export async function onRequestGet({ request, env }) {
     return json({ repairs });
   }
 
-  return json({ error: 'Unknown or missing level. Use one of: makes, models, generation, engines, categories, repairs' }, 400);
+  return json({ error: 'Unknown or missing level. Use one of: categories, repairs. (makes/models/generation/engines moved to vehicle-catalog.js)' }, 400);
 }
