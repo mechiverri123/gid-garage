@@ -37,15 +37,17 @@ async function sb(env, path, opt = {}) {
   return res;
 }
 
-// Prefer an exact engine match; fall back to a legacy generic (null-engine)
-// row only if no exact-engine guide exists yet for this repair.
+// The browse UI's whole premise is engine-specific accuracy -- unlike the
+// free-text /repair-breakdown flow, this endpoint does NOT fall back to a
+// generic (engine = null) row. Serving a generic guide as if it answered an
+// engine-specific question is exactly the silent-blending problem this UI
+// exists to prevent. No exact match means no data yet for this engine, full
+// stop -- the caller should offer to Source it properly scoped instead.
 async function findDirectGuide(env, generationId, engine, repairId) {
   const res = await sb(env, `/repair_guides?generation_id=eq.${generationId}&repair_id=eq.${repairId}&select=*`);
   if (!res.ok) return null;
   const rows = await res.json();
-  const exact = rows.find((r) => r.engine && r.engine.toLowerCase() === engine.toLowerCase());
-  if (exact) return exact;
-  return rows.find((r) => r.engine == null) || null;
+  return rows.find((r) => r.engine && r.engine.toLowerCase() === engine.toLowerCase()) || null;
 }
 
 export async function onRequestGet({ request, env }) {
