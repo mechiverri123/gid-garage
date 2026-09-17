@@ -7,6 +7,7 @@ import { useState, useRef } from 'react';
 interface SourcedValue { value_ft_lb: number; domain: string; url: string; }
 interface VerifiedSpec {
   fastener: string;
+  applies_to?: string | null;
   status: 'verified' | 'unconfirmed';
   value_ft_lb: number | null;
   agreeing_sources: SourcedValue[];
@@ -15,19 +16,21 @@ interface VerifiedSpec {
 interface FluidSourcedValue { value: number; unit: string; domain: string; url: string; }
 interface VerifiedFluid {
   fluid: string;
+  applies_to?: string | null;
   status: 'verified' | 'unconfirmed';
   value: number | null;
   unit: string | null;
   agreeing_sources: FluidSourcedValue[];
   all_sources: FluidSourcedValue[];
 }
-interface PartRaw { name: string; oem_part_number: string | null; source_url: string | null; }
-interface AdditionalSpec { name: string; value: string; source_url: string | null; }
+interface PartRaw { name: string; oem_part_number: string | null; source_url: string | null; applies_to?: string | null; }
+interface AdditionalSpec { name: string; value: string; source_url: string | null; applies_to?: string | null; }
 interface KnownIssue { description: string; tsb_number: string | null; source_url: string | null; }
 interface StepWithPhoto { text: string; timestamp_seconds: number; photo_url: string | null; }
 
 interface BreakdownResult {
   overview: string;
+  caveats?: string | null;
   torque_specs: VerifiedSpec[];
   fluid_capacities: VerifiedFluid[];
   additional_specs: AdditionalSpec[];
@@ -224,6 +227,12 @@ export default function RepairBreakdown() {
                 Refresh (re-research)
               </button>
             </div>
+            {result.caveats && (
+              <div className="bg-yellow-950/40 border border-yellow-600/50 text-yellow-200 rounded-lg px-4 py-3 text-sm flex gap-2">
+                <span className="text-yellow-500 font-bold">⚠</span>
+                <span>{result.caveats}</span>
+              </div>
+            )}
             {result.merged && (
               <p className="text-xs text-white/40">
                 Matched via shared engine/platform ({result.key}) — worth a gut-check if your exact year/trim might differ on this one.
@@ -247,7 +256,12 @@ export default function RepairBreakdown() {
                           const value = verified ? spec.value_ft_lb : spec.all_sources?.[0]?.value_ft_lb;
                           return (
                             <div key={`t${i}`}>
-                              <div className="text-white/50 text-xs">{spec.fastener}</div>
+                              <div className="text-white/50 text-xs">
+                                {spec.fastener}
+                                {spec.applies_to && (
+                                  <span className="ml-1.5 text-yellow-500/80 text-[10px] font-bold uppercase tracking-wide">[{spec.applies_to}]</span>
+                                )}
+                              </div>
                               <div className="text-3xl font-extrabold text-light">
                                 {value ?? '?'} <span className="text-base font-normal text-white/50">ft-lb</span>
                               </div>
@@ -271,7 +285,12 @@ export default function RepairBreakdown() {
                           const unit = verified ? fluid.unit : fluid.all_sources?.[0]?.unit;
                           return (
                             <div key={`f${i}`}>
-                              <div className="text-white/50 text-xs">{fluid.fluid}</div>
+                              <div className="text-white/50 text-xs">
+                                {fluid.fluid}
+                                {fluid.applies_to && (
+                                  <span className="ml-1.5 text-yellow-500/80 text-[10px] font-bold uppercase tracking-wide">[{fluid.applies_to}]</span>
+                                )}
+                              </div>
                               <div className="text-3xl font-extrabold text-light">
                                 {value ?? '?'} <span className="text-base font-normal text-white/50">{unit}</span>
                               </div>
@@ -299,7 +318,12 @@ export default function RepairBreakdown() {
                         : 'bg-white/[0.03] border-white/10'
                     }`}
                   >
-                    <div className="font-bold text-light">{spec.fastener}</div>
+                    <div className="font-bold text-light">
+                      {spec.fastener}
+                      {spec.applies_to && (
+                        <span className="ml-2 text-yellow-500/80 text-[10px] font-bold uppercase tracking-wide align-middle">[{spec.applies_to}]</span>
+                      )}
+                    </div>
                     {spec.status === 'verified' ? (
                       <div className="text-sm mt-1">
                         <span className="text-green-400">✅ {spec.value_ft_lb} ft-lb</span>
@@ -343,7 +367,12 @@ export default function RepairBreakdown() {
                           : 'bg-white/[0.03] border-white/10'
                       }`}
                     >
-                      <div className="font-bold text-light">{fluid.fluid}</div>
+                      <div className="font-bold text-light">
+                        {fluid.fluid}
+                        {fluid.applies_to && (
+                          <span className="ml-2 text-yellow-500/80 text-[10px] font-bold uppercase tracking-wide align-middle">[{fluid.applies_to}]</span>
+                        )}
+                      </div>
                       {fluid.status === 'verified' ? (
                         <div className="text-sm mt-1">
                           <span className="text-green-400">✅ {fluid.value} {fluid.unit}</span>
@@ -382,6 +411,9 @@ export default function RepairBreakdown() {
                   {(result.additional_specs || []).map((s, i) => (
                     <li key={i} className="text-white/80 text-sm">
                       <b>{s.name}:</b> {s.value}
+                      {s.applies_to && (
+                        <span className="ml-2 text-yellow-500/80 text-[10px] font-bold uppercase tracking-wide">[{s.applies_to}]</span>
+                      )}
                       {s.source_url && (
                         <>
                           {' '}
@@ -449,6 +481,9 @@ export default function RepairBreakdown() {
                 {(result.parts || []).map((p, i) => (
                   <li key={i} className="text-white/80 text-sm">
                     {p.name}
+                    {p.applies_to && (
+                      <span className="ml-2 text-yellow-500/80 text-[10px] font-bold uppercase tracking-wide">[{p.applies_to}]</span>
+                    )}
                     {p.oem_part_number && <span className="text-white/40"> — OEM# {p.oem_part_number}</span>}
                     {p.source_url && (
                       <>

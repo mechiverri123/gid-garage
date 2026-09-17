@@ -256,7 +256,7 @@ export async function onRequestPost({ request, env }) {
         method: 'PATCH',
         body: JSON.stringify({ use_count: (existing.use_count || 1) + 1, last_used_at: new Date().toISOString() }),
       });
-      return json({ status: 'done', key: String(existing.id), generation: generation.name, ...existing.content });
+      return json({ status: 'done', key: String(existing.id), generation: generation.name, caveats: existing.caveats || null, ...existing.content });
     }
     return json({ status: existing.status, key: String(existing.id) });
   }
@@ -301,7 +301,7 @@ export async function onRequestGet({ request, env }) {
   if (rows.length === 0) return json({ error: 'Not found' }, 404);
 
   const row = rows[0];
-  if (row.status === 'done') return json({ status: 'done', key, ...row.content });
+  if (row.status === 'done') return json({ status: 'done', key, caveats: row.caveats || null, ...row.content });
   if (row.status === 'error') return json({ status: 'error', error: row.error_message });
   return json({ status: row.status });
 }
