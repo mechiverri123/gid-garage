@@ -23,6 +23,20 @@
  *
  * Setup required (same env vars as repair-breakdown.js):
  *   SUPABASE_URL (or VITE_SUPABASE_URL), SUPABASE_SERVICE_KEY
+ *
+ * ==========================================================================
+ * NOTE FOR ANY AI SESSION EDITING THIS FILE
+ * ==========================================================================
+ * Make and Model are NOT independent entities and there is no `makes` or
+ * `models` table -- both are plain text columns bundled with a year range
+ * on one `generations` row. onRequestPost's default (non-`entity`) branch
+ * therefore requires make + model + year_start + year_end together; there
+ * is nowhere to store a bare make or model on its own. Making Make/Model
+ * independently addable would require an actual schema migration (real
+ * `makes`/`models` tables, `generations` moved underneath `models`), which
+ * the person maintaining this explicitly wants confirmed with them first,
+ * not assumed. See the matching note at the top of src/RepairBrowser.tsx.
+ * ==========================================================================
  */
 
 function json(data, status = 200) {
@@ -35,6 +49,59 @@ async function sb(env, path) {
   const base = `${env.SUPABASE_URL ?? env.VITE_SUPABASE_URL}/rest/v1`;
   const res = await fetch(`${base}${path}`, { headers: sbHeaders(env.SUPABASE_SERVICE_KEY) });
   return res;
+}
+
+function slugify(s) { return s.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, ''); }
+
+export async function onRequestPost({ request, env }) {
+  let body;
+  try { body = await request.json(); } catch { return json({ error: 'Invalid JSON' }, 400); }
+
+  const supabaseUrl = env.SUPABASE_URL ?? env.VITE_SUPABASE_URL;
+  if (!supabaseUrl || !env.SUPABASE_SERVICE_KEY) {
+    return json({ error: 'Server not configured — check SUPABASE_URL / SUPABASE_SERVICE_KEY env vars' }, 500);
+  }
+  const headers = { ...sbHeaders(env.SUPABASE_SERVICE_KEY), 'Content-Type': 'application/json', Prefer: 'return=representation' };
+  const entity = body?.entity;
+
+  if (entity === 'category') {
+    const name = clean(body?.name);
+    if (!name) return json({ error: 'name is required' }, 400);
+    const res = await fetch(`${supabaseUrl}/rest/v1/repair_categories`, { method: 'POST', headers, body: JSON.stringify({ name }) });
+    if (!res.ok) return json({ error: 'Could not create category', detail: await res.text() }, 502);
+    const rows = await res.json();
+    return json({ category: rows[0] || null });
+  }
+
+  if (entity === 'repair_type') {
+    const name = clean(body?.name);
+    const categoryId = body?.category_id;
+    if (!name || !categoryId) return json({ error: 'name and category_id are required' }, 400);
+    const slug = slugify(name);
+    const res = await fetch(`${supabaseUrl}/rest/v1/repair_taxonomy`, {
+      method: 'POST', headers,
+      body: JSON.stringify({ slug, name, category_id: categoryId }),
+    });
+    if (!res.ok) return json({ error: 'Could not create repair type', detail: await res.text() }, 502);
+    const rows = await res.json();
+    return json({ repair: rows[0] || null });
+  }
+
+  // Default / existing behavior: create a generation.
+  const make = clean(body?.make);
+  const model = clean(body?.model);
+  const yearStart = Number(body?.year_start);
+  const yearEnd = Number(body?.year_end);
+  const name = clean(body?.name) || `${make} ${model} (${yearStart}-${yearEnd})`;
+
+  if (!make || !model || !Number.isInteger(yearStart) || !Number.isInteger(yearEnd) || yearEnd < yearStart) {
+    return json({ error: 'make, model, year_start and year_end (year_end >= year_start) are required' }, 400);
+  }
+
+  const res = await fetch(`${supabaseUrl}/rest/v1/generations`, { method: 'POST', headers, body: JSON.stringify({ make, model, name, year_start: yearStart, year_end: yearEnd }) });
+  if (!res.ok) return json({ error: 'Could not create generation', detail: await res.text() }, 502);
+  const rows = await res.json();
+  return json({ generation: rows[0] || null });
 }
 
 export async function onRequestGet({ request, env }) {
