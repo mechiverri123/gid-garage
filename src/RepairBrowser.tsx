@@ -23,11 +23,12 @@ interface VerifiedFluid { fluid: string; applies_to?: string | null; status: 've
 interface PartRaw { name: string; oem_part_number: string | null; source_url: string | null; applies_to?: string | null; }
 interface AdditionalSpec { name: string; value: string; source_url: string | null; applies_to?: string | null; }
 interface KnownIssue { description: string; tsb_number: string | null; source_url: string | null; }
+interface StepWithPhoto { text: string; timestamp_seconds: number; photo_url: string | null; }
 interface BreakdownResult {
   overview: string; caveats?: string | null;
   torque_specs: VerifiedSpec[]; fluid_capacities: VerifiedFluid[]; additional_specs: AdditionalSpec[];
   known_issues: KnownIssue[]; pitfalls: string[]; tools_needed: string[]; parts: PartRaw[];
-  steps: string[]; estimated_labor_hours: string; video_source: string | null;
+  steps: StepWithPhoto[]; estimated_labor_hours: string; video_source: string | null;
 }
 
 const POLL_INTERVAL_MS = 4000;
@@ -269,7 +270,7 @@ export default function RepairBrowser() {
               <div>
                 <h3 className="text-white/70 font-bold text-sm uppercase tracking-widest mb-2">Step by Step</h3>
                 <ol className="list-decimal list-inside space-y-1 text-sm text-white/70">
-                  {result.steps.map((s, i) => <li key={i}>{s}</li>)}
+                  {result.steps.map((s, i) => <li key={i}>{s.text}</li>)}
                 </ol>
               </div>
             )}
