@@ -303,10 +303,21 @@ export async function onRequestPost({ request, env }) {
   // Only set narrowing columns on a brand-new row -- don't narrow an existing
   // guide's applicability just because this particular request happened to
   // supply an engine/drivetrain value; that's the research worker's call.
+  // EXCEPTION: on a forced refresh, fill in any of these columns that are
+  // still null on the existing row. This never overwrites an already-set
+  // value (so a random later request can't corrupt an established narrow
+  // guide) -- it only lets a guide created too generically (e.g. no engine
+  // given the first time, even though this repair genuinely varies by
+  // engine) get corrected by supplying the missing detail and hitting
+  // Refresh, instead of requiring manual SQL.
   if (!existing) {
     upsertBody.engine = engineCanonical || null;
     upsertBody.drivetrain = clean(vehicle.drivetrain) || null;
     upsertBody.transmission = clean(vehicle.transmission) || null;
+  } else if (force) {
+    if (existing.engine == null && engineCanonical) upsertBody.engine = engineCanonical;
+    if (existing.drivetrain == null && clean(vehicle.drivetrain)) upsertBody.drivetrain = clean(vehicle.drivetrain);
+    if (existing.transmission == null && clean(vehicle.transmission)) upsertBody.transmission = clean(vehicle.transmission);
   }
 
   const path = existing ? `/repair_guides?id=eq.${existing.id}` : '/repair_guides';
