@@ -8,7 +8,7 @@ interface SourcedValue { value_ft_lb: number; domain: string; url: string; }
 interface VerifiedSpec {
   fastener: string;
   applies_to?: string | null;
-  status: 'verified' | 'unconfirmed';
+  status: 'verified' | 'unconfirmed' | 'single-source';
   value_ft_lb: number | null;
   agreeing_sources: SourcedValue[];
   all_sources: SourcedValue[];
@@ -17,7 +17,7 @@ interface FluidSourcedValue { value: number; unit: string; domain: string; url: 
 interface VerifiedFluid {
   fluid: string;
   applies_to?: string | null;
-  status: 'verified' | 'unconfirmed';
+  status: 'verified' | 'unconfirmed' | 'single-source';
   value: number | null;
   unit: string | null;
   agreeing_sources: FluidSourcedValue[];
@@ -26,19 +26,35 @@ interface VerifiedFluid {
 interface PartRaw { name: string; oem_part_number: string | null; source_url: string | null; applies_to?: string | null; }
 interface AdditionalSpec { name: string; value: string; source_url: string | null; applies_to?: string | null; }
 interface KnownIssue { description: string; tsb_number: string | null; source_url: string | null; }
-interface StepWithPhoto { text: string; timestamp_seconds: number; photo_url: string | null; }
+interface StepWithPhoto { text: string; spec_note: string | null; timestamp_seconds: number; photo_url: string | null; }
+
+interface InspectionItem { item: string; criteria: string; replace_if: string; }
+interface Adjustment { procedure: string; specification: string; final_setting: string; }
+interface RelatedJobs { required_companions: string[]; recommended_companions: string[]; }
 
 interface BreakdownResult {
   overview: string;
   caveats?: string | null;
+  difficulty?: string | null;
+  special_requirements: string[];
+  pre_repair_requirements: string[];
   torque_specs: VerifiedSpec[];
   fluid_capacities: VerifiedFluid[];
   additional_specs: AdditionalSpec[];
   known_issues: KnownIssue[];
   pitfalls: string[];
+  safety_warnings: string[];
   tools_needed: string[];
+  special_tools_needed: string[];
   parts: PartRaw[];
+  inspection: InspectionItem[];
   steps: StepWithPhoto[];
+  adjustments: Adjustment[];
+  relearns_resets: string[];
+  programming_coding: string[];
+  calibration: string[];
+  post_repair_checks: string[];
+  related_jobs: RelatedJobs;
   estimated_labor_hours: string;
   video_source: string | null;
   merged?: boolean;
@@ -255,6 +271,47 @@ export default function RepairBreakdown() {
               </p>
             )}
 
+            {(result.safety_warnings || []).length > 0 && (
+              <div className="bg-red-950/40 border border-red-600/50 rounded-lg px-4 py-3 space-y-1.5">
+                <h2 className="text-red-500 text-xs font-bold uppercase tracking-widest flex items-center gap-1.5">
+                  <span>⚠</span> Safety Warnings
+                </h2>
+                <ul className="space-y-1">
+                  {result.safety_warnings.map((w, i) => (
+                    <li key={i} className="text-red-200 text-sm flex gap-2">
+                      <span className="text-red-500">—</span>{w}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {(result.pre_repair_requirements || []).length > 0 && (
+              <section>
+                <h2 className="text-red-600 text-xs font-bold uppercase tracking-widest mb-3">Before You Start</h2>
+                <ul className="space-y-1.5">
+                  {result.pre_repair_requirements.map((r, i) => (
+                    <li key={i} className="text-white/80 text-sm flex gap-2">
+                      <span className="text-red-600">—</span>{r}
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
+
+            {(result.special_requirements || []).length > 0 && (
+              <section>
+                <h2 className="text-red-600 text-xs font-bold uppercase tracking-widest mb-3">Special Requirements</h2>
+                <ul className="space-y-1.5">
+                  {result.special_requirements.map((r, i) => (
+                    <li key={i} className="text-white/80 text-sm flex gap-2">
+                      <span className="text-red-600">—</span>{r}
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
+
             {(() => {
               const allTorque = result.torque_specs || [];
               const allFluids = result.fluid_capacities || [];
@@ -269,7 +326,14 @@ export default function RepairBreakdown() {
                       <div className="grid sm:grid-cols-2 gap-5">
                         {allTorque.map((spec, i) => {
                           const verified = spec.status === 'verified';
+                          const singleSource = spec.status === 'single-source';
                           const value = verified ? spec.value_ft_lb : spec.all_sources?.[0]?.value_ft_lb;
+                          const statusLabel = verified
+                            ? `${spec.agreeing_sources.length} sources agree`
+                            : singleSource
+                            ? 'single source — verify before use'
+                            : 'multiple sources agree — not independently verified';
+                          const statusColor = verified ? 'text-green-500' : singleSource ? 'text-yellow-500/90' : 'text-white/40';
                           return (
                             <div key={`t${i}`}>
                               <div className="text-white/50 text-xs">
@@ -281,8 +345,8 @@ export default function RepairBreakdown() {
                               <div className="text-3xl font-extrabold text-light">
                                 {value ?? '?'} <span className="text-base font-normal text-white/50">ft-lb</span>
                               </div>
-                              <div className={`text-xs mt-0.5 ${verified ? 'text-green-500' : 'text-white/40'}`}>
-                                {verified ? `${spec.agreeing_sources.length} sources agree` : 'unconfirmed — verify before use'}
+                              <div className={`text-xs mt-0.5 ${statusColor}`}>
+                                {statusLabel}
                               </div>
                             </div>
                           );
@@ -297,8 +361,15 @@ export default function RepairBreakdown() {
                       <div className="grid sm:grid-cols-2 gap-5">
                         {allFluids.map((fluid, i) => {
                           const verified = fluid.status === 'verified';
+                          const singleSource = fluid.status === 'single-source';
                           const value = verified ? fluid.value : fluid.all_sources?.[0]?.value;
                           const unit = verified ? fluid.unit : fluid.all_sources?.[0]?.unit;
+                          const statusLabel = verified
+                            ? `${fluid.agreeing_sources.length} sources agree`
+                            : singleSource
+                            ? 'single source — verify before use'
+                            : 'multiple sources agree — not independently verified';
+                          const statusColor = verified ? 'text-green-500' : singleSource ? 'text-yellow-500/90' : 'text-white/40';
                           return (
                             <div key={`f${i}`}>
                               <div className="text-white/50 text-xs">
@@ -310,8 +381,8 @@ export default function RepairBreakdown() {
                               <div className="text-3xl font-extrabold text-light">
                                 {value ?? '?'} <span className="text-base font-normal text-white/50">{unit}</span>
                               </div>
-                              <div className={`text-xs mt-0.5 ${verified ? 'text-green-500' : 'text-white/40'}`}>
-                                {verified ? `${fluid.agreeing_sources.length} sources agree` : 'unconfirmed — verify before use'}
+                              <div className={`text-xs mt-0.5 ${statusColor}`}>
+                                {statusLabel}
                               </div>
                             </div>
                           );
@@ -331,6 +402,8 @@ export default function RepairBreakdown() {
                     className={`rounded px-4 py-3 border ${
                       spec.status === 'verified'
                         ? 'bg-green-950/30 border-green-700/40'
+                        : spec.status === 'single-source'
+                        ? 'bg-yellow-950/20 border-yellow-700/30'
                         : 'bg-white/[0.03] border-white/10'
                     }`}
                   >
@@ -352,10 +425,22 @@ export default function RepairBreakdown() {
                           ))}
                         </div>
                       </div>
+                    ) : spec.status === 'single-source' ? (
+                      <div className="text-sm mt-1">
+                        <span className="text-yellow-500/90">⚠ Single source</span>
+                        <span className="text-white/40"> — no corroborating source found, verify before use</span>
+                        <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs">
+                          {spec.all_sources.map((s, j) => (
+                            <a key={j} href={s.url} target="_blank" rel="noreferrer" className="text-white/50 hover:text-red-500 underline underline-offset-2">
+                              {s.domain}: {s.value_ft_lb}
+                            </a>
+                          ))}
+                        </div>
+                      </div>
                     ) : (
                       <div className="text-sm mt-1">
                         <span className="text-white/40">Unconfirmed</span>
-                        <span className="text-white/40"> — sources disagree, check yourself</span>
+                        <span className="text-white/40"> — multiple sources agree, not independently verified</span>
                         <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs">
                           {spec.all_sources.map((s, j) => (
                             <a key={j} href={s.url} target="_blank" rel="noreferrer" className="text-white/50 hover:text-red-500 underline underline-offset-2">
@@ -380,6 +465,8 @@ export default function RepairBreakdown() {
                       className={`rounded px-4 py-3 border ${
                         fluid.status === 'verified'
                           ? 'bg-green-950/30 border-green-700/40'
+                          : fluid.status === 'single-source'
+                          ? 'bg-yellow-950/20 border-yellow-700/30'
                           : 'bg-white/[0.03] border-white/10'
                       }`}
                     >
@@ -401,10 +488,22 @@ export default function RepairBreakdown() {
                             ))}
                           </div>
                         </div>
+                      ) : fluid.status === 'single-source' ? (
+                        <div className="text-sm mt-1">
+                          <span className="text-yellow-500/90">⚠ Single source</span>
+                          <span className="text-white/40"> — no corroborating source found, verify before use</span>
+                          <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs">
+                            {fluid.all_sources.map((s, j) => (
+                              <a key={j} href={s.url} target="_blank" rel="noreferrer" className="text-white/50 hover:text-red-500 underline underline-offset-2">
+                                {s.domain}: {s.value} {s.unit}
+                              </a>
+                            ))}
+                          </div>
+                        </div>
                       ) : (
                         <div className="text-sm mt-1">
                           <span className="text-white/40">Unconfirmed</span>
-                          <span className="text-white/40"> — sources disagree, check yourself</span>
+                          <span className="text-white/40"> — multiple sources agree, not independently verified</span>
                           <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs">
                             {fluid.all_sources.map((s, j) => (
                               <a key={j} href={s.url} target="_blank" rel="noreferrer" className="text-white/50 hover:text-red-500 underline underline-offset-2">
@@ -491,6 +590,19 @@ export default function RepairBreakdown() {
               </ul>
             </section>
 
+            {(result.special_tools_needed || []).length > 0 && (
+              <section>
+                <h2 className="text-red-600 text-xs font-bold uppercase tracking-widest mb-3">Special Tools Needed</h2>
+                <ul className="space-y-1.5">
+                  {result.special_tools_needed.map((t, i) => (
+                    <li key={i} className="text-white/80 text-sm flex gap-2">
+                      <span className="text-yellow-500/80">—</span>{t}
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
+
             <section>
               <h2 className="text-red-600 text-xs font-bold uppercase tracking-widest mb-3">Parts</h2>
               <ul className="space-y-1.5">
@@ -514,6 +626,20 @@ export default function RepairBreakdown() {
               </ul>
             </section>
 
+            {(result.inspection || []).length > 0 && (
+              <section>
+                <h2 className="text-red-600 text-xs font-bold uppercase tracking-widest mb-3">Inspection</h2>
+                <ul className="space-y-2">
+                  {result.inspection.map((it, i) => (
+                    <li key={i} className="text-white/80 text-sm">
+                      <b>{it.item}:</b> {it.criteria}
+                      <div className="text-white/40 text-xs mt-0.5">Replace if: {it.replace_if}</div>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
+
             <section>
               <h2 className="text-red-600 text-xs font-bold uppercase tracking-widest mb-3">Step by Step</h2>
               {result.video_source && (
@@ -531,6 +657,11 @@ export default function RepairBreakdown() {
                       <span className="text-red-600 font-bold shrink-0">{i + 1}.</span>
                       <div>
                         {s.text}
+                        {s.spec_note && (
+                          <div className="mt-1 text-xs text-yellow-500/80 font-semibold">
+                            {s.spec_note}
+                          </div>
+                        )}
                         {s.photo_url && (
                           <img
                             src={s.photo_url}
@@ -546,9 +677,95 @@ export default function RepairBreakdown() {
               </ol>
             </section>
 
+            {(result.adjustments || []).length > 0 && (
+              <section>
+                <h2 className="text-red-600 text-xs font-bold uppercase tracking-widest mb-3">Adjustments</h2>
+                <ul className="space-y-2">
+                  {result.adjustments.map((a, i) => (
+                    <li key={i} className="text-white/80 text-sm">
+                      <b>{a.procedure}:</b> {a.specification}
+                      <div className="text-white/40 text-xs mt-0.5">Confirm: {a.final_setting}</div>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
+
+            {((result.relearns_resets || []).length > 0 ||
+              (result.programming_coding || []).length > 0 ||
+              (result.calibration || []).length > 0) && (
+              <section>
+                <h2 className="text-red-600 text-xs font-bold uppercase tracking-widest mb-3">Relearns / Programming / Calibration</h2>
+                <ul className="space-y-1.5">
+                  {(result.relearns_resets || []).map((r, i) => (
+                    <li key={`rr${i}`} className="text-white/80 text-sm flex gap-2">
+                      <span className="text-red-600">—</span>{r}
+                    </li>
+                  ))}
+                  {(result.programming_coding || []).map((r, i) => (
+                    <li key={`pc${i}`} className="text-white/80 text-sm flex gap-2">
+                      <span className="text-red-600">—</span>{r}
+                    </li>
+                  ))}
+                  {(result.calibration || []).map((r, i) => (
+                    <li key={`cal${i}`} className="text-white/80 text-sm flex gap-2">
+                      <span className="text-red-600">—</span>{r}
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
+
+            {(result.post_repair_checks || []).length > 0 && (
+              <section>
+                <h2 className="text-red-600 text-xs font-bold uppercase tracking-widest mb-3">Before It Leaves the Bay</h2>
+                <ul className="space-y-1.5">
+                  {result.post_repair_checks.map((c, i) => (
+                    <li key={i} className="text-white/80 text-sm flex gap-2">
+                      <span className="text-red-600">—</span>{c}
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
+
+            {result.related_jobs && ((result.related_jobs.required_companions || []).length > 0 ||
+              (result.related_jobs.recommended_companions || []).length > 0) && (
+              <section>
+                <h2 className="text-red-600 text-xs font-bold uppercase tracking-widest mb-3">Related Jobs</h2>
+                {(result.related_jobs.required_companions || []).length > 0 && (
+                  <div className="mb-2">
+                    <div className="text-white/40 text-[11px] font-bold uppercase tracking-widest mb-1">Required alongside this job</div>
+                    <ul className="space-y-1">
+                      {result.related_jobs.required_companions.map((r, i) => (
+                        <li key={i} className="text-white/80 text-sm flex gap-2">
+                          <span className="text-red-600">—</span>{r}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {(result.related_jobs.recommended_companions || []).length > 0 && (
+                  <div>
+                    <div className="text-white/40 text-[11px] font-bold uppercase tracking-widest mb-1">Worth doing at the same time</div>
+                    <ul className="space-y-1">
+                      {result.related_jobs.recommended_companions.map((r, i) => (
+                        <li key={i} className="text-white/80 text-sm flex gap-2">
+                          <span className="text-red-600">—</span>{r}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </section>
+            )}
+
             <section className="border-t border-white/10 pt-6">
               <h2 className="text-red-600 text-xs font-bold uppercase tracking-widest mb-2">Estimated Labor</h2>
-              <p className="text-white/80 text-sm">{result.estimated_labor_hours}</p>
+              <p className="text-white/80 text-sm">
+                {result.estimated_labor_hours}
+                {result.difficulty && <span className="text-white/40"> — Difficulty: {result.difficulty}</span>}
+              </p>
             </section>
           </div>
         )}
