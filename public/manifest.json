@@ -1,8 +1,7 @@
 {
   "name": "GID Garage",
   "short_name": "GID Garage",
-  "description": "GID Garage Admin — Mobile Auto Repair",
-  "start_url": "/admin",
+  "description": "GID Garage Mobile Auto Repair",
   "display": "standalone",
   "background_color": "#0f0f0f",
   "theme_color": "#b91c1c",
