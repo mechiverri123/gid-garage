@@ -13,6 +13,7 @@ gsap.registerPlugin(ScrollTrigger);
 // mobile Safari (source of the "grey screen until refresh" reports).
 const BookingWidget = lazy(() => import('./BookingWidget'));
 const AdminSchedule = lazy(() => import('./BookingWidget').then(m => ({ default: m.AdminSchedule })));
+const PromptGenerator = lazy(() => import('./PromptGenerator'));
 const EstimatePage = lazy(() => import('./JobOps').then(m => ({ default: m.EstimatePage })));
 const InvoicePage = lazy(() => import('./JobOps').then(m => ({ default: m.InvoicePage })));
 const PPIPage = lazy(() => import('./JobOps').then(m => ({ default: m.PPIPage })));
@@ -1411,6 +1412,7 @@ export default function App() {
   const cancelId = params.get('cancel');
   const cancelToken = params.get('token');
   const isAdmin = window.location.pathname === '/admin' || window.location.hash === '#admin';
+  const isPromptGenerator = window.location.pathname === '/prompt';
   const isEstimate = window.location.pathname === '/estimate';
   const isInvoice = window.location.pathname === '/invoice';
   const isPPI = window.location.pathname === '/ppi';
@@ -1430,7 +1432,7 @@ export default function App() {
   // content pages — indexing them creates thin/duplicate results that dilute
   // the pages we actually want ranking. Keep home, service-area, and privacy indexable.
   useEffect(() => {
-    const shouldNoindex = isEstimate || isInvoice || isPPI || isGames || isGameRedeem || isReview || isAdmin || (!!cancelId && !!cancelToken);
+    const shouldNoindex = isEstimate || isInvoice || isPPI || isGames || isGameRedeem || isReview || isAdmin || isPromptGenerator || (!!cancelId && !!cancelToken);
     let meta = document.querySelector('meta[name="robots"]');
     if (!meta) {
       meta = document.createElement('meta');
@@ -1438,7 +1440,7 @@ export default function App() {
       document.head.appendChild(meta);
     }
     meta.setAttribute('content', shouldNoindex ? 'noindex, nofollow' : 'index, follow');
-  }, [isEstimate, isInvoice, isPPI, isGames, isGameRedeem, isReview, isAdmin, cancelId, cancelToken]);
+  }, [isEstimate, isInvoice, isPPI, isGames, isGameRedeem, isReview, isAdmin, isPromptGenerator, cancelId, cancelToken]);
 
   function handleBookService(id: string) {
     setBookingServiceId(id);
@@ -1451,6 +1453,7 @@ export default function App() {
   }
 
   if (isAdmin) return <Suspense fallback={null}><AdminSchedule /></Suspense>;
+  if (isPromptGenerator) return <Suspense fallback={null}><PromptGenerator /></Suspense>;
   if (isEstimate) return <Suspense fallback={null}><EstimatePage /></Suspense>;
   if (isInvoice) return <Suspense fallback={null}><InvoicePage /></Suspense>;
   if (isPPI) return <Suspense fallback={null}><PPIPage /></Suspense>;
