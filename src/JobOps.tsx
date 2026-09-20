@@ -4,6 +4,7 @@
 // ────────────────────────────────────────────────────────────────────────────
 
 import { useState, useEffect, useRef, useMemo } from 'react';
+import { decodeVin, cleanVin, vinCheckDigitOk } from './vinDecode';
 
 // Emails now sent server-side — BREVO_API_KEY removed from client bundle
 const STRIPE_PK = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY as string;
@@ -3880,6 +3881,9 @@ export function JobDetailPanel({ job: initialJob, onClose, onJobUpdate, backLabe
   const [editLname, setEditLname] = useState(job.lname || '');
   const [editVehicle, setEditVehicle] = useState(job.vehicle || '');
   const [editVin, setEditVin] = useState(job.vin || '');
+  const [vinBusy, setVinBusy] = useState(false);
+  const [vinMsg, setVinMsg] = useState<{ kind: 'ok' | 'warn' | 'err'; text: string; undo?: string } | null>(null);
+  const vinReq = useRef(0);
   const [editMileage, setEditMileage] = useState(job.mileage || '');
   const [editServiceAddress, setEditServiceAddress] = useState(job.serviceAddress || '');
   const [editPhone, setEditPhone] = useState(job.phone || '');
@@ -3893,6 +3897,7 @@ export function JobDetailPanel({ job: initialJob, onClose, onJobUpdate, backLabe
     setEditLname(job.lname || '');
     setEditVehicle(job.vehicle || '');
     setEditVin(job.vin || '');
+    setVinMsg(null);
     setEditMileage(job.mileage || '');
     setEditServiceAddress(job.serviceAddress || '');
     setEditPhone(job.phone || '');
@@ -3900,6 +3905,38 @@ export function JobDetailPanel({ job: initialJob, onClose, onJobUpdate, backLabe
     setEditNotes(job.notes || '');
     setApptErr(null);
     setEditingAppt(true);
+  }
+
+  // VIN -> vehicle. Typing/pasting a full valid VIN overwrites the Vehicle field
+  // with the NHTSA decode (year make model engine trim). Undo restores the old text.
+  async function runVinDecode(vin: string) {
+    const id = ++vinReq.current;
+    setVinBusy(true);
+    setVinMsg(null);
+    const prev = editVehicle;
+    try {
+      const d = await decodeVin(vin);
+      if (id !== vinReq.current) return; // VIN changed while this was in flight
+      setEditVehicle(d.full);
+      setVinMsg({ kind: 'ok', text: `Vehicle set to ${d.full}`, undo: prev });
+    } catch (e: any) {
+      if (id !== vinReq.current) return;
+      setVinMsg({ kind: 'err', text: e?.message ?? 'VIN lookup failed.' });
+    } finally {
+      if (id === vinReq.current) setVinBusy(false);
+    }
+  }
+
+  function onVinInput(raw: string) {
+    const vin = cleanVin(raw);
+    setEditVin(vin);
+    vinReq.current++; // drop any in-flight decode for the old value
+    setVinBusy(false);
+    setVinMsg(null);
+    if (vin.length === 17) {
+      if (vinCheckDigitOk(vin)) runVinDecode(vin);
+      else setVinMsg({ kind: 'warn', text: 'Check digit fails, likely a typo. Tap Decode to try anyway.' });
+    }
   }
 
   async function saveAppt() {
@@ -4112,9 +4149,24 @@ export function JobDetailPanel({ job: initialJob, onClose, onJobUpdate, backLabe
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-gray-500 text-[10px] font-bold uppercase tracking-wider mb-1">VIN</label>
-                      <input type="text" value={editVin} onChange={e => setEditVin(e.target.value.toUpperCase())} placeholder="1FTFW1E5..."
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="block text-gray-500 text-[10px] font-bold uppercase tracking-wider">VIN</label>
+                        <button type="button" onClick={() => runVinDecode(editVin)} disabled={vinBusy || editVin.length !== 17}
+                          className="text-[10px] font-bold uppercase tracking-wider text-red-500 hover:text-red-400 disabled:text-gray-700 disabled:cursor-not-allowed transition-colors">
+                          {vinBusy ? 'Decoding…' : 'Decode'}
+                        </button>
+                      </div>
+                      <input type="text" value={editVin} onChange={e => onVinInput(e.target.value)} placeholder="1FTFW1E5..."
                         className="w-full bg-gray-900 text-white text-sm px-3 py-2 outline-none border border-gray-700 focus:border-red-600 transition-colors font-mono" />
+                      {vinMsg && (
+                        <p className={`text-[10px] mt-1 ${vinMsg.kind === 'ok' ? 'text-emerald-500' : vinMsg.kind === 'warn' ? 'text-yellow-500' : 'text-red-400'}`}>
+                          {vinMsg.text}
+                          {vinMsg.kind === 'ok' && vinMsg.undo !== undefined && (
+                            <button type="button" onClick={() => { setEditVehicle(vinMsg.undo ?? ''); setVinMsg(null); }}
+                              className="ml-2 underline text-gray-500 hover:text-gray-300">Undo</button>
+                          )}
+                        </p>
+                      )}
                     </div>
                     <div>
                       <label className="block text-gray-500 text-[10px] font-bold uppercase tracking-wider mb-1">Mileage</label>
@@ -4939,8 +4991,15 @@ function PrePIModal({ onClose }: { onClose: () => void }) {
 
   function setField(k: keyof PPIRecord, v: string) {
     if (!record) return;
-    setRecord({ ...record, [k]: k === 'vin' ? v.toUpperCase() : v });
+    const next = k === 'vin' ? cleanVin(v) : v;
+    setRecord({ ...record, [k]: next });
     setFieldErr(p => ({ ...p, [k]: '' }));
+    // Full valid VIN: overwrite Vehicle with the NHTSA decode (year make model).
+    if (k === 'vin' && next.length === 17 && vinCheckDigitOk(next)) {
+      decodeVin(next)
+        .then(d => setRecord(prev => (prev && prev.vin === next ? { ...prev, vehicle: d.short } : prev)))
+        .catch(() => setFieldErr(p => ({ ...p, vin: 'Could not decode this VIN. Check for a typo.' })));
+    }
   }
   function setItem(id: string, patch: Partial<PPIChecklistItem>) {
     if (!record) return;
