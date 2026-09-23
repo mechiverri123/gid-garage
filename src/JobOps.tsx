@@ -502,9 +502,45 @@ async function adminPost(action: string, args: Record<string, any> = {}) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ action, ...args }),
   });
-  if (!res.ok) { const e = await res.text(); throw new Error(e); }
+  if (!res.ok) {
+    const e = await res.text();
+    const err = new Error(e) as Error & { status?: number };
+    err.status = res.status;
+    throw err;
+  }
   const txt = await res.text();
   return txt ? JSON.parse(txt) : null;
+}
+
+// Cloudflare occasionally can't reach the Pages Function origin at all —
+// shows up as a raw Cloudflare-branded 502 ("Host: Error" on their
+// diagnostic page) rather than a JSON error from our own try/catch, which
+// means the function never ran and nothing was written. Safe to silently
+// retry ONLY for actions that just re-apply the same fields (PATCH), never
+// for actions that create or charge something (insert/find-or-create/charge)
+// where a retried request could duplicate a customer or a payment.
+async function adminPostIdempotent(action: string, args: Record<string, any> = {}, retries = 2) {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await adminPost(action, args);
+    } catch (e: any) {
+      const isGatewayError = e?.status === 502 || e?.status === 503 || e?.status === 504;
+      if (attempt >= retries || !isGatewayError) throw e;
+      await new Promise(r => setTimeout(r, 600 * (attempt + 1)));
+    }
+  }
+}
+
+// find-or-create-customer isn't safe to blindly retry — retrying an
+// unrelated create could insert a duplicate customer. But when a phone
+// number is present, the backend's own phone+name lookup (see
+// find-or-create-customer in admin-api-data.js) will find the row a prior
+// attempt already created before it tries to insert again, so a retry is
+// safe in that case and unsafe otherwise (no phone/email means nothing on
+// the backend can prove a retry's insert already happened).
+async function findOrCreateCustomerSafe(fields: Record<string, any>) {
+  const canRetry = !!(fields.phone || '').replace(/\D/g, '');
+  return adminPostIdempotent('find-or-create-customer', fields, canRetry ? 2 : 0);
 }
 
 async function apiPost(action: string, args: Record<string, any> = {}) {
@@ -614,7 +650,7 @@ export async function getJobByIdPublic(id: string): Promise<Job | null> {
 
 // ADMIN mutations (behind Cloudflare Access)
 async function patchJob(id: string, fields: Record<string, any>) {
-  await adminPost('patch-booking', { id, fields });
+  await adminPostIdempotent('patch-booking', { id, fields });
 }
 
 // ── BREVO: SEND ESTIMATE EMAIL ────────────────────────────────────────────────
@@ -3960,12 +3996,12 @@ export function JobDetailPanel({ job: initialJob, onClose, onJobUpdate, backLabe
       if (customerId) {
         // Existing customer file — patch-customer cascades these fields to
         // every other job under the same file (name/phone/email only now).
-        await adminPost('patch-customer', { id: customerId, fields: customerFields });
+        await adminPostIdempotent('patch-customer', { id: customerId, fields: customerFields });
       } else if (editFname.trim()) {
         // Legacy job with no customer file yet (created before the
         // customers-table migration, or before a backfill ran) — resolve or
         // create one now so future edits on this job start syncing too.
-        const result = await adminPost('find-or-create-customer', { ...customerFields });
+        const result = await findOrCreateCustomerSafe({ ...customerFields });
         customerId = result?.customer?.id ?? null;
         if (customerId) await patchJob(job.id, { customer_id: customerId });
       }
@@ -3975,7 +4011,11 @@ export function JobDetailPanel({ job: initialJob, onClose, onJobUpdate, backLabe
       handleUpdate({ ...job, date: editDate, time: editTime || 'TBD', fname: editFname.trim(), lname: editLname.trim(), vehicle: editVehicle, vin: editVin, mileage: editMileage, serviceAddress: editServiceAddress, phone: editPhone, email: editEmail, notes: editNotes, customerId });
       setEditingAppt(false);
     } catch (e: any) {
-      setApptErr(e.message ?? 'Save failed. Try again.');
+      const raw = e?.message ?? '';
+      const looksLikeHtmlDump = /^\s*<(!DOCTYPE|html)/i.test(raw);
+      setApptErr(looksLikeHtmlDump
+        ? `Save failed — server didn't respond (${e?.status || '502'}). Try again in a moment.`
+        : (raw || 'Save failed. Try again.'));
     } finally {
       setApptSaving(false);
     }

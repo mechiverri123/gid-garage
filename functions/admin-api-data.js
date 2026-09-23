@@ -309,9 +309,14 @@ export async function onRequestPost({ request, env }) {
         for (const k of ['fname', 'lname', 'phone', 'email']) {
           if (k in fields) cascadeFields[k] = fields[k];
         }
+        // Never cascade onto a booking that's already been signed — that's
+        // a completed, e-signed (and often paid) record, and silently
+        // rewriting the customer's name/phone/email on it after the fact
+        // would alter a signed audit trail. Also avoids bulk-PATCHing a
+        // completed/paid row alongside active ones in the same statement.
         if (Object.keys(cascadeFields).length > 0) {
           const bookingRes = await fetch(
-            `${base}/bookings?customer_id=eq.${encodeURIComponent(id)}`,
+            `${base}/bookings?customer_id=eq.${encodeURIComponent(id)}&signed_at=is.null`,
             { method: 'PATCH', headers: { ...headers, Prefer: 'return=minimal' }, body: JSON.stringify(cascadeFields) }
           );
           if (!bookingRes.ok) return json({ error: await bookingRes.text() }, 502);
