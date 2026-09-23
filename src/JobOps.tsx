@@ -4492,13 +4492,16 @@ function CustomerFileModal({ customerId, jobs, onClose, onSelectJob }: {
     );
   }
 
+  const [vehicleFilter, setVehicleFilter] = useState<string | null>(null);
+
   const latest = customerJobs[0];
   const fullName = `${latest.fname} ${latest.lname}`.trim();
   const initials = ((latest.fname?.[0] || '') + (latest.lname?.[0] || '')).toUpperCase() || '?';
   const accent = accentFor(fullName || customerId);
   const vehicles = Array.from(new Set(customerJobs.map(j => j.vehicle).filter(Boolean)));
-  const totalRevenue = customerJobs.reduce((sum, j) => sum + (j.amountPaid || 0), 0);
-  const firstVisit = customerJobs[customerJobs.length - 1]?.date;
+  const filteredJobs = vehicleFilter ? customerJobs.filter(j => j.vehicle === vehicleFilter) : customerJobs;
+  const totalRevenue = filteredJobs.reduce((sum, j) => sum + (j.amountPaid || 0), 0);
+  const firstVisit = filteredJobs[filteredJobs.length - 1]?.date;
   const sinceLabel = firstVisit ? new Date(firstVisit + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : '—';
 
   return (
@@ -4539,8 +4542,8 @@ function CustomerFileModal({ customerId, jobs, onClose, onSelectJob }: {
           </div>
           <div className="flex gap-5 flex-shrink-0 pb-0.5">
             <div className="text-right">
-              <p className="text-white font-black text-lg leading-none">{customerJobs.length}</p>
-              <p className="text-gray-500 text-[10px] font-bold uppercase tracking-wider mt-1">Job{customerJobs.length === 1 ? '' : 's'}</p>
+              <p className="text-white font-black text-lg leading-none">{filteredJobs.length}</p>
+              <p className="text-gray-500 text-[10px] font-bold uppercase tracking-wider mt-1">Job{filteredJobs.length === 1 ? '' : 's'}</p>
             </div>
             <div className="text-right">
               <p className="text-white font-black text-lg leading-none">{sinceLabel}</p>
@@ -4551,22 +4554,52 @@ function CustomerFileModal({ customerId, jobs, onClose, onSelectJob }: {
 
         {vehicles.length > 0 && (
           <div className="px-6 py-3 border-b border-gray-800">
-            <p className="text-gray-500 text-[10px] font-bold uppercase tracking-wider mb-1.5">Vehicles on File</p>
+            <div className="flex items-center justify-between mb-1.5">
+              <p className="text-gray-500 text-[10px] font-bold uppercase tracking-wider">Vehicles on File</p>
+              {vehicleFilter && (
+                <button onClick={() => setVehicleFilter(null)} className="text-red-400 hover:text-red-300 text-[10px] font-bold uppercase tracking-wider transition-colors">
+                  Clear filter ✕
+                </button>
+              )}
+            </div>
             <div className="flex flex-wrap gap-1.5">
-              {vehicles.map(v => (
-                <span key={v} className="text-gray-300 text-xs bg-gray-900 border border-gray-800 px-2 py-1">{v}</span>
-              ))}
+              {vehicles.length > 1 && (
+                <button
+                  onClick={() => setVehicleFilter(null)}
+                  className={`text-xs font-bold px-2 py-1 border transition-all duration-150 ${!vehicleFilter ? 'bg-red-600 border-red-600 text-white' : 'bg-gray-900 border-gray-800 text-gray-300 hover:border-gray-600'}`}
+                >
+                  All
+                </button>
+              )}
+              {vehicles.map(v => {
+                const active = vehicleFilter === v;
+                return (
+                  <button
+                    key={v}
+                    onClick={() => setVehicleFilter(prev => prev === v ? null : v)}
+                    title={vehicles.length > 1 ? 'Show only jobs for this vehicle' : undefined}
+                    className={`text-xs font-bold px-2 py-1 border transition-all duration-150 ${active ? 'bg-red-600 border-red-600 text-white scale-105' : 'bg-gray-900 border-gray-800 text-gray-300 hover:border-gray-600 hover:text-white'}`}
+                  >
+                    {v}
+                  </button>
+                );
+              })}
             </div>
           </div>
         )}
 
         {/* Job history — a real timeline, since it's genuinely chronological */}
         <div className="px-6 py-4">
-          <p className="text-gray-500 text-[10px] font-bold uppercase tracking-wider mb-3">Job History</p>
+          <p className="text-gray-500 text-[10px] font-bold uppercase tracking-wider mb-3">
+            {vehicleFilter ? `Job History · ${vehicleFilter}` : 'Job History'}
+          </p>
           <div className="relative">
             <div className="absolute left-[5px] top-1.5 bottom-1.5 w-px bg-gray-800" />
             <div className="space-y-4">
-              {customerJobs.map(j => {
+              {filteredJobs.length === 0 && (
+                <p className="text-gray-600 text-xs pl-6">No jobs found for this vehicle.</p>
+              )}
+              {filteredJobs.map(j => {
                 const dStr = new Date(j.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
                 const amount = j.amountPaid || j.invoiceAmount || j.estimateAmount;
                 const dotColor = STATUS_CONFIG[j.jobStatus].color.replace('text-', 'bg-');
