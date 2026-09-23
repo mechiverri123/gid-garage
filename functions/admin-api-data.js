@@ -156,7 +156,7 @@ export async function onRequestPost({ request, env }) {
           'invoice_amount', 'stripe_transaction_id', 'stripe_customer_id',
           'stripe_last4', 'paid_at', 'adjustment_amount', 'amount_paid', 'payments',
           'invoice_sent_count', 'invoice_last_sent_at', 'parts_cost', 'parts_receipts',
-          'review_left_at',
+          'review_left_at', 'date_tbd',
         ].join(',');
         const res = await fetch(
           `${base}/bookings?select=${listColumns}&order=date.desc,time.desc&limit=${limit}`,
@@ -324,6 +324,69 @@ export async function onRequestPost({ request, env }) {
           if (!bookingRes.ok) return json({ error: await bookingRes.text() }, 502);
         }
         return json({ ok: true });
+      }
+
+      case 'merge-customers': {
+        const { keepId, mergeId } = payload;
+        if (!keepId || !mergeId) return json({ error: 'Missing keepId or mergeId' }, 400);
+        if (keepId === mergeId) return json({ error: 'Cannot merge a customer into itself' }, 400);
+
+        const bothRes = await fetch(
+          `${base}/customers?id=in.(${encodeURIComponent(keepId)},${encodeURIComponent(mergeId)})&select=*`,
+          { headers }
+        );
+        if (!bothRes.ok) return json({ error: await bothRes.text() }, 502);
+        const both = await bothRes.json();
+        const keep = both.find((c: any) => c.id === keepId);
+        const merge = both.find((c: any) => c.id === mergeId);
+        if (!keep || !merge) return json({ error: 'One or both customers not found' }, 404);
+
+        // Reassign every booking under the merged-away customer to the
+        // keeper FIRST. This must happen before the delete below — deleting
+        // the customer row first would leave those bookings pointing at a
+        // customer_id that no longer exists.
+        const jobsRes = await fetch(
+          `${base}/bookings?customer_id=eq.${encodeURIComponent(mergeId)}&select=id`,
+          { headers }
+        );
+        if (!jobsRes.ok) return json({ error: await jobsRes.text() }, 502);
+        const movedJobs = await jobsRes.json();
+
+        if (movedJobs.length > 0) {
+          // Only customer_id changes here — never fname/lname/phone/email,
+          // which is the exact cascade that caused the earlier bug. A job's
+          // own identity fields are untouched; it just now belongs to a
+          // different (correct) customer file.
+          const reassignRes = await fetch(
+            `${base}/bookings?customer_id=eq.${encodeURIComponent(mergeId)}`,
+            { method: 'PATCH', headers: { ...headers, Prefer: 'return=minimal' }, body: JSON.stringify({ customer_id: keepId }) }
+          );
+          if (!reassignRes.ok) return json({ error: await reassignRes.text() }, 502);
+        }
+
+        // Fill any blanks on the keeper from the record being merged away —
+        // never overwrite a value the keeper already has.
+        const fillFields: Record<string, any> = {};
+        for (const k of ['fname', 'lname', 'phone', 'email', 'vin', 'vehicle', 'mileage', 'service_address']) {
+          if (!keep[k] && merge[k]) fillFields[k] = merge[k];
+        }
+        if (Object.keys(fillFields).length > 0) {
+          const fillRes = await fetch(
+            `${base}/customers?id=eq.${encodeURIComponent(keepId)}`,
+            { method: 'PATCH', headers: { ...headers, Prefer: 'return=minimal' }, body: JSON.stringify({ ...fillFields, updated_at: new Date().toISOString() }) }
+          );
+          if (!fillRes.ok) return json({ error: await fillRes.text() }, 502);
+        }
+
+        // Only delete the merged-away customer once its bookings are safely
+        // repointed and any useful fields have been copied over.
+        const deleteRes = await fetch(
+          `${base}/customers?id=eq.${encodeURIComponent(mergeId)}`,
+          { method: 'DELETE', headers: { ...headers, Prefer: 'return=minimal' } }
+        );
+        if (!deleteRes.ok) return json({ error: await deleteRes.text() }, 502);
+
+        return json({ ok: true, movedJobs: movedJobs.length });
       }
 
       case 'list-payment-events': {

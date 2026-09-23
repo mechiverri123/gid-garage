@@ -258,6 +258,13 @@ export interface Job {
   // any job saved before this field existed — those fall back to the old
   // per-job-only behavior until backfilled.
   customerId: string | null;
+  // True when the service date was never actually agreed on — an External
+  // Lead created with "Don't know yet" checked. `date` still holds a real,
+  // parseable placeholder (creation day) so every date.toLocaleDateString()
+  // call across the app keeps working; this flag is what actually says
+  // "don't trust that date," drives the TBD tab, and clears itself the
+  // first time the job is saved with a real date through the normal edit form.
+  dateTbd: boolean;
   notes: string;
   garageNotes: string;
   status: string;
@@ -569,6 +576,7 @@ function mapJob(b: any): Job {
     mileage: b.mileage || '',
     serviceAddress: b.service_address || '',
     customerId: b.customer_id || null,
+    dateTbd: !!b.date_tbd,
     notes: b.notes || '',
     garageNotes: b.garage_notes || '',
     status: b.status,
@@ -3490,7 +3498,7 @@ function SignedDocSection({ job }: { job: Job }) {
                 {[
                   ['Vehicle', job.vehicle],
                   ['Service', resolveServiceName(job.service, job.notes)],
-                  ['Appointment', `${new Date(job.date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}${apptTimeLabel(job.time)}`],
+                  ['Appointment', job.dateTbd ? 'TBD — to be scheduled' : `${new Date(job.date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}${apptTimeLabel(job.time)}`],
                   ...(amount ? [['Quoted Amount', `$${amount.toFixed(2)}`]] : []),
                 ].map(([label, val]) => (
                   <div key={label} className="flex justify-between px-4 py-2.5 gap-4">
@@ -4009,9 +4017,9 @@ export function JobDetailPanel({ job: initialJob, onClose, onJobUpdate, backLabe
         if (customerId) await patchJob(job.id, { customer_id: customerId });
       }
       await patchJob(job.id, {
-        date: editDate, time: editTime || 'TBD', ...customerFields, ...jobOnlyFields, notes: editNotes,
+        date: editDate, time: editTime || 'TBD', date_tbd: false, ...customerFields, ...jobOnlyFields, notes: editNotes,
       });
-      handleUpdate({ ...job, date: editDate, time: editTime || 'TBD', fname: editFname.trim(), lname: editLname.trim(), vehicle: editVehicle, vin: editVin, mileage: editMileage, serviceAddress: editServiceAddress, phone: editPhone, email: editEmail, notes: editNotes, customerId });
+      handleUpdate({ ...job, date: editDate, time: editTime || 'TBD', dateTbd: false, fname: editFname.trim(), lname: editLname.trim(), vehicle: editVehicle, vin: editVin, mileage: editMileage, serviceAddress: editServiceAddress, phone: editPhone, email: editEmail, notes: editNotes, customerId });
       setEditingAppt(false);
     } catch (e: any) {
       const raw = e?.message ?? '';
@@ -4072,7 +4080,11 @@ export function JobDetailPanel({ job: initialJob, onClose, onJobUpdate, backLabe
               <h2 className="text-white font-black text-lg">{job.fname} {job.lname}</h2>
             )}
             <p className="text-gray-500 text-sm">{resolveServiceName(job.service, job.notes)} · {job.vehicle}</p>
-            <p className="text-gray-600 text-xs mt-0.5">{dateStr}{apptTimeLabel(job.time)}</p>
+            {job.dateTbd ? (
+              <p className="text-indigo-400 text-xs font-bold uppercase tracking-wider mt-0.5">Date TBD — not yet scheduled</p>
+            ) : (
+              <p className="text-gray-600 text-xs mt-0.5">{dateStr}{apptTimeLabel(job.time)}</p>
+            )}
           </div>
           <button onClick={onClose} className="no-print flex-shrink-0 text-gray-400 hover:text-white text-xs font-bold uppercase tracking-widest border border-gray-700 hover:border-red-600 px-3 py-2 mt-0.5 transition-colors whitespace-nowrap">← {backLabel}</button>
         </div>
@@ -4138,7 +4150,7 @@ export function JobDetailPanel({ job: initialJob, onClose, onJobUpdate, backLabe
                   {[
                     ['Name', `${job.fname} ${job.lname}`.trim() || '—'],
                     ['Service', resolveServiceName(job.service, job.notes)],
-                    ['Date', `${dateStr}${apptTimeLabel(job.time)}`],
+                    ['Date', job.dateTbd ? 'TBD — not yet scheduled' : `${dateStr}${apptTimeLabel(job.time)}`],
                     ['Phone', job.phone],
                     ['Email', job.email],
                   ].map(([label, val]) => (
@@ -4594,6 +4606,13 @@ function ExternalLeadModal({ onClose, onAdded, jobs }: { onClose: () => void; on
   // faking a number, which the customer-matching logic already treats
   // safely (blank phone just falls back to name+email matching).
   const [phoneUnknown, setPhoneUnknown] = useState(false);
+  // Service date is often genuinely unknown at estimate time — the lead
+  // hasn't committed yet, or you haven't talked scheduling. Forcing a real
+  // date here just meant picking one at random (defaults to today), which
+  // is misleading on the schedule. This is the honest alternative: skip the
+  // date, still build and send the estimate, and the job shows up under the
+  // TBD tab instead of cluttering today's actual jobs until it's confirmed.
+  const [dateUnknown, setDateUnknown] = useState(false);
 
   // ── Previous-customer search: step 1 matches by IDENTITY (name/phone/
   // email/address) only — vehicle is deliberately excluded here so the same
@@ -4710,7 +4729,8 @@ function ExternalLeadModal({ onClose, onAdded, jobs }: { onClose: () => void; on
       service: f.service,
       service_icon: SERVICE_ICONS[f.service] ?? '🔧',
       date: f.date, // picked in step 2 — defaults to today (America/Phoenix) but can be moved
-      time: f.time || 'TBD',
+      time: dateUnknown ? 'TBD' : (f.time || 'TBD'),
+      date_tbd: dateUnknown,
       fname: f.fname,
       lname: f.lname,
       phone: f.phone,
@@ -4924,13 +4944,24 @@ function ExternalLeadModal({ onClose, onAdded, jobs }: { onClose: () => void; on
             <h2 className="text-xl font-black text-white mb-1">Service Date</h2>
             <p className="text-gray-500 text-xs mb-5">{f.fname} {f.lname} · {f.vehicle} — when is this job scheduled? Defaults to today; move it if it's booked out.</p>
 
-            <div className="grid grid-cols-2 gap-3 mb-5">
+            <label className="flex items-center gap-2.5 mb-4 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={dateUnknown}
+                onChange={e => setDateUnknown(e.target.checked)}
+                className="w-4 h-4 accent-indigo-600"
+              />
+              <span className="text-gray-300 text-sm">Don't know yet — send the estimate, figure out timing later</span>
+            </label>
+
+            <div className={`grid grid-cols-2 gap-3 mb-5 transition-opacity ${dateUnknown ? 'opacity-40 pointer-events-none' : ''}`}>
               <div>
                 <label className="block text-xs font-bold uppercase tracking-wider mb-1 text-gray-500">Service Date</label>
                 <input
                   type="date"
                   value={f.date}
                   onChange={e => set('date', e.target.value)}
+                  disabled={dateUnknown}
                   className="w-full bg-gray-900 text-white text-sm px-3 py-2.5 outline-none border border-gray-700 focus:border-indigo-600 transition-colors"
                 />
               </div>
@@ -4940,10 +4971,15 @@ function ExternalLeadModal({ onClose, onAdded, jobs }: { onClose: () => void; on
                   type="time"
                   value={f.time ? from12h(f.time) : ''}
                   onChange={e => set('time', e.target.value ? to12h(e.target.value) : '')}
+                  disabled={dateUnknown}
                   className="w-full bg-gray-900 text-white text-sm px-3 py-2.5 outline-none border border-gray-700 focus:border-indigo-600 transition-colors"
                 />
               </div>
             </div>
+
+            {dateUnknown && (
+              <p className="text-indigo-400 text-xs mb-5 -mt-3">This job will show up under the <strong>TBD</strong> tab until you set a real date.</p>
+            )}
 
             <div className="flex gap-2">
               <button
@@ -5573,6 +5609,334 @@ function PrePIModal({ onClose }: { onClose: () => void }) {
   );
 }
 
+// ── DUPLICATE CUSTOMERS ──────────────────────────────────────────────────────
+// Same matching rule find-or-create-customer already uses when deciding
+// whether a new booking belongs to an existing customer (phone digits, or
+// name+email when there's no phone) — this just runs it across every
+// customer already on file instead of one at a time, so drift that slipped
+// through before this existed (or from any manual DB edits) surfaces here.
+interface CustomerRow {
+  id: string;
+  fname: string;
+  lname: string;
+  phone: string | null;
+  email: string | null;
+  vin?: string | null;
+  vehicle?: string | null;
+  mileage?: string | null;
+  service_address?: string | null;
+  created_at?: string;
+}
+
+function normStr(s: string | null | undefined): string {
+  return (s || '').trim().toLowerCase();
+}
+
+interface DupeGroup {
+  key: string;
+  matchType: 'phone' | 'name+email';
+  customers: CustomerRow[];
+}
+
+function findDuplicateGroups(customers: CustomerRow[]): DupeGroup[] {
+  const phoneMap = new Map<string, CustomerRow[]>();
+  const nameEmailMap = new Map<string, CustomerRow[]>();
+
+  for (const c of customers) {
+    const digits = (c.phone || '').replace(/\D/g, '');
+    if (digits.length >= 7) {
+      if (!phoneMap.has(digits)) phoneMap.set(digits, []);
+      phoneMap.get(digits)!.push(c);
+    } else if (c.email && c.fname) {
+      const key = `${normStr(c.fname)}|${normStr(c.lname)}|${normStr(c.email)}`;
+      if (!nameEmailMap.has(key)) nameEmailMap.set(key, []);
+      nameEmailMap.get(key)!.push(c);
+    }
+  }
+
+  const groups: DupeGroup[] = [];
+  for (const [key, list] of phoneMap) {
+    if (list.length > 1) groups.push({ key, matchType: 'phone', customers: list });
+  }
+  for (const [key, list] of nameEmailMap) {
+    if (list.length > 1) groups.push({ key, matchType: 'name+email', customers: list });
+  }
+  return groups;
+}
+
+function DuplicateCustomersModal({ onClose, jobs, onMerged }: {
+  onClose: () => void;
+  jobs: Job[];
+  onMerged: (keepId: string, mergeId: string) => void;
+}) {
+  const [loading, setLoading] = useState(true);
+  const [loadErr, setLoadErr] = useState('');
+  const [customers, setCustomers] = useState<CustomerRow[]>([]);
+  const [groups, setGroups] = useState<DupeGroup[]>([]);
+  // Per-group state: which customer id is selected as the keeper, whether
+  // the confirm step is showing, and merge-in-progress/error tracking —
+  // keyed by group.key so groups don't interfere with each other.
+  const [keepChoice, setKeepChoice] = useState<Record<string, string>>({});
+  const [confirmingKey, setConfirmingKey] = useState<string | null>(null);
+  const [mergingKey, setMergingKey] = useState<string | null>(null);
+  const [mergeErr, setMergeErr] = useState<Record<string, string>>({});
+
+  function jobStatsFor(customerId: string) {
+    const cJobs = jobs.filter(j => j.customerId === customerId);
+    const lastDate = cJobs.reduce((max, j) => (j.date > max ? j.date : max), '');
+    return { count: cJobs.length, lastDate };
+  }
+
+  function defaultKeeper(group: DupeGroup): string {
+    // Prefer whoever has the most job history; tie-break on the older
+    // record (earlier created_at) since that's more likely the original file.
+    let best = group.customers[0];
+    let bestCount = jobStatsFor(best.id).count;
+    for (const c of group.customers.slice(1)) {
+      const count = jobStatsFor(c.id).count;
+      const better =
+        count > bestCount ||
+        (count === bestCount && (c.created_at || '') < (best.created_at || ''));
+      if (better) { best = c; bestCount = count; }
+    }
+    return best.id;
+  }
+
+  async function loadCustomers() {
+    setLoading(true);
+    setLoadErr('');
+    try {
+      const rows = await adminPost('list-customers');
+      const list: CustomerRow[] = Array.isArray(rows) ? rows : [];
+      const found = findDuplicateGroups(list);
+      setCustomers(list);
+      setGroups(found);
+      const defaults: Record<string, string> = {};
+      for (const g of found) defaults[g.key] = defaultKeeper(g);
+      setKeepChoice(defaults);
+    } catch (e: any) {
+      setLoadErr(e?.message ?? 'Failed to load customers.');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => { loadCustomers(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function mergeGroup(group: DupeGroup) {
+    const keepId = keepChoice[group.key];
+    const others = group.customers.filter(c => c.id !== keepId);
+    if (!keepId || others.length === 0) return;
+    setMergingKey(group.key);
+    setMergeErr(prev => ({ ...prev, [group.key]: '' }));
+    try {
+      // One at a time, not in parallel — this is a destructive operation
+      // (deletes a customer row after reassigning its bookings) and running
+      // them concurrently risks two merges racing on the same keeper record.
+      for (const loser of others) {
+        await adminPost('merge-customers', { keepId, mergeId: loser.id });
+        onMerged(keepId, loser.id);
+      }
+      // Success — drop this group from the list rather than a full reload,
+      // so the rest of the review session isn't interrupted.
+      setGroups(prev => prev.filter(g => g.key !== group.key));
+      setConfirmingKey(null);
+    } catch (e: any) {
+      const raw = e?.message ?? '';
+      const looksLikeHtmlDump = /^\s*<(!DOCTYPE|html)/i.test(raw);
+      setMergeErr(prev => ({
+        ...prev,
+        [group.key]: looksLikeHtmlDump
+          ? `Merge failed — server didn't respond (${e?.status || '502'}). Nothing was changed for this group that isn't already reflected below; check the customer list and try again.`
+          : (raw || 'Merge failed. Try again.'),
+      }));
+    } finally {
+      setMergingKey(null);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-start justify-center bg-black/70 p-4 overflow-y-auto" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="bg-gray-950 border border-gray-800 w-full max-w-2xl my-8">
+        <div className="sticky top-0 bg-gray-950 border-b border-gray-800 px-6 py-4 flex items-start justify-between z-10">
+          <div>
+            <p className="text-red-500 text-xs font-bold uppercase tracking-widest mb-0.5">Duplicate Customers</p>
+            <h2 className="text-white font-black text-lg">Review & Merge</h2>
+            <p className="text-gray-500 text-xs mt-0.5">Matched by shared phone number, or name + email when there's no phone.</p>
+          </div>
+          <button onClick={onClose} className="flex-shrink-0 text-gray-400 hover:text-white text-xs font-bold uppercase tracking-widest border border-gray-700 hover:border-red-600 px-3 py-2 mt-0.5 transition-colors">Close</button>
+        </div>
+
+        <div className="p-6">
+          {loading && (
+            <p className="text-gray-500 text-sm text-center py-8">Scanning customer records…</p>
+          )}
+
+          {!loading && loadErr && (
+            <div className="text-center py-8">
+              <p className="text-red-400 text-sm mb-3">{loadErr}</p>
+              <button onClick={loadCustomers} className="text-xs font-bold uppercase tracking-widest border border-gray-700 hover:border-red-600 px-3 py-2 transition-colors">Retry</button>
+            </div>
+          )}
+
+          {!loading && !loadErr && groups.length === 0 && (
+            <p className="text-gray-500 text-sm text-center py-8">No likely duplicates found — customer list looks clean.</p>
+          )}
+
+          {!loading && !loadErr && groups.length > 0 && (
+            <div className="space-y-4">
+              {groups.map(group => {
+                const keepId = keepChoice[group.key] ?? group.customers[0].id;
+                const isConfirming = confirmingKey === group.key;
+                const isMerging = mergingKey === group.key;
+                const err = mergeErr[group.key];
+                const others = group.customers.filter(c => c.id !== keepId);
+
+                return (
+                  <div key={group.key} className="border border-gray-800 bg-gray-900/40">
+                    <div className="px-4 py-2.5 border-b border-gray-800 flex items-center justify-between">
+                      <span className="text-gray-400 text-[10px] font-bold uppercase tracking-wider">
+                        {group.matchType === 'phone' ? 'Matched by phone number' : 'Matched by name + email'}
+                      </span>
+                      <span className="text-gray-600 text-[10px] font-bold uppercase tracking-wider">{group.customers.length} records</span>
+                    </div>
+
+                    <div className="divide-y divide-gray-800">
+                      {group.customers.map(c => {
+                        const stats = jobStatsFor(c.id);
+                        const selected = c.id === keepId;
+                        return (
+                          <label key={c.id} className={`flex items-start gap-3 px-4 py-3 cursor-pointer transition-colors ${selected ? 'bg-emerald-900/10' : 'hover:bg-gray-900/60'}`}>
+                            <input
+                              type="radio"
+                              name={`keep-${group.key}`}
+                              checked={selected}
+                              onChange={() => { setKeepChoice(prev => ({ ...prev, [group.key]: c.id })); setConfirmingKey(null); }}
+                              className="mt-1 accent-emerald-600"
+                            />
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="text-white text-sm font-bold">{c.fname} {c.lname}</span>
+                                {selected && <span className="text-emerald-400 text-[10px] font-bold uppercase tracking-wider border border-emerald-800 px-1.5 py-0.5">Keep</span>}
+                              </div>
+                              <p className="text-gray-500 text-xs mt-0.5">
+                                {c.phone || 'no phone'} · {c.email || 'no email'}
+                              </p>
+                              <p className="text-gray-600 text-xs mt-0.5">
+                                {stats.count} job{stats.count === 1 ? '' : 's'}{stats.lastDate ? ` · last ${stats.lastDate}` : ''}
+                              </p>
+                            </div>
+                          </label>
+                        );
+                      })}
+                    </div>
+
+                    <div className="px-4 py-3 bg-gray-950/60">
+                      {err && <p className="text-red-400 text-xs mb-2">{err}</p>}
+                      {!isConfirming ? (
+                        <button
+                          onClick={() => setConfirmingKey(group.key)}
+                          disabled={others.length === 0}
+                          className="text-xs font-bold uppercase tracking-widest border border-gray-700 hover:border-red-600 text-white px-3 py-2 transition-colors disabled:opacity-40"
+                        >
+                          Merge Into Selected
+                        </button>
+                      ) : (
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <p className="text-gray-400 text-xs">
+                            This moves {others.reduce((n, c) => n + jobStatsFor(c.id).count, 0)} job(s) onto the kept record and permanently deletes {others.length} customer file{others.length === 1 ? '' : 's'}. Job data itself isn't touched or deleted.
+                          </p>
+                          <div className="flex items-center gap-2 flex-shrink-0 ml-auto">
+                            <button
+                              onClick={() => setConfirmingKey(null)}
+                              disabled={isMerging}
+                              className="text-xs font-bold uppercase tracking-widest text-gray-400 hover:text-white px-3 py-2 transition-colors disabled:opacity-40"
+                            >
+                              Cancel
+                            </button>
+                            <button
+                              onClick={() => mergeGroup(group)}
+                              disabled={isMerging}
+                              className="bg-red-600 hover:bg-red-500 text-white text-xs font-bold uppercase tracking-widest px-3 py-2 transition-colors disabled:opacity-50"
+                            >
+                              {isMerging ? 'Merging…' : 'Confirm Merge'}
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── TBD JOBS (date not yet set) ──────────────────────────────────────────────
+// External leads created with "Don't know yet" checked. Kept out of the main
+// ALL view (same treatment as CANCELLED) so they don't clutter today's real
+// schedule with a placeholder date — this is the dedicated place to find and
+// resolve them once a date is actually agreed on.
+function TbdJobsModal({ onClose, jobs, onSelectJob }: {
+  onClose: () => void;
+  jobs: Job[];
+  onSelectJob: (j: Job) => void;
+}) {
+  const tbdJobs = jobs
+    .filter(j => j.dateTbd)
+    .sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-start justify-center bg-black/70 p-4 overflow-y-auto" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="bg-gray-950 border border-gray-800 w-full max-w-lg my-8">
+        <div className="sticky top-0 bg-gray-950 border-b border-gray-800 px-6 py-4 flex items-start justify-between z-10">
+          <div>
+            <p className="text-red-500 text-xs font-bold uppercase tracking-widest mb-0.5">Date TBD</p>
+            <h2 className="text-white font-black text-lg">Awaiting a Service Date</h2>
+            <p className="text-gray-500 text-xs mt-0.5">Estimates already sent — just need a real date once it's agreed on.</p>
+          </div>
+          <button onClick={onClose} className="flex-shrink-0 text-gray-400 hover:text-white text-xs font-bold uppercase tracking-widest border border-gray-700 hover:border-red-600 px-3 py-2 mt-0.5 transition-colors">Close</button>
+        </div>
+
+        <div className="p-4">
+          {tbdJobs.length === 0 ? (
+            <p className="text-gray-500 text-sm text-center py-8">Nothing waiting on a date right now.</p>
+          ) : (
+            <div className="space-y-1.5">
+              {tbdJobs.map(j => {
+                const createdStr = j.createdAt ? new Date(j.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '';
+                return (
+                  <button
+                    key={j.id}
+                    onClick={() => onSelectJob(j)}
+                    className="w-full text-left flex items-center justify-between gap-3 px-4 py-3 bg-gray-900/50 hover:bg-gray-900 border border-gray-800 hover:border-indigo-700 transition-colors"
+                  >
+                    <div className="min-w-0">
+                      <p className="text-white text-sm font-bold truncate">{j.fname} {j.lname}</p>
+                      <p className="text-gray-500 text-xs truncate">{j.vehicle} · {resolveServiceName(j.service, j.notes)}</p>
+                      {createdStr && <p className="text-gray-600 text-[11px] mt-0.5">Lead created {createdStr}</p>}
+                    </div>
+                    <div className="flex-shrink-0 text-right">
+                      {j.estimateAmount != null && (
+                        <p className="text-gray-400 text-sm font-bold">${j.estimateAmount.toFixed(0)}</p>
+                      )}
+                      <span className="text-indigo-400 text-[10px] font-bold uppercase tracking-wider">Set Date →</span>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 const JOBS_CACHE_KEY = 'gid_jobs_cache_v1';
 
 export function JobsTab() {
@@ -5586,6 +5950,8 @@ export function JobsTab() {
   const [filterStatus, setFilterStatus] = useState<JobStatus | 'ALL'>('ALL');
   const [showPrePI, setShowPrePI] = useState(false);
   const [showExternalLead, setShowExternalLead] = useState(false);
+  const [showDuplicates, setShowDuplicates] = useState(false);
+  const [showTbd, setShowTbd] = useState(false);
   const [revenueView, setRevenueView] = useState<'month' | 'year'>('month');
   const [netProfitView, setNetProfitView] = useState<'month' | 'year'>('month');
   const [showBreakdown, setShowBreakdown] = useState(false);
@@ -5833,7 +6199,7 @@ export function JobsTab() {
       // "ALL" hides Cancelled by default to keep the list decluttered —
       // select the Cancelled filter explicitly to see them. Nothing is
       // deleted, just tucked out of the default view.
-      const matchStatus = filterStatus === 'ALL' ? j.jobStatus !== 'CANCELLED' : j.jobStatus === filterStatus;
+      const matchStatus = filterStatus === 'ALL' ? (j.jobStatus !== 'CANCELLED' && !j.dateTbd) : j.jobStatus === filterStatus;
       const matchSearch = !search || `${j.fname} ${j.lname} ${j.vehicle} ${j.phone} ${j.stripeTransactionId || ''}`.toLowerCase().includes(search.toLowerCase());
       return matchStatus && matchSearch;
     })
@@ -5966,6 +6332,18 @@ export function JobsTab() {
         >
           <span className="text-base leading-none">🔗</span> External Lead
         </button>
+        <button
+          onClick={() => setShowDuplicates(true)}
+          className="bg-gray-800 hover:bg-gray-700 border border-gray-700 hover:border-gray-600 text-white text-xs font-bold uppercase tracking-widest px-4 py-2 transition-colors flex items-center gap-1.5 flex-shrink-0"
+        >
+          <span className="text-base leading-none">🧬</span> Duplicates
+        </button>
+        <button
+          onClick={() => setShowTbd(true)}
+          className="bg-gray-800 hover:bg-gray-700 border border-gray-700 hover:border-gray-600 text-white text-xs font-bold uppercase tracking-widest px-4 py-2 transition-colors flex items-center gap-1.5 flex-shrink-0"
+        >
+          <span className="text-base leading-none">🗓️</span> TBD{jobs.some(j => j.dateTbd) ? ` (${jobs.filter(j => j.dateTbd).length})` : ''}
+        </button>
         <div className="flex flex-wrap gap-1.5">
           {(['ALL', ...JOB_PIPELINE] as const).map(s => (
             <button key={s} onClick={() => setFilterStatus(s)}
@@ -5998,7 +6376,7 @@ export function JobsTab() {
       <div className="space-y-2">
         {filtered.map(job => {
           const dateStr = new Date(job.date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
-          const isOverdue = job.date < today && job.jobStatus !== 'PAID' && job.jobStatus !== 'CANCELLED';
+          const isOverdue = !job.dateTbd && job.date < today && job.jobStatus !== 'PAID' && job.jobStatus !== 'CANCELLED';
           return (
             <button
               key={job.id}
@@ -6014,7 +6392,7 @@ export function JobsTab() {
                 </div>
                 <div className="hidden sm:block text-gray-600 text-xs">
                   <div>{resolveServiceName(job.service, job.notes)}</div>
-                  <div>{dateStr} · {job.time}</div>
+                  <div>{job.dateTbd ? 'Date TBD' : `${dateStr} · ${job.time}`}</div>
                 </div>
                 {job.estimateAmount && (
                   <div className="hidden md:block text-gray-500 text-sm font-mono">
@@ -6023,6 +6401,7 @@ export function JobsTab() {
                 )}
               </div>
               <div className="flex items-center gap-2 flex-shrink-0">
+                {job.dateTbd && <span className="text-indigo-400 text-[10px] font-bold uppercase bg-indigo-900/20 px-2 py-0.5">TBD</span>}
                 {job.service === 'other' && <span className="text-purple-400 text-[10px] font-bold uppercase bg-purple-900/30 px-2 py-0.5">Inquiry</span>}
                 {job.service === 'quote' && <span className="text-blue-400 text-[10px] font-bold uppercase bg-blue-900/30 px-2 py-0.5">Quick Quote</span>}
                 {job.status === 'pending' && <span className="text-amber-400 text-[10px] font-bold uppercase bg-amber-900/30 px-2 py-0.5">No Card</span>}
@@ -6055,6 +6434,25 @@ export function JobsTab() {
           onClose={() => setShowExternalLead(false)}
           onAdded={job => { setJobs(prev => [job, ...prev]); }}
           jobs={jobs}
+        />
+      )}
+      {showDuplicates && (
+        <DuplicateCustomersModal
+          onClose={() => setShowDuplicates(false)}
+          jobs={jobs}
+          onMerged={(keepId, mergeId) => {
+            // Bookings that belonged to the merged-away customer now belong
+            // to the keeper — reflect that locally so the Customer File and
+            // job history stay correct without waiting on a full refetch.
+            setJobs(prev => prev.map(j => j.customerId === mergeId ? { ...j, customerId: keepId } : j));
+          }}
+        />
+      )}
+      {showTbd && (
+        <TbdJobsModal
+          onClose={() => setShowTbd(false)}
+          jobs={jobs}
+          onSelectJob={j => { setShowTbd(false); setSelected(j); }}
         />
       )}
     </div>
@@ -6685,7 +7083,7 @@ export function EstimatePage() {
             ['Vehicle', job.vehicle],
             ...(job.vin ? [['VIN', job.vin]] : []),
             ...(job.mileage ? [['Mileage', `${fmtMileage(job.mileage)} mi`]] : []),
-            ['Appointment', `${dateStr}${apptTimeLabel(job.time)}`],
+            ['Appointment', job.dateTbd ? "TBD — we'll confirm with you" : `${dateStr}${apptTimeLabel(job.time)}`],
           ].map(([label, val]) => (
             <div key={label} className="flex justify-between px-4 py-3">
               <span className="text-gray-500 text-xs font-bold uppercase tracking-wider">{label}</span>
@@ -6793,7 +7191,7 @@ export function EstimatePage() {
           <div className="text-center">
             <div className="text-4xl mb-4">✓</div>
             <h1 className="text-white text-2xl font-black mb-3">Already Signed</h1>
-            <p className="text-gray-500 text-sm mb-6">You've already approved this estimate. We'll see you on {dateStr}{apptTimeLabel(job.time)}.</p>
+            <p className="text-gray-500 text-sm mb-6">{job.dateTbd ? "You've already approved this estimate. We'll be in touch to schedule a date." : `You've already approved this estimate. We'll see you on ${dateStr}${apptTimeLabel(job.time)}.`}</p>
             <button
               onClick={() => setViewOnly(true)}
               className="w-full bg-red-600 hover:bg-red-500 text-white font-black text-sm uppercase tracking-widest py-4 transition-colors"
@@ -6832,7 +7230,7 @@ export function EstimatePage() {
               )}
             </div>
 
-            <p className="text-gray-500 text-sm text-center">Approved — we'll see you on {dateStr}{apptTimeLabel(job.time)}.</p>
+            <p className="text-gray-500 text-sm text-center">{job.dateTbd ? "Approved — we'll be in touch to schedule a date." : `Approved — we'll see you on ${dateStr}${apptTimeLabel(job.time)}.`}</p>
             <p className="text-gray-700 text-xs text-center">Questions? Call or text us at <strong className="text-gray-600">480-757-0476</strong></p>
 
             <button
