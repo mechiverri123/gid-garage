@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, type Dispatch, type SetStateAction } from 'react';
-import { JobsTab, BusinessHub, MileageTab, JobDetailPanel, getJobById, OwnerPayPanel, type Job } from './JobOps';
+import { JobsTab, BusinessHub, MileageTab, JobDetailPanel, getJobById, OwnerPayPanel, CustomersTab, type Job } from './JobOps';
 import { getEngines } from './engineData';
 import { getTrims } from './trimData';
 
@@ -1947,7 +1947,7 @@ function BlackoutDatesModal({ onClose }: { onClose: () => void }) {
 export function AdminSchedule() {
   const [unlocked, setUnlocked] = useState(() => sessionStorage.getItem('gg_admin_auth') === '1');
   const [bookings, setBookings] = useState<Booking[]>([]);
-  const [adminTab, setAdminTab] = useState<'jobs' | 'schedule' | 'history' | 'mileage' | 'hub' | 'pay'>('jobs');
+  const [adminTab, setAdminTab] = useState<'jobs' | 'schedule' | 'customers' | 'mileage' | 'hub' | 'pay'>('jobs');
   const [filter, setFilter] = useState<'all' | 'confirmed' | 'completed' | 'cancelled'>('all');
   const [view, setView] = useState<'list' | 'month' | 'week' | 'day'>('month');
   const [calDate, setCalDate] = useState(new Date());
@@ -2258,10 +2258,10 @@ export function AdminSchedule() {
 
         {/* Main Tabs */}
         <div className="flex gap-0 mb-8 border-b border-gray-800">
-          {(['jobs', 'schedule', 'history', 'mileage', 'hub', 'pay'] as const).map(tab => (
+          {(['jobs', 'schedule', 'customers', 'mileage', 'hub', 'pay'] as const).map(tab => (
             <button key={tab} onClick={() => setAdminTab(tab)}
               className={`text-xs font-bold uppercase tracking-widest px-6 py-3 transition-colors border-b-2 -mb-px ${adminTab === tab ? 'border-red-600 text-white' : 'border-transparent text-gray-500 hover:text-gray-300'}`}>
-              {tab === 'jobs' ? '💼 Jobs' : tab === 'schedule' ? '📅 Schedule' : tab === 'history' ? '🗂️ History' : tab === 'mileage' ? '🚗 Mileage' : tab === 'hub' ? '🏢 Hub' : '💵 Pay'}
+              {tab === 'jobs' ? '💼 Jobs' : tab === 'schedule' ? '📅 Schedule' : tab === 'customers' ? '👥 Customers' : tab === 'mileage' ? '🚗 Mileage' : tab === 'hub' ? '🏢 Hub' : '💵 Pay'}
             </button>
           ))}
         </div>
@@ -2523,62 +2523,6 @@ export function AdminSchedule() {
         )}
         </>)}
 
-        {/* ── HISTORY TAB ── */}
-        {adminTab === 'history' && (() => {
-          const completed = bookings.filter(b => b.status === 'completed')
-            .sort((a, b) => b.date.localeCompare(a.date) || b.time.localeCompare(a.time));
-          return (
-            <div>
-              <div className="flex items-center justify-between mb-6">
-                <div>
-                  <h2 className="text-2xl font-black text-white">Completed Appointments</h2>
-                  <p className="text-gray-500 text-xs font-bold uppercase tracking-wider mt-1">{completed.length} total</p>
-                </div>
-              </div>
-              {completed.length === 0 && (
-                <div className="text-center py-20 text-gray-600 font-bold uppercase tracking-wider text-sm">No completed appointments yet</div>
-              )}
-              <div className="space-y-3">
-                {completed.map(b => {
-                  const svcInfo = SERVICES.find(s => s.id === b.service);
-                  const dateStr = new Date(b.date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
-                  return (
-                    <div key={b.id} className="bg-gray-900 border border-green-900/50 p-5 flex flex-col gap-3">
-                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                        <div className="flex items-start gap-4 flex-1">
-                          <div className="text-2xl mt-0.5">{svcInfo?.icon ?? '🔧'}</div>
-                          <div>
-                            <div className="text-white font-bold text-base">{b.fname} {b.lname}</div>
-                            <div className="text-gray-400 text-sm">{svcInfo?.name} · {dateStr} at {b.time}</div>
-                            <div className="text-gray-500 text-xs mt-0.5">{b.vehicle} · {b.phone}</div>
-                            {b.notes && <div className="text-gray-600 text-xs mt-1 italic">"{b.notes}"</div>}
-                            <div className="text-gray-700 text-xs mt-1 font-mono">{b.id}</div>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2 flex-shrink-0">
-                          <span className="text-xs font-bold uppercase tracking-wider px-2.5 py-1 bg-green-900/40 text-green-400">Completed</span>
-                          <button
-                            onClick={() => { if (confirm('Move this back to confirmed? (Marked complete by accident)')) updateStatus(b.id, 'confirmed'); }}
-                            title="Undo — move back to confirmed"
-                            className="text-xs font-bold uppercase tracking-wider px-2.5 py-1 border border-gray-700 text-gray-500 hover:border-yellow-600 hover:text-yellow-400 transition-colors">
-                            ↩ Undo
-                          </button>
-                          <button
-                            onClick={() => { if (confirm(`Permanently delete ${b.fname} ${b.lname}'s appointment? This cannot be undone.`)) deleteBooking(b.id); }}
-                            title="Delete permanently"
-                            className="text-xs font-bold uppercase tracking-wider px-2.5 py-1 border border-gray-800 text-gray-600 hover:border-red-700 hover:text-red-500 transition-colors">
-                            🗑
-                          </button>
-                        </div>
-                      </div>
-                      <GarageNotesField booking={b} onSave={saveGarageNotes} />
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          );
-        })()}
       </div>
 
       {selectedJobId && jobLoading && !selectedJob && (
@@ -2597,6 +2541,7 @@ export function AdminSchedule() {
       )}
 
       {adminTab === 'jobs' && <JobsTab />}
+      {adminTab === 'customers' && <CustomersTab />}
       {adminTab === 'mileage' && <div className="max-w-4xl mx-auto py-4 px-3 sm:px-6"><MileageTab /></div>}
       {adminTab === 'hub' && <BusinessHub />}
       {adminTab === 'pay' && (

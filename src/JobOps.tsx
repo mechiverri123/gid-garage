@@ -4469,13 +4469,16 @@ function accentFor(name: string) {
 }
 
 function CustomerFileModal({ customerId, jobs, onClose, onSelectJob }: {
-  customerId: string;
+  // Null for legacy customers that predate the customers-table migration —
+  // in that case `jobs` is expected to already be scoped to just this
+  // customer (see CustomersTab), since there's no id to filter on.
+  customerId: string | null;
   jobs: Job[];
   onClose: () => void;
   onSelectJob: (j: Job) => void;
 }) {
-  const customerJobs = jobs
-    .filter(j => j.customerId === customerId)
+  const customerJobs = (customerId ? jobs.filter(j => j.customerId === customerId) : jobs)
+    .slice()
     .sort((a, b) => (b.date + b.time).localeCompare(a.date + a.time));
 
   if (customerJobs.length === 0) {
@@ -4591,6 +4594,308 @@ function CustomerFileModal({ customerId, jobs, onClose, onSelectJob }: {
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+// ── CUSTOMERS TAB ────────────────────────────────────────────────────────────
+// A full-tab customer directory — replaces the old "History" tab. Aggregates
+// every job by customer (falls back to name+phone matching for pre-migration
+// jobs with no customerId, same as findDuplicateGroups above) and gives each
+// customer a real profile card: lifetime revenue, visit count, last seen.
+// Clicking a card opens the existing CustomerFileModal / JobDetailPanel combo.
+
+interface CustomerAgg {
+  key: string;
+  customerId: string | null;
+  fname: string;
+  lname: string;
+  phone: string;
+  email: string;
+  vehicles: string[];
+  jobs: Job[];
+  totalRevenue: number;
+  jobCount: number;
+  firstVisit: string;
+  lastVisit: string;
+  lastStatus: JobStatus;
+}
+
+function aggregateCustomers(jobs: Job[]): CustomerAgg[] {
+  const map = new Map<string, CustomerAgg>();
+  for (const j of jobs) {
+    const key = j.customerId || `nm:${normStr(j.fname)}|${normStr(j.lname)}|${(j.phone || '').replace(/\D/g, '')}`;
+    let c = map.get(key);
+    if (!c) {
+      c = {
+        key, customerId: j.customerId, fname: j.fname, lname: j.lname,
+        phone: j.phone, email: j.email, vehicles: [], jobs: [],
+        totalRevenue: 0, jobCount: 0, firstVisit: j.date, lastVisit: j.date,
+        lastStatus: j.jobStatus,
+      };
+      map.set(key, c);
+    }
+    c.jobs.push(j);
+    c.jobCount += 1;
+    c.totalRevenue += j.amountPaid || 0;
+    if (j.vehicle && !c.vehicles.includes(j.vehicle)) c.vehicles.push(j.vehicle);
+    if (j.date > c.lastVisit) { c.lastVisit = j.date; c.lastStatus = j.jobStatus; }
+    if (j.date < c.firstVisit) c.firstVisit = j.date;
+    // Prefer the most recently-entered contact info on the aggregate.
+    if (j.date >= c.lastVisit) { c.phone = j.phone || c.phone; c.email = j.email || c.email; }
+  }
+  for (const c of map.values()) c.jobs.sort((a, b) => (b.date + b.time).localeCompare(a.date + a.time));
+  return Array.from(map.values());
+}
+
+// Simple ease-out count-up for the header stats — no library, just a RAF loop.
+function useCountUp(target: number, durationMs = 900) {
+  const [value, setValue] = useState(0);
+  useEffect(() => {
+    let raf: number;
+    const start = performance.now();
+    const from = 0;
+    function tick(now: number) {
+      const t = Math.min(1, (now - start) / durationMs);
+      const eased = 1 - Math.pow(1 - t, 3);
+      setValue(from + (target - from) * eased);
+      if (t < 1) raf = requestAnimationFrame(tick);
+    }
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [target, durationMs]); // eslint-disable-line react-hooks/exhaustive-deps
+  return value;
+}
+
+type CustomerSort = 'recent' | 'revenue' | 'visits' | 'az';
+
+export function CustomersTab() {
+  useGlobalErrorReporting({ page: 'admin-customers' });
+  const [jobs, setJobs] = useState<Job[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [search, setSearch] = useState('');
+  const [sort, setSort] = useState<CustomerSort>('recent');
+  const [openKey, setOpenKey] = useState<string | null>(null);
+  const [selected, setSelected] = useState<Job | null>(null);
+
+  useEffect(() => {
+    let hadCache = false;
+    try {
+      const cached = localStorage.getItem(JOBS_CACHE_KEY);
+      if (cached) {
+        const parsed = JSON.parse(cached) as Job[];
+        if (Array.isArray(parsed) && parsed.length) { setJobs(parsed); setLoading(false); hadCache = true; }
+      }
+    } catch { /* ignore corrupt cache */ }
+    getAllJobs()
+      .then(data => { setJobs(data); setLoadError(null); setLoading(false); })
+      .catch(err => {
+        console.error('Failed to load jobs for customers tab:', err);
+        if (!hadCache) { setLoadError('Could not load customers. The admin data service may be unreachable.'); setLoading(false); }
+      });
+  }, []);
+
+  const customers = useMemo(() => aggregateCustomers(jobs.filter(j => j.jobStatus !== 'CANCELLED')), [jobs]);
+
+  const filtered = useMemo(() => {
+    const q = normStr(search);
+    let list = !q ? customers : customers.filter(c => {
+      const hay = `${c.fname} ${c.lname} ${c.phone} ${c.email} ${c.vehicles.join(' ')}`.toLowerCase();
+      return hay.includes(q);
+    });
+    list = [...list];
+    switch (sort) {
+      case 'revenue': list.sort((a, b) => b.totalRevenue - a.totalRevenue); break;
+      case 'visits':  list.sort((a, b) => b.jobCount - a.jobCount); break;
+      case 'az':      list.sort((a, b) => `${a.fname} ${a.lname}`.localeCompare(`${b.fname} ${b.lname}`)); break;
+      default:        list.sort((a, b) => b.lastVisit.localeCompare(a.lastVisit));
+    }
+    return list;
+  }, [customers, search, sort]);
+
+  const totalRevenueAll = useMemo(() => customers.reduce((s, c) => s + c.totalRevenue, 0), [customers]);
+  const repeatCount = useMemo(() => customers.filter(c => c.jobCount > 1).length, [customers]);
+  const topRevenueKey = useMemo(() => {
+    let best: CustomerAgg | null = null;
+    for (const c of customers) if (!best || c.totalRevenue > best.totalRevenue) best = c;
+    return best?.totalRevenue ? best.key : null;
+  }, [customers]);
+
+  const statCustomers = useCountUp(customers.length);
+  const statRevenue = useCountUp(totalRevenueAll);
+  const statRepeatPct = useCountUp(customers.length ? (repeatCount / customers.length) * 100 : 0);
+
+  function handleJobUpdate(updated: Job) {
+    if ((updated as any).status === 'deleted') {
+      setJobs(prev => prev.filter(j => j.id !== updated.id));
+      setSelected(null);
+      return;
+    }
+    setJobs(prev => prev.map(j => j.id === updated.id ? updated : j));
+    setSelected(updated);
+  }
+
+  const openCustomer = filtered.find(c => c.key === openKey) || customers.find(c => c.key === openKey);
+
+  return (
+    <div className="max-w-6xl mx-auto py-4 px-3 sm:px-6">
+      <style>{`
+        @keyframes cust-card-in {
+          from { opacity: 0; transform: translateY(10px) scale(0.98); }
+          to   { opacity: 1; transform: translateY(0) scale(1); }
+        }
+        .cust-card { animation: cust-card-in 360ms cubic-bezier(0.16, 1, 0.3, 1) both; }
+        @keyframes cust-stat-pop {
+          0%   { opacity: 0; transform: scale(0.85); }
+          60%  { opacity: 1; transform: scale(1.04); }
+          100% { opacity: 1; transform: scale(1); }
+        }
+        .cust-stat { animation: cust-stat-pop 420ms cubic-bezier(0.34, 1.56, 0.64, 1) both; }
+        @keyframes cust-vip-ring {
+          0%, 100% { box-shadow: 0 0 0 0 rgba(251, 191, 36, 0.45); }
+          50%      { box-shadow: 0 0 0 6px rgba(251, 191, 36, 0); }
+        }
+        .cust-vip { animation: cust-vip-ring 2.2s ease-out infinite; }
+        @media (prefers-reduced-motion: reduce) { .cust-card, .cust-stat, .cust-vip { animation: none; } }
+      `}</style>
+
+      <div className="flex items-center justify-between mb-5">
+        <div>
+          <p className="text-red-500 text-xs font-bold uppercase tracking-widest mb-0.5">Admin · GID Garage</p>
+          <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tight">Customers</h2>
+        </div>
+      </div>
+
+      {/* Stat strip */}
+      <div className="grid grid-cols-3 gap-2 sm:gap-3 mb-6">
+        <div className="cust-stat bg-gray-900 border border-gray-800 px-4 py-3" style={{ animationDelay: '0ms' }}>
+          <p className="text-white font-black text-2xl sm:text-3xl leading-none">{Math.round(statCustomers)}</p>
+          <p className="text-gray-500 text-[10px] font-bold uppercase tracking-wider mt-1">Customers</p>
+        </div>
+        <div className="cust-stat bg-gray-900 border border-gray-800 px-4 py-3" style={{ animationDelay: '60ms' }}>
+          <p className="text-emerald-400 font-black text-2xl sm:text-3xl leading-none">${statRevenue.toFixed(0)}</p>
+          <p className="text-gray-500 text-[10px] font-bold uppercase tracking-wider mt-1">Lifetime Revenue</p>
+        </div>
+        <div className="cust-stat bg-gray-900 border border-gray-800 px-4 py-3" style={{ animationDelay: '120ms' }}>
+          <p className="text-amber-400 font-black text-2xl sm:text-3xl leading-none">{statRepeatPct.toFixed(0)}%</p>
+          <p className="text-gray-500 text-[10px] font-bold uppercase tracking-wider mt-1">Repeat Rate</p>
+        </div>
+      </div>
+
+      {/* Search + sort */}
+      <div className="flex flex-col sm:flex-row gap-2 mb-5">
+        <input
+          type="text"
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          placeholder="Search name, phone, email, vehicle…"
+          className="flex-1 bg-gray-900 border border-gray-800 focus:border-red-600 outline-none text-white text-sm px-3 py-2.5 transition-colors placeholder:text-gray-600"
+        />
+        <div className="flex gap-1 bg-gray-900 border border-gray-800 p-1 flex-shrink-0">
+          {(['recent', 'revenue', 'visits', 'az'] as const).map(s => (
+            <button
+              key={s}
+              onClick={() => setSort(s)}
+              className={`text-[11px] font-bold uppercase tracking-wider px-2.5 py-1.5 transition-colors ${sort === s ? 'bg-red-600 text-white' : 'text-gray-500 hover:text-gray-300'}`}
+            >
+              {s === 'recent' ? 'Recent' : s === 'revenue' ? 'Top $' : s === 'visits' ? 'Most Visits' : 'A–Z'}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {loading && (
+        <div className="text-center py-20 text-gray-600 font-bold uppercase tracking-wider text-sm">Loading customers…</div>
+      )}
+
+      {!loading && loadError && (
+        <div className="text-center py-20">
+          <p className="text-red-400 text-sm mb-3">{loadError}</p>
+        </div>
+      )}
+
+      {!loading && !loadError && filtered.length === 0 && (
+        <div className="text-center py-20 text-gray-600 font-bold uppercase tracking-wider text-sm">
+          {search ? 'No customers match that search' : 'No customers yet'}
+        </div>
+      )}
+
+      {!loading && !loadError && filtered.length > 0 && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          {filtered.map((c, i) => {
+            const fullName = `${c.fname} ${c.lname}`.trim() || 'Unknown';
+            const initials = ((c.fname?.[0] || '') + (c.lname?.[0] || '')).toUpperCase() || '?';
+            const accent = accentFor(fullName || c.key);
+            const isVip = c.key === topRevenueKey;
+            const dotColor = STATUS_CONFIG[c.lastStatus]?.color.replace('text-', 'bg-') ?? 'bg-gray-600';
+            const lastStr = c.lastVisit ? new Date(c.lastVisit + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—';
+            return (
+              <button
+                key={c.key}
+                onClick={() => setOpenKey(c.key)}
+                style={{ animationDelay: `${Math.min(i, 14) * 35}ms` }}
+                className={`cust-card group text-left bg-gray-900 border p-4 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-black/40 ${isVip ? 'border-amber-700/60 cust-vip' : 'border-gray-800 hover:border-red-700/60'}`}
+              >
+                <div className="flex items-start justify-between gap-2 mb-3">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className={`flex-shrink-0 w-10 h-10 flex items-center justify-center font-black text-sm transition-transform duration-200 group-hover:scale-110 ${accent.bg} ${accent.text}`}>
+                      {initials}
+                    </div>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <p className="text-white font-bold text-sm truncate">{fullName}</p>
+                        {isVip && <span className="text-amber-400 text-[10px]">👑</span>}
+                      </div>
+                      <p className="text-gray-500 text-xs truncate">{c.phone || c.email || 'no contact on file'}</p>
+                    </div>
+                  </div>
+                  {c.jobCount > 1 && (
+                    <span className="flex-shrink-0 text-[10px] font-bold uppercase tracking-wider text-gray-500 border border-gray-700 px-1.5 py-0.5">Repeat</span>
+                  )}
+                </div>
+
+                <div className="flex items-end justify-between gap-2">
+                  <div>
+                    <p className="text-emerald-400 font-black text-xl leading-none group-hover:text-emerald-300 transition-colors">${c.totalRevenue.toFixed(0)}</p>
+                    <p className="text-gray-600 text-[10px] font-bold uppercase tracking-wider mt-1">Lifetime</p>
+                  </div>
+                  <div className="text-right">
+                    <div className="flex items-center gap-1.5 justify-end">
+                      <span className={`w-1.5 h-1.5 rounded-full ${dotColor}`} />
+                      <p className="text-gray-300 text-xs font-bold">{c.jobCount} job{c.jobCount === 1 ? '' : 's'}</p>
+                    </div>
+                    <p className="text-gray-600 text-[10px] mt-1">Last {lastStr}</p>
+                  </div>
+                </div>
+
+                {c.vehicles.length > 0 && (
+                  <p className="text-gray-600 text-[11px] truncate mt-2.5 pt-2.5 border-t border-gray-800">{c.vehicles.join(' · ')}</p>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      {openCustomer && (
+        <CustomerFileModal
+          customerId={openCustomer.customerId}
+          jobs={openCustomer.customerId ? jobs : openCustomer.jobs}
+          onClose={() => setOpenKey(null)}
+          onSelectJob={(j) => { setOpenKey(null); setSelected(j); }}
+        />
+      )}
+
+      {selected && (
+        <JobDetailPanel
+          job={selected}
+          onClose={() => setSelected(null)}
+          onJobUpdate={handleJobUpdate}
+          allJobs={jobs}
+          onSelectJob={setSelected}
+        />
+      )}
     </div>
   );
 }
