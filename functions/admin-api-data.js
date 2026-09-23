@@ -839,7 +839,7 @@ export async function onRequestPost({ request, env }) {
       //   created_at timestamptz not null default now()
       case 'list-equity-entries': {
         const res = await fetch(
-          `${base}/equity_entries?select=*&order=entry_date.desc,created_at.desc`,
+          `${base}/equity_entries?select=*&order=entry_date.asc,created_at.asc`,
           { headers }
         );
         if (!res.ok) return json({ error: await res.text() }, 502);
@@ -860,6 +860,29 @@ export async function onRequestPost({ request, env }) {
           headers: { ...headers, Prefer: 'return=representation' },
           body: JSON.stringify({ entry_type: entryType, amount, note: note ?? '', entry_date: entryDate }),
         });
+        if (!res.ok) return json({ error: await res.text() }, 502);
+        const rows = await res.json();
+        return json(Array.isArray(rows) ? rows[0] : rows);
+      }
+
+      case 'patch-equity-entry': {
+        const { id, entryType, amount, note, entryDate } = payload;
+        if (!id) return json({ error: 'Missing id' }, 400);
+        if (entryType !== 'contribution' && entryType !== 'draw') {
+          return json({ error: 'entryType must be "contribution" or "draw"' }, 400);
+        }
+        if (typeof amount !== 'number' || !(amount > 0)) {
+          return json({ error: 'amount must be a positive number' }, 400);
+        }
+        if (!entryDate) return json({ error: 'Missing entryDate' }, 400);
+        const res = await fetch(
+          `${base}/equity_entries?id=eq.${encodeURIComponent(id)}`,
+          {
+            method: 'PATCH',
+            headers: { ...headers, Prefer: 'return=representation' },
+            body: JSON.stringify({ entry_type: entryType, amount, note: note ?? '', entry_date: entryDate }),
+          }
+        );
         if (!res.ok) return json({ error: await res.text() }, 502);
         const rows = await res.json();
         return json(Array.isArray(rows) ? rows[0] : rows);

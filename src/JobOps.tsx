@@ -9041,6 +9041,13 @@ function EquityTracker() {
   const [dateInput, setDateInput] = useState(() => new Date().toISOString().slice(0, 10));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editType, setEditType] = useState<'contribution' | 'draw'>('draw');
+  const [editAmount, setEditAmount] = useState('');
+  const [editNote, setEditNote] = useState('');
+  const [editDate, setEditDate] = useState('');
+  const [editSaving, setEditSaving] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
 
 
   function load() {
@@ -9076,6 +9083,33 @@ function EquityTracker() {
     } catch (e: any) {
       setError(e.message ?? 'Failed to delete');
     }
+  }
+
+  function startEdit(entry: EquityEntry) {
+    setEditingId(entry.id);
+    setEditType(entry.entry_type);
+    setEditAmount(String(entry.amount));
+    setEditNote(entry.note || '');
+    setEditDate(entry.entry_date);
+    setEditError(null);
+  }
+
+  async function saveEdit(id: string) {
+    const amount = parseFloat(editAmount);
+    if (!(amount > 0)) { setEditError('Enter an amount greater than 0'); return; }
+    if (!editDate) { setEditError('Pick a date'); return; }
+    setEditSaving(true);
+    setEditError(null);
+    try {
+      const updated = await adminPost('patch-equity-entry', {
+        id, entryType: editType, amount, note: editNote, entryDate: editDate,
+      });
+      setEntries(prev => prev.map(e => e.id === id ? (updated || { ...e, entry_type: editType, amount, note: editNote, entry_date: editDate }) : e));
+      setEditingId(null);
+    } catch (e: any) {
+      setEditError(e.message ?? 'Failed to save');
+    }
+    setEditSaving(false);
   }
 
   const totalContributions = entries.filter(e => e.entry_type === 'contribution').reduce((s, e) => s + (Number(e.amount) || 0), 0);
@@ -9147,7 +9181,7 @@ function EquityTracker() {
         {error && <p className="text-red-400 text-xs">{error}</p>}
       </div>
 
-      {/* History */}
+      {/* History — chronological, oldest first */}
       {loading ? (
         <p className="text-gray-600 text-xs py-4">Loading ledger…</p>
       ) : !entries.length ? (
@@ -9155,19 +9189,73 @@ function EquityTracker() {
       ) : (
         <div className="space-y-1.5">
           {entries.map(e => (
-            <div key={e.id} className="flex items-center justify-between bg-gray-900/40 border border-gray-800 px-3 py-2">
-              <div className="min-w-0">
-                <p className={`text-xs font-bold uppercase tracking-wider ${e.entry_type === 'contribution' ? 'text-emerald-500' : 'text-orange-500'}`}>
-                  {e.entry_type === 'contribution' ? 'Contribution' : 'Draw'}
-                </p>
-                <p className="text-gray-500 text-[11px] truncate">{e.note || '—'} · {new Date(e.entry_date + 'T00:00:00').toLocaleDateString('en-US')}</p>
-              </div>
-              <div className="flex items-center gap-3 flex-shrink-0">
-                <span className={`font-mono text-sm font-bold ${e.entry_type === 'contribution' ? 'text-emerald-400' : 'text-orange-400'}`}>
-                  {e.entry_type === 'contribution' ? '+' : '-'}${Number(e.amount).toFixed(2)}
-                </span>
-                <button onClick={() => removeEntry(e.id)} className="text-gray-600 hover:text-red-500 transition-colors" title="Delete">×</button>
-              </div>
+            <div key={e.id} className="bg-gray-900/40 border border-gray-800 px-3 py-2">
+              {editingId === e.id ? (
+                <div className="space-y-2">
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setEditType('contribution')}
+                      className={`flex-1 py-1.5 text-[11px] font-bold uppercase tracking-wider border transition-colors ${editType === 'contribution' ? 'bg-emerald-900/20 border-emerald-800 text-emerald-400' : 'border-gray-800 text-gray-500 hover:text-gray-300'}`}
+                    >Contribution</button>
+                    <button
+                      onClick={() => setEditType('draw')}
+                      className={`flex-1 py-1.5 text-[11px] font-bold uppercase tracking-wider border transition-colors ${editType === 'draw' ? 'bg-orange-900/20 border-orange-800 text-orange-400' : 'border-gray-800 text-gray-500 hover:text-gray-300'}`}
+                    >Draw</button>
+                  </div>
+                  <div className="flex gap-2">
+                    <div className="flex items-center gap-1 bg-gray-950 border border-gray-700 px-2.5 flex-1">
+                      <span className="text-gray-500 text-xs font-bold">$</span>
+                      <input
+                        type="number" min="0" step="0.01"
+                        value={editAmount}
+                        onChange={ev => setEditAmount(ev.target.value)}
+                        className="bg-transparent text-white py-1.5 text-sm font-mono w-full outline-none"
+                      />
+                    </div>
+                    <input
+                      type="date"
+                      value={editDate}
+                      onChange={ev => setEditDate(ev.target.value)}
+                      className="bg-gray-950 border border-gray-700 text-white px-2.5 py-1.5 text-sm outline-none"
+                    />
+                  </div>
+                  <input
+                    type="text" placeholder="Note"
+                    value={editNote}
+                    onChange={ev => setEditNote(ev.target.value)}
+                    className="w-full bg-gray-950 border border-gray-700 text-white px-2.5 py-1.5 text-sm outline-none placeholder-gray-700"
+                  />
+                  {editError && <p className="text-red-400 text-xs">{editError}</p>}
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => saveEdit(e.id)}
+                      disabled={editSaving}
+                      className="flex-1 text-[11px] font-bold uppercase tracking-wider px-3 py-2 bg-cyan-700 hover:bg-cyan-600 text-white transition-colors disabled:opacity-50"
+                    >{editSaving ? 'Saving…' : 'Save'}</button>
+                    <button
+                      onClick={() => setEditingId(null)}
+                      disabled={editSaving}
+                      className="flex-1 text-[11px] font-bold uppercase tracking-wider px-3 py-2 border border-gray-700 text-gray-400 hover:text-white transition-colors"
+                    >Cancel</button>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className={`text-xs font-bold uppercase tracking-wider ${e.entry_type === 'contribution' ? 'text-emerald-500' : 'text-orange-500'}`}>
+                      {e.entry_type === 'contribution' ? 'Contribution' : 'Draw'}
+                    </p>
+                    <p className="text-gray-500 text-[11px] truncate">{e.note || '—'} · {new Date(e.entry_date + 'T00:00:00').toLocaleDateString('en-US')}</p>
+                  </div>
+                  <div className="flex items-center gap-3 flex-shrink-0">
+                    <span className={`font-mono text-sm font-bold ${e.entry_type === 'contribution' ? 'text-emerald-400' : 'text-orange-400'}`}>
+                      {e.entry_type === 'contribution' ? '+' : '-'}${Number(e.amount).toFixed(2)}
+                    </span>
+                    <button onClick={() => startEdit(e)} className="text-[11px] font-bold uppercase tracking-wider px-2 py-1 border border-gray-700 text-gray-500 hover:text-white hover:border-gray-500 transition-colors">Edit</button>
+                    <button onClick={() => removeEntry(e.id)} className="text-gray-600 hover:text-red-500 transition-colors" title="Delete">×</button>
+                  </div>
+                </div>
+              )}
             </div>
           ))}
         </div>
@@ -9822,6 +9910,11 @@ function HubCategoryPanel({ cat }: { cat: HubCategory }) {
 
   return (
     <div>
+      {/* Owner's Equity ledger — force-shown at the top of Banking & Credit,
+          above the notes list, since this is the thing Michael actually
+          needs to see first when he opens this tab. */}
+      {cat.id === 'banking' && <EquityTracker />}
+
       <div className="space-y-2 mb-4">
         {notes.length === 0 && (
           <p className="text-gray-700 text-xs italic py-6 text-center">No notes yet. Add one below.</p>
@@ -9860,10 +9953,6 @@ function HubCategoryPanel({ cat }: { cat: HubCategory }) {
       {cat.id === 'taxes' && <TaxSummary />}
       {cat.id === 'taxes' && <JobsCSVExport />}
       {cat.id === 'taxes' && <InvoiceExport />}
-
-      {/* Owner's Equity ledger auto-embedded in banking tab — Owner Pay
-          calculator moved to its own top-level admin tab */}
-      {cat.id === 'banking' && <EquityTracker />}
 
       {/* Add note */}
       <div className="mt-5 space-y-2">
