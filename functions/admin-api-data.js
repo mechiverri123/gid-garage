@@ -192,8 +192,10 @@ export async function onRequestPost({ request, env }) {
       case 'patch-by-customer': {
         const { customerId, fields } = payload;
         if (!customerId || !fields) return json({ error: 'Missing customerId or fields' }, 400);
+        // Same protection as patch-customer's cascade — never bulk-touch an
+        // already-signed booking (see the note on patch-customer below).
         const res = await fetch(
-          `${base}/bookings?stripe_customer_id=eq.${encodeURIComponent(customerId)}`,
+          `${base}/bookings?stripe_customer_id=eq.${encodeURIComponent(customerId)}&signed_at=is.null`,
           { method: 'PATCH', headers: { ...headers, Prefer: 'return=minimal' }, body: JSON.stringify(fields) }
         );
         if (!res.ok) return json({ error: await res.text() }, 502);

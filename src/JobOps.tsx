@@ -3890,13 +3890,16 @@ function JobMileageBox({ job }: { job: Job }) {
 
 const JOB_PIPELINE: JobStatus[] = ['BOOKED', 'ESTIMATE_SENT', 'SIGNED', 'IN_PROGRESS', 'COMPLETED', 'INVOICED', 'PAID'];
 
-export function JobDetailPanel({ job: initialJob, onClose, onJobUpdate, backLabel = 'Back' }: {
+export function JobDetailPanel({ job: initialJob, onClose, onJobUpdate, backLabel = 'Back', allJobs = [], onSelectJob }: {
   job: Job;
   onClose: () => void;
   onJobUpdate: (j: Job) => void;
   backLabel?: string;
+  allJobs?: Job[];
+  onSelectJob?: (j: Job) => void;
 }) {
   const [job, setJob] = useState(initialJob);
+  const [showCustomerFile, setShowCustomerFile] = useState(false);
 
   // JobsTab opens a job instantly with slim list data, then fetches the full
   // record (photos, line items, payments, inspection data) a beat later and
@@ -4057,7 +4060,17 @@ export function JobDetailPanel({ job: initialJob, onClose, onJobUpdate, backLabe
         <div className="sticky top-0 bg-gray-950 border-b border-gray-800 px-6 py-4 flex items-start justify-between z-10">
           <div>
             <p className="text-red-500 text-xs font-bold uppercase tracking-widest mb-0.5">Job Detail</p>
-            <h2 className="text-white font-black text-lg">{job.fname} {job.lname}</h2>
+            {job.customerId ? (
+              <button
+                onClick={() => setShowCustomerFile(true)}
+                className="text-white font-black text-lg text-left hover:text-red-400 transition-colors underline decoration-dotted decoration-gray-600 hover:decoration-red-400 underline-offset-4"
+                title="View customer file"
+              >
+                {job.fname} {job.lname}
+              </button>
+            ) : (
+              <h2 className="text-white font-black text-lg">{job.fname} {job.lname}</h2>
+            )}
             <p className="text-gray-500 text-sm">{resolveServiceName(job.service, job.notes)} · {job.vehicle}</p>
             <p className="text-gray-600 text-xs mt-0.5">{dateStr}{apptTimeLabel(job.time)}</p>
           </div>
@@ -4402,6 +4415,122 @@ export function JobDetailPanel({ job: initialJob, onClose, onJobUpdate, backLabe
 
           {/* INSPECTION TAB */}
           {tab === 'inspection' && <InspectionPanel job={job} onUpdate={handleUpdate} />}
+        </div>
+      </div>
+
+      {showCustomerFile && job.customerId && (
+        <CustomerFileModal
+          customerId={job.customerId}
+          jobs={allJobs}
+          onClose={() => setShowCustomerFile(false)}
+          onSelectJob={(j) => {
+            setShowCustomerFile(false);
+            if (onSelectJob) onSelectJob(j);
+            else setJob(j);
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+// ── CUSTOMER FILE MODAL ──────────────────────────────────────────────────────
+// Read-only rollup of everything under one customer_id — job history, lifetime
+// revenue, vehicles on file. Built from the jobs already loaded client-side
+// (no extra fetch) since JobsTab already holds the full list.
+function CustomerFileModal({ customerId, jobs, onClose, onSelectJob }: {
+  customerId: string;
+  jobs: Job[];
+  onClose: () => void;
+  onSelectJob: (j: Job) => void;
+}) {
+  const customerJobs = jobs
+    .filter(j => j.customerId === customerId)
+    .sort((a, b) => (b.date + b.time).localeCompare(a.date + a.time));
+
+  if (customerJobs.length === 0) {
+    return (
+      <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 p-4" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+        <div className="bg-gray-950 border border-gray-800 p-6 max-w-sm text-center">
+          <p className="text-gray-400 text-sm mb-4">No jobs found on file for this customer.</p>
+          <button onClick={onClose} className="text-xs font-bold uppercase tracking-widest border border-gray-700 hover:border-red-600 px-3 py-2 transition-colors">Close</button>
+        </div>
+      </div>
+    );
+  }
+
+  const latest = customerJobs[0];
+  const vehicles = Array.from(new Set(customerJobs.map(j => j.vehicle).filter(Boolean)));
+  const totalRevenue = customerJobs.reduce((sum, j) => sum + (j.amountPaid || 0), 0);
+  const firstVisit = customerJobs[customerJobs.length - 1]?.date;
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 p-4" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="bg-gray-950 border border-gray-800 w-full max-w-lg max-h-[85vh] overflow-y-auto">
+        <div className="sticky top-0 bg-gray-950 border-b border-gray-800 px-6 py-4 flex items-start justify-between z-10">
+          <div className="min-w-0">
+            <p className="text-red-500 text-xs font-bold uppercase tracking-widest mb-0.5">Customer File</p>
+            <h2 className="text-white font-black text-lg truncate">{latest.fname} {latest.lname}</h2>
+            <div className="flex flex-wrap items-center gap-x-3 text-gray-500 text-xs mt-1">
+              {latest.phone && <a href={`tel:${latest.phone}`} className="hover:text-red-400 transition-colors">{latest.phone}</a>}
+              {latest.email && <a href={`mailto:${latest.email}`} className="hover:text-red-400 transition-colors">{latest.email}</a>}
+            </div>
+          </div>
+          <button onClick={onClose} className="flex-shrink-0 text-gray-400 hover:text-white text-xs font-bold uppercase tracking-widest border border-gray-700 hover:border-red-600 px-3 py-2 mt-0.5 transition-colors">Close</button>
+        </div>
+
+        <div className="grid grid-cols-3 gap-px bg-gray-800 border-b border-gray-800">
+          <div className="bg-gray-950 p-4 text-center">
+            <p className="text-white font-black text-xl">{customerJobs.length}</p>
+            <p className="text-gray-500 text-[10px] font-bold uppercase tracking-wider">Total Jobs</p>
+          </div>
+          <div className="bg-gray-950 p-4 text-center">
+            <p className="text-emerald-400 font-black text-xl">${totalRevenue.toFixed(0)}</p>
+            <p className="text-gray-500 text-[10px] font-bold uppercase tracking-wider">Lifetime Revenue</p>
+          </div>
+          <div className="bg-gray-950 p-4 text-center">
+            <p className="text-white font-black text-xl">
+              {firstVisit ? new Date(firstVisit + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', year: '2-digit' }) : '—'}
+            </p>
+            <p className="text-gray-500 text-[10px] font-bold uppercase tracking-wider">Customer Since</p>
+          </div>
+        </div>
+
+        {vehicles.length > 0 && (
+          <div className="px-6 py-3 border-b border-gray-800">
+            <p className="text-gray-500 text-[10px] font-bold uppercase tracking-wider mb-1.5">Vehicles on File</p>
+            <div className="flex flex-wrap gap-1.5">
+              {vehicles.map(v => (
+                <span key={v} className="text-gray-300 text-xs bg-gray-900 border border-gray-800 px-2 py-1">{v}</span>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div className="px-6 py-3">
+          <p className="text-gray-500 text-[10px] font-bold uppercase tracking-wider mb-2">Job History</p>
+          <div className="space-y-1">
+            {customerJobs.map(j => {
+              const dStr = new Date(j.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+              const amount = j.amountPaid || j.invoiceAmount || j.estimateAmount;
+              return (
+                <button
+                  key={j.id}
+                  onClick={() => onSelectJob(j)}
+                  className="w-full text-left flex items-center justify-between gap-3 px-3 py-2.5 bg-gray-900/50 hover:bg-gray-900 border border-gray-800 hover:border-gray-700 transition-colors"
+                >
+                  <div className="min-w-0">
+                    <p className="text-white text-sm font-bold truncate">{resolveServiceName(j.service, j.notes)}</p>
+                    <p className="text-gray-500 text-xs truncate">{j.vehicle} · {dStr}</p>
+                  </div>
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    {amount ? <span className="text-gray-400 text-xs font-bold">${amount.toFixed(0)}</span> : null}
+                    <StatusBadge status={j.jobStatus} />
+                  </div>
+                </button>
+              );
+            })}
+          </div>
         </div>
       </div>
     </div>
@@ -5913,6 +6042,8 @@ export function JobsTab() {
           job={selected}
           onClose={() => { setSelected(null); loadMileageJobIds(); }}
           onJobUpdate={handleJobUpdate}
+          allJobs={jobs}
+          onSelectJob={setSelected}
         />
       )}
 
