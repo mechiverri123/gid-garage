@@ -337,8 +337,8 @@ export async function onRequestPost({ request, env }) {
         );
         if (!bothRes.ok) return json({ error: await bothRes.text() }, 502);
         const both = await bothRes.json();
-        const keep = both.find((c: any) => c.id === keepId);
-        const merge = both.find((c: any) => c.id === mergeId);
+        const keep = both.find((c) => c.id === keepId);
+        const merge = both.find((c) => c.id === mergeId);
         if (!keep || !merge) return json({ error: 'One or both customers not found' }, 404);
 
         // Reassign every booking under the merged-away customer to the
@@ -366,7 +366,7 @@ export async function onRequestPost({ request, env }) {
 
         // Fill any blanks on the keeper from the record being merged away —
         // never overwrite a value the keeper already has.
-        const fillFields: Record<string, any> = {};
+        const fillFields = {};
         for (const k of ['fname', 'lname', 'phone', 'email', 'vin', 'vehicle', 'mileage', 'service_address']) {
           if (!keep[k] && merge[k]) fillFields[k] = merge[k];
         }
