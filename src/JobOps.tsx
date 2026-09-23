@@ -4450,6 +4450,24 @@ export function JobDetailPanel({ job: initialJob, onClose, onJobUpdate, backLabe
 // Read-only rollup of everything under one customer_id — job history, lifetime
 // revenue, vehicles on file. Built from the jobs already loaded client-side
 // (no extra fetch) since JobsTab already holds the full list.
+// Deterministic accent per customer, from the same translucent-badge language
+// already used for status pills elsewhere in this app — just gives each file
+// a bit of visual identity instead of being a wall of identical gray rows.
+const CUSTOMER_ACCENTS = [
+  { text: 'text-blue-400',   bg: 'bg-blue-900/30' },
+  { text: 'text-purple-400', bg: 'bg-purple-900/30' },
+  { text: 'text-orange-400', bg: 'bg-orange-900/30' },
+  { text: 'text-teal-400',   bg: 'bg-teal-900/30' },
+  { text: 'text-pink-400',   bg: 'bg-pink-900/30' },
+  { text: 'text-cyan-400',   bg: 'bg-cyan-900/30' },
+  { text: 'text-amber-400',  bg: 'bg-amber-900/30' },
+];
+function accentFor(name: string) {
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) hash = (hash * 31 + name.charCodeAt(i)) >>> 0;
+  return CUSTOMER_ACCENTS[hash % CUSTOMER_ACCENTS.length];
+}
+
 function CustomerFileModal({ customerId, jobs, onClose, onSelectJob }: {
   customerId: string;
   jobs: Job[];
@@ -4472,39 +4490,59 @@ function CustomerFileModal({ customerId, jobs, onClose, onSelectJob }: {
   }
 
   const latest = customerJobs[0];
+  const fullName = `${latest.fname} ${latest.lname}`.trim();
+  const initials = ((latest.fname?.[0] || '') + (latest.lname?.[0] || '')).toUpperCase() || '?';
+  const accent = accentFor(fullName || customerId);
   const vehicles = Array.from(new Set(customerJobs.map(j => j.vehicle).filter(Boolean)));
   const totalRevenue = customerJobs.reduce((sum, j) => sum + (j.amountPaid || 0), 0);
   const firstVisit = customerJobs[customerJobs.length - 1]?.date;
+  const sinceLabel = firstVisit ? new Date(firstVisit + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : '—';
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 p-4" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div className="bg-gray-950 border border-gray-800 w-full max-w-lg max-h-[85vh] overflow-y-auto">
+      <style>{`
+        @keyframes cf-modal-in { from { opacity: 0; transform: scale(0.97) translateY(4px); } to { opacity: 1; transform: scale(1) translateY(0); } }
+        .cf-modal-in { animation: cf-modal-in 180ms ease-out; }
+        @media (prefers-reduced-motion: reduce) { .cf-modal-in { animation: none; } }
+      `}</style>
+      <div className="cf-modal-in bg-gray-950 border border-gray-800 w-full max-w-lg max-h-[85vh] overflow-y-auto">
+        {/* Header */}
         <div className="sticky top-0 bg-gray-950 border-b border-gray-800 px-6 py-4 flex items-start justify-between z-10">
-          <div className="min-w-0">
-            <p className="text-red-500 text-xs font-bold uppercase tracking-widest mb-0.5">Customer File</p>
-            <h2 className="text-white font-black text-lg truncate">{latest.fname} {latest.lname}</h2>
-            <div className="flex flex-wrap items-center gap-x-3 text-gray-500 text-xs mt-1">
-              {latest.phone && <a href={`tel:${latest.phone}`} className="hover:text-red-400 transition-colors">{latest.phone}</a>}
-              {latest.email && <a href={`mailto:${latest.email}`} className="hover:text-red-400 transition-colors">{latest.email}</a>}
+          <div className="flex items-start gap-3 min-w-0">
+            <div className={`flex-shrink-0 w-11 h-11 flex items-center justify-center font-black text-sm ${accent.bg} ${accent.text}`}>
+              {initials}
+            </div>
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <h2 className="text-white font-black text-lg truncate">{fullName}</h2>
+                {customerJobs.length > 1 && (
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-gray-500 border border-gray-700 px-1.5 py-0.5 flex-shrink-0">Repeat</span>
+                )}
+              </div>
+              <div className="flex flex-wrap items-center gap-x-3 text-gray-500 text-xs mt-0.5">
+                {latest.phone && <a href={`tel:${latest.phone}`} className="hover:text-red-400 transition-colors">{latest.phone}</a>}
+                {latest.email && <a href={`mailto:${latest.email}`} className="hover:text-red-400 transition-colors">{latest.email}</a>}
+              </div>
             </div>
           </div>
           <button onClick={onClose} className="flex-shrink-0 text-gray-400 hover:text-white text-xs font-bold uppercase tracking-widest border border-gray-700 hover:border-red-600 px-3 py-2 mt-0.5 transition-colors">Close</button>
         </div>
 
-        <div className="grid grid-cols-3 gap-px bg-gray-800 border-b border-gray-800">
-          <div className="bg-gray-950 p-4 text-center">
-            <p className="text-white font-black text-xl">{customerJobs.length}</p>
-            <p className="text-gray-500 text-[10px] font-bold uppercase tracking-wider">Total Jobs</p>
+        {/* Hero stat — lifetime revenue leads, everything else is supporting context */}
+        <div className="px-6 py-5 border-b border-gray-800 flex items-end justify-between gap-4">
+          <div>
+            <p className="text-gray-500 text-[10px] font-bold uppercase tracking-wider mb-1">Lifetime Revenue</p>
+            <p className="text-emerald-400 font-black text-4xl leading-none">${totalRevenue.toFixed(0)}</p>
           </div>
-          <div className="bg-gray-950 p-4 text-center">
-            <p className="text-emerald-400 font-black text-xl">${totalRevenue.toFixed(0)}</p>
-            <p className="text-gray-500 text-[10px] font-bold uppercase tracking-wider">Lifetime Revenue</p>
-          </div>
-          <div className="bg-gray-950 p-4 text-center">
-            <p className="text-white font-black text-xl">
-              {firstVisit ? new Date(firstVisit + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', year: '2-digit' }) : '—'}
-            </p>
-            <p className="text-gray-500 text-[10px] font-bold uppercase tracking-wider">Customer Since</p>
+          <div className="flex gap-5 flex-shrink-0 pb-0.5">
+            <div className="text-right">
+              <p className="text-white font-black text-lg leading-none">{customerJobs.length}</p>
+              <p className="text-gray-500 text-[10px] font-bold uppercase tracking-wider mt-1">Job{customerJobs.length === 1 ? '' : 's'}</p>
+            </div>
+            <div className="text-right">
+              <p className="text-white font-black text-lg leading-none">{sinceLabel}</p>
+              <p className="text-gray-500 text-[10px] font-bold uppercase tracking-wider mt-1">Since</p>
+            </div>
           </div>
         </div>
 
@@ -4519,29 +4557,37 @@ function CustomerFileModal({ customerId, jobs, onClose, onSelectJob }: {
           </div>
         )}
 
-        <div className="px-6 py-3">
-          <p className="text-gray-500 text-[10px] font-bold uppercase tracking-wider mb-2">Job History</p>
-          <div className="space-y-1">
-            {customerJobs.map(j => {
-              const dStr = new Date(j.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-              const amount = j.amountPaid || j.invoiceAmount || j.estimateAmount;
-              return (
-                <button
-                  key={j.id}
-                  onClick={() => onSelectJob(j)}
-                  className="w-full text-left flex items-center justify-between gap-3 px-3 py-2.5 bg-gray-900/50 hover:bg-gray-900 border border-gray-800 hover:border-gray-700 transition-colors"
-                >
-                  <div className="min-w-0">
-                    <p className="text-white text-sm font-bold truncate">{resolveServiceName(j.service, j.notes)}</p>
-                    <p className="text-gray-500 text-xs truncate">{j.vehicle} · {dStr}</p>
-                  </div>
-                  <div className="flex items-center gap-2 flex-shrink-0">
-                    {amount ? <span className="text-gray-400 text-xs font-bold">${amount.toFixed(0)}</span> : null}
-                    <StatusBadge status={j.jobStatus} />
-                  </div>
-                </button>
-              );
-            })}
+        {/* Job history — a real timeline, since it's genuinely chronological */}
+        <div className="px-6 py-4">
+          <p className="text-gray-500 text-[10px] font-bold uppercase tracking-wider mb-3">Job History</p>
+          <div className="relative">
+            <div className="absolute left-[5px] top-1.5 bottom-1.5 w-px bg-gray-800" />
+            <div className="space-y-4">
+              {customerJobs.map(j => {
+                const dStr = new Date(j.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+                const amount = j.amountPaid || j.invoiceAmount || j.estimateAmount;
+                const dotColor = STATUS_CONFIG[j.jobStatus].color.replace('text-', 'bg-');
+                return (
+                  <button
+                    key={j.id}
+                    onClick={() => onSelectJob(j)}
+                    className="relative w-full text-left pl-6 group"
+                  >
+                    <span className={`absolute left-0 top-1.5 w-[11px] h-[11px] rounded-full ring-4 ring-gray-950 ${dotColor}`} />
+                    <div className="flex items-center justify-between gap-3 -mt-0.5 px-3 py-2 group-hover:bg-gray-900/60 transition-colors">
+                      <div className="min-w-0">
+                        <p className="text-white text-sm font-bold truncate group-hover:text-red-400 transition-colors">{resolveServiceName(j.service, j.notes)}</p>
+                        <p className="text-gray-500 text-xs truncate">{j.vehicle} · {dStr}</p>
+                      </div>
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        {amount ? <span className="text-gray-400 text-xs font-bold">${amount.toFixed(0)}</span> : null}
+                        <StatusBadge status={j.jobStatus} />
+                      </div>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
           </div>
         </div>
       </div>
