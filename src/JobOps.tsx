@@ -1383,34 +1383,42 @@ function AdminPhotoPanel({ entityId, onSave, initialPhotos, onPhotosChange }: {
     });
   }
 
-  async function handleUpload(file: File) {
+  // Upload a whole batch with a local accumulator. Previously each file called
+  // handleUpload separately and built `[...photos, newPhoto]` from the same
+  // stale render-time `photos`, so every save overwrote the last one and only
+  // one photo survived.
+  async function handleUploadMany(files: File[]) {
+    if (!files.length) return;
     setUploading(true);
     setUploadError(null);
-    try {
-      const isHeic = /heic|heif/i.test(file.type) || /\.hei[cf]$/i.test(file.name);
-      const isImage = /^image\//.test(file.type) && !isHeic;
-      let uploadBody: Blob = file;
-      let uploadName = file.name;
-      if (isImage) {
-        try {
-          uploadBody = await compressPhoto(file);
-          uploadName = file.name.replace(/\.\w+$/, '') + '.jpg';
-        } catch {
-          // Fall back to the original file if compression fails for any reason.
+    let current = photos;
+    for (const file of files) {
+      try {
+        const isHeic = /heic|heif/i.test(file.type) || /\.hei[cf]$/i.test(file.name);
+        const isImage = /^image\//.test(file.type) && !isHeic;
+        let uploadBody: Blob = file;
+        let uploadName = file.name;
+        if (isImage) {
+          try {
+            uploadBody = await compressPhoto(file);
+            uploadName = file.name.replace(/\.\w+$/, '') + '.jpg';
+          } catch {
+            // Fall back to the original file if compression fails for any reason.
+          }
         }
+        const formData = new FormData();
+        formData.append('file', uploadBody, uploadName);
+        formData.append('bookingId', entityId);
+        const res = await fetch('/admin-upload-photo', { method: 'POST', body: formData });
+        if (!res.ok) throw new Error(await res.text());
+        const data = await res.json() as any;
+        const newPhoto = { key: data.key, url: data.url, name: uploadName, note: '' };
+        current = [...current, newPhoto];
+        setPhotos(current);
+        await savePhotosToDb(current); // save after each so progress is never lost mid-batch
+      } catch (e: any) {
+        setUploadError(e.message ?? 'Upload failed');
       }
-      const formData = new FormData();
-      formData.append('file', uploadBody, uploadName);
-      formData.append('bookingId', entityId);
-      const res = await fetch('/admin-upload-photo', { method: 'POST', body: formData });
-      if (!res.ok) throw new Error(await res.text());
-      const data = await res.json() as any;
-      const newPhoto = { key: data.key, url: data.url, name: uploadName, note: '' };
-      const updated = [...photos, newPhoto];
-      setPhotos(updated);
-      await savePhotosToDb(updated);
-    } catch (e: any) {
-      setUploadError(e.message ?? 'Upload failed');
     }
     setUploading(false);
   }
@@ -1443,7 +1451,7 @@ function AdminPhotoPanel({ entityId, onSave, initialPhotos, onPhotosChange }: {
       <input ref={fileRef} type="file" accept="image/*" multiple className="hidden"
         onChange={async e => {
           const files = Array.from(e.target.files || []);
-          for (const f of files) await handleUpload(f);
+          await handleUploadMany(files);
           e.target.value = '';
         }}
       />
@@ -1550,28 +1558,34 @@ function PartsCostPanel({ job, onUpdate }: { job: Job; onUpdate: (j: Job) => voi
     onUpdate({ ...job, partsReceipts: updated });
   }
 
-  async function handleUpload(file: File) {
+  // Batch upload with a local accumulator (see AdminPhotoPanel): per-file
+  // calls all read the same stale `receipts`, so only the last one was kept.
+  async function handleUploadMany(files: File[]) {
+    if (!files.length) return;
     setUploading(true);
     setUploadError(null);
-    try {
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append('bookingId', job.id);
-      const res = await fetch('/admin-upload-photo', { method: 'POST', body: formData });
-      if (!res.ok) throw new Error(await res.text());
-      const data = await res.json() as any;
-      const newReceipt: PartsReceipt = {
-        key: data.key,
-        url: data.url,
-        name: file.name,
-        type: file.type || '',
-        uploadedAt: new Date().toISOString(),
-      };
-      const updated = [...receipts, newReceipt];
-      setReceipts(updated);
-      await saveReceiptsToDb(updated);
-    } catch (e: any) {
-      setUploadError(e.message ?? 'Upload failed');
+    let current = receipts;
+    for (const file of files) {
+      try {
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('bookingId', job.id);
+        const res = await fetch('/admin-upload-photo', { method: 'POST', body: formData });
+        if (!res.ok) throw new Error(await res.text());
+        const data = await res.json() as any;
+        const newReceipt: PartsReceipt = {
+          key: data.key,
+          url: data.url,
+          name: file.name,
+          type: file.type || '',
+          uploadedAt: new Date().toISOString(),
+        };
+        current = [...current, newReceipt];
+        setReceipts(current);
+        await saveReceiptsToDb(current);
+      } catch (e: any) {
+        setUploadError(e.message ?? 'Upload failed');
+      }
     }
     setUploading(false);
   }
@@ -1634,7 +1648,7 @@ function PartsCostPanel({ job, onUpdate }: { job: Job; onUpdate: (j: Job) => voi
       <input ref={fileRef} type="file" accept="image/*,.heic,.heif,application/pdf,.pdf" multiple className="hidden"
         onChange={async e => {
           const files = Array.from(e.target.files || []);
-          for (const f of files) await handleUpload(f);
+          await handleUploadMany(files);
           e.target.value = '';
         }}
       />
