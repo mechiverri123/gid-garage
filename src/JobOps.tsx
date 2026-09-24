@@ -6177,6 +6177,34 @@ function findDuplicateGroups(customers: CustomerRow[]): DupeGroup[] {
   return groups;
 }
 
+// Pure preview of what mergeGroup() would actually do — computed from data
+// already on screen, no server calls, nothing written. Mirrors the backend's
+// merge-customers logic exactly (see functions/admin-api-data.js): fields
+// only fill in when the keeper's own field is blank, and losers are applied
+// in order so a later loser can still fill a gap an earlier one didn't have.
+const MERGE_FIELDS = ['fname', 'lname', 'phone', 'email', 'vin', 'vehicle', 'mileage', 'service_address'] as const;
+function previewMerge(keep: CustomerRow, others: CustomerRow[], jobs: Job[]) {
+  const filled: { field: string; from: string; value: string }[] = [];
+  const working: Record<string, any> = { ...keep };
+  for (const loser of others) {
+    for (const k of MERGE_FIELDS) {
+      if (!working[k] && (loser as any)[k]) {
+        working[k] = (loser as any)[k];
+        filled.push({ field: k, from: `${loser.fname} ${loser.lname}`.trim(), value: (loser as any)[k] });
+      }
+    }
+  }
+  const loserIds = new Set(others.map(c => c.id));
+  const movedJobs = jobs.filter(j => j.customerId && loserIds.has(j.customerId))
+    .sort((a, b) => (b.date + b.time).localeCompare(a.date + a.time));
+  return { filled, movedJobs };
+}
+
+const MERGE_FIELD_LABELS: Record<string, string> = {
+  fname: 'First name', lname: 'Last name', phone: 'Phone', email: 'Email',
+  vin: 'VIN', vehicle: 'Vehicle', mileage: 'Mileage', service_address: 'Service address',
+};
+
 function DuplicateCustomersModal({ onClose, jobs, onMerged }: {
   onClose: () => void;
   jobs: Job[];
@@ -6355,27 +6383,64 @@ function DuplicateCustomersModal({ onClose, jobs, onMerged }: {
                           Merge Into Selected
                         </button>
                       ) : (
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <p className="text-gray-400 text-xs">
-                            This moves {others.reduce((n, c) => n + jobStatsFor(c.id).count, 0)} job(s) onto the kept record and permanently deletes {others.length} customer file{others.length === 1 ? '' : 's'}. Job data itself isn't touched or deleted.
-                          </p>
-                          <div className="flex items-center gap-2 flex-shrink-0 ml-auto">
-                            <button
-                              onClick={() => setConfirmingKey(null)}
-                              disabled={isMerging}
-                              className="text-xs font-bold uppercase tracking-widest text-gray-400 hover:text-white px-3 py-2 transition-colors disabled:opacity-40"
-                            >
-                              Cancel
-                            </button>
-                            <button
-                              onClick={() => mergeGroup(group)}
-                              disabled={isMerging}
-                              className="bg-red-600 hover:bg-red-500 text-white text-xs font-bold uppercase tracking-widest px-3 py-2 transition-colors disabled:opacity-50"
-                            >
-                              {isMerging ? 'Merging…' : 'Confirm Merge'}
-                            </button>
-                          </div>
-                        </div>
+                        (() => {
+                          const keeperRow = customers.find(c => c.id === keepId);
+                          if (!keeperRow) return null;
+                          const preview = previewMerge(keeperRow, others, jobs);
+                          return (
+                            <div className="space-y-3">
+                              <p className="text-gray-400 text-xs">
+                                Preview only — nothing is saved yet. This would move {preview.movedJobs.length} job{preview.movedJobs.length === 1 ? '' : 's'} onto <span className="text-white font-bold">{keeperRow.fname} {keeperRow.lname}</span>'s file and permanently delete {others.length} customer file{others.length === 1 ? '' : 's'}: {others.map(c => `${c.fname} ${c.lname}`.trim()).join(', ')}. Job records themselves are never deleted.
+                              </p>
+
+                              {preview.filled.length > 0 && (
+                                <div className="border border-gray-800 bg-gray-950/60 p-3">
+                                  <p className="text-gray-500 text-[10px] font-bold uppercase tracking-wider mb-1.5">Fields this fills in on the kept file (currently blank)</p>
+                                  <div className="space-y-1">
+                                    {preview.filled.map((f, i) => (
+                                      <p key={i} className="text-xs text-gray-300">
+                                        <span className="text-gray-500">{MERGE_FIELD_LABELS[f.field] || f.field}:</span> {f.value} <span className="text-gray-600">(from {f.from})</span>
+                                      </p>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+
+                              {preview.movedJobs.length > 0 && (
+                                <div className="border border-gray-800 bg-gray-950/60 p-3">
+                                  <p className="text-gray-500 text-[10px] font-bold uppercase tracking-wider mb-1.5">Jobs that would move onto the kept file</p>
+                                  <div className="space-y-1 max-h-40 overflow-y-auto">
+                                    {preview.movedJobs.map(j => (
+                                      <div key={j.id} className="flex items-center justify-between gap-2 text-xs">
+                                        <span className="text-gray-300 truncate">{j.date} · {resolveServiceName(j.service, j.notes)}</span>
+                                        <StatusBadge status={j.jobStatus} />
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <div className="flex items-center gap-2 flex-shrink-0 ml-auto">
+                                  <button
+                                    onClick={() => setConfirmingKey(null)}
+                                    disabled={isMerging}
+                                    className="text-xs font-bold uppercase tracking-widest text-gray-400 hover:text-white px-3 py-2 transition-colors disabled:opacity-40"
+                                  >
+                                    Cancel
+                                  </button>
+                                  <button
+                                    onClick={() => mergeGroup(group)}
+                                    disabled={isMerging}
+                                    className="bg-red-600 hover:bg-red-500 text-white text-xs font-bold uppercase tracking-widest px-3 py-2 transition-colors disabled:opacity-50"
+                                  >
+                                    {isMerging ? 'Merging…' : 'Confirm Merge'}
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })()
                       )}
                     </div>
                   </div>
