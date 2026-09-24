@@ -4170,7 +4170,9 @@ export function JobDetailPanel({ job: initialJob, onClose, onJobUpdate, backLabe
                   ].map(([label, val]) => (
                     <div key={label} className="flex gap-4 border-b border-gray-800 py-2">
                       <span className="text-gray-600 text-xs font-bold uppercase tracking-wider w-32 flex-shrink-0 pt-0.5">{label}</span>
-                      <span className="text-white text-sm whitespace-pre-wrap">{val}</span>
+                      {val && val !== '—'
+                        ? <CopyableField value={val} className="text-white text-sm whitespace-pre-wrap" />
+                        : <span className="text-white text-sm">—</span>}
                     </div>
                   ))}
                   <div className="flex gap-4 border-b border-gray-800 py-2">
@@ -4187,7 +4189,9 @@ export function JobDetailPanel({ job: initialJob, onClose, onJobUpdate, backLabe
                   ].map(([label, val]) => (
                     <div key={label} className="flex gap-4 border-b border-gray-800 py-2">
                       <span className="text-gray-600 text-xs font-bold uppercase tracking-wider w-32 flex-shrink-0 pt-0.5">{label}</span>
-                      <span className="text-white text-sm whitespace-pre-wrap">{val}</span>
+                      {val && val !== '—'
+                        ? <CopyableField value={val} className="text-white text-sm whitespace-pre-wrap" />
+                        : <span className="text-white text-sm">—</span>}
                     </div>
                   ))}
                   <button onClick={startEditAppt}
@@ -4494,6 +4498,7 @@ function CustomerFileModal({ customerId, jobs, onClose, onSelectJob }: {
   const customerJobs = (customerId ? jobs.filter(j => j.customerId === customerId) : jobs)
     .slice()
     .sort((a, b) => (b.date + b.time).localeCompare(a.date + a.time));
+  const [vehicleFilter, setVehicleFilter] = useState<string | null>(null);
 
   if (customerJobs.length === 0) {
     return (
@@ -4505,8 +4510,6 @@ function CustomerFileModal({ customerId, jobs, onClose, onSelectJob }: {
       </div>
     );
   }
-
-  const [vehicleFilter, setVehicleFilter] = useState<string | null>(null);
 
   const latest = customerJobs[0];
   const fullName = `${latest.fname} ${latest.lname}`.trim();
@@ -4990,7 +4993,7 @@ function ExternalLeadModal({ onClose, onAdded, jobs }: { onClose: () => void; on
 
   const [f, setF] = useState({
     fname: '', lname: '', phone: '', email: '',
-    vehicle: '', service: 'other', notes: '', address: '',
+    vehicle: '', vin: '', service: 'other', notes: '', address: '',
     date: new Date().toLocaleDateString('en-CA', { timeZone: 'America/Phoenix' }),
     time: '',
   });
@@ -5019,9 +5022,13 @@ function ExternalLeadModal({ onClose, onAdded, jobs }: { onClose: () => void; on
   // step 2 (chips below), instead of jumping straight to one vehicle.
   const [custQuery, setCustQuery] = useState('');
   const [custPickerOpen, setCustPickerOpen] = useState(false);
-  const [selectedVehicles, setSelectedVehicles] = useState<string[]>([]);
+  const [selectedVehicles, setSelectedVehicles] = useState<{ label: string; vin: string }[]>([]);
+  // Set to the chip's label when the VIN was auto-filled from a previous job.
+  // If the vehicle text is then edited to something else, the VIN is cleared
+  // so a VIN can never end up attached to a different car by accident.
+  const [vinAutoFor, setVinAutoFor] = useState<string | null>(null);
   const priorIdentities = useMemo(() => {
-    const byIdentity = new Map<string, { fname: string; lname: string; phone: string; email: string; address: string; createdAt: string; vehicles: Map<string, { label: string; createdAt: string }> }>();
+    const byIdentity = new Map<string, { fname: string; lname: string; phone: string; email: string; address: string; createdAt: string; vehicles: Map<string, { label: string; vin: string; createdAt: string }> }>();
     for (const j of jobs) {
       const custKey = (j.phone || '').replace(/\D/g, '') || `${j.fname}|${j.lname}|${j.email}`;
       if (!custKey) continue;
@@ -5041,18 +5048,31 @@ function ExternalLeadModal({ onClose, onAdded, jobs }: { onClose: () => void; on
       }
       const vehicle = (j.vehicle || '').trim();
       if (vehicle) {
-        const vKey = vehicle.toLowerCase();
+        // Key by description + VIN so two different cars that share a
+        // description stay separate instead of one VIN overwriting the other.
+        const vin = cleanVin(j.vin || '');
+        const vKey = `${vehicle.toLowerCase()}|${vin}`;
         const vExisting = entry.vehicles.get(vKey);
         if (!vExisting || (j.createdAt || '') > vExisting.createdAt) {
-          entry.vehicles.set(vKey, { label: vehicle, createdAt: j.createdAt || '' });
+          entry.vehicles.set(vKey, { label: vehicle, vin, createdAt: j.createdAt || '' });
         }
       }
     }
     return Array.from(byIdentity.values())
-      .map(e => ({
-        fname: e.fname, lname: e.lname, phone: e.phone, email: e.email, address: e.address,
-        vehicles: Array.from(e.vehicles.values()).sort((a, b) => b.createdAt.localeCompare(a.createdAt)).map(v => v.label),
-      }))
+      .map(e => {
+        const all = Array.from(e.vehicles.values()).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+        // Drop a VIN-less entry when the same description already has a VIN
+        // on file, and collapse repeats of the same VIN into one chip.
+        const labelsWithVin = new Set(all.filter(v => v.vin).map(v => v.label.toLowerCase()));
+        const seenVins = new Set<string>();
+        const vehicles: { label: string; vin: string }[] = [];
+        for (const v of all) {
+          if (!v.vin && labelsWithVin.has(v.label.toLowerCase())) continue;
+          if (v.vin) { if (seenVins.has(v.vin)) continue; seenVins.add(v.vin); }
+          vehicles.push({ label: v.label, vin: v.vin });
+        }
+        return { fname: e.fname, lname: e.lname, phone: e.phone, email: e.email, address: e.address, vehicles };
+      })
       .sort((a, b) => (a.fname + a.lname).localeCompare(b.fname + b.lname));
   }, [jobs]);
 
@@ -5067,18 +5087,20 @@ function ExternalLeadModal({ onClose, onAdded, jobs }: { onClose: () => void; on
     ).slice(0, 8);
   }, [priorIdentities, custQuery]);
 
-  function pickCustomer(c: { fname: string; lname: string; phone: string; email: string; address: string; vehicles: string[] }) {
+  function pickCustomer(c: { fname: string; lname: string; phone: string; email: string; address: string; vehicles: { label: string; vin: string }[] }) {
     // Step 1 result: fills identity only. Vehicle is left blank on purpose —
     // step 2 (chips) or manual typing decides the vehicle for THIS job.
-    setF(p => ({ ...p, fname: c.fname, lname: c.lname, phone: c.phone, email: c.email, address: c.address, vehicle: '' }));
+    setF(p => ({ ...p, fname: c.fname, lname: c.lname, phone: c.phone, email: c.email, address: c.address, vehicle: '', vin: '' }));
+    setVinAutoFor(null);
     setFieldErr({});
     setCustQuery(`${c.fname} ${c.lname}`.trim());
     setCustPickerOpen(false);
     setSelectedVehicles(c.vehicles);
   }
 
-  function pickVehicle(vehicle: string) {
-    setF(p => ({ ...p, vehicle }));
+  function pickVehicle(v: { label: string; vin: string }) {
+    setF(p => ({ ...p, vehicle: v.label, vin: v.vin }));
+    setVinAutoFor(v.vin ? v.label : null);
     setFieldErr(p => ({ ...p, vehicle: '' }));
   }
 
@@ -5087,7 +5109,12 @@ function ExternalLeadModal({ onClose, onAdded, jobs }: { onClose: () => void; on
   ]);
   const [rawAmounts, setRawAmounts] = useState<Record<string, string>>({});
 
-  function set(k: string, v: string) { setF(p => ({ ...p, [k]: v })); setFieldErr(p => ({ ...p, [k]: '' })); }
+  function set(k: string, v: string) {
+    const divergesFromAutoVin = k === 'vehicle' && vinAutoFor !== null && v !== vinAutoFor;
+    setF(p => ({ ...p, [k]: v, ...(divergesFromAutoVin ? { vin: '' } : {}) }));
+    if (divergesFromAutoVin) setVinAutoFor(null);
+    setFieldErr(p => ({ ...p, [k]: '' }));
+  }
 
   function addLine() {
     setLineItems(prev => [...prev, { id: `li-${Date.now()}-${prev.length}`, label: '', amount: 0, type: 'parts' }]);
@@ -5144,6 +5171,7 @@ function ExternalLeadModal({ onClose, onAdded, jobs }: { onClose: () => void; on
       tax_amount: tax,
       estimate_amount: subtotal,
       estimate_notes: notesStr,
+      ...(f.vin ? { vin: f.vin } : {}),
     };
     try {
       // Resolve to a single customer file (matches on phone digits, else
@@ -5290,9 +5318,10 @@ function ExternalLeadModal({ onClose, onAdded, jobs }: { onClose: () => void; on
                         key={i}
                         type="button"
                         onClick={() => pickVehicle(v)}
-                        className={`px-3 py-1.5 text-xs font-bold border transition-colors ${f.vehicle === v ? 'border-indigo-500 text-white bg-indigo-500/10' : 'border-gray-700 text-gray-400 hover:border-gray-500'}`}
+                        className={`px-3 py-1.5 text-xs font-bold border transition-colors ${f.vehicle === v.label && f.vin === v.vin ? 'border-indigo-500 text-white bg-indigo-500/10' : 'border-gray-700 text-gray-400 hover:border-gray-500'}`}
                       >
-                        {v}
+                        {v.label}
+                        {v.vin && <span className="ml-1.5 font-mono text-[10px] font-normal text-gray-500">…{v.vin.slice(-6)}</span>}
                       </button>
                     ))}
                   </div>
@@ -5300,6 +5329,23 @@ function ExternalLeadModal({ onClose, onAdded, jobs }: { onClose: () => void; on
                 </div>
               )}
               {inp('vehicle', 'Vehicle * (Year Make Model Trim)', 'text', '2019 Toyota Camry LE')}
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider mb-1 text-gray-500">VIN (optional)</label>
+                <input
+                  type="text"
+                  value={f.vin}
+                  maxLength={17}
+                  placeholder="17 characters"
+                  onChange={e => { setVinAutoFor(null); set('vin', cleanVin(e.target.value)); }}
+                  className="w-full bg-gray-900 text-white text-sm px-3 py-2.5 outline-none border border-gray-700 focus:border-red-600 transition-colors font-mono uppercase tracking-wider"
+                />
+                {vinAutoFor !== null && f.vin && (
+                  <p className="text-emerald-500 text-[10px] mt-0.5">Filled from this vehicle's previous job. Confirm it matches the car.</p>
+                )}
+                {f.vin.length === 17 && !vinCheckDigitOk(f.vin) && (
+                  <p className="text-yellow-500 text-[10px] mt-0.5">Check digit fails, likely a typo. You can still continue.</p>
+                )}
+              </div>
               {inp('address', 'Service Address (optional)', 'text', '123 Main St, Flagstaff, AZ')}
 
               <div>
