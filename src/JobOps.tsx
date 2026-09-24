@@ -3936,6 +3936,9 @@ export function JobDetailPanel({ job: initialJob, onClose, onJobUpdate, backLabe
   const [editingAppt, setEditingAppt] = useState(false);
   const [apptSaving, setApptSaving] = useState(false);
   const [apptErr, setApptErr] = useState<string | null>(null);
+  // Shown when a name/phone/email edit would touch a customer file that has
+  // other jobs on it. Nothing is saved until one of the choices is picked.
+  const [identityPrompt, setIdentityPrompt] = useState<{ changes: string; others: number; open: number } | null>(null);
   const [editDate, setEditDate] = useState(job.date);
   const [editTime, setEditTime] = useState(job.time);
   const [editFname, setEditFname] = useState(job.fname || '');
@@ -3965,6 +3968,7 @@ export function JobDetailPanel({ job: initialJob, onClose, onJobUpdate, backLabe
     setEditEmail(job.email || '');
     setEditNotes(job.notes || '');
     setApptErr(null);
+    setIdentityPrompt(null);
     setEditingAppt(true);
   }
 
@@ -4000,8 +4004,31 @@ export function JobDetailPanel({ job: initialJob, onClose, onJobUpdate, backLabe
     }
   }
 
-  async function saveAppt() {
+  // scope is only set after the "this customer has other jobs" prompt:
+  //   'job'      -> change this job's row only; the customer file is untouched
+  //   'customer' -> update the customer file (old behavior: open jobs follow)
+  //   'move'     -> this job belongs to a different person: attach it to
+  //                 their own file (found or created), nobody else changes
+  async function saveAppt(scope?: 'job' | 'customer' | 'move') {
     if (!editFname.trim()) { setApptErr('First name is required.'); return; }
+
+    const norm = (v?: string | null) => (v || '').trim();
+    const changes: string[] = [];
+    const oldName = `${norm(job.fname)} ${norm(job.lname)}`.trim();
+    const newName = `${editFname.trim()} ${editLname.trim()}`.trim();
+    if (oldName !== newName) changes.push(`Name: ${oldName || 'blank'} → ${newName}`);
+    if (norm(job.phone) !== norm(editPhone)) changes.push(`Phone: ${norm(job.phone) || 'blank'} → ${norm(editPhone) || 'blank'}`);
+    if (norm(job.email) !== norm(editEmail)) changes.push(`Email: ${norm(job.email) || 'blank'} → ${norm(editEmail) || 'blank'}`);
+    const identityChanged = changes.length > 0;
+    const otherJobs = job.customerId
+      ? allJobs.filter(j => j.customerId === job.customerId && j.id !== job.id)
+      : [];
+    if (job.customerId && identityChanged && otherJobs.length > 0 && !scope) {
+      setIdentityPrompt({ changes: changes.join('   ·   '), others: otherJobs.length, open: otherJobs.filter(j => !j.signedAt).length });
+      return;
+    }
+    setIdentityPrompt(null);
+
     setApptSaving(true);
     setApptErr(null);
     // Fields that live on the customer file (not per-job): identity only.
@@ -4019,9 +4046,22 @@ export function JobDetailPanel({ job: initialJob, onClose, onJobUpdate, backLabe
     try {
       let customerId = job.customerId;
       if (customerId) {
-        // Existing customer file — patch-customer cascades these fields to
-        // every other job under the same file (name/phone/email only now).
-        await adminPostIdempotent('patch-customer', { id: customerId, fields: customerFields });
+        if (scope === 'move') {
+          // Different person: resolve (or create) THEIR file and attach only
+          // this job to it. The old customer file and its other jobs are
+          // never touched.
+          const result = await findOrCreateCustomerSafe({ ...customerFields });
+          const movedId = result?.customer?.id ?? null;
+          if (!movedId) throw new Error('Could not find or create a customer file for this person. Nothing was changed.');
+          customerId = movedId;
+        } else if (identityChanged && scope !== 'job') {
+          // Existing customer file — patch-customer cascades these fields to
+          // every other unsigned job under the same file (name/phone/email
+          // only). Skipped entirely when identity didn't change: re-sending
+          // unchanged values used to overwrite the other jobs' details with
+          // this job's copy on every save (even a date-only edit).
+          await adminPostIdempotent('patch-customer', { id: customerId, fields: customerFields });
+        }
       } else if (editFname.trim()) {
         // Legacy job with no customer file yet (created before the
         // customers-table migration, or before a backfill ran) — resolve or
@@ -4032,6 +4072,7 @@ export function JobDetailPanel({ job: initialJob, onClose, onJobUpdate, backLabe
       }
       await patchJob(job.id, {
         date: editDate, time: editTime || 'TBD', date_tbd: false, ...customerFields, ...jobOnlyFields, notes: editNotes,
+        ...(scope === 'move' && customerId && customerId !== job.customerId ? { customer_id: customerId } : {}),
       });
       handleUpdate({ ...job, date: editDate, time: editTime || 'TBD', dateTbd: false, fname: editFname.trim(), lname: editLname.trim(), vehicle: editVehicle, vin: editVin, mileage: editMileage, serviceAddress: editServiceAddress, phone: editPhone, email: editEmail, notes: editNotes, customerId });
       setEditingAppt(false);
@@ -4280,12 +4321,40 @@ export function JobDetailPanel({ job: initialJob, onClose, onJobUpdate, backLabe
                       className="w-full bg-gray-900 text-white text-sm px-3 py-2 outline-none border border-gray-700 focus:border-red-600 transition-colors resize-none" />
                   </div>
                   {apptErr && <p className="text-red-400 text-xs">{apptErr}</p>}
-                  <div className="flex gap-2">
-                    <button onClick={saveAppt} disabled={apptSaving}
+                  {identityPrompt && (
+                    <div className="border border-yellow-700/60 bg-yellow-900/10 p-3 space-y-2">
+                      <p className="text-yellow-500 text-xs font-bold uppercase tracking-wider">This customer has other jobs</p>
+                      <p className="text-gray-300 text-xs">{identityPrompt.changes}</p>
+                      <p className="text-gray-500 text-[11px]">
+                        This customer file has {identityPrompt.others} other job{identityPrompt.others === 1 ? '' : 's'} ({identityPrompt.open} still open). Signed jobs are never changed. Nothing is saved until you pick one.
+                      </p>
+                      <button onClick={() => saveAppt('job')} disabled={apptSaving}
+                        className="w-full text-left border border-gray-700 hover:border-emerald-600 text-gray-200 text-xs font-bold px-3 py-2 transition-colors">
+                        Update this job only
+                        <span className="block text-gray-500 text-[10px] font-normal">The customer file and other jobs keep their old details.</span>
+                      </button>
+                      <button onClick={() => saveAppt('customer')} disabled={apptSaving}
+                        className="w-full text-left border border-gray-700 hover:border-yellow-600 text-gray-200 text-xs font-bold px-3 py-2 transition-colors">
+                        Update the customer file{identityPrompt.open > 0 ? ` and ${identityPrompt.open} other open job${identityPrompt.open === 1 ? '' : 's'}` : ''}
+                        <span className="block text-gray-500 text-[10px] font-normal">Same person, corrected details (typo, new phone, new email).</span>
+                      </button>
+                      <button onClick={() => saveAppt('move')} disabled={apptSaving}
+                        className="w-full text-left border border-gray-700 hover:border-red-600 text-gray-200 text-xs font-bold px-3 py-2 transition-colors">
+                        This is a different person: give this job its own file
+                        <span className="block text-gray-500 text-[10px] font-normal">Only this job moves. The old customer's file is not changed.</span>
+                      </button>
+                      <button onClick={() => setIdentityPrompt(null)}
+                        className="text-gray-500 hover:text-gray-300 text-[11px] font-bold uppercase tracking-wider transition-colors">
+                        Back to editing
+                      </button>
+                    </div>
+                  )}
+                  <div className={`flex gap-2 ${identityPrompt ? 'hidden' : ''}`}>
+                    <button onClick={() => saveAppt()} disabled={apptSaving}
                       className={`flex-1 bg-red-600 hover:bg-red-500 text-white text-xs font-bold uppercase tracking-wider py-2.5 transition-colors ${apptSaving ? 'opacity-50' : ''}`}>
                       {apptSaving ? 'Saving…' : '✓ Save Changes'}
                     </button>
-                    <button onClick={() => { setEditingAppt(false); setApptErr(null); }}
+                    <button onClick={() => { setEditingAppt(false); setApptErr(null); setIdentityPrompt(null); }}
                       className="flex-1 border border-gray-700 text-gray-400 text-xs font-bold uppercase tracking-wider py-2.5 hover:border-gray-500 transition-colors">
                       Cancel
                     </button>
@@ -5290,7 +5359,7 @@ function ExternalLeadModal({ onClose, onAdded, jobs }: { onClose: () => void; on
                 {inp('fname', 'First Name *', 'text', 'John')}
                 {inp('lname', 'Last Name', 'text', 'Smith')}
                 <div>
-                  {inp('phone', phoneUnknown ? 'Phone' : 'Phone *', 'tel', '480-555-0100', phoneUnknown)}
+                  {inp('phone', phoneUnknown ? 'Phone' : 'Phone *', 'tel', phoneUnknown ? 'No phone on file' : '480-555-0100', phoneUnknown)}
                   <label className="flex items-center gap-1.5 mt-1 text-gray-500 text-[11px] cursor-pointer select-none">
                     <input
                       type="checkbox"
