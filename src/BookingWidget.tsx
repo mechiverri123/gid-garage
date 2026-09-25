@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, type Dispatch, type SetStateAction } from 'react';
-import { JobsTab, BusinessHub, MileageTab, JobDetailPanel, getJobById, OwnerPayPanel, CustomersTab, type Job } from './JobOps';
+import { JobsTab, BusinessHub, MileageTab, JobDetailPanel, getJobById, getAllJobs, OwnerPayPanel, CustomersTab, type Job } from './JobOps';
 import { getEngines } from './engineData';
 import { getTrims } from './trimData';
 
@@ -1958,6 +1958,12 @@ export function AdminSchedule() {
   // calendar's own state, so track the id and fetch the full Job separately.
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
   const [selectedJob, setSelectedJob] = useState<Job | null>(null);
+  // Separate from `bookings` (the calendar's own slim data model, no
+  // customer_id). JobDetailPanel needs a real Job[] with customerId on each
+  // one to look up "this customer's other jobs" — without it, clicking a
+  // customer's name from a job opened off the calendar always said "No jobs
+  // found on file for this customer", even though the file existed.
+  const [fullJobs, setFullJobs] = useState<Job[]>([]);
   const [jobLoading, setJobLoading] = useState(false);
   const [showBlackoutManager, setShowBlackoutManager] = useState(false);
   // Drag-to-reschedule on the calendar
@@ -2043,6 +2049,7 @@ export function AdminSchedule() {
       setBookings(data);
       setLoading(false);
     });
+    getAllJobs().then(setFullJobs).catch(() => { /* customer-file lookup just won't have data this load */ });
 
     const dataInterval = setInterval(async () => {
       const fresh = await getSupabaseBookings();
@@ -2117,6 +2124,7 @@ export function AdminSchedule() {
   }
 
   function handleJobUpdate(updated: Job) {
+    setFullJobs(prev => prev.map(j => j.id === updated.id ? updated : j));
     setSelectedJob(updated);
     setBookings(prev => prev.map(b => b.id === updated.id ? {
       ...b,
@@ -2537,6 +2545,7 @@ export function AdminSchedule() {
           backLabel="Back to Calendar"
           onClose={() => setSelectedJobId(null)}
           onJobUpdate={handleJobUpdate}
+          allJobs={fullJobs}
         />
       )}
 
