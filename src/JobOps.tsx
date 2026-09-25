@@ -6221,6 +6221,14 @@ function DuplicateCustomersModal({ onClose, jobs, onMerged }: {
   const [confirmingKey, setConfirmingKey] = useState<string | null>(null);
   const [mergingKey, setMergingKey] = useState<string | null>(null);
   const [mergeErr, setMergeErr] = useState<Record<string, string>>({});
+  // Merges done in this session, each undoable via its snapshot until you
+  // close this modal or click Undo. Not persisted — after you leave, undo
+  // the old way (restore from Hub -> Recovery) if you ever need to go back
+  // further than this. Newest first.
+  const [recentMerges, setRecentMerges] = useState<{ snapshotKey: string; keptName: string; mergedName: string; jobCount: number; mergedAt: number }[]>([]);
+  const [undoingKey, setUndoingKey] = useState<string | null>(null);
+  const [undoErr, setUndoErr] = useState<Record<string, string>>({});
+  const [undoneKeys, setUndoneKeys] = useState<Set<string>>(new Set());
 
   function jobStatsFor(customerId: string) {
     const cJobs = jobs.filter(j => j.customerId === customerId);
@@ -6270,13 +6278,25 @@ function DuplicateCustomersModal({ onClose, jobs, onMerged }: {
     if (!keepId || others.length === 0) return;
     setMergingKey(group.key);
     setMergeErr(prev => ({ ...prev, [group.key]: '' }));
+    const keeper = group.customers.find(c => c.id === keepId);
     try {
       // One at a time, not in parallel — this is a destructive operation
       // (deletes a customer row after reassigning its bookings) and running
       // them concurrently risks two merges racing on the same keeper record.
+      // merge-customers-safe snapshots everything about to change before it
+      // writes anything, and returns the key that undoes it.
       for (const loser of others) {
-        await adminPost('merge-customers', { keepId, mergeId: loser.id });
+        const result = await adminPost('merge-customers-safe', { keepId, mergeId: loser.id });
         onMerged(keepId, loser.id);
+        if (result?.snapshotKey) {
+          setRecentMerges(prev => [{
+            snapshotKey: result.snapshotKey,
+            keptName: `${keeper?.fname ?? ''} ${keeper?.lname ?? ''}`.trim() || keepId,
+            mergedName: `${loser.fname} ${loser.lname}`.trim() || loser.id,
+            jobCount: result.movedJobs ?? 0,
+            mergedAt: Date.now(),
+          }, ...prev]);
+        }
       }
       // Success — drop this group from the list rather than a full reload,
       // so the rest of the review session isn't interrupted.
@@ -6293,6 +6313,23 @@ function DuplicateCustomersModal({ onClose, jobs, onMerged }: {
       }));
     } finally {
       setMergingKey(null);
+    }
+  }
+
+  async function undoMerge(snapshotKey: string) {
+    setUndoingKey(snapshotKey);
+    setUndoErr(prev => ({ ...prev, [snapshotKey]: '' }));
+    try {
+      await adminPost('undo-merge', { snapshotKey });
+      setUndoneKeys(prev => new Set(prev).add(snapshotKey));
+      // The merged customer file is back and its jobs are back on it —
+      // refresh so the rest of this screen (and the job list) reflects
+      // that rather than showing stale merged-away state.
+      await loadCustomers();
+    } catch (e: any) {
+      setUndoErr(prev => ({ ...prev, [snapshotKey]: e?.message ?? 'Undo failed. Try again, or restore from Hub -> Recovery.' }));
+    } finally {
+      setUndoingKey(null);
     }
   }
 
@@ -6322,6 +6359,41 @@ function DuplicateCustomersModal({ onClose, jobs, onMerged }: {
 
           {!loading && !loadErr && groups.length === 0 && (
             <p className="text-gray-500 text-sm text-center py-8">No likely duplicates found — customer list looks clean.</p>
+          )}
+
+          {recentMerges.length > 0 && (
+            <div className="mb-4 border border-gray-800 bg-gray-900/40">
+              <div className="px-4 py-2.5 border-b border-gray-800">
+                <span className="text-gray-400 text-[10px] font-bold uppercase tracking-wider">Merged this session — undo while it's fresh</span>
+              </div>
+              <div className="divide-y divide-gray-800">
+                {recentMerges.map(m => {
+                  const done = undoneKeys.has(m.snapshotKey);
+                  const busy = undoingKey === m.snapshotKey;
+                  const err = undoErr[m.snapshotKey];
+                  return (
+                    <div key={m.snapshotKey} className="px-4 py-3 flex items-center justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="text-gray-300 text-xs">
+                          <span className="text-white font-bold">{m.mergedName}</span> merged into <span className="text-white font-bold">{m.keptName}</span> · {m.jobCount} job{m.jobCount === 1 ? '' : 's'} moved
+                        </p>
+                        {err && <p className="text-red-400 text-[10px] mt-0.5">{err}</p>}
+                        {done && <p className="text-emerald-400 text-[10px] mt-0.5">✓ Undone — {m.mergedName}'s file is restored.</p>}
+                      </div>
+                      {!done && (
+                        <button
+                          onClick={() => undoMerge(m.snapshotKey)}
+                          disabled={busy}
+                          className="flex-shrink-0 text-xs font-bold uppercase tracking-widest border border-gray-700 hover:border-yellow-600 text-gray-300 hover:text-yellow-500 px-3 py-1.5 transition-colors disabled:opacity-40"
+                        >
+                          {busy ? 'Undoing…' : 'Undo'}
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
           )}
 
           {!loading && !loadErr && groups.length > 0 && (

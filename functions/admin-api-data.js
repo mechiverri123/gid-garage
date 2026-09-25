@@ -389,6 +389,142 @@ export async function onRequestPost({ request, env }) {
         return json({ ok: true, movedJobs: movedJobs.length });
       }
 
+      // ---- Safe merge: snapshot-before-merge, and its undo --------------
+      // merge-customers-safe   { keepId, mergeId }  -> { ok, movedJobs, snapshotKey }
+      //   Does exactly what merge-customers does (reassign bookings, fill
+      //   blanks on the keeper, delete the loser) but first writes a
+      //   snapshot of everything about to change to the same R2 bucket the
+      //   daily backup uses, under merge-snapshots/. The returned
+      //   snapshotKey is what undo-merge needs to reverse it.
+      // undo-merge             { snapshotKey }      -> { ok, restoredJobs }
+      //   Re-inserts the deleted customer row exactly as it was, restores
+      //   customer_id on every job that moved, and restores any keeper
+      //   fields the merge had filled in — to their pre-merge value (blank
+      //   or whatever they held before). Only works while the snapshot
+      //   still exists (30-day retention, same as backups) and only if the
+      //   keeper id wasn't itself deleted since (e.g. by a later merge).
+      case 'merge-customers-safe': {
+        const { keepId, mergeId } = payload;
+        if (!keepId || !mergeId) return json({ error: 'Missing keepId or mergeId' }, 400);
+        if (keepId === mergeId) return json({ error: 'Cannot merge a customer into itself' }, 400);
+
+        const bucket = env.GID_PHOTOS;
+        if (!bucket) return json({ error: 'R2 bucket GID_PHOTOS not bound — cannot snapshot, refusing to merge without one' }, 500);
+
+        const bothRes = await fetch(
+          `${base}/customers?id=in.(${encodeURIComponent(keepId)},${encodeURIComponent(mergeId)})&select=*`,
+          { headers }
+        );
+        if (!bothRes.ok) return json({ error: await bothRes.text() }, 502);
+        const both = await bothRes.json();
+        const keep = both.find((c) => c.id === keepId);
+        const merge = both.find((c) => c.id === mergeId);
+        if (!keep || !merge) return json({ error: 'One or both customers not found' }, 404);
+
+        const jobsRes = await fetch(
+          `${base}/bookings?customer_id=eq.${encodeURIComponent(mergeId)}&select=*`,
+          { headers }
+        );
+        if (!jobsRes.ok) return json({ error: await jobsRes.text() }, 502);
+        const movedJobs = await jobsRes.json(); // full rows — this is the undo's source of truth for customer_id
+
+        // Same fill-only rule as merge-customers: never overwrite a value
+        // the keeper already has.
+        const fillFields = {};
+        for (const k of ['fname', 'lname', 'phone', 'email', 'vin', 'vehicle', 'mileage', 'service_address']) {
+          if (!keep[k] && merge[k]) fillFields[k] = merge[k];
+        }
+
+        // Snapshot BEFORE any write — this is what makes the merge reversible.
+        const now = new Date();
+        const snapshotKey = `merge-snapshots/${now.toISOString().slice(0, 10)}-${now.getTime()}-${mergeId}.json`;
+        const snapshot = {
+          mergedAt: now.toISOString(),
+          keepId, mergeId,
+          keepBefore: keep,       // full keeper row, pre-merge — undoes fillFields
+          mergeCustomer: merge,   // full deleted row — undo re-inserts this exact row
+          movedJobs,               // full booking rows, pre-merge — undo restores customer_id
+        };
+        await bucket.put(snapshotKey, JSON.stringify(snapshot), { httpMetadata: { contentType: 'application/json' } });
+
+        if (movedJobs.length > 0) {
+          const reassignRes = await fetch(
+            `${base}/bookings?customer_id=eq.${encodeURIComponent(mergeId)}`,
+            { method: 'PATCH', headers: { ...headers, Prefer: 'return=minimal' }, body: JSON.stringify({ customer_id: keepId }) }
+          );
+          if (!reassignRes.ok) return json({ error: await reassignRes.text() }, 502);
+        }
+
+        if (Object.keys(fillFields).length > 0) {
+          const fillRes = await fetch(
+            `${base}/customers?id=eq.${encodeURIComponent(keepId)}`,
+            { method: 'PATCH', headers: { ...headers, Prefer: 'return=minimal' }, body: JSON.stringify({ ...fillFields, updated_at: now.toISOString() }) }
+          );
+          if (!fillRes.ok) return json({ error: await fillRes.text() }, 502);
+        }
+
+        const deleteRes = await fetch(
+          `${base}/customers?id=eq.${encodeURIComponent(mergeId)}`,
+          { method: 'DELETE', headers: { ...headers, Prefer: 'return=minimal' } }
+        );
+        if (!deleteRes.ok) return json({ error: await deleteRes.text() }, 502);
+
+        return json({ ok: true, movedJobs: movedJobs.length, snapshotKey });
+      }
+
+      case 'undo-merge': {
+        const { snapshotKey } = payload;
+        if (!snapshotKey) return json({ error: 'Missing snapshotKey' }, 400);
+        const bucket = env.GID_PHOTOS;
+        if (!bucket) return json({ error: 'R2 bucket GID_PHOTOS not bound' }, 500);
+
+        const obj = await bucket.get(snapshotKey);
+        if (!obj) return json({ error: 'Snapshot not found — it may have expired (30-day retention) or already been used.' }, 404);
+        const snap = JSON.parse(await obj.text());
+
+        // Re-insert the deleted customer row exactly as it was. If a row
+        // with this id somehow already exists (e.g. undo run twice), upsert
+        // rather than fail.
+        const insertRes = await fetch(`${base}/customers`, {
+          method: 'POST',
+          headers: { ...headers, Prefer: 'resolution=merge-duplicates,return=minimal' },
+          body: JSON.stringify(snap.mergeCustomer),
+        });
+        if (!insertRes.ok) return json({ error: `Could not restore the deleted customer file: ${await insertRes.text()}` }, 502);
+
+        // Put every moved job's customer_id back, one at a time (not a bulk
+        // filter) since each job needs its own id, not a shared condition.
+        let restoredJobs = 0;
+        for (const j of snap.movedJobs) {
+          const r = await fetch(`${base}/bookings?id=eq.${encodeURIComponent(j.id)}`, {
+            method: 'PATCH', headers: { ...headers, Prefer: 'return=minimal' },
+            body: JSON.stringify({ customer_id: snap.mergeId }),
+          });
+          if (r.ok) restoredJobs++;
+        }
+
+        // Restore the keeper's fields to their pre-merge values (this
+        // undoes fillFields — a blank goes back to blank, not "null"
+        // forced onto something the customer may have since typed in for
+        // real, so only revert fields still equal to what the merge set).
+        const keepFieldsToRestore = {};
+        for (const k of ['fname', 'lname', 'phone', 'email', 'vin', 'vehicle', 'mileage', 'service_address']) {
+          if (snap.keepBefore[k] !== undefined) keepFieldsToRestore[k] = snap.keepBefore[k];
+        }
+        if (Object.keys(keepFieldsToRestore).length > 0) {
+          await fetch(`${base}/customers?id=eq.${encodeURIComponent(snap.keepId)}`, {
+            method: 'PATCH', headers: { ...headers, Prefer: 'return=minimal' },
+            body: JSON.stringify({ ...keepFieldsToRestore, updated_at: new Date().toISOString() }),
+          });
+        }
+
+        // Snapshot is single-use — delete it so a stale undo can't be
+        // replayed later against a keeper that has since changed again.
+        try { await bucket.delete(snapshotKey); } catch { /* best-effort */ }
+
+        return json({ ok: true, restoredJobs });
+      }
+
       case 'list-payment-events': {
         const limit = Number(payload.limit) || 20;
         const res = await fetch(
