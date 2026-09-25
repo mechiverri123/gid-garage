@@ -6268,6 +6268,17 @@ function DuplicateCustomersModal({ onClose, jobs, onMerged }: {
     } finally {
       setLoading(false);
     }
+    // Best-effort, separate from the main load — a failure here shouldn't
+    // block reviewing duplicates, it only means the undo list is empty.
+    try {
+      const snaps = await adminPost('list-merge-snapshots');
+      if (Array.isArray(snaps)) {
+        setRecentMerges(snaps.map((s: any) => ({
+          snapshotKey: s.snapshotKey, keptName: s.keptName, mergedName: s.mergedName,
+          jobCount: s.jobCount, mergedAt: s.mergedAt ? new Date(s.mergedAt).getTime() : Date.now(),
+        })));
+      }
+    } catch { /* undo list is a convenience, not required */ }
   }
 
   useEffect(() => { loadCustomers(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -6302,6 +6313,17 @@ function DuplicateCustomersModal({ onClose, jobs, onMerged }: {
       // so the rest of the review session isn't interrupted.
       setGroups(prev => prev.filter(g => g.key !== group.key));
       setConfirmingKey(null);
+      // Refresh the persistent undo list from the server so it has the
+      // real snapshotKey/order even if this browser is closed right after.
+      try {
+        const snaps = await adminPost('list-merge-snapshots');
+        if (Array.isArray(snaps)) {
+          setRecentMerges(snaps.map((s: any) => ({
+            snapshotKey: s.snapshotKey, keptName: s.keptName, mergedName: s.mergedName,
+            jobCount: s.jobCount, mergedAt: s.mergedAt ? new Date(s.mergedAt).getTime() : Date.now(),
+          })));
+        }
+      } catch { /* the optimistic local entry added above still shows */ }
     } catch (e: any) {
       const raw = e?.message ?? '';
       const looksLikeHtmlDump = /^\s*<(!DOCTYPE|html)/i.test(raw);
@@ -6364,7 +6386,7 @@ function DuplicateCustomersModal({ onClose, jobs, onMerged }: {
           {recentMerges.length > 0 && (
             <div className="mb-4 border border-gray-800 bg-gray-900/40">
               <div className="px-4 py-2.5 border-b border-gray-800">
-                <span className="text-gray-400 text-[10px] font-bold uppercase tracking-wider">Merged this session — undo while it's fresh</span>
+                <span className="text-gray-400 text-[10px] font-bold uppercase tracking-wider">Recent merges — undo available for 30 days</span>
               </div>
               <div className="divide-y divide-gray-800">
                 {recentMerges.map(m => {

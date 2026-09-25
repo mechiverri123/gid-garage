@@ -472,6 +472,35 @@ export async function onRequestPost({ request, env }) {
         return json({ ok: true, movedJobs: movedJobs.length, snapshotKey });
       }
 
+      // list-merge-snapshots {} -> { snapshotKey, mergedAt, keptName, mergedName, jobCount }[]
+      // Read-only. Lists recent merge snapshots straight from R2 so Undo
+      // works from ANY browser/session, not just the one that did the
+      // merge (the in-page "this session" list is just a shortcut on top
+      // of this — closing the modal never loses the ability to undo, only
+      // the 30-day snapshot retention does).
+      case 'list-merge-snapshots': {
+        const bucket = env.GID_PHOTOS;
+        if (!bucket) return json({ error: 'R2 bucket GID_PHOTOS not bound' }, 500);
+        const listed = await bucket.list({ prefix: 'merge-snapshots/' });
+        const sorted = listed.objects.sort((a, b) => new Date(b.uploaded).getTime() - new Date(a.uploaded).getTime()).slice(0, 20);
+        const out = [];
+        for (const obj of sorted) {
+          try {
+            const file = await bucket.get(obj.key);
+            if (!file) continue;
+            const snap = JSON.parse(await file.text());
+            out.push({
+              snapshotKey: obj.key,
+              mergedAt: snap.mergedAt,
+              keptName: `${snap.keepBefore?.fname ?? ''} ${snap.keepBefore?.lname ?? ''}`.trim(),
+              mergedName: `${snap.mergeCustomer?.fname ?? ''} ${snap.mergeCustomer?.lname ?? ''}`.trim(),
+              jobCount: Array.isArray(snap.movedJobs) ? snap.movedJobs.length : 0,
+            });
+          } catch { /* skip an unreadable snapshot rather than fail the whole list */ }
+        }
+        return json(out);
+      }
+
       case 'undo-merge': {
         const { snapshotKey } = payload;
         if (!snapshotKey) return json({ error: 'Missing snapshotKey' }, 400);
