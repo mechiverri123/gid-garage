@@ -6483,26 +6483,27 @@ function DuplicateCustomersModal({ onClose, jobs, onMerged }: {
                           const preview = previewMerge(keeperRow, others, jobs);
                           return (
                             <div className="space-y-3">
-                              <p className="text-gray-400 text-xs">
-                                Preview only — nothing is saved yet. This would move {preview.movedJobs.length} job{preview.movedJobs.length === 1 ? '' : 's'} onto <span className="text-white font-bold">{keeperRow.fname} {keeperRow.lname}</span>'s file and permanently delete {others.length} customer file{others.length === 1 ? '' : 's'}: {others.map(c => `${c.fname} ${c.lname}`.trim()).join(', ')}. Job records themselves are never deleted.
-                              </p>
+                              <p className="text-yellow-500 text-[10px] font-bold uppercase tracking-widest">Nothing is saved yet — review below, then choose Cancel or Confirm</p>
 
-                              {preview.filled.length > 0 && (
-                                <div className="border border-gray-800 bg-gray-950/60 p-3">
-                                  <p className="text-gray-500 text-[10px] font-bold uppercase tracking-wider mb-1.5">Fields this fills in on the kept file (currently blank)</p>
-                                  <div className="space-y-1">
-                                    {preview.filled.map((f, i) => (
-                                      <p key={i} className="text-xs text-gray-300">
-                                        <span className="text-gray-500">{MERGE_FIELD_LABELS[f.field] || f.field}:</span> {f.value} <span className="text-gray-600">(from {f.from})</span>
-                                      </p>
-                                    ))}
-                                  </div>
+                              {/* Big, plain KEEP / DELETE statement — this is the one thing that
+                                  has to be unmissable before anyone clicks Confirm. */}
+                              <div className="border-2 border-gray-700 p-3 space-y-2">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-emerald-400 text-sm font-black uppercase tracking-wide flex-shrink-0">KEEPS</span>
+                                  <span className="text-white text-base font-bold truncate">{keeperRow.fname} {keeperRow.lname}</span>
                                 </div>
-                              )}
+                                <div className="flex items-center gap-2">
+                                  <span className="text-red-400 text-sm font-black uppercase tracking-wide flex-shrink-0">DELETES</span>
+                                  <span className="text-white text-base font-bold truncate">{others.map(c => `${c.fname} ${c.lname}`.trim()).join(', ')}</span>
+                                </div>
+                              </div>
 
-                              {preview.movedJobs.length > 0 && (
-                                <div className="border border-gray-800 bg-gray-950/60 p-3">
-                                  <p className="text-gray-500 text-[10px] font-bold uppercase tracking-wider mb-1.5">Jobs that would move onto the kept file</p>
+                              <div className="border border-gray-800 bg-gray-950/60 p-3">
+                                <p className="text-gray-300 text-sm font-bold mb-1.5">
+                                  {preview.movedJobs.length} job{preview.movedJobs.length === 1 ? '' : 's'} will move onto {keeperRow.fname} {keeperRow.lname}'s file
+                                </p>
+                                <p className="text-gray-500 text-[11px] mb-2">The jobs themselves (photos, notes, pricing) don't change — only which customer file they're filed under.</p>
+                                {preview.movedJobs.length > 0 && (
                                   <div className="space-y-1 max-h-40 overflow-y-auto">
                                     {preview.movedJobs.map(j => (
                                       <div key={j.id} className="flex items-center justify-between gap-2 text-xs">
@@ -6511,8 +6512,30 @@ function DuplicateCustomersModal({ onClose, jobs, onMerged }: {
                                       </div>
                                     ))}
                                   </div>
-                                </div>
-                              )}
+                                )}
+                              </div>
+
+                              <div className="border border-gray-800 bg-gray-950/60 p-3">
+                                <p className="text-gray-300 text-sm font-bold mb-1.5">
+                                  {preview.filled.length > 0
+                                    ? `${preview.filled.length} field${preview.filled.length === 1 ? '' : 's'} will fill in on ${keeperRow.fname} ${keeperRow.lname}'s file`
+                                    : `Nothing else changes on ${keeperRow.fname} ${keeperRow.lname}'s file`}
+                                </p>
+                                {preview.filled.length > 0 ? (
+                                  <>
+                                    <p className="text-gray-500 text-[11px] mb-2">These are currently blank on the kept file — nothing that already has a value gets overwritten.</p>
+                                    <div className="space-y-1">
+                                      {preview.filled.map((f, i) => (
+                                        <p key={i} className="text-xs text-gray-300">
+                                          <span className="text-gray-500">{MERGE_FIELD_LABELS[f.field] || f.field}:</span> {f.value} <span className="text-gray-600">(from {f.from})</span>
+                                        </p>
+                                      ))}
+                                    </div>
+                                  </>
+                                ) : (
+                                  <p className="text-gray-500 text-[11px]">Name, phone, email, VIN, vehicle, mileage and address on the kept file are already filled in, so none of them change.</p>
+                                )}
+                              </div>
 
                               <div className="flex items-center gap-2 flex-wrap">
                                 <div className="flex items-center gap-2 flex-shrink-0 ml-auto">
