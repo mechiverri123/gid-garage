@@ -6528,7 +6528,9 @@ function DuplicateCustomersModal({ onClose, jobs, onMerged }: {
                                     disabled={isMerging}
                                     className="bg-red-600 hover:bg-red-500 text-white text-xs font-bold uppercase tracking-widest px-3 py-2 transition-colors disabled:opacity-50"
                                   >
-                                    {isMerging ? 'Merging…' : 'Confirm Merge'}
+                                    {/* Names the actual keeper on the button itself — self-verifying
+                                        even if something upstream ever disagreed with the radio state. */}
+                                    {isMerging ? 'Merging…' : `Confirm: Keep ${keeperRow.fname} ${keeperRow.lname}`.trim()}
                                   </button>
                                 </div>
                               </div>
