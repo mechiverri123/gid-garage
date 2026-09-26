@@ -37,7 +37,7 @@ function HeroTelemetry({ liveActivity, asking }: { liveActivity: { tool: string;
   return (
     <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mt-4 w-full max-w-[760px]">
       {cells.map(cell => (
-        <div key={cell.label} className="rounded-xl border px-3 py-2" style={{ borderColor: 'rgba(255,255,255,0.06)', background: 'rgba(255,255,255,0.02)' }}>
+        <div key={cell.label} className="rounded-xl border px-3 py-2 backdrop-blur-sm" style={{ borderColor: 'rgba(255,255,255,0.06)', background: 'rgba(255,255,255,0.02)' }}>
           <div className="text-[10px] uppercase tracking-[0.16em]" style={{ color: COLORS.textFaint }}>{cell.label}</div>
           <div className="text-sm font-semibold mt-1 capitalize" style={{ color: cell.color }}>{cell.value}</div>
         </div>
@@ -104,11 +104,11 @@ export function CommandCenterPage({ onLock }: { onLock: () => void }) {
 
       <div className="flex-1 min-w-0 flex flex-col relative overflow-hidden">
         <div className="absolute inset-0 opacity-70 pointer-events-none" style={{
-          backgroundImage: 'linear-gradient(rgba(84,231,255,0.055) 1px, transparent 1px), linear-gradient(90deg, rgba(84,231,255,0.055) 1px, transparent 1px)',
+          backgroundImage: 'linear-gradient(rgba(84,231,255,0.05) 1px, transparent 1px), linear-gradient(90deg, rgba(84,231,255,0.05) 1px, transparent 1px)',
           backgroundSize: '48px 48px',
-          maskImage: 'linear-gradient(180deg, rgba(0,0,0,0.8), rgba(0,0,0,0.25))',
+          maskImage: 'linear-gradient(180deg, rgba(0,0,0,0.9), rgba(0,0,0,0.25))',
         }} />
-        <div className="absolute inset-x-0 top-0 h-44 pointer-events-none" style={{ background: 'linear-gradient(180deg, rgba(84,231,255,0.06), transparent)' }} />
+        <div className="absolute inset-x-0 top-0 h-52 pointer-events-none" style={{ background: 'linear-gradient(180deg, rgba(84,231,255,0.07), transparent)' }} />
 
         <TopStatusBar onSearch={() => palette.setOpen(true)} onRefresh={loadSummary} streamOk={!error} />
 
@@ -124,25 +124,28 @@ export function CommandCenterPage({ onLock }: { onLock: () => void }) {
                 <WeekSummary leadsSummary={summary.leadsSummary} marketingFunnel={summary.marketingFunnel} />
               </div>
 
-              <div className="xl:col-span-6 relative rounded-[22px] border p-5 md:p-6 overflow-hidden min-h-[430px] flex flex-col items-center justify-center"
+              <div className="xl:col-span-6 relative rounded-[28px] border px-5 md:px-6 py-5 overflow-hidden min-h-[560px] flex flex-col items-center justify-center"
                 style={{
-                  borderColor: COLORS.border,
-                  background: 'linear-gradient(180deg, rgba(8,18,30,0.96) 0%, rgba(4,10,18,0.94) 100%)',
-                  boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.04), inset 0 0 0 1px rgba(84,231,255,0.04), 0 18px 50px rgba(0,0,0,0.35)',
+                  borderColor: 'rgba(84,231,255,0.22)',
+                  background: 'linear-gradient(180deg, rgba(8,18,30,0.88) 0%, rgba(4,10,18,0.72) 100%)',
+                  boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.04), inset 0 0 0 1px rgba(84,231,255,0.04), 0 20px 60px rgba(0,0,0,0.38)',
                 }}>
+                <div className="absolute inset-0 pointer-events-none" style={{ background: 'radial-gradient(circle at center, rgba(84,231,255,0.1), transparent 44%)' }} />
                 <div className="absolute inset-x-6 top-0 h-px" style={{ background: `linear-gradient(90deg, transparent, ${COLORS.borderStrong}, transparent)` }} />
-                <div className="absolute inset-0 pointer-events-none" style={{ background: 'radial-gradient(circle at center, rgba(84,231,255,0.12), transparent 44%)' }} />
-                <div className="absolute bottom-10 left-1/2 -translate-x-1/2 w-[70%] h-20 rounded-[50%] pointer-events-none" style={{ border: `1px solid ${COLORS.border}`, filter: 'blur(0.2px)' }} />
-                <div className="absolute bottom-[68px] left-1/2 -translate-x-1/2 w-[54%] h-10 rounded-[50%] border border-white/5 pointer-events-none" />
-                <div className="text-[10px] font-semibold uppercase tracking-[0.32em]" style={{ color: COLORS.accent }}>GID GARAGE</div>
-                <div className="text-[9px] uppercase tracking-[0.22em] mt-1" style={{ color: COLORS.textFaint }}>AI Core</div>
-                <div className="mt-2">
-                  <JarvisStatus state={jarvisState} liveActivity={liveActivity} size={340} />
+                <div className="absolute inset-y-[16%] left-1/2 w-px bg-white/[0.04]" />
+                <div className="absolute inset-x-[16%] top-1/2 h-px bg-white/[0.04]" />
+                <div className="absolute left-5 top-5 w-10 h-10 border-l border-t opacity-45" style={{ borderColor: COLORS.accent }} />
+                <div className="absolute right-5 top-5 w-10 h-10 border-r border-t opacity-45" style={{ borderColor: COLORS.accent }} />
+                <div className="absolute left-5 bottom-5 w-10 h-10 border-l border-b opacity-35" style={{ borderColor: COLORS.accentDim }} />
+                <div className="absolute right-5 bottom-5 w-10 h-10 border-r border-b opacity-35" style={{ borderColor: COLORS.accentDim }} />
+                <div className="absolute top-6 left-1/2 -translate-x-1/2 text-center">
+                  <div className="text-[10px] font-semibold uppercase tracking-[0.34em]" style={{ color: COLORS.accent }}>MICHAEL · GID GARAGE</div>
+                  <div className="text-[9px] uppercase tracking-[0.22em] mt-1" style={{ color: COLORS.textFaint }}>Owner Copilot</div>
                 </div>
-                <div className="text-[10px] uppercase tracking-[0.22em] mt-1" style={{ color: COLORS.textMuted }}>
-                  {asking ? 'Analyzing' : 'Monitoring'}
+                <JarvisStatus state={jarvisState} liveActivity={liveActivity} size={390} />
+                <div className="absolute bottom-6 left-1/2 -translate-x-1/2 w-full flex justify-center px-5">
+                  <HeroTelemetry liveActivity={liveActivity} asking={asking} />
                 </div>
-                <HeroTelemetry liveActivity={liveActivity} asking={asking} />
               </div>
 
               <div className="xl:col-span-3 space-y-4">

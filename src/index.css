@@ -38,19 +38,16 @@
   }
 }
 
-/* Calendly widget overrides */
 .calendly-inline-widget {
   min-width: 320px;
   height: 700px;
 }
 
-/* Smooth nav transition */
 .nav-scrolled {
   background-color: rgba(255, 255, 255, 0.98);
   box-shadow: 0 2px 8px rgba(0,0,0,0.1);
 }
 
-/* Print styles for invoice/receipt page */
 @media print {
   @page { margin: 0; size: letter; }
   html, body, #root {
@@ -63,13 +60,11 @@
   a[href="/"] { pointer-events: none; }
 }
 
-/* Copy-to-clipboard confirmation pop */
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(2px); }
   to { opacity: 1; transform: translateY(0); }
 }
 
-/* Scroll-reveal — fade + rise into place as sections enter viewport */
 .reveal {
   opacity: 0;
   transform: translateY(28px);
@@ -84,19 +79,16 @@
   .reveal { opacity: 1; transform: none; transition: none; }
 }
 
-/* Fixed film-grain layer — sits over the whole dark theme at ~3.5% opacity via
-   overlay blend so flat black reads as textured, not flat. Pure CSS, no image asset. */
 .grain-overlay {
   position: fixed;
   inset: 0;
   z-index: 1;
   pointer-events: none;
-  opacity: 0.035;
+  opacity: 0.03;
   mix-blend-mode: overlay;
   background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='140' height='140'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
 }
 
-/* Hide scrollbar chrome sitewide while preserving wheel/touch/keyboard scrolling. */
 html,
 body,
 #root,
