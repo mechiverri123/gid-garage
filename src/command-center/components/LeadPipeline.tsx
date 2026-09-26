@@ -1,3 +1,5 @@
+import { useState } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 import { PANEL, PANEL_PADDING, LABEL } from '../tokens';
 import { fmtSource } from '../utils/formatters';
 import { LEAD_STATUS_OPTIONS } from '../types';
@@ -14,6 +16,13 @@ export function LeadPipeline({
   onStatusChange: (id: string, status: string) => void;
   onSelect: (lead: Lead) => void;
 }) {
+  const [justChanged, setJustChanged] = useState<string | null>(null);
+
+  function handleStatusChange(id: string, status: string) {
+    onStatusChange(id, status);
+    setJustChanged(id);
+    setTimeout(() => setJustChanged(current => (current === id ? null : current)), 900);
+  }
   const stageCounts = LEAD_STATUS_OPTIONS.reduce<Record<string, number>>((acc, s) => {
     acc[s] = leads.filter(l => l.status === s).length;
     return acc;
@@ -62,18 +71,36 @@ export function LeadPipeline({
             </thead>
             <tbody>
               {leads.slice(0, 30).map(l => (
-                <tr key={l.id} onClick={() => onSelect(l)} className="border-b border-white/5 cursor-pointer hover:bg-white/5 transition-colors">
+                <motion.tr
+                  key={l.id}
+                  onClick={() => onSelect(l)}
+                  className="border-b border-white/5 cursor-pointer hover:bg-white/5 transition-colors"
+                  animate={justChanged === l.id ? { backgroundColor: 'rgba(66,211,146,0.15)' } : { backgroundColor: 'rgba(0,0,0,0)' }}
+                  transition={{ duration: 0.8 }}
+                >
                   <td className="py-2 pr-3 text-[#F5F8FA]">{`${l.fname || ''} ${l.lname || ''}`.trim() || l.phone || '—'}</td>
                   <td className="py-2 pr-3 text-[#8899A6]">{fmtSource(l.source)}</td>
                   <td className="py-2 pr-3 text-[#8899A6]">{l.requested_service || '—'}</td>
                   <td className="py-2 pr-3" onClick={e => e.stopPropagation()}>
-                    <select value={l.status} onChange={e => onStatusChange(l.id, e.target.value)}
+                    <select value={l.status} onChange={e => handleStatusChange(l.id, e.target.value)}
                       className="bg-black/30 border border-white/10 text-[#8899A6] text-[11px] px-1.5 py-0.5 rounded outline-none focus:border-[#32D9FF]">
                       {LEAD_STATUS_OPTIONS.map(s => <option key={s} value={s}>{fmtSource(s)}</option>)}
                     </select>
+                    <AnimatePresence>
+                      {justChanged === l.id && (
+                        <motion.span
+                          initial={{ opacity: 0, x: -4 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          exit={{ opacity: 0 }}
+                          className="ml-1.5 text-[#42D392] text-[10px]"
+                        >
+                          ✓ saved
+                        </motion.span>
+                      )}
+                    </AnimatePresence>
                   </td>
                   <td className="py-2 text-[#52616D]">{new Date(l.created_at).toLocaleDateString()}</td>
-                </tr>
+                </motion.tr>
               ))}
             </tbody>
           </table>
