@@ -12,14 +12,20 @@ from pydantic import BaseModel
 
 APP_NAME = "GID Jarvis Voice"
 MODEL_REPO = os.getenv("JARVIS_MODEL_REPO", "jgkawell/jarvis")
+MODEL_REVISION = os.getenv(
+    "JARVIS_MODEL_REVISION",
+    "04a96f92731d73cad3b6026ec5f839afa90f8cd9",
+)
 MODEL_FILE = os.getenv(
     "JARVIS_MODEL_FILE",
-    "en/en_GB/jarvis/medium/jarvis-medium.onnx",
+    "en/en_GB/jarvismk1/medium/en_GB-jarvis-medium.onnx",
 )
 CONFIG_FILE = os.getenv(
     "JARVIS_CONFIG_FILE",
-    "en/en_GB/jarvis/medium/jarvis-medium.onnx.json",
+    "en/en_GB/jarvismk1/medium/en_GB-jarvis-medium.onnx.json",
 )
+LENGTH_SCALE = float(os.getenv("JARVIS_LENGTH_SCALE", "1.35"))
+SENTENCE_SILENCE = float(os.getenv("JARVIS_SENTENCE_SILENCE", "0.12"))
 MODEL_DIR = Path(os.getenv("MODEL_DIR", "/models"))
 SERVICE_SECRET = os.getenv("JARVIS_VOICE_SECRET", "")
 MAX_CHARS = int(os.getenv("MAX_CHARS", "1800"))
@@ -46,11 +52,13 @@ def ensure_model():
 
         model_path = hf_hub_download(
             repo_id=MODEL_REPO,
+            revision=MODEL_REVISION,
             filename=MODEL_FILE,
             local_dir=str(MODEL_DIR),
         )
         config_path = hf_hub_download(
             repo_id=MODEL_REPO,
+            revision=MODEL_REVISION,
             filename=CONFIG_FILE,
             local_dir=str(MODEL_DIR),
         )
@@ -73,6 +81,9 @@ def health():
         "service": APP_NAME,
         "repo": MODEL_REPO,
         "model": MODEL_FILE,
+        "revision": MODEL_REVISION,
+        "length_scale": LENGTH_SCALE,
+        "sentence_silence": SENTENCE_SILENCE,
         "sample_rate": getattr(getattr(v, "config", None), "sample_rate", None),
     }
 
@@ -93,7 +104,15 @@ def speak(payload: SpeakRequest, x_jarvis_secret: str | None = Header(default=No
 
     # Piper writes a normal WAV container.
     with wave.open(buf, "wb") as wav_file:
-        v.synthesize(text, wav_file)
+        # Piper length_scale > 1.0 slows the delivery.
+        # MK1's own config is 1.15; 1.35 gives it a more deliberate cadence
+        # without stretching it into obvious slow-motion speech.
+        v.synthesize(
+            text,
+            wav_file,
+            length_scale=LENGTH_SCALE,
+            sentence_silence=SENTENCE_SILENCE,
+        )
 
     audio = buf.getvalue()
     return Response(
