@@ -157,20 +157,27 @@ export function CommandCenterPage() {
         </div>
       </motion.div>
 
-      {/* ── Business state first (section 34 priority order) ─────────── */}
-      <motion.div initial="hidden" animate="show" custom={0.18} variants={fadeRise}>
+      {/* ── Jarvis Core — full-width hero, not a cramped side panel ───── */}
+      <motion.div
+        initial="hidden" animate="show" custom={0.12} variants={fadeRise}
+        className={`${PANEL} ${PANEL_PADDING} flex flex-col items-center justify-center py-8 relative overflow-hidden`}
+      >
+        <div className="text-[11px] font-semibold uppercase tracking-[0.3em] text-[#4FE8FF] mb-1 relative">GID GARAGE</div>
+        <div className="text-[10px] uppercase tracking-[0.2em] text-[#52616D] mb-4 relative">AI Core</div>
+        <JarvisStatus state={jarvisState} liveActivity={liveActivity} size={340} />
+      </motion.div>
+
+      {/* ── Business state (section 34 priority order) ────────────────── */}
+      <motion.div initial="hidden" animate="show" custom={0.24} variants={fadeRise}>
         <BusinessMetrics today={summary.today} />
       </motion.div>
 
-      {/* ── Needs Attention + Jarvis Core — denser 12-col band ────────── */}
+      {/* ── Needs Attention + Upcoming — denser 12-col band ───────────── */}
       <motion.div initial="hidden" animate="show" custom={0.36} variants={fadeRise} className="grid grid-cols-1 lg:grid-cols-12 gap-3">
-        <div className="lg:col-span-5">
+        <div className="lg:col-span-7">
           <AttentionPanel items={summary.needsAttention} />
         </div>
-        <div className={`lg:col-span-3 ${PANEL} ${PANEL_PADDING} flex items-center justify-center`}>
-          <JarvisStatus state={jarvisState} liveActivity={liveActivity} size={230} />
-        </div>
-        <div className="lg:col-span-4">
+        <div className="lg:col-span-5">
           <UpcomingJobs scheduleBar={summary.scheduleBar} />
         </div>
       </motion.div>

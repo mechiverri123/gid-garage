@@ -28,7 +28,7 @@ import { COLORS } from '../tokens';
 import type { JarvisState } from '../types';
 
 const STATE_COLOR: Record<JarvisState, string> = {
-  idle: COLORS.textFaint,
+  idle: COLORS.accentDim,
   processing: COLORS.accent,
   tool: COLORS.accent,
   success: COLORS.success,
@@ -58,7 +58,7 @@ function GlowSphere({ state }: { state: JarvisState }) {
       <meshBasicMaterial
         color={STATE_COLOR[state]}
         transparent
-        opacity={0.12}
+        opacity={0.2}
         side={THREE.BackSide}
         depthWrite={false}
       />
@@ -91,7 +91,7 @@ function CoreSphere({ state }: { state: JarvisState }) {
       <meshStandardMaterial
         color={STATE_COLOR[state]}
         emissive={STATE_COLOR[state]}
-        emissiveIntensity={0.9}
+        emissiveIntensity={1.4}
         roughness={0.25}
         metalness={0.1}
         wireframe
@@ -186,8 +186,8 @@ function Scene({ state, progress }: { state: JarvisState; progress: number }) {
   const arc = state === 'tool' ? Math.max(0.15, progress) * Math.PI * 2 : undefined;
   return (
     <>
-      <ambientLight intensity={0.4} />
-      <pointLight position={[2, 2, 2]} intensity={0.6} color={STATE_COLOR[state]} />
+      <ambientLight intensity={0.5} />
+      <pointLight position={[2, 2, 2]} intensity={1.1} color={STATE_COLOR[state]} />
       <GlowSphere state={state} />
       <CoreSphere state={state} />
       <Ring radius={0.78} thickness={0.010} speed={0.6} tilt={Math.PI / 2.4} opacity={0.5} state={state} />
@@ -219,8 +219,8 @@ export function JarvisCore({ state, progress = 0, label, size = 160 }: { state: 
         className="absolute rounded-full pointer-events-none"
         style={{
           width: size * 0.9, height: size * 0.9,
-          background: `radial-gradient(circle, ${color}33 0%, transparent 70%)`,
-          filter: 'blur(8px)',
+          background: `radial-gradient(circle, ${color}55 0%, transparent 70%)`,
+          filter: 'blur(12px)',
         }}
       />
       {/* IMPORTANT: this div (the Canvas's direct measuring container)

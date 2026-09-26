@@ -32,7 +32,7 @@ export default function JarvisPage() {
         className="fixed inset-0 pointer-events-none"
         style={{
           backgroundImage:
-            'linear-gradient(rgba(50,217,255,0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(50,217,255,0.03) 1px, transparent 1px)',
+            'linear-gradient(rgba(79,232,255,0.04) 1px, transparent 1px), linear-gradient(90deg, rgba(79,232,255,0.04) 1px, transparent 1px)',
           backgroundSize: '48px 48px',
         }}
       />
@@ -41,7 +41,7 @@ export default function JarvisPage() {
         style={{
           top: '-10%', left: '50%', transform: 'translateX(-50%)',
           width: '60vw', height: '60vw', maxWidth: '900px', maxHeight: '900px',
-          background: 'radial-gradient(circle, rgba(50,217,255,0.06) 0%, transparent 70%)',
+          background: 'radial-gradient(circle, rgba(79,232,255,0.09) 0%, transparent 70%)',
         }}
       />
       <div className="relative">

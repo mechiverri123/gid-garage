@@ -5,27 +5,27 @@
 // layer animation libraries on top of this without touching the palette.
 
 export const COLORS = {
-  bg0: '#06090D',
-  bg1: '#090D12',
-  bg2: '#0D1218',
-  panel: 'rgba(15, 22, 29, 0.72)',
-  panelAlt: 'rgba(20, 28, 36, 0.55)',
-  accent: '#32D9FF',
-  accentDim: '#12A8D8',
+  bg0: '#050B14',
+  bg1: '#081020',
+  bg2: '#0B1628',
+  panel: 'rgba(10, 20, 36, 0.75)',
+  panelAlt: 'rgba(14, 26, 44, 0.6)',
+  accent: '#4FE8FF',
+  accentDim: '#1FB8E8',
   success: '#42D392',
   warning: '#F5B942',
   critical: '#FF5353',
   text: '#F5F8FA',
   textMuted: '#8899A6',
   textFaint: '#52616D',
-  border: 'rgba(80, 210, 255, 0.12)',
+  border: 'rgba(79, 232, 255, 0.22)',
 } as const;
 
 // A "technical glass" panel — the base surface for every card in the new
 // layout. Tailwind arbitrary values so no tailwind.config.js changes are
 // needed for Phase 1.
 export const PANEL =
-  'bg-[#0f1620]/80 backdrop-blur-xl border border-[rgba(80,210,255,0.12)] rounded-xl shadow-[inset_0_1px_0_rgba(255,255,255,0.03),0_12px_40px_rgba(0,0,0,0.25)] transition-all duration-300 hover:border-[rgba(50,217,255,0.4)] hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.05),0_12px_40px_rgba(0,0,0,0.25),0_0_24px_rgba(50,217,255,0.12)] hover:-translate-y-0.5';
+  'bg-[#0b1420]/85 backdrop-blur-xl border border-[rgba(79,232,255,0.18)] rounded-xl shadow-[inset_0_1px_0_rgba(255,255,255,0.04),0_12px_40px_rgba(0,0,0,0.3)] transition-all duration-300 hover:border-[rgba(79,232,255,0.5)] hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.06),0_12px_40px_rgba(0,0,0,0.3),0_0_32px_rgba(79,232,255,0.18)] hover:-translate-y-0.5';
 
 export const PANEL_PADDING = 'p-4 sm:p-5';
 
