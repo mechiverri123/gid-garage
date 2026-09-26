@@ -1,11 +1,8 @@
-// Cloudflare Pages Function — POST /jarvis-speak
-// Generates GID's spoken response with OpenAI TTS.
-// Requires OPENAI_API_KEY in the deployed Cloudflare Pages environment.
-// IMPORTANT: Cloudflare Access should protect this route at the edge.
-// This function intentionally does NOT require Cf-Access-Jwt-Assertion itself.
+// Cloudflare Pages Function — /jarvis-speak
+// Primary voice: self-hosted Piper community JARVIS voice service.
+// Optional fallback: existing OpenAI TTS when OPENAI_API_KEY is set.
 
-const OPENAI_SPEECH_URL = 'https://api.openai.com/v1/audio/speech';
-const MAX_TEXT = 4096;
+const MAX_TEXT = 1800;
 
 function json(body, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -17,56 +14,16 @@ function json(body, status = 200) {
   });
 }
 
-function friendlyUpstreamError(status, detail) {
-  const lower = String(detail || '').toLowerCase();
-
-  if (status === 401) {
-    return 'OpenAI rejected the API key. Check OPENAI_API_KEY in Cloudflare.';
-  }
-
-  if (status === 429 && (
-    lower.includes('quota') ||
-    lower.includes('billing') ||
-    lower.includes('insufficient') ||
-    lower.includes('credit')
-  )) {
-    return 'OpenAI API billing or credits are not active for this key.';
-  }
-
-  if (status === 429) {
-    return 'OpenAI voice rate limit reached. Try again in a moment.';
-  }
-
-  if (status === 400) {
-    return 'OpenAI rejected the voice request. Check the deployed voice settings.';
-  }
-
-  if (status === 403) {
-    return 'This OpenAI project is not allowed to use the voice endpoint.';
-  }
-
-  return `OpenAI voice request failed (${status}).`;
-}
-
 export async function onRequestGet({ env }) {
   return json({
     ok: true,
-    configured: !!env.OPENAI_API_KEY,
-    model: 'gpt-4o-mini-tts',
-    voice: 'onyx',
-    accessValidation: 'handled-by-cloudflare-edge',
+    provider: env.JARVIS_VOICE_URL ? 'piper-jarvis' : (env.OPENAI_API_KEY ? 'openai-fallback' : 'none'),
+    jarvis_voice_configured: !!env.JARVIS_VOICE_URL,
+    openai_fallback_configured: !!env.OPENAI_API_KEY,
   });
 }
 
 export async function onRequestPost({ request, env }) {
-  const apiKey = env.OPENAI_API_KEY;
-
-  if (!apiKey) {
-    return json({
-      error: 'OPENAI_API_KEY is missing in the deployed Cloudflare environment.',
-    }, 500);
-  }
-
   let body;
   try {
     body = await request.json();
@@ -75,63 +32,85 @@ export async function onRequestPost({ request, env }) {
   }
 
   const text = String(body?.text || '').trim().slice(0, MAX_TEXT);
-  if (!text) {
-    return json({ error: 'No text supplied.' }, 400);
+  if (!text) return json({ error: 'No text supplied.' }, 400);
+
+  // 1) Community Piper JARVIS voice
+  if (env.JARVIS_VOICE_URL) {
+    const endpoint = `${String(env.JARVIS_VOICE_URL).replace(/\/$/, '')}/speak`;
+
+    try {
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(env.JARVIS_VOICE_SECRET
+            ? { 'X-Jarvis-Secret': env.JARVIS_VOICE_SECRET }
+            : {}),
+        },
+        body: JSON.stringify({ text }),
+      });
+
+      if (res.ok) {
+        const audio = await res.arrayBuffer();
+        return new Response(audio, {
+          status: 200,
+          headers: {
+            'Content-Type': res.headers.get('Content-Type') || 'audio/wav',
+            'Cache-Control': 'no-store',
+            'X-GID-Voice': 'community-piper-jarvis',
+          },
+        });
+      }
+
+      const detail = await res.text();
+      console.error('Piper JARVIS voice failed', res.status, detail.slice(0, 1000));
+    } catch (err) {
+      console.error('Piper JARVIS voice request failed', err);
+    }
   }
 
-  const payload = {
-    model: 'gpt-4o-mini-tts',
-    voice: 'onyx',
-    input: text,
-    instructions: [
-      'Use a polished, cinematic male AI-assistant delivery.',
-      'Use a neutral Southern British / modern Received Pronunciation accent.',
-      'Keep the voice low, smooth, controlled, precise, and quietly confident.',
-      'Speak with crisp consonants, clean vowels, restrained emotion, and subtle dry wit.',
-      'Avoid sounding elderly, breathy, raspy, cheerful, cartoonish, robotic, synthetic, theatrical, or like a radio announcer.',
-      'Use short, deliberate pauses. Do not over-pause between every phrase.',
-      'Keep cadence conversational but highly composed, as if briefing one person in a private workshop.',
-      'Important numbers, appointments, warnings, and names should receive slightly stronger emphasis.',
-      'Address Michael naturally when useful, but do not repeat his name constantly.',
-      'Do not imitate or clone any specific actor, celebrity, or copyrighted character voice.',
-    ].join(' '),
-    response_format: 'wav',
-    speed: 0.91,
-  };
-
-  let upstream;
-  try {
-    upstream = await fetch(OPENAI_SPEECH_URL, {
+  // 2) Optional OpenAI fallback so voice still works if the container is down.
+  if (env.OPENAI_API_KEY) {
+    const res = await fetch('https://api.openai.com/v1/audio/speech', {
       method: 'POST',
       headers: {
-        Authorization: `Bearer ${apiKey}`,
+        'Authorization': `Bearer ${env.OPENAI_API_KEY}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify(payload),
+      body: JSON.stringify({
+        model: 'gpt-4o-mini-tts',
+        voice: 'onyx',
+        input: text,
+        instructions:
+          'Speak as a polished cinematic British male AI assistant. ' +
+          'Use a low, controlled, precise delivery with restrained emotion. ' +
+          'Do not imitate any specific actor or copyrighted character performance.',
+        response_format: 'wav',
+        speed: 0.92,
+      }),
     });
-  } catch (err) {
+
+    if (res.ok) {
+      const audio = await res.arrayBuffer();
+      return new Response(audio, {
+        status: 200,
+        headers: {
+          'Content-Type': 'audio/wav',
+          'Cache-Control': 'no-store',
+          'X-GID-Voice': 'openai-fallback',
+        },
+      });
+    }
+
+    const detail = await res.text();
     return json({
-      error: 'Could not reach OpenAI voice service.',
-      detail: String(err?.message || err),
+      error: `Both JARVIS voice and OpenAI fallback failed (${res.status}).`,
+      detail: detail.slice(0, 1200),
     }, 502);
   }
 
-  if (!upstream.ok) {
-    const detail = await upstream.text();
-    return json({
-      error: friendlyUpstreamError(upstream.status, detail),
-      status: upstream.status,
-      detail: detail.slice(0, 1200),
-    }, upstream.status);
-  }
-
-  const headers = new Headers();
-  headers.set('Content-Type', 'audio/wav');
-  headers.set('Cache-Control', 'no-store');
-  headers.set('X-GID-Voice', 'openai-onyx');
-
-  return new Response(upstream.body, {
-    status: 200,
-    headers,
-  });
+  return json({
+    error: 'JARVIS voice service is not configured.',
+    detail: 'Set JARVIS_VOICE_URL (and JARVIS_VOICE_SECRET if used) in Cloudflare.',
+  }, 503);
 }

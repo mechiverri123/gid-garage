@@ -1,0 +1,34 @@
+IN COMMAND CENTER PAGE:
+
+1) Import:
+import { MicDiagnostics } from './components/MicDiagnostics';
+import { useJarvisListener } from './hooks/useJarvisListener';
+
+2) Create listener after `ask` exists:
+
+const handleVoiceCommand = useCallback((command: string) => {
+  voice.stop();
+  ask(command);
+}, [ask, voice.stop]);
+
+const hearing = useJarvisListener({
+  onCommand: handleVoiceCommand,
+  suspended: voice.speaking || asking,
+});
+
+3) Pass these existing props to your VoiceControl / CommandInput if your current build already supports them:
+hearingEnabled={hearing.enabled}
+hearingState={hearing.state}
+hearingError={hearing.error}
+onToggleHearing={hearing.toggle}
+
+4) Put this directly below the command/mic area while debugging:
+
+<MicDiagnostics
+  state={hearing.state}
+  diagnostics={hearing.diagnostics}
+  error={hearing.error}
+  onRetry={hearing.retry}
+/>
+
+Once the microphone is fixed, you can keep it collapsed or remove only this visual component.

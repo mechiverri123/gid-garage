@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: gid-jarvis-voice
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /health
+    envVars:
+      - key: JARVIS_VOICE_SECRET
+        generateValue: true
+      - key: JARVIS_MODEL_REPO
+        value: jgkawell/jarvis
+      - key: JARVIS_MODEL_FILE
+        value: en/en_GB/jarvis/medium/jarvis-medium.onnx
+      - key: JARVIS_CONFIG_FILE
+        value: en/en_GB/jarvis/medium/jarvis-medium.onnx.json
