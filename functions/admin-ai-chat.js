@@ -70,10 +70,12 @@ const TOOLS = [
   },
   {
     name: 'list_jobs',
-    description: 'List jobs/bookings, optionally filtered by date range (YYYY-MM-DD), status, vehicle, or service keyword.',
+    description: 'List jobs/bookings, optionally filtered by customer, date range (YYYY-MM-DD), status, vehicle, or service keyword. To find a specific customer\'s jobs, use search_customers first to get their id, then pass it as customer_id here (more reliable than customer_name for anyone with a common name).',
     input_schema: {
       type: 'object',
       properties: {
+        customer_id: { type: 'string', description: "A customer's id, from search_customers." },
+        customer_name: { type: 'string', description: "Fallback if you don't have a customer_id yet — matches against the name on the job record." },
         date_from: { type: 'string' },
         date_to: { type: 'string' },
         job_status: { type: 'string', description: 'BOOKED, ESTIMATE_SENT, SIGNED, IN_PROGRESS, COMPLETED, INVOICED, or PAID' },
@@ -322,6 +324,17 @@ export async function onRequestPost({ request, env }) {
 
       case 'list_jobs': {
         const params = { select: 'id,fname,lname,vehicle,service,date,time,job_status,estimate_amount,invoice_amount', order: 'date.desc', limit: String(input.limit || 15) };
+        if (input.customer_id) params.customer_id = `eq.${input.customer_id}`;
+        if (input.customer_name) {
+          const words = input.customer_name.trim().split(/\s+/).filter(Boolean);
+          if (words.length >= 2) {
+            const first = words[0];
+            const rest = words.slice(1).join(' ');
+            params.and = `(fname.ilike.*${first}*,lname.ilike.*${rest}*)`;
+          } else {
+            params.or = `(fname.ilike.*${input.customer_name}*,lname.ilike.*${input.customer_name}*)`;
+          }
+        }
         if (input.date_from) params.date = `gte.${input.date_from}`;
         if (input.date_to) params['date.2'] = `lte.${input.date_to}`;
         if (input.job_status) params.job_status = `eq.${input.job_status.toUpperCase()}`;
@@ -378,8 +391,19 @@ export async function onRequestPost({ request, env }) {
       }
 
       case 'search_customers': {
-        const q = input.query || '';
-        const params = { select: 'id,fname,lname,phone,email,vehicle,vin,notes', or: `(fname.ilike.*${q}*,lname.ilike.*${q}*,phone.ilike.*${q}*,vin.ilike.*${q}*)`, limit: '10' };
+        const q = (input.query || '').trim();
+        const words = q.split(/\s+/).filter(Boolean);
+        const orParts = [];
+        if (words.length >= 2) {
+          const first = words[0];
+          const rest = words.slice(1).join(' ');
+          orParts.push(`and(fname.ilike.*${first}*,lname.ilike.*${rest}*)`);
+        }
+        orParts.push(`fname.ilike.*${q}*`);
+        orParts.push(`lname.ilike.*${q}*`);
+        orParts.push(`phone.ilike.*${q}*`);
+        orParts.push(`vin.ilike.*${q}*`);
+        const params = { select: 'id,fname,lname,phone,email,vehicle,vin,notes', or: `(${orParts.join(',')})`, limit: '10' };
         return await sbGet('customers', params);
       }
 
