@@ -16,6 +16,7 @@ export function VoiceControl({
   hearingState = 'off',
   hearingError,
   onToggleHearing,
+  provider,
 }: {
   enabled: boolean;
   speaking: boolean;
@@ -30,6 +31,7 @@ export function VoiceControl({
   hearingState?: HearingState;
   hearingError?: string | null;
   onToggleHearing?: () => void;
+  provider?: string;
 }) {
   const label = speaking
     ? 'Speaking'
@@ -69,6 +71,9 @@ export function VoiceControl({
       <div className="hidden md:block text-right mr-1 max-w-[230px]">
         <div className="text-[9px] uppercase tracking-[0.18em]" style={{ color: COLORS.textFaint }}>AI Voice</div>
         <div className="text-[10px] font-semibold" style={{ color }}>{label}</div>
+        <div className="text-[9px] uppercase tracking-[0.13em]" style={{ color: provider === 'community-piper-jarvis' ? COLORS.success : COLORS.warning }}>
+          Voice: {provider === 'community-piper-jarvis' ? 'Piper JARVIS' : (provider || 'unknown')}
+        </div>
         <div className="mt-1 text-[9px] uppercase tracking-[0.14em]" style={{ color: hearingColor }}>{hearingLabel}</div>
         {hearingError && <div className="text-[9px] leading-tight mt-0.5" style={{ color: COLORS.warning }}>{hearingError}</div>}
         {error && (

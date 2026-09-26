@@ -11,6 +11,7 @@ export function useJarvisSpeech() {
   const [needsInteraction, setNeedsInteraction] = useState(false);
   const [mode, setMode] = useState<VoiceMode>('idle');
   const [lastText, setLastText] = useState('');
+  const [provider, setProvider] = useState<string>('unknown');
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const objectUrlRef = useRef<string | null>(null);
@@ -136,6 +137,9 @@ export function useJarvisSpeech() {
       }
 
       const contentType = res.headers.get('content-type') || '';
+      const voiceProvider = res.headers.get('x-gid-voice') || 'unknown';
+      setProvider(voiceProvider);
+
       if (!contentType.includes('audio/')) {
         const unexpected = await res.text();
         if (requestId !== requestIdRef.current) return;
@@ -218,6 +222,7 @@ export function useJarvisSpeech() {
     errorDetail,
     needsInteraction,
     mode,
+    provider,
     speak,
     speakStartup,
     unlock,

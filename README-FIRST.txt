@@ -1,39 +1,43 @@
-GID Garage — definitive transcription 400 fix
+GID Garage — verify which voice is actually playing
 
-The previous recorder approach still depended on MediaRecorder/WebM.
-Opera/Chromium was producing audio that OpenAI reported as corrupted or unsupported.
+Why:
+Your Cloudflare function previously had an automatic OpenAI fallback.
+So if Railway/Piper failed for ANY reason, you could still hear a voice and think
+it was the JARVIS model when it was actually OpenAI.
 
-THIS VERSION REMOVES WEBM COMPLETELY.
+THIS PATCH REMOVES THAT AMBIGUITY.
 
-New microphone path:
-microphone
--> Web Audio API
--> raw mono PCM samples
--> browser creates a standard 16-bit RIFF/WAV file
--> Cloudflare receives jarvis.wav
--> OpenAI transcription
+Replace:
+functions/jarvis-speak.js
+src/command-center/hooks/useJarvisSpeech.ts
+src/command-center/components/VoiceControl.tsx
 
-There is no MediaRecorder container to corrupt anymore.
+One tiny page change:
+Where your <VoiceControl ... /> is rendered, add:
 
-REPLACE:
-src/command-center/hooks/useJarvisListener.ts
-functions/jarvis-transcribe.js
+provider={voice.provider}
 
-Then:
-1. npm run build
-2. deploy the complete site
-3. purge Cloudflare cache only if the old frontend chunk is still being served
-4. reload /jarvis
-5. click once anywhere if Opera leaves AudioContext suspended
-6. say: "Jarvis, catch me up."
+Example:
+<VoiceControl
+  ...
+  provider={voice.provider}
+/>
 
-Healthy Mic Diagnostics:
-Permission: granted
-getUserMedia: resolved
-Track: live
-Muted: false
-AudioContext: running
-Recorder: pcm-wav
-Mic RMS: should rise while you speak
+Behavior after deploy:
+- If Railway/Piper works, the UI shows:
+  Voice: Piper JARVIS
+- If Railway/Piper fails, you get an error.
+- It will NOT silently switch to OpenAI anymore.
 
-This patch also keeps the prior protection against React re-render microphone restart loops.
+Also test directly:
+GET https://www.gidgarage.com/jarvis-speak
+
+Expected:
+{
+  "provider": "piper-jarvis-strict",
+  "jarvis_voice_configured": true,
+  "strict_voice_mode": true
+}
+
+Then play the startup greeting.
+If the UI says "Voice: Piper JARVIS", you are definitely hearing the Railway model.
