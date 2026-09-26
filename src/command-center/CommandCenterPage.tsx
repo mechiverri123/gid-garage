@@ -24,6 +24,7 @@ import { JarvisStatus } from './components/JarvisStatus';
 import { BusinessMetrics } from './components/BusinessMetrics';
 import { AttentionPanel } from './components/AttentionPanel';
 import { UpcomingJobsList } from './components/UpcomingJobsList';
+import { LiveFeed } from './components/LiveFeed';
 import { JobDetailPanel } from './components/JobDetailPanel';
 import { LeadDetailPanel } from './components/LeadDetailPanel';
 import { LeadPipeline } from './components/LeadPipeline';
@@ -113,9 +114,14 @@ export function CommandCenterPage({ onLock }: { onLock: () => void }) {
             </div>
           </motion.div>
 
-          {/* ── Upcoming jobs — full-width timeline ───────────────────── */}
-          <motion.div initial="hidden" animate="show" custom={0.15} variants={fadeRise}>
-            <UpcomingJobsList jobs={summary.upcomingJobs} onSelect={setSelectedJobId} />
+          {/* ── Upcoming jobs timeline + Live Business Feed ───────────── */}
+          <motion.div initial="hidden" animate="show" custom={0.15} variants={fadeRise} className="grid grid-cols-1 lg:grid-cols-12 gap-3">
+            <div className="lg:col-span-7">
+              <UpcomingJobsList jobs={summary.upcomingJobs} onSelect={setSelectedJobId} />
+            </div>
+            <div className="lg:col-span-5">
+              <LiveFeed leads={leads} />
+            </div>
           </motion.div>
 
           {/* ── Leads + Marketing ──────────────────────────────────────── */}

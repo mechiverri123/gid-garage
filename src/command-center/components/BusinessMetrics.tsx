@@ -34,7 +34,7 @@ function StatRow({ label, target, formatter, warn, divider = true }: { label: st
   return (
     <div className={`flex items-baseline justify-between py-2 ${divider ? 'border-b border-white/5' : ''}`}>
       <span className="text-[11px] uppercase tracking-wide" style={{ color: COLORS.textMuted }}>{label}</span>
-      <span className="text-xl font-bold tabular-nums" style={{ color: warn ? COLORS.critical : COLORS.text }}>{formatter(value)}</span>
+      <span className="text-2xl sm:text-[28px] font-bold tabular-nums" style={{ color: warn ? COLORS.critical : COLORS.text }}>{formatter(value)}</span>
     </div>
   );
 }
