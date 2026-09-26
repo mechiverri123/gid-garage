@@ -1,13 +1,12 @@
 import type { ReactNode } from 'react';
 import { PANEL, PANEL_PADDING, COLORS } from '../tokens';
 
-// Reusable HUD panel: header rail (title + optional status dot/badge) +
-// content zone. Corner brackets and top-edge glow already come from the
-// PANEL token itself. Building this so panels share one consistent header
-// treatment instead of each component inventing its own — the "card
-// system vs HUD system" gap.
 export function HudPanel({
-  title, status, children, className = '', contentClassName = '',
+  title,
+  status,
+  children,
+  className = '',
+  contentClassName = '',
 }: {
   title: string;
   status?: { label: string; color: string };
@@ -16,17 +15,27 @@ export function HudPanel({
   contentClassName?: string;
 }) {
   return (
-    <div className={`${PANEL} ${PANEL_PADDING} ${className}`}>
-      <div className="flex items-center justify-between mb-2 pb-2" style={{ borderBottom: `1px solid ${COLORS.border}` }}>
-        <span className="text-[10px] font-semibold uppercase tracking-widest" style={{ color: COLORS.textMuted }}>{title}</span>
+    <section
+      className={`${PANEL} ${PANEL_PADDING} ${className}`}
+      style={{
+        background: `linear-gradient(180deg, rgba(10,22,38,0.94) 0%, rgba(5,13,24,0.92) 100%)`,
+        borderColor: COLORS.border,
+        boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.04), inset 0 0 0 1px rgba(84,231,255,0.05), 0 16px 48px rgba(0,0,0,0.32)',
+      }}
+    >
+      <div className="pointer-events-none absolute inset-x-5 top-0 h-px" style={{ background: `linear-gradient(90deg, transparent, ${COLORS.borderStrong}, transparent)` }} />
+      <div className="pointer-events-none absolute left-0 top-5 h-12 w-px" style={{ background: `linear-gradient(180deg, ${COLORS.accent}, transparent)` }} />
+      <div className="pointer-events-none absolute right-0 bottom-5 h-12 w-px" style={{ background: `linear-gradient(180deg, transparent, ${COLORS.accentDim})` }} />
+      <div className="flex items-center justify-between mb-3 pb-2 border-b border-white/5">
+        <span className="text-[10px] font-semibold uppercase tracking-[0.22em]" style={{ color: COLORS.textMuted }}>{title}</span>
         {status && (
-          <span className="flex items-center gap-1 text-[9px] font-semibold uppercase tracking-wide" style={{ color: status.color }}>
-            <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: status.color }} />
+          <span className="flex items-center gap-1 text-[9px] font-semibold uppercase tracking-[0.16em]" style={{ color: status.color }}>
+            <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: status.color, boxShadow: `0 0 10px ${status.color}` }} />
             {status.label}
           </span>
         )}
       </div>
       <div className={contentClassName}>{children}</div>
-    </div>
+    </section>
   );
 }

@@ -1,4 +1,5 @@
-import { PANEL, PANEL_PADDING, LABEL, COLORS } from '../tokens';
+import { HudPanel } from './HudPanel';
+import { COLORS } from '../tokens';
 import { fmtDate, money } from '../utils/formatters';
 import type { UpcomingJob } from '../types';
 
@@ -11,39 +12,40 @@ const DONE_STATUSES = new Set(['COMPLETED', 'PAID']);
 
 export function UpcomingJobsList({ jobs, onSelect }: { jobs: UpcomingJob[]; onSelect: (id: string) => void }) {
   return (
-    <div className={`${PANEL} ${PANEL_PADDING}`}>
-      <div className={LABEL + ' mb-3'}>Upcoming Jobs</div>
+    <HudPanel title="Upcoming Jobs" status={{ label: `${jobs.length} Scheduled`, color: COLORS.accent }} className="h-full">
       {jobs.length === 0 ? (
-        <div className="text-xs text-[#8899A6] py-4 text-center">Nothing scheduled in the next 7 days.</div>
+        <div className="text-xs py-8 text-center" style={{ color: COLORS.textMuted }}>Nothing scheduled in the next 7 days.</div>
       ) : (
-        <div className="max-h-80 overflow-y-auto pl-1">
-          {jobs.map((j, i) => {
+        <div className="space-y-3 max-h-[360px] overflow-y-auto pr-1">
+          {jobs.slice(0, 8).map((j, i) => {
             const color = STATUS_COLOR[j.job_status || ''] || COLORS.textMuted;
             const filled = DONE_STATUSES.has(j.job_status || '');
-            const isLast = i === jobs.length - 1;
             return (
               <button
                 key={j.id}
                 onClick={() => onSelect(j.id)}
-                className="relative w-full flex items-start gap-3 text-xs text-left pl-4 pb-4 group"
+                className="relative w-full text-left rounded-2xl border px-4 py-3 pl-12 hover:bg-white/[0.03] transition-colors"
+                style={{ borderColor: 'rgba(255,255,255,0.06)' }}
               >
-                {/* Timeline rail */}
-                {!isLast && (
-                  <div className="absolute left-[3px] top-3 bottom-0 w-px" style={{ background: 'rgba(79,232,255,0.15)' }} />
+                {i !== jobs.slice(0, 8).length - 1 && (
+                  <div className="absolute left-[21px] top-9 bottom-[-14px] w-px" style={{ background: 'linear-gradient(180deg, rgba(84,231,255,0.28), rgba(84,231,255,0.04))' }} />
                 )}
                 <span
-                  className="absolute left-0 top-1 w-2 h-2 rounded-full"
-                  style={filled ? { backgroundColor: color, boxShadow: `0 0 6px ${color}` } : { border: `1.5px solid ${color}`, background: 'transparent' }}
+                  className="absolute left-4 top-5 w-3 h-3 rounded-full"
+                  style={filled ? { backgroundColor: color, boxShadow: `0 0 8px ${color}` } : { border: `1.5px solid ${color}`, background: 'transparent' }}
                 />
-                <div className="flex-1 min-w-0 rounded transition-colors group-hover:bg-white/5 -my-1 py-1 px-1.5 -mx-1.5">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="font-mono text-[10px]" style={{ color: COLORS.accent }}>{fmtDate(j.date)}{j.time ? ` · ${j.time}` : ''}</span>
-                    <span className="text-[10px] font-semibold uppercase tracking-wide shrink-0" style={{ color }}>{j.job_status || '—'}</span>
+                <div className="grid md:grid-cols-[110px_1fr_auto] gap-3 items-start">
+                  <div>
+                    <div className="text-[10px] uppercase tracking-[0.16em]" style={{ color: COLORS.textFaint }}>{fmtDate(j.date)}</div>
+                    <div className="text-sm font-semibold mt-1" style={{ color: COLORS.accent }}>{j.time || 'TBD'}</div>
                   </div>
-                  <div className="text-[#F5F8FA] truncate mt-0.5">{j.service || 'Job'} — {j.vehicle || 'vehicle on file'}</div>
-                  <div className="flex items-center justify-between mt-0.5">
-                    {j.customer && <span className="text-[#52616D] text-[10px] truncate">{j.customer}</span>}
-                    <span className="text-[#8899A6] text-[10px] shrink-0">{money(j.amount)}</span>
+                  <div>
+                    <div className="text-sm font-semibold" style={{ color: COLORS.text }}>{j.vehicle || 'Vehicle on file'}</div>
+                    <div className="text-[12px] mt-0.5" style={{ color: COLORS.textMuted }}>{j.service || 'Job'}{j.customer ? ` · ${j.customer}` : ''}</div>
+                  </div>
+                  <div className="md:text-right">
+                    <div className="text-[10px] font-semibold uppercase tracking-[0.16em]" style={{ color }}>{j.job_status || '—'}</div>
+                    <div className="text-xs mt-1" style={{ color: COLORS.textMuted }}>{money(j.amount)}</div>
                   </div>
                 </div>
               </button>
@@ -51,6 +53,6 @@ export function UpcomingJobsList({ jobs, onSelect }: { jobs: UpcomingJob[]; onSe
           })}
         </div>
       )}
-    </div>
+    </HudPanel>
   );
 }

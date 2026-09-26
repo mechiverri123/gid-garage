@@ -1,18 +1,3 @@
-// ── GID GARAGE — JARVIS COMMAND CENTER ───────────────────────────────────
-// App-shell layout: left nav rail + top status bar + scrollable middle +
-// persistent bottom Ask GID bar — a real operating-system composition
-// (sidebar, header, content, footer all fixed in their own flex regions)
-// rather than a single scrolling page of cards. Built with a flex-column
-// h-screen shell + overflow-y-auto on the middle region only, which keeps
-// the header/footer always visible without needing position:fixed (safer:
-// no z-index/overlap juggling, no content-hidden-behind-fixed-bar risk).
-//
-// Talks to the same backends as before:
-//   admin-api-data.js  — get-command-center-summary, list-leads, patch-lead,
-//                         add-marketing-spend
-//   admin-ai-chat.js   — streamed NDJSON agent (tool_call/tool_result/data/final)
-// ─────────────────────────────────────────────────────────────────────────
-
 import { useState } from 'react';
 import { motion } from 'motion/react';
 import type { Lead } from './types';
@@ -33,12 +18,32 @@ import { LeadPipeline } from './components/LeadPipeline';
 import { MarketingPanel } from './components/MarketingPanel';
 import { CommandPalette, useCommandPalette } from './components/CommandPalette';
 import { CommandInput } from './components/CommandInput';
-import { PANEL, PANEL_PADDING, COLORS } from './tokens';
+import { COLORS } from './tokens';
 
 const fadeRise = {
-  hidden: { opacity: 0, y: 20, scale: 0.98 },
-  show: (delay: number) => ({ opacity: 1, y: 0, scale: 1, transition: { duration: 0.6, delay, ease: 'easeOut' as const } }),
+  hidden: { opacity: 0, y: 16 },
+  show: (delay: number) => ({ opacity: 1, y: 0, transition: { duration: 0.45, delay, ease: 'easeOut' as const } }),
 };
+
+function HeroTelemetry({ liveActivity, asking }: { liveActivity: { tool: string; status: string }[]; asking: boolean }) {
+  const current = liveActivity.find(i => i.status === 'running');
+  const cells = [
+    { label: 'Agent', value: asking ? 'Active' : 'Standby', color: asking ? COLORS.accent : COLORS.textMuted },
+    { label: 'Stream', value: 'Ready', color: COLORS.success },
+    { label: 'Tools', value: current ? current.tool.replace(/_/g, ' ') : 'Idle', color: current ? COLORS.accent : COLORS.textMuted },
+    { label: 'Focus', value: current ? 'Processing' : 'Monitoring', color: current ? COLORS.warning : COLORS.textMuted },
+  ];
+  return (
+    <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mt-4 w-full max-w-[760px]">
+      {cells.map(cell => (
+        <div key={cell.label} className="rounded-xl border px-3 py-2" style={{ borderColor: 'rgba(255,255,255,0.06)', background: 'rgba(255,255,255,0.02)' }}>
+          <div className="text-[10px] uppercase tracking-[0.16em]" style={{ color: COLORS.textFaint }}>{cell.label}</div>
+          <div className="text-sm font-semibold mt-1 capitalize" style={{ color: cell.color }}>{cell.value}</div>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 export function CommandCenterPage({ onLock }: { onLock: () => void }) {
   const {
@@ -58,7 +63,7 @@ export function CommandCenterPage({ onLock }: { onLock: () => void }) {
   const palette = useCommandPalette([
     { id: 'today', label: "Today's jobs", run: () => ask("what's scheduled today") },
     { id: 'attention', label: 'Needs attention', run: () => ask('what needs my attention') },
-    { id: 'revenue', label: 'Revenue today', run: () => ask("how much revenue have we made today") },
+    { id: 'revenue', label: 'Revenue today', run: () => ask('how much revenue have we made today') },
     { id: 'leads', label: 'Show leads', run: () => ask('show me recent leads') },
     { id: 'followup', label: 'Who needs follow-up', run: () => ask('who needs follow-up') },
     { id: 'unpaid', label: 'Unpaid invoices', run: () => ask("what's unpaid") },
@@ -89,74 +94,88 @@ export function CommandCenterPage({ onLock }: { onLock: () => void }) {
   if (!summary) return null;
 
   return (
-    <div className="flex h-screen overflow-hidden">
+    <div className="flex h-screen overflow-hidden" style={{ background: `radial-gradient(circle at top, rgba(24,76,108,0.18), transparent 32%), linear-gradient(180deg, ${COLORS.bg1} 0%, ${COLORS.bg0} 100%)` }}>
       <CommandPalette open={palette.open} onClose={() => palette.setOpen(false)} commands={palette.commands} />
       <JobDetailPanel jobId={selectedJobId} onClose={() => setSelectedJobId(null)} />
       <LeadDetailPanel lead={selectedLead} onClose={() => setSelectedLead(null)} />
 
       <Sidebar onLock={onLock} />
 
-      <div className="flex-1 flex flex-col min-w-0">
+      <div className="flex-1 min-w-0 flex flex-col relative overflow-hidden">
+        <div className="absolute inset-0 opacity-70 pointer-events-none" style={{
+          backgroundImage: 'linear-gradient(rgba(84,231,255,0.055) 1px, transparent 1px), linear-gradient(90deg, rgba(84,231,255,0.055) 1px, transparent 1px)',
+          backgroundSize: '48px 48px',
+          maskImage: 'linear-gradient(180deg, rgba(0,0,0,0.8), rgba(0,0,0,0.25))',
+        }} />
+        <div className="absolute inset-x-0 top-0 h-44 pointer-events-none" style={{ background: 'linear-gradient(180deg, rgba(84,231,255,0.06), transparent)' }} />
+
         <TopStatusBar onSearch={() => palette.setOpen(true)} onRefresh={loadSummary} streamOk={!error} />
 
-        {/* ── Scrollable middle region ─────────────────────────────────── */}
-        <div className="flex-1 overflow-y-auto px-4 sm:px-6 lg:px-8 py-4 space-y-4">
-          {/* ── Three-zone hero: status | AI CORE (dominant) | attention ──
-              items-start is the key fix here: grid items default to
-              stretching to match their tallest neighbor, which was
-              forcing Today's 5 lines and Attention's 2 lines into the
-              same tall box as the orb panel — that's what caused the
-              "giant empty panel" look. items-start lets each column size
-              to its own content, and each side column now stacks two
-              real modules instead of one, so the height that's freed up
-              gets used, not left blank. ── */}
-          <motion.div initial="hidden" animate="show" custom={0.05} variants={fadeRise} className="grid grid-cols-1 lg:grid-cols-12 gap-3 items-start">
-            <div className="lg:col-span-3 flex flex-col gap-3">
-              <BusinessMetrics today={summary.today} />
-              <WeekSummary leadsSummary={summary.leadsSummary} marketingFunnel={summary.marketingFunnel} />
-            </div>
-            <div className={`lg:col-span-6 ${PANEL} ${PANEL_PADDING} flex flex-col items-center justify-center py-2 relative overflow-hidden`}>
-              <div className="text-[10px] font-semibold uppercase tracking-[0.3em] relative" style={{ color: COLORS.accent }}>GID GARAGE</div>
-              <div className="text-[9px] uppercase tracking-[0.2em] mb-1 relative" style={{ color: COLORS.textFaint }}>AI Core</div>
-              <JarvisStatus state={jarvisState} liveActivity={liveActivity} size={360} />
-            </div>
-            <div className="lg:col-span-3 flex flex-col gap-3">
-              <AttentionPanel items={summary.needsAttention} />
-              <QuickCommands onRun={ask} />
-            </div>
-          </motion.div>
+        <div className="flex-1 overflow-y-auto px-4 sm:px-6 lg:px-8 py-4 relative">
+          <div className="max-w-[1880px] mx-auto space-y-4 relative">
+            <motion.div initial="hidden" animate="show" custom={0.03} variants={fadeRise} className="grid grid-cols-1 xl:grid-cols-12 gap-4 items-start">
+              <div className="xl:col-span-3 space-y-4">
+                <BusinessMetrics today={summary.today} />
+                <WeekSummary leadsSummary={summary.leadsSummary} marketingFunnel={summary.marketingFunnel} />
+              </div>
 
-          {/* ── Upcoming jobs timeline + Live Business Feed ───────────── */}
-          <motion.div initial="hidden" animate="show" custom={0.15} variants={fadeRise} className="grid grid-cols-1 lg:grid-cols-12 gap-3 items-start">
-            <div className="lg:col-span-7">
-              <UpcomingJobsList jobs={summary.upcomingJobs} onSelect={setSelectedJobId} />
-            </div>
-            <div className="lg:col-span-5">
-              <LiveFeed leads={leads} />
-            </div>
-          </motion.div>
+              <div className="xl:col-span-6 relative rounded-[22px] border p-5 md:p-6 overflow-hidden min-h-[430px] flex flex-col items-center justify-center"
+                style={{
+                  borderColor: COLORS.border,
+                  background: 'linear-gradient(180deg, rgba(8,18,30,0.96) 0%, rgba(4,10,18,0.94) 100%)',
+                  boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.04), inset 0 0 0 1px rgba(84,231,255,0.04), 0 18px 50px rgba(0,0,0,0.35)',
+                }}>
+                <div className="absolute inset-x-6 top-0 h-px" style={{ background: `linear-gradient(90deg, transparent, ${COLORS.borderStrong}, transparent)` }} />
+                <div className="absolute inset-0 pointer-events-none" style={{ background: 'radial-gradient(circle at center, rgba(84,231,255,0.12), transparent 44%)' }} />
+                <div className="absolute bottom-10 left-1/2 -translate-x-1/2 w-[70%] h-20 rounded-[50%] pointer-events-none" style={{ border: `1px solid ${COLORS.border}`, filter: 'blur(0.2px)' }} />
+                <div className="absolute bottom-[68px] left-1/2 -translate-x-1/2 w-[54%] h-10 rounded-[50%] border border-white/5 pointer-events-none" />
+                <div className="text-[10px] font-semibold uppercase tracking-[0.32em]" style={{ color: COLORS.accent }}>GID GARAGE</div>
+                <div className="text-[9px] uppercase tracking-[0.22em] mt-1" style={{ color: COLORS.textFaint }}>AI Core</div>
+                <div className="mt-2">
+                  <JarvisStatus state={jarvisState} liveActivity={liveActivity} size={340} />
+                </div>
+                <div className="text-[10px] uppercase tracking-[0.22em] mt-1" style={{ color: COLORS.textMuted }}>
+                  {asking ? 'Analyzing' : 'Monitoring'}
+                </div>
+                <HeroTelemetry liveActivity={liveActivity} asking={asking} />
+              </div>
 
-          {/* ── Leads + Marketing ──────────────────────────────────────── */}
-          <motion.div id="marketing" initial="hidden" animate="show" custom={0.25} variants={fadeRise} className="grid grid-cols-1 lg:grid-cols-12 gap-3 items-start">
-            <div className="lg:col-span-7">
-              <LeadPipeline
-                leadsSummary={summary.leadsSummary}
-                leads={leads}
-                leadsLoading={leadsLoading}
-                leadStatusFilter={leadStatusFilter}
-                onFilterChange={s => { setLeadStatusFilter(s); loadLeads(s || undefined); }}
-                onStatusChange={updateLeadStatus}
-                onSelect={setSelectedLead}
-              />
-            </div>
-            <div className="lg:col-span-5">
-              <MarketingPanel marketingFunnel={summary.marketingFunnel} onAddSpend={submitSpend} />
-            </div>
-          </motion.div>
+              <div className="xl:col-span-3 space-y-4">
+                <AttentionPanel items={summary.needsAttention} />
+                <QuickCommands onRun={ask} />
+              </div>
+            </motion.div>
+
+            <motion.div initial="hidden" animate="show" custom={0.12} variants={fadeRise} className="grid grid-cols-1 xl:grid-cols-12 gap-4 items-start">
+              <div className="xl:col-span-7">
+                <UpcomingJobsList jobs={summary.upcomingJobs} onSelect={setSelectedJobId} />
+              </div>
+              <div className="xl:col-span-5">
+                <LiveFeed leads={leads} />
+              </div>
+            </motion.div>
+
+            <motion.div initial="hidden" animate="show" custom={0.2} variants={fadeRise} className="grid grid-cols-1 xl:grid-cols-12 gap-4 items-start">
+              <div className="xl:col-span-7">
+                <LeadPipeline
+                  leadsSummary={summary.leadsSummary}
+                  leads={leads}
+                  leadsLoading={leadsLoading}
+                  leadStatusFilter={leadStatusFilter}
+                  onFilterChange={s => { setLeadStatusFilter(s); loadLeads(s || undefined); }}
+                  onStatusChange={updateLeadStatus}
+                  onSelect={setSelectedLead}
+                />
+              </div>
+              <div className="xl:col-span-5" id="marketing">
+                <MarketingPanel marketingFunnel={summary.marketingFunnel} onAddSpend={submitSpend} />
+              </div>
+            </motion.div>
+          </div>
         </div>
 
-        {/* ── Persistent bottom Ask GID bar ────────────────────────────── */}
-        <div className="border-t px-4 sm:px-6 lg:px-8 py-3" style={{ borderColor: COLORS.border, background: 'rgba(5,11,20,0.9)', backdropFilter: 'blur(16px)' }}>
+        <div className="relative border-t px-4 sm:px-6 lg:px-8 py-4" style={{ borderColor: COLORS.border, background: 'rgba(4,10,18,0.9)', backdropFilter: 'blur(20px)' }}>
+          <div className="absolute inset-x-0 top-0 h-px" style={{ background: `linear-gradient(90deg, transparent, ${COLORS.borderStrong}, transparent)` }} />
           <CommandInput chatMessages={chatMessages} asking={asking} liveActivity={liveActivity} onAsk={ask} onClear={clear} />
         </div>
       </div>
