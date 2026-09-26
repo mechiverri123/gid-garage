@@ -1,6 +1,6 @@
 // Cloudflare Pages Function — POST /jarvis-speak
-// Turns the final GID assistant response into spoken audio.
-// Requires OPENAI_API_KEY in Cloudflare Pages/Workers environment variables.
+// Generates GID's spoken response with OpenAI TTS.
+// Requires OPENAI_API_KEY in the deployed Cloudflare Pages environment.
 
 const OPENAI_SPEECH_URL = 'https://api.openai.com/v1/audio/speech';
 const MAX_TEXT = 4096;
@@ -12,12 +12,37 @@ function json(body, status = 200) {
   });
 }
 
+function friendlyUpstreamError(status, detail) {
+  const lower = String(detail || '').toLowerCase();
+  if (status === 401) return 'OpenAI rejected the API key. Check OPENAI_API_KEY in Cloudflare.';
+  if (status === 429 && (lower.includes('quota') || lower.includes('billing') || lower.includes('insufficient'))) {
+    return 'OpenAI API billing/credits are not active for this key.';
+  }
+  if (status === 429) return 'OpenAI voice rate limit reached. Try again in a moment.';
+  if (status === 400) return 'OpenAI rejected the voice request. Check the deployed voice settings.';
+  if (status === 403) return 'This OpenAI project is not allowed to use the voice endpoint.';
+  return `OpenAI voice request failed (${status}).`;
+}
+
+export async function onRequestGet({ env }) {
+  return json({
+    ok: true,
+    configured: !!env.OPENAI_API_KEY,
+    model: 'gpt-4o-mini-tts',
+    voice: 'cedar',
+  });
+}
+
 export async function onRequestPost({ request, env }) {
+  // Cloudflare Access normally injects this header at the edge. Do not block
+  // localhost/dev previews where the header will not exist.
+  const host = new URL(request.url).hostname;
+  const isLocal = host === 'localhost' || host === '127.0.0.1';
   const accessJwt = request.headers.get('Cf-Access-Jwt-Assertion');
-  if (!accessJwt) return json({ error: 'Unauthorized' }, 401);
+  if (!isLocal && !accessJwt) return json({ error: 'Jarvis voice endpoint is behind Cloudflare Access but no Access JWT reached the function.' }, 401);
 
   const apiKey = env.OPENAI_API_KEY;
-  if (!apiKey) return json({ error: 'OPENAI_API_KEY is not configured.' }, 500);
+  if (!apiKey) return json({ error: 'OPENAI_API_KEY is missing in the deployed Cloudflare environment.' }, 500);
 
   let body;
   try {
@@ -29,36 +54,42 @@ export async function onRequestPost({ request, env }) {
   const text = String(body?.text || '').trim().slice(0, MAX_TEXT);
   if (!text) return json({ error: 'No text supplied.' }, 400);
 
-  // This is intentionally a "cinematic British-inspired AI" profile rather
-  // than an imitation of a particular actor/character. Built-in voice keeps
-  // setup instant; approved custom voices can be swapped in later by ID.
   const payload = {
     model: 'gpt-4o-mini-tts',
     voice: 'cedar',
     input: text,
     instructions: [
-      'Speak as a refined cinematic British-inspired male AI assistant.',
-      'Calm, articulate, precise, intelligent, composed, and slightly formal.',
+      'Speak as a refined cinematic British-inspired male AI business assistant.',
+      'Calm, articulate, intelligent, composed, precise, and slightly formal.',
       'Use a controlled lower register, crisp consonants, restrained emotion, and subtle warmth.',
-      'Keep the delivery efficient and natural, with brief pauses around important business numbers.',
-      'Do not imitate any specific actor, celebrity, or copyrighted character performance.',
+      'Keep delivery concise and natural. Pause briefly around names, dates, and business numbers.',
+      'Do not imitate a specific actor, celebrity, or copyrighted character performance.',
     ].join(' '),
     response_format: 'wav',
-    speed: 1.03,
+    speed: 1.02,
   };
 
-  const upstream = await fetch(OPENAI_SPEECH_URL, {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(payload),
-  });
+  let upstream;
+  try {
+    upstream = await fetch(OPENAI_SPEECH_URL, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    });
+  } catch (err) {
+    return json({ error: 'Could not reach OpenAI voice service.', detail: String(err?.message || err) }, 502);
+  }
 
   if (!upstream.ok) {
     const detail = await upstream.text();
-    return json({ error: 'Voice generation failed.', detail: detail.slice(0, 800) }, upstream.status);
+    return json({
+      error: friendlyUpstreamError(upstream.status, detail),
+      status: upstream.status,
+      detail: detail.slice(0, 1200),
+    }, upstream.status);
   }
 
   const headers = new Headers();

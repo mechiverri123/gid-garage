@@ -28,26 +28,6 @@ const fadeRise = {
   show: (delay: number) => ({ opacity: 1, y: 0, transition: { duration: 0.45, delay, ease: 'easeOut' as const } }),
 };
 
-function HeroTelemetry({ liveActivity, asking }: { liveActivity: { tool: string; status: string }[]; asking: boolean }) {
-  const current = liveActivity.find(i => i.status === 'running');
-  const cells = [
-    { label: 'Agent', value: asking ? 'Active' : 'Standby', color: asking ? COLORS.accent : COLORS.textMuted },
-    { label: 'Stream', value: 'Ready', color: COLORS.success },
-    { label: 'Tools', value: current ? current.tool.replace(/_/g, ' ') : 'Idle', color: current ? COLORS.accent : COLORS.textMuted },
-    { label: 'Focus', value: current ? 'Processing' : 'Monitoring', color: current ? COLORS.warning : COLORS.textMuted },
-  ];
-  return (
-    <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mt-4 w-full max-w-[760px]">
-      {cells.map(cell => (
-        <div key={cell.label} className="rounded-xl border px-3 py-2 backdrop-blur-sm" style={{ borderColor: 'rgba(255,255,255,0.06)', background: 'rgba(255,255,255,0.02)' }}>
-          <div className="text-[10px] uppercase tracking-[0.16em]" style={{ color: COLORS.textFaint }}>{cell.label}</div>
-          <div className="text-sm font-semibold mt-1 capitalize" style={{ color: cell.color }}>{cell.value}</div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
 function greetingFor(summary: any) {
   const hour = new Date().getHours();
   const hello = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
@@ -178,15 +158,17 @@ export function CommandCenterPage({ onLock }: { onLock: () => void }) {
                     enabled={voice.enabled}
                     speaking={voice.speaking}
                     error={voice.error}
+                    errorDetail={voice.errorDetail}
                     needsInteraction={voice.needsInteraction}
+                    mode={voice.mode}
                     onToggle={voice.toggleEnabled}
                     onStop={voice.stop}
                     onUnlock={voice.unlock}
+                    onRetry={voice.retry}
                   />
                 </div>
-                <JarvisStatus state={displayJarvisState} liveActivity={liveActivity} size={390} />
-                <div className="absolute bottom-6 left-1/2 -translate-x-1/2 w-full flex justify-center px-5">
-                  <HeroTelemetry liveActivity={liveActivity} asking={asking} />
+                <div className="w-full pt-6 pb-2">
+                  <JarvisStatus state={displayJarvisState} liveActivity={liveActivity} size={390} />
                 </div>
               </div>
 
