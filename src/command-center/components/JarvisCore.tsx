@@ -204,22 +204,17 @@ export function JarvisCore({ state, progress = 0, label, size = 160 }: { state: 
   useEffect(() => { const t = setTimeout(() => setBooted(true), 50); return () => clearTimeout(t); }, []);
 
   return (
-    <motion.div
-      className="relative flex flex-col items-center justify-center"
-      initial={{ scale: 0, opacity: 0, rotate: -30 }}
-      animate={booted ? { scale: 1, opacity: 1, rotate: 0 } : {}}
-      transition={{ type: 'spring', stiffness: 120, damping: 12, delay: 0.3 }}
-    >
-      {/* Boot flash — a bright pulse that fires once, then fades for good. */}
+    <div className="relative flex flex-col items-center justify-center">
+      {/* Boot flash — a bright pulse that fires once, then fades for good.
+          Plain div, no size-sensitive rendering, safe to animate freely. */}
       <motion.div
         className="absolute rounded-full pointer-events-none"
         style={{ width: size, height: size, background: color }}
         initial={{ opacity: 0.5, scale: 0.3 }}
         animate={booted ? { opacity: 0, scale: 1.8 } : {}}
-        transition={{ duration: 0.9, delay: 0.35, ease: 'easeOut' }}
+        transition={{ duration: 0.9, delay: 0.3, ease: 'easeOut' }}
       />
-      {/* CSS glow behind the canvas — cheap, safe, no WebGL risk, meant to
-          read as a soft ambient bleed matching the state color. */}
+      {/* CSS glow behind the canvas — cheap, safe, no WebGL risk. */}
       <div
         className="absolute rounded-full pointer-events-none"
         style={{
@@ -228,17 +223,30 @@ export function JarvisCore({ state, progress = 0, label, size = 160 }: { state: 
           filter: 'blur(8px)',
         }}
       />
-      <div style={{ width: size, height: size }} className="relative">
+      {/* IMPORTANT: this div (the Canvas's direct measuring container)
+          must never receive a scale/rotate transform, only opacity. A
+          scaled ancestor collapses what Three.js reads as the render
+          target size at mount, and it does not recover even after the
+          transform animates back — this is what broke the orb entirely
+          in the previous version. Opacity-only fade is safe: it doesn't
+          affect the measured bounding box the way scale does. */}
+      <motion.div
+        style={{ width: size, height: size }}
+        className="relative"
+        initial={{ opacity: 0 }}
+        animate={booted ? { opacity: 1 } : {}}
+        transition={{ duration: 0.6, delay: 0.3 }}
+      >
         <Canvas camera={{ position: [0, 0, 3.2], fov: 40 }} gl={{ antialias: true, alpha: true }}>
           <Scene state={state} progress={progress} />
         </Canvas>
-      </div>
+      </motion.div>
       <div
         className="text-[10px] font-semibold uppercase tracking-[0.2em] -mt-2 relative"
         style={{ color }}
       >
         {label}
       </div>
-    </motion.div>
+    </div>
   );
 }
