@@ -1423,7 +1423,7 @@ export async function onRequestPost({ request, env }) {
         const nextWeekEnd = new Date(now.getTime() + 7 * 86400000).toISOString().slice(0, 10);
 
         const [bookingsRes, leadsRes, callsRes, spendRes] = await Promise.all([
-          fetch(`${base}/bookings?select=id,fname,lname,vehicle,date,time,job_status,status,estimate_amount,invoice_amount,tax_amount,amount_paid,paid_at,created_at&date=gte.${weekStart}&date=lte.${nextWeekEnd}`, { headers }),
+          fetch(`${base}/bookings?select=id,fname,lname,vehicle,service,date,time,job_status,status,estimate_amount,invoice_amount,tax_amount,amount_paid,paid_at,created_at&date=gte.${weekStart}&date=lte.${nextWeekEnd}`, { headers }),
           fetch(`${base}/leads?select=*&created_at=gte.${windowStart}`, { headers }),
           fetch(`${base}/calls?select=*&created_at=gte.${windowStart}`, { headers }),
           fetch(`${base}/marketing_spend?select=*&date=gte.${windowStart}`, { headers }),
@@ -1524,6 +1524,24 @@ export async function onRequestPost({ request, env }) {
           costPerLead: row.leads > 0 ? row.spend / row.leads : null,
         }));
 
+        // ---- Upcoming jobs (real per-job records, today through +7 days) ----
+        // Reuses the same `bookings` fetch as scheduleBar below — no extra
+        // Supabase query. This is the actual list, not just day counts.
+        const upcomingJobs = bookings
+          .filter(b => b.date >= phoenixToday && b.status !== 'cancelled')
+          .sort((a, b) => (a.date + (a.time || '')).localeCompare(b.date + (b.time || '')))
+          .slice(0, 20)
+          .map(b => ({
+            id: b.id,
+            date: b.date,
+            time: b.time,
+            customer: `${b.fname || ''} ${b.lname || ''}`.trim(),
+            vehicle: b.vehicle,
+            service: b.service,
+            job_status: b.job_status,
+            amount: b.invoice_amount ?? b.estimate_amount ?? null,
+          }));
+
         // ---- Schedule bar (next 7 days, job count + scheduled revenue) ----
         const scheduleBar = [];
         for (let i = 0; i < 7; i++) {
@@ -1546,6 +1564,7 @@ export async function onRequestPost({ request, env }) {
             nextOpenDay,
           },
           needsAttention,
+          upcomingJobs,
           leadsSummary: {
             windowDays,
             total: leads.length,

@@ -86,7 +86,7 @@ export function MarketingPanel({
             placeholder="0.00" className="w-24 bg-black/30 border border-white/10 text-[#8899A6] text-xs px-2 py-1.5 rounded outline-none" />
         </div>
         <button type="submit" disabled={saving}
-          className="border border-white/10 text-[#8899A6] hover:border-[#32D9FF] hover:text-[#32D9FF] disabled:opacity-50 text-xs font-semibold uppercase tracking-wide px-4 py-1.5 rounded transition-colors">
+          className="border border-white/10 text-[#8899A6] hover:border-[#32D9FF] hover:text-[#32D9FF] disabled:opacity-50 text-xs font-semibold uppercase tracking-wide px-4 py-1.5 rounded transition-all hover:-translate-y-px active:scale-[0.98]">
           {saving ? 'Saving…' : '+ Add Spend'}
         </button>
       </form>

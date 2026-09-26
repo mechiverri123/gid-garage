@@ -2,10 +2,9 @@ import { PANEL, PANEL_PADDING, LABEL, COLORS } from '../tokens';
 import { fmtDayLabel, money } from '../utils/formatters';
 import type { CommandCenterSummary } from '../types';
 
-// Note: this shows job counts + revenue per day, not individual job
-// records — that's what get-command-center-summary returns today. A true
-// per-job upcoming list (time/customer/vehicle/service, per spec section
-// 15) needs a new backend query and is deferred past Phase 1.
+// Quick 7-day visual overview (counts + revenue per day). The real
+// per-job list lives in UpcomingJobsList.tsx, rendered right below this —
+// this stays as the at-a-glance version.
 export function UpcomingJobs({ scheduleBar }: { scheduleBar: CommandCenterSummary['scheduleBar'] }) {
   const maxJobs = Math.max(1, ...scheduleBar.map(d => d.jobCount));
   return (

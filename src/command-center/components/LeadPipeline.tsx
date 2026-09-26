@@ -44,7 +44,9 @@ export function LeadPipeline({
       {leadsLoading ? (
         <div className="text-xs text-[#52616D] py-4 text-center">Loading…</div>
       ) : leads.length === 0 ? (
-        <div className="text-xs text-[#52616D] py-4 text-center">No leads found.</div>
+        <div className="text-xs text-[#52616D] py-4 text-center">
+          {leadStatusFilter ? `No ${leadStatusFilter.replace('_', ' ')} leads.` : 'No leads yet — new quotes and bookings will show up here automatically.'}
+        </div>
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full text-xs">

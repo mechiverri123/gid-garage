@@ -39,7 +39,7 @@ export function CommandInput({
           className="flex-1 bg-black/30 border border-white/10 text-[#F5F8FA] placeholder-[#52616D] px-4 py-2.5 text-sm rounded-lg outline-none focus:border-[#32D9FF]/50 transition-colors"
         />
         <button type="submit" disabled={asking}
-          className="bg-[#32D9FF] hover:bg-[#12A8D8] disabled:opacity-40 text-[#06090D] text-xs font-bold uppercase tracking-wide px-5 py-2.5 rounded-lg transition-colors whitespace-nowrap">
+          className="bg-[#32D9FF] hover:bg-[#12A8D8] disabled:opacity-40 text-[#06090D] text-xs font-bold uppercase tracking-wide px-5 py-2.5 rounded-lg transition-all hover:-translate-y-px active:scale-[0.98] whitespace-nowrap">
           {asking ? '…' : 'Ask'}
         </button>
       </form>
