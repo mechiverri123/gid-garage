@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef, type Dispatch, type SetStateAction } from 'react';
 import { JobsTab, BusinessHub, MileageTab, JobDetailPanel, getJobById, getAllJobs, OwnerPayPanel, CustomersTab, type Job } from './JobOps';
-import { CommandCenterTab } from './CommandCenter';
 import { getEngines } from './engineData';
 import { getTrims } from './trimData';
 
@@ -1712,7 +1711,7 @@ function StepHeader({ n, current, label }: { n: number; current: number; label: 
 }
 
 // ── ADMIN PASSWORD GATE ─────────────────────────────────────────────────────
-function AdminPasswordGate({ onUnlock }: { onUnlock: () => void }) {
+export function AdminPasswordGate({ onUnlock }: { onUnlock: () => void }) {
   const [input, setInput] = useState('');
   const [error, setError] = useState(false);
 
@@ -1948,7 +1947,7 @@ function BlackoutDatesModal({ onClose }: { onClose: () => void }) {
 export function AdminSchedule() {
   const [unlocked, setUnlocked] = useState(() => sessionStorage.getItem('gg_admin_auth') === '1');
   const [bookings, setBookings] = useState<Booking[]>([]);
-  const [adminTab, setAdminTab] = useState<'command' | 'jobs' | 'schedule' | 'customers' | 'mileage' | 'hub' | 'pay'>('jobs');
+  const [adminTab, setAdminTab] = useState<'jobs' | 'schedule' | 'customers' | 'mileage' | 'hub' | 'pay'>('jobs');
   const [filter, setFilter] = useState<'all' | 'confirmed' | 'completed' | 'cancelled'>('all');
   const [view, setView] = useState<'list' | 'month' | 'week' | 'day'>('month');
   const [calDate, setCalDate] = useState(new Date());
@@ -2256,6 +2255,8 @@ export function AdminSchedule() {
             {notifPerm === 'granted' && (
               <span className="text-[9px] sm:text-xs text-green-600 font-bold uppercase tracking-wide px-1.5 sm:px-3 py-1.5 sm:py-2 whitespace-nowrap">🔔 On</span>
             )}
+            <a href="/jarvis"
+              className="border border-gray-700 text-gray-400 hover:border-red-600 hover:text-white text-[9px] sm:text-xs font-bold uppercase tracking-wide px-1.5 sm:px-3 py-1.5 sm:py-2 transition-colors whitespace-nowrap">🎯 Jarvis</a>
             <button onClick={() => getSupabaseBookings().then(setBookings)}
               className="border border-gray-700 text-gray-400 hover:border-red-600 hover:text-white text-[9px] sm:text-xs font-bold uppercase tracking-wide px-1.5 sm:px-3 py-1.5 sm:py-2 transition-colors whitespace-nowrap">↻ Refresh</button>
             <button onClick={() => { sessionStorage.removeItem('gg_admin_auth'); setUnlocked(false); }}
@@ -2267,15 +2268,13 @@ export function AdminSchedule() {
 
         {/* Main Tabs */}
         <div className="flex gap-0 mb-8 border-b border-gray-800">
-          {(['command', 'jobs', 'schedule', 'customers', 'mileage', 'hub', 'pay'] as const).map(tab => (
+          {(['jobs', 'schedule', 'customers', 'mileage', 'hub', 'pay'] as const).map(tab => (
             <button key={tab} onClick={() => setAdminTab(tab)}
               className={`text-xs font-bold uppercase tracking-widest px-6 py-3 transition-colors border-b-2 -mb-px ${adminTab === tab ? 'border-red-600 text-white' : 'border-transparent text-gray-500 hover:text-gray-300'}`}>
-              {tab === 'command' ? '🎯 Command' : tab === 'jobs' ? '💼 Jobs' : tab === 'schedule' ? '📅 Schedule' : tab === 'customers' ? '👥 Customers' : tab === 'mileage' ? '🚗 Mileage' : tab === 'hub' ? '🏢 Hub' : '💵 Pay'}
+              {tab === 'jobs' ? '💼 Jobs' : tab === 'schedule' ? '📅 Schedule' : tab === 'customers' ? '👥 Customers' : tab === 'mileage' ? '🚗 Mileage' : tab === 'hub' ? '🏢 Hub' : '💵 Pay'}
             </button>
           ))}
         </div>
-
-        {adminTab === 'command' && <CommandCenterTab />}
 
         {adminTab === 'schedule' && (<>
         {/* Stats */}
