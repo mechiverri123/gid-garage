@@ -1,9 +1,11 @@
 // ── GID GARAGE — JARVIS COMMAND CENTER ───────────────────────────────────
-// Full-width layout — this is its own standalone page (gidgarage.com/jarvis),
-// not a tab living inside /admin's narrower max-w-6xl convention, so it
-// uses the whole viewport like an actual command center, not a centered
-// column with dead space on either side. Meant to be usable full-screen
-// (F11 or the in-page fullscreen toggle below).
+// App-shell layout: left nav rail + top status bar + scrollable middle +
+// persistent bottom Ask GID bar — a real operating-system composition
+// (sidebar, header, content, footer all fixed in their own flex regions)
+// rather than a single scrolling page of cards. Built with a flex-column
+// h-screen shell + overflow-y-auto on the middle region only, which keeps
+// the header/footer always visible without needing position:fixed (safer:
+// no z-index/overlap juggling, no content-hidden-behind-fixed-bar risk).
 //
 // Talks to the same backends as before:
 //   admin-api-data.js  — get-command-center-summary, list-leads, patch-lead,
@@ -11,15 +13,16 @@
 //   admin-ai-chat.js   — streamed NDJSON agent (tool_call/tool_result/data/final)
 // ─────────────────────────────────────────────────────────────────────────
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { motion } from 'motion/react';
 import type { Lead } from './types';
 import { useBusinessSummary } from './hooks/useBusinessSummary';
 import { useAdminAI } from './hooks/useAdminAI';
+import { Sidebar } from './components/Sidebar';
+import { TopStatusBar } from './components/TopStatusBar';
 import { JarvisStatus } from './components/JarvisStatus';
 import { BusinessMetrics } from './components/BusinessMetrics';
 import { AttentionPanel } from './components/AttentionPanel';
-import { UpcomingJobs } from './components/UpcomingJobs';
 import { UpcomingJobsList } from './components/UpcomingJobsList';
 import { JobDetailPanel } from './components/JobDetailPanel';
 import { LeadDetailPanel } from './components/LeadDetailPanel';
@@ -27,50 +30,14 @@ import { LeadPipeline } from './components/LeadPipeline';
 import { MarketingPanel } from './components/MarketingPanel';
 import { CommandPalette, useCommandPalette } from './components/CommandPalette';
 import { CommandInput } from './components/CommandInput';
-import { PANEL, PANEL_PADDING } from './tokens';
+import { PANEL, PANEL_PADDING, COLORS } from './tokens';
 
-// Full-bleed page shell — this is the thing that changed. Everywhere else
-// (admin's tabs) intentionally stays a centered max-w-6xl column; this page
-// is the exception, meant to fill a monitor edge to edge.
-const PAGE = 'w-full px-4 sm:px-6 lg:px-10 py-4 space-y-4';
-
-// Page-load choreography (spec section 57): each major section fades and
-// rises in with a short stagger, once, on mount — not a looping animation,
-// just an entrance. Kept short (per spec's ~250-400ms workspace-transition
-// range) so it reads as polish, not a delay.
 const fadeRise = {
-  hidden: { opacity: 0, y: 28, scale: 0.98 },
-  show: (delay: number) => ({ opacity: 1, y: 0, scale: 1, transition: { duration: 0.7, delay, ease: 'easeOut' as const } }),
+  hidden: { opacity: 0, y: 20, scale: 0.98 },
+  show: (delay: number) => ({ opacity: 1, y: 0, scale: 1, transition: { duration: 0.6, delay, ease: 'easeOut' as const } }),
 };
 
-function LiveClock() {
-  const [now, setNow] = useState(new Date());
-  useEffect(() => {
-    const t = setInterval(() => setNow(new Date()), 1000 * 30);
-    return () => clearInterval(t);
-  }, []);
-  return <span className="text-[11px] text-[#52616D] font-mono">{now.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}</span>;
-}
-
-function FullscreenToggle() {
-  const [isFull, setIsFull] = useState(false);
-  useEffect(() => {
-    const onChange = () => setIsFull(!!document.fullscreenElement);
-    document.addEventListener('fullscreenchange', onChange);
-    return () => document.removeEventListener('fullscreenchange', onChange);
-  }, []);
-  function toggle() {
-    if (document.fullscreenElement) document.exitFullscreen();
-    else document.documentElement.requestFullscreen().catch(() => {});
-  }
-  return (
-    <button onClick={toggle} className="text-[#52616D] hover:text-[#8899A6] text-[11px] uppercase tracking-wide">
-      {isFull ? '⤢ Exit Fullscreen' : '⛶ Fullscreen'}
-    </button>
-  );
-}
-
-export function CommandCenterPage() {
+export function CommandCenterPage({ onLock }: { onLock: () => void }) {
   const {
     summary, loading, error, loadSummary,
     leads, leadsLoading, leadStatusFilter, setLeadStatusFilter, loadLeads,
@@ -98,115 +65,83 @@ export function CommandCenterPage() {
 
   if (loading && !summary) {
     return (
-      <div className={PAGE}>
-        <div className="flex items-center justify-between">
-          <div className="space-y-1.5">
-            <div className="h-2.5 w-20 bg-white/5 rounded animate-pulse" />
-            <div className="h-4 w-40 bg-white/5 rounded animate-pulse" />
-          </div>
-          <div className="h-3 w-12 bg-white/5 rounded animate-pulse" />
-        </div>
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-          {[0, 1, 2, 3].map(i => (
-            <div key={i} className={`${PANEL} ${PANEL_PADDING} space-y-2`}>
-              <div className="h-2 w-16 bg-white/5 rounded animate-pulse" />
-              <div className="h-7 w-12 bg-white/5 rounded animate-pulse" />
-            </div>
-          ))}
-        </div>
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
-          <div className={`${PANEL} ${PANEL_PADDING} lg:col-span-2 h-32 animate-pulse`} />
-          <div className={`${PANEL} ${PANEL_PADDING} h-32 animate-pulse`} />
-        </div>
-        <div className={`${PANEL} ${PANEL_PADDING} h-24 animate-pulse`} />
+      <div className="w-full h-screen flex items-center justify-center">
+        <div className="text-[#52616D] text-sm animate-pulse">Loading command center…</div>
       </div>
     );
   }
   if (error && !summary) {
     return (
-      <div className={PAGE + ' text-center py-12'}>
-        <p className="text-[#FF5353] text-sm mb-3">Failed to load: {error}</p>
-        <p className="text-[#52616D] text-xs mb-4">
-          If this is the first time loading this tab, make sure you've run <code className="text-[#8899A6]">gid_command_center_migration.sql</code> in the Supabase SQL editor.
-        </p>
-        <button onClick={loadSummary} className="border border-white/10 text-[#8899A6] hover:border-[#32D9FF] hover:text-[#32D9FF] text-xs font-semibold uppercase tracking-wide px-4 py-2 rounded">Retry</button>
+      <div className="w-full h-screen flex items-center justify-center text-center px-4">
+        <div>
+          <p className="text-[#FF5353] text-sm mb-3">Failed to load: {error}</p>
+          <p className="text-[#52616D] text-xs mb-4">
+            If this is the first time loading this tab, make sure you've run <code className="text-[#8899A6]">gid_command_center_migration.sql</code> in the Supabase SQL editor.
+          </p>
+          <button onClick={loadSummary} className="border border-white/10 text-[#8899A6] hover:border-[#4FE8FF] hover:text-[#4FE8FF] text-xs font-semibold uppercase tracking-wide px-4 py-2 rounded">Retry</button>
+        </div>
       </div>
     );
   }
   if (!summary) return null;
 
   return (
-    <div className={PAGE}>
+    <div className="flex h-screen overflow-hidden">
       <CommandPalette open={palette.open} onClose={() => palette.setOpen(false)} commands={palette.commands} />
       <JobDetailPanel jobId={selectedJobId} onClose={() => setSelectedJobId(null)} />
       <LeadDetailPanel lead={selectedLead} onClose={() => setSelectedLead(null)} />
 
-      {/* ── Header ──────────────────────────────────────────────────── */}
-      <motion.div initial="hidden" animate="show" custom={0} variants={fadeRise} className="flex items-center justify-between">
-        <div>
-          <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[#52616D]">GID Garage</div>
-          <div className="text-lg font-bold text-[#F5F8FA] tracking-tight">Command Center</div>
-        </div>
-        <div className="flex items-center gap-3">
-          <button onClick={() => palette.setOpen(true)} className="hidden sm:flex items-center gap-1.5 text-[10px] text-[#52616D] hover:text-[#8899A6] border border-white/10 rounded px-2 py-1">
-            <span>Ctrl</span><span className="opacity-50">+</span><span>K</span>
-          </button>
-          <FullscreenToggle />
-          <LiveClock />
-          <button onClick={loadSummary} className="text-[#52616D] hover:text-[#8899A6] text-[11px] uppercase tracking-wide">↻ Refresh</button>
-        </div>
-      </motion.div>
+      <Sidebar onLock={onLock} />
 
-      {/* ── Jarvis Core — full-width hero, not a cramped side panel ───── */}
-      <motion.div
-        initial="hidden" animate="show" custom={0.12} variants={fadeRise}
-        className={`${PANEL} ${PANEL_PADDING} flex flex-col items-center justify-center py-8 relative overflow-hidden`}
-      >
-        <div className="text-[11px] font-semibold uppercase tracking-[0.3em] text-[#4FE8FF] mb-1 relative">GID GARAGE</div>
-        <div className="text-[10px] uppercase tracking-[0.2em] text-[#52616D] mb-4 relative">AI Core</div>
-        <JarvisStatus state={jarvisState} liveActivity={liveActivity} size={340} />
-      </motion.div>
+      <div className="flex-1 flex flex-col min-w-0">
+        <TopStatusBar onSearch={() => palette.setOpen(true)} onRefresh={loadSummary} streamOk={!error} />
 
-      {/* ── Business state (section 34 priority order) ────────────────── */}
-      <motion.div initial="hidden" animate="show" custom={0.24} variants={fadeRise}>
-        <BusinessMetrics today={summary.today} />
-      </motion.div>
+        {/* ── Scrollable middle region ─────────────────────────────────── */}
+        <div className="flex-1 overflow-y-auto px-4 sm:px-6 lg:px-8 py-4 space-y-4">
+          {/* ── Three-zone hero: status | AI CORE (dominant) | attention ── */}
+          <motion.div initial="hidden" animate="show" custom={0.05} variants={fadeRise} className="grid grid-cols-1 lg:grid-cols-12 gap-3">
+            <div className="lg:col-span-3">
+              <BusinessMetrics today={summary.today} />
+            </div>
+            <div className={`lg:col-span-6 ${PANEL} ${PANEL_PADDING} flex flex-col items-center justify-center py-6 relative overflow-hidden`}>
+              <div className="text-[10px] font-semibold uppercase tracking-[0.3em] relative" style={{ color: COLORS.accent }}>GID GARAGE</div>
+              <div className="text-[9px] uppercase tracking-[0.2em] mb-3 relative" style={{ color: COLORS.textFaint }}>AI Core</div>
+              <JarvisStatus state={jarvisState} liveActivity={liveActivity} size={280} />
+            </div>
+            <div className="lg:col-span-3">
+              <AttentionPanel items={summary.needsAttention} />
+            </div>
+          </motion.div>
 
-      {/* ── Needs Attention + Upcoming — denser 12-col band ───────────── */}
-      <motion.div initial="hidden" animate="show" custom={0.36} variants={fadeRise} className="grid grid-cols-1 lg:grid-cols-12 gap-3">
-        <div className="lg:col-span-7">
-          <AttentionPanel items={summary.needsAttention} />
-        </div>
-        <div className="lg:col-span-5">
-          <UpcomingJobs scheduleBar={summary.scheduleBar} />
-        </div>
-      </motion.div>
+          {/* ── Upcoming jobs — full-width timeline ───────────────────── */}
+          <motion.div initial="hidden" animate="show" custom={0.15} variants={fadeRise}>
+            <UpcomingJobsList jobs={summary.upcomingJobs} onSelect={setSelectedJobId} />
+          </motion.div>
 
-      {/* ── Command input — central to the interface, not buried ─────── */}
-      <motion.div initial="hidden" animate="show" custom={0.54} variants={fadeRise}>
-        <CommandInput chatMessages={chatMessages} asking={asking} liveActivity={liveActivity} onAsk={ask} onClear={clear} />
-      </motion.div>
+          {/* ── Leads + Marketing ──────────────────────────────────────── */}
+          <motion.div id="marketing" initial="hidden" animate="show" custom={0.25} variants={fadeRise} className="grid grid-cols-1 lg:grid-cols-12 gap-3">
+            <div className="lg:col-span-7">
+              <LeadPipeline
+                leadsSummary={summary.leadsSummary}
+                leads={leads}
+                leadsLoading={leadsLoading}
+                leadStatusFilter={leadStatusFilter}
+                onFilterChange={s => { setLeadStatusFilter(s); loadLeads(s || undefined); }}
+                onStatusChange={updateLeadStatus}
+                onSelect={setSelectedLead}
+              />
+            </div>
+            <div className="lg:col-span-5">
+              <MarketingPanel marketingFunnel={summary.marketingFunnel} onAddSpend={submitSpend} />
+            </div>
+          </motion.div>
+        </div>
 
-      {/* ── Upcoming jobs (real list) + Leads + Marketing — 12-col body ── */}
-      <motion.div initial="hidden" animate="show" custom={0.72} variants={fadeRise} className="grid grid-cols-1 lg:grid-cols-12 gap-3">
-        <div className="lg:col-span-5">
-          <UpcomingJobsList jobs={summary.upcomingJobs} onSelect={setSelectedJobId} />
+        {/* ── Persistent bottom Ask GID bar ────────────────────────────── */}
+        <div className="border-t px-4 sm:px-6 lg:px-8 py-3" style={{ borderColor: COLORS.border, background: 'rgba(5,11,20,0.9)', backdropFilter: 'blur(16px)' }}>
+          <CommandInput chatMessages={chatMessages} asking={asking} liveActivity={liveActivity} onAsk={ask} onClear={clear} />
         </div>
-        <div className="lg:col-span-4">
-          <LeadPipeline
-            leadsSummary={summary.leadsSummary}
-            leads={leads}
-            leadsLoading={leadsLoading}
-            leadStatusFilter={leadStatusFilter}
-            onFilterChange={s => { setLeadStatusFilter(s); loadLeads(s || undefined); }}
-            onStatusChange={updateLeadStatus}
-            onSelect={setSelectedLead}
-          />
-        </div>
-        <div className="lg:col-span-3">
-          <MarketingPanel marketingFunnel={summary.marketingFunnel} onAddSpend={submitSpend} />
-        </div>
-      </motion.div>
+      </div>
     </div>
   );
 }

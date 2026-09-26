@@ -25,7 +25,7 @@ export const COLORS = {
 // layout. Tailwind arbitrary values so no tailwind.config.js changes are
 // needed for Phase 1.
 export const PANEL =
-  'bg-[#0b1420]/85 backdrop-blur-xl border border-[rgba(79,232,255,0.18)] rounded-xl shadow-[inset_0_1px_0_rgba(255,255,255,0.04),0_12px_40px_rgba(0,0,0,0.3)] transition-all duration-300 hover:border-[rgba(79,232,255,0.5)] hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.06),0_12px_40px_rgba(0,0,0,0.3),0_0_32px_rgba(79,232,255,0.18)] hover:-translate-y-0.5';
+  'relative bg-[#0b1420]/85 backdrop-blur-xl border border-[rgba(79,232,255,0.18)] border-t-[rgba(79,232,255,0.45)] rounded-xl shadow-[inset_0_1px_0_rgba(255,255,255,0.04),0_12px_40px_rgba(0,0,0,0.3)] transition-all duration-300 hover:border-[rgba(79,232,255,0.5)] hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.06),0_12px_40px_rgba(0,0,0,0.3),0_0_32px_rgba(79,232,255,0.18)] hover:-translate-y-0.5 before:content-[\'\'] before:absolute before:top-0 before:left-0 before:w-3 before:h-3 before:border-t-2 before:border-l-2 before:border-[#4FE8FF]/70 before:rounded-tl-lg after:content-[\'\'] after:absolute after:bottom-0 after:right-0 after:w-3 after:h-3 after:border-b-2 after:border-r-2 after:border-[#4FE8FF]/30 after:rounded-br-lg';
 
 export const PANEL_PADDING = 'p-4 sm:p-5';
 
