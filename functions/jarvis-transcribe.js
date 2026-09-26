@@ -48,8 +48,17 @@ export async function onRequestPost({ request, env }) {
   });
 
   if (!res.ok) {
-    const detail = await res.text();
-    return json({ error: `Transcription failed (${res.status}).`, detail: detail.slice(0, 1000) }, res.status);
+    const raw = await res.text();
+    let detail = raw;
+    try {
+      const parsed = JSON.parse(raw);
+      detail = parsed?.error?.message || parsed?.error || raw;
+    } catch {}
+
+    return json({
+      error: `Transcription failed (${res.status}).`,
+      detail: String(detail).slice(0, 1000),
+    }, res.status);
   }
 
   const result = await res.json();

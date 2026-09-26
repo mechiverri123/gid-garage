@@ -1,97 +1,48 @@
-GID GARAGE — COMMUNITY JARVIS VOICE + REAL MIC DIAGNOSTICS
+GID Garage — OpenAI transcription HTTP 400 fix
 
-WHAT THIS PACKAGE DOES
-======================
-A) VOICE
-- Replaces the OpenAI approximation as the PRIMARY voice.
-- Uses the community Piper model from:
-  jgkawell/jarvis
-- Current medium model:
-  en/en_GB/jarvis/medium/jarvis-medium.onnx
-- Runs in a small Docker voice service because Cloudflare Pages Functions cannot run Piper/ONNX natively.
-- Cloudflare /jarvis-speak securely proxies to that service.
-- OpenAI TTS remains an optional fallback if the Piper service is down.
+WHAT WAS WRONG
+==============
+The mic itself is now getting far enough to upload audio.
 
-B) MICROPHONE
-- Fixes a likely restart-loop bug: microphone lifecycle no longer depends on changing React callback identities.
-- Adds a hard getUserMedia timeout.
-- Does NOT await AudioContext.resume() during startup.
-- Shows the exact stage and live microphone details:
-  permission
-  getUserMedia state
-  actual input device label
-  track readyState
-  track muted state
-  AudioContext state
-  MediaRecorder state
-  live RMS microphone level
-  last browser error
+The 400 was caused by how the previous listener recorded audio:
+- one MediaRecorder stayed open continuously
+- Chromium emitted WebM/Opus chunks every 200ms
+- the code kept only chunks around the detected speech
+- later WebM chunks are not guaranteed to contain the file/container header
+- those partial chunks were joined and uploaded as if they were a complete .webm
+- OpenAI then received an invalid/undecodable audio file and returned HTTP 400
 
-VOICE SERVICE DEPLOYMENT
-========================
-Deploy the `voice-service` directory to a Docker host such as Railway or Render.
+FIX
+===
+The listener now:
+1. keeps the microphone stream + audio analyser open
+2. waits locally for actual speech
+3. creates a BRAND NEW MediaRecorder at the start of each utterance
+4. stops/finalizes that recorder after ~900ms of silence
+5. uploads the browser-finalized complete WebM/Opus file
+6. resumes wake-word listening
 
-Environment variable:
-JARVIS_VOICE_SECRET=<make a long random secret>
+This also makes the UI show the exact upstream OpenAI error message if another
+transcription problem occurs.
 
-The model downloads automatically from Hugging Face on first boot.
-The medium ONNX file is ~63.5 MB.
-
-After deploy, verify:
-https://YOUR-VOICE-SERVICE/health
-
-Then in CLOUDFLARE production environment add:
-JARVIS_VOICE_URL=https://YOUR-VOICE-SERVICE
-JARVIS_VOICE_SECRET=<same secret>
-
-Keep:
-OPENAI_API_KEY=<your existing key>
-
-Replace your Cloudflare function:
-functions/jarvis-speak.js
-
-Now /jarvis-speak first uses Piper JARVIS and only falls back to OpenAI if needed.
-
-MIC FILES
-=========
-Replace:
+REPLACE THESE 2 FILES
+=====================
 src/command-center/hooks/useJarvisListener.ts
+functions/jarvis-transcribe.js
 
-Add:
-src/command-center/components/MicDiagnostics.tsx
+THEN
+====
+npm run build
+deploy the full site
+purge Cloudflare cache only if an old hashed frontend bundle remains
 
-Use:
-src/command-center/MIC-INTEGRATION.txt
+TEST
+====
+Say:
+Jarvis, catch me up.
 
-The diagnostic panel is intentionally explicit. If the UI ever says STARTING again,
-open Mic diagnostics and it will tell us which actual browser stage is stuck.
+Expected:
+LISTENING -> HEARING -> UNDERSTANDING -> existing GID AI request -> spoken response
 
-EXPECTED HEALTHY MIC
-====================
-Permission: granted
-getUserMedia: resolved
-Input: <your actual microphone>
-Track: live
-Muted: false
-AudioContext: running
-Recorder: recording
-Mic RMS:
-  silence often around 0.0000–0.0100
-  speaking should visibly rise above that
-
-IF AUDIOCONTEXT = SUSPENDED
-===========================
-Click once anywhere in the page. Chromium/Opera may require a user gesture.
-
-IF TRACK = LIVE BUT RMS NEVER MOVES
-====================================
-That is a Windows/Opera input-device routing issue, not a permission issue.
-Select the correct input in Windows and Opera.
-
-IMPORTANT
-=========
-The Hugging Face repository labels the model MIT and describes it as emulating the
-Marvel JARVIS voice. Software/model licensing does not automatically settle every
-voice-likeness, trademark, publicity, or other commercial-use question. GID Garage is
-a commercial business, so assess those separate rights before using the voice publicly
-or in customer-facing material.
+If OpenAI still rejects the file, the UI will now show the actual upstream error
+instead of only "Transcription failed (400)".

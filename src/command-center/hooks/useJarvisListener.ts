@@ -85,7 +85,6 @@ export function useJarvisListener({ onCommand, suspended = false }: Options) {
   const analyserRef = useRef<AnalyserNode | null>(null);
   const rafRef = useRef<number | null>(null);
   const chunksRef = useRef<Blob[]>([]);
-  const preRollRef = useRef<Blob[]>([]);
   const speechStartedAtRef = useRef(0);
   const lastVoiceAtRef = useRef(0);
   const inSpeechRef = useRef(false);
@@ -120,7 +119,6 @@ export function useJarvisListener({ onCommand, suspended = false }: Options) {
     if (ctx && ctx.state !== 'closed') void ctx.close().catch(() => {});
 
     chunksRef.current = [];
-    preRollRef.current = [];
     inSpeechRef.current = false;
     sendingRef.current = false;
   }, []);
@@ -149,7 +147,10 @@ export function useJarvisListener({ onCommand, suspended = false }: Options) {
       });
 
       const body = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(body?.error || `Transcription failed (${res.status})`);
+      if (!res.ok) {
+        const detail = body?.detail ? ` ${String(body.detail).slice(0, 500)}` : '';
+        throw new Error(`${body?.error || `Transcription failed (${res.status}).`}${detail}`);
+      }
 
       const transcript = String(body?.text || '').trim();
       setLastTranscript(transcript);
@@ -310,25 +311,82 @@ export function useJarvisListener({ onCommand, suspended = false }: Options) {
       window.addEventListener('touchstart', unlock, true);
 
       const mimeType = preferredMimeType();
-      const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
-      recorderRef.current = recorder;
 
-      recorder.ondataavailable = event => {
-        if (!event.data?.size) return;
-        preRollRef.current.push(event.data);
-        if (preRollRef.current.length > 5) preRollRef.current.shift();
-        if (inSpeechRef.current) chunksRef.current.push(event.data);
+      // IMPORTANT:
+      // Do NOT keep one MediaRecorder running forever and splice arbitrary
+      // timeslice chunks together. In Chromium/WebM, later chunks can depend on
+      // the container header from the first chunk. Sending a subset of those
+      // chunks produces an invalid WebM file and OpenAI returns HTTP 400.
+      //
+      // Instead, create a NEW MediaRecorder for each detected utterance and
+      // stop it after silence. The browser then finalizes a complete, valid
+      // audio container before we upload it.
+      const beginUtteranceRecording = () => {
+        if (recorderRef.current && recorderRef.current.state !== 'inactive') return;
+
+        chunksRef.current = [];
+        const utteranceRecorder = new MediaRecorder(
+          stream,
+          mimeType ? { mimeType } : undefined
+        );
+        recorderRef.current = utteranceRecorder;
+
+        utteranceRecorder.ondataavailable = event => {
+          if (event.data?.size) chunksRef.current.push(event.data);
+        };
+
+        utteranceRecorder.onerror = (event: any) => {
+          const message = event?.error?.message || 'MediaRecorder failed.';
+          patchDiag({ recorderState: utteranceRecorder.state, lastError: message });
+          setError(message);
+          setState('error');
+        };
+
+        utteranceRecorder.onstop = () => {
+          const parts = chunksRef.current;
+          chunksRef.current = [];
+
+          const blob = new Blob(parts, {
+            type: utteranceRecorder.mimeType || mimeType || 'audio/webm',
+          });
+
+          recorderRef.current = null;
+          patchDiag({ recorderState: 'armed' });
+
+          if (blob.size >= 700) {
+            void transcribe(blob);
+          } else {
+            setState(Date.now() < armedUntilRef.current ? 'armed' : 'listening');
+          }
+        };
+
+        utteranceRecorder.start();
+        patchDiag({ recorderState: 'recording' });
       };
 
-      recorder.onerror = (event: any) => {
-        const message = event?.error?.message || 'MediaRecorder failed.';
-        patchDiag({ recorderState: recorder.state, lastError: message });
-        setError(message);
-        setState('error');
+      const finishUtteranceRecording = () => {
+        const utteranceRecorder = recorderRef.current;
+        if (!utteranceRecorder || utteranceRecorder.state === 'inactive') {
+          setState(Date.now() < armedUntilRef.current ? 'armed' : 'listening');
+          return;
+        }
+
+        try {
+          // requestData helps Chromium flush the final Opus/WebM packet before stop.
+          utteranceRecorder.requestData();
+        } catch {}
+
+        try {
+          utteranceRecorder.stop();
+        } catch (err: any) {
+          const message = err?.message || 'Could not finalize microphone recording.';
+          patchDiag({ lastError: message, recorderState: utteranceRecorder.state });
+          setError(message);
+          setState('error');
+        }
       };
 
-      recorder.start(200);
-      patchDiag({ recorderState: recorder.state });
+      patchDiag({ recorderState: 'armed' });
 
       // IMPORTANT: at this point mic hardware is live. Leave STARTING immediately.
       setState('listening');
@@ -342,7 +400,7 @@ export function useJarvisListener({ onCommand, suspended = false }: Options) {
         const activeCtx = contextRef.current;
         const activeTrack = streamRef.current?.getAudioTracks?.()[0];
         const activeRecorder = recorderRef.current;
-        if (!a || !activeCtx || !activeTrack || !activeRecorder) return;
+        if (!a || !activeCtx || !activeTrack) return;
 
         if (activeCtx.state === 'suspended') {
           if (++diagTickRef.current % 30 === 0) {
@@ -350,7 +408,7 @@ export function useJarvisListener({ onCommand, suspended = false }: Options) {
               audioContextState: activeCtx.state,
               trackState: activeTrack.readyState,
               trackMuted: activeTrack.muted,
-              recorderState: activeRecorder.state,
+              recorderState: activeRecorder?.state || 'armed',
               rms: 0,
             });
           }
@@ -361,8 +419,7 @@ export function useJarvisListener({ onCommand, suspended = false }: Options) {
         if (suspendedRef.current) {
           inSpeechRef.current = false;
           chunksRef.current = [];
-          preRollRef.current = [];
-          rafRef.current = requestAnimationFrame(monitor);
+                rafRef.current = requestAnimationFrame(monitor);
           return;
         }
 
@@ -378,7 +435,7 @@ export function useJarvisListener({ onCommand, suspended = false }: Options) {
             audioContextState: activeCtx.state,
             trackState: activeTrack.readyState,
             trackMuted: activeTrack.muted,
-            recorderState: activeRecorder.state,
+            recorderState: activeRecorder?.state || 'armed',
           });
         }
 
@@ -386,23 +443,29 @@ export function useJarvisListener({ onCommand, suspended = false }: Options) {
           inSpeechRef.current = true;
           speechStartedAtRef.current = now;
           lastVoiceAtRef.current = now;
-          chunksRef.current = [...preRollRef.current];
+          beginUtteranceRecording();
           setState('hearing');
         } else if (inSpeechRef.current) {
           if (rms >= RMS_CONTINUE) lastVoiceAtRef.current = now;
 
           if (now - lastVoiceAtRef.current >= SILENCE_MS) {
             const duration = now - speechStartedAtRef.current;
-            const parts = chunksRef.current;
             inSpeechRef.current = false;
-            chunksRef.current = [];
 
-            if (duration >= MIN_SPEECH_MS && parts.length) {
-              const blob = new Blob(parts, {
-                type: activeRecorder.mimeType || 'audio/webm',
-              });
-              void transcribe(blob);
+            if (duration >= MIN_SPEECH_MS) {
+              // onstop will build one complete finalized WebM/Opus blob
+              // and send it for transcription.
+              finishUtteranceRecording();
             } else {
+              const active = recorderRef.current;
+              if (active && active.state !== 'inactive') {
+                active.onstop = null;
+                active.ondataavailable = null;
+                try { active.stop(); } catch {}
+                recorderRef.current = null;
+              }
+              chunksRef.current = [];
+              patchDiag({ recorderState: 'armed' });
               setState(Date.now() < armedUntilRef.current ? 'armed' : 'listening');
             }
           }
