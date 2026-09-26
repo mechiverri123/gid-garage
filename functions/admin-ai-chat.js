@@ -140,6 +140,71 @@ const TOOLS = [
       required: ['phone', 'outcome'],
     },
   },
+  {
+    name: 'list_calls',
+    description: 'List recently logged calls, most recent first.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        outcome: { type: 'string' },
+        limit: { type: 'number' },
+      },
+    },
+  },
+  {
+    name: 'list_marketing_spend',
+    description: 'List marketing spend entries, optionally filtered by channel, most recent first.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        channel: { type: 'string' },
+        limit: { type: 'number' },
+      },
+    },
+  },
+  {
+    name: 'search_customers',
+    description: "Find a customer by name, phone, or VIN — returns their contact info and vehicle on file. For their job history, follow up with list_jobs.",
+    input_schema: {
+      type: 'object',
+      properties: { query: { type: 'string' } },
+      required: ['query'],
+    },
+  },
+  {
+    name: 'update_job_status',
+    description: 'Change a job\'s status in the pipeline. Get the job id from list_jobs first.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        job_id: { type: 'string' },
+        job_status: { type: 'string', description: 'BOOKED, ESTIMATE_SENT, SIGNED, IN_PROGRESS, COMPLETED, INVOICED, or PAID' },
+      },
+      required: ['job_id', 'job_status'],
+    },
+  },
+  {
+    name: 'get_owner_pay_summary',
+    description: "Estimate actual take-home for a period: collected revenue minus estimated tax reserve, Stripe fees, and prorated monthly overhead. Use for 'what did I actually make' type questions.",
+    input_schema: {
+      type: 'object',
+      properties: { periodDays: { type: 'number', description: 'Defaults to 7 (this week).' } },
+    },
+  },
+  {
+    name: 'send_customer_email',
+    description: "Send an email to a customer (e.g. a follow-up, a reminder, an update). Always tell the person what you sent after sending — don't send silently.",
+    input_schema: {
+      type: 'object',
+      properties: {
+        to_email: { type: 'string' },
+        to_name: { type: 'string' },
+        subject: { type: 'string' },
+        body_html: { type: 'string', description: 'Simple HTML — a paragraph or two is fine, e.g. "<p>Hi John, ...</p>"' },
+      },
+      required: ['to_email', 'subject', 'body_html'],
+    },
+  },
 ];
 
 export async function onRequestPost({ request, env }) {
@@ -149,8 +214,24 @@ export async function onRequestPost({ request, env }) {
   const anthropicKey = env.ANTHROPIC_API_KEY;
   const supabaseUrl = env.SUPABASE_URL ?? env.VITE_SUPABASE_URL;
   const serviceKey = env.SUPABASE_SERVICE_KEY;
+  const brevoKey = env.BREVO_API_KEY;
   if (!anthropicKey) return json({ error: 'ANTHROPIC_API_KEY not set on the server' }, 500);
   if (!supabaseUrl || !serviceKey) return json({ error: 'Server not configured' }, 500);
+
+  async function brevoSend(toEmail, toName, subject, htmlContent) {
+    if (!brevoKey) throw new Error('BREVO_API_KEY not set on the server — email was not sent.');
+    const r = await fetch('https://api.brevo.com/v3/smtp/email', {
+      method: 'POST',
+      headers: { 'api-key': brevoKey, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        sender: { name: 'GID Garage', email: 'bookings@gidgarage.com' },
+        to: [{ email: toEmail, name: toName || toEmail }],
+        subject,
+        htmlContent: `<div style="font-family:sans-serif;max-width:560px;margin:0 auto;background:#0f0f0f;color:#fff;padding:32px;"><img src="https://gidgarage.com/banner.PNG" alt="GID Garage" style="width:100%;display:block;height:auto;margin-bottom:24px;"/><div style="color:#e5e7eb;font-size:14px;line-height:1.6;">${htmlContent}</div><p style="color:#4b5563;font-size:11px;margin-top:24px;">Questions? Call or text <strong style="color:#9ca3af;">480-757-0476</strong> — GID Garage, Flagstaff AZ</p></div>`,
+      }),
+    });
+    if (!r.ok) throw new Error(`Brevo rejected the email (${r.status}): ${await r.text()}`);
+  }
 
   const base = `${supabaseUrl}/rest/v1`;
   const headers = { apikey: serviceKey, Authorization: `Bearer ${serviceKey}`, 'Content-Type': 'application/json' };
@@ -282,6 +363,61 @@ export async function onRequestPost({ request, env }) {
 
       case 'log_call': {
         return await sbInsert('calls', { phone: input.phone, direction: input.direction || 'inbound', outcome: input.outcome, notes: input.notes || null });
+      }
+
+      case 'list_calls': {
+        const params = { select: '*', order: 'created_at.desc', limit: String(input.limit || 15) };
+        if (input.outcome) params.outcome = `eq.${input.outcome}`;
+        return await sbGet('calls', params);
+      }
+
+      case 'list_marketing_spend': {
+        const params = { select: '*', order: 'date.desc', limit: String(input.limit || 20) };
+        if (input.channel) params.channel = `eq.${input.channel}`;
+        return await sbGet('marketing_spend', params);
+      }
+
+      case 'search_customers': {
+        const q = input.query || '';
+        const params = { select: 'id,fname,lname,phone,email,vehicle,vin,notes', or: `(fname.ilike.*${q}*,lname.ilike.*${q}*,phone.ilike.*${q}*,vin.ilike.*${q}*)`, limit: '10' };
+        return await sbGet('customers', params);
+      }
+
+      case 'update_job_status': {
+        await sbPatch('bookings', `id=eq.${encodeURIComponent(input.job_id)}`, { job_status: input.job_status.toUpperCase() });
+        return { ok: true };
+      }
+
+      case 'get_owner_pay_summary': {
+        const days = input.periodDays || 7;
+        const since = new Date(Date.now() - days * 86400000).toISOString();
+        const [bookings, settingsRows] = await Promise.all([
+          sbGet('bookings', { select: 'amount_paid,paid_at,invoice_amount,tax_amount', paid_at: `gte.${since}` }).catch(() => []),
+          sbGet('business_settings', { select: '*', id: 'eq.default', limit: '1' }).catch(() => []),
+        ]);
+        const settings = settingsRows[0] || {};
+        const grossCollected = bookings.reduce((s, b) => s + Number(b.amount_paid || 0), 0);
+        const stripeFeePct = Number(settings.owner_stripe_fee_pct ?? 0.0285);
+        const taxReservePct = Number(settings.owner_tax_reserve_pct ?? 0.3);
+        const monthlyOverhead = Number(settings.owner_monthly_overhead ?? 0);
+        const estStripeFees = grossCollected * stripeFeePct;
+        const estTaxReserve = grossCollected * taxReservePct;
+        const proratedOverhead = (monthlyOverhead / 30) * days;
+        const estimatedTakeHome = grossCollected - estStripeFees - estTaxReserve - proratedOverhead;
+        return {
+          periodDays: days,
+          jobsPaid: bookings.length,
+          grossCollected: money(grossCollected),
+          estStripeFees: money(estStripeFees),
+          estTaxReserve: money(estTaxReserve),
+          proratedOverhead: money(proratedOverhead),
+          estimatedTakeHome: money(estimatedTakeHome),
+        };
+      }
+
+      case 'send_customer_email': {
+        await brevoSend(input.to_email, input.to_name, input.subject, input.body_html);
+        return { ok: true, sentTo: input.to_email };
       }
 
       default:
