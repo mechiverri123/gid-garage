@@ -148,7 +148,7 @@ export function CommandCenterPage() {
           <AttentionPanel items={summary.needsAttention} />
         </div>
         <div className={`lg:col-span-3 ${PANEL} ${PANEL_PADDING} flex items-center justify-center`}>
-          <JarvisStatus state={jarvisState} liveActivity={liveActivity} size={200} />
+          <JarvisStatus state={jarvisState} liveActivity={liveActivity} size={230} />
         </div>
         <div className="lg:col-span-4">
           <UpcomingJobs scheduleBar={summary.scheduleBar} />
