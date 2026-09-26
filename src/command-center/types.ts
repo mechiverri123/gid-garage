@@ -23,7 +23,7 @@ export interface ChatMsg {
 // Drives JarvisStatus (Phase 1: text/indicator only — the Three.js Jarvis
 // Core is Phase 3). Mapped directly from the NDJSON stream events, so this
 // always reflects something real, never a fake "thinking" animation.
-export type JarvisState = 'idle' | 'processing' | 'tool' | 'success' | 'error';
+export type JarvisState = 'idle' | 'processing' | 'tool' | 'speaking' | 'success' | 'error';
 
 // Phase 6 groundwork: a normalized event layer between the raw backend
 // NDJSON stream and anything that consumes it (the UI now, a future

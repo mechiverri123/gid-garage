@@ -9,6 +9,7 @@ const STATE_COLOR: Record<JarvisState, string> = {
   idle: COLORS.accentDim,
   processing: COLORS.accent,
   tool: COLORS.accent,
+  speaking: COLORS.accent,
   success: COLORS.success,
   error: COLORS.critical,
 };
@@ -17,6 +18,7 @@ const STATE_SPEED: Record<JarvisState, number> = {
   idle: 0.18,
   processing: 0.9,
   tool: 1.35,
+  speaking: 0.72,
   success: 0.42,
   error: 0.48,
 };

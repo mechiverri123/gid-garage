@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import { motion } from 'motion/react';
 import type { Lead } from './types';
 import { useBusinessSummary } from './hooks/useBusinessSummary';
 import { useAdminAI } from './hooks/useAdminAI';
+import { useJarvisSpeech } from './hooks/useJarvisSpeech';
 import { Sidebar } from './components/Sidebar';
 import { TopStatusBar } from './components/TopStatusBar';
 import { JarvisStatus } from './components/JarvisStatus';
@@ -19,6 +20,7 @@ import { MarketingPanel } from './components/MarketingPanel';
 import { CommandPalette, useCommandPalette } from './components/CommandPalette';
 import { CommandInput } from './components/CommandInput';
 import { OwnerBriefing } from './components/OwnerBriefing';
+import { VoiceControl } from './components/VoiceControl';
 import { COLORS } from './tokens';
 
 const fadeRise = {
@@ -53,10 +55,17 @@ export function CommandCenterPage({ onLock }: { onLock: () => void }) {
     updateLeadStatus, submitSpend,
   } = useBusinessSummary();
 
+  const voice = useJarvisSpeech();
+  const handleAssistantFinal = useCallback((text: string) => {
+    voice.speak(text);
+  }, [voice.speak]);
+
   const { chatMessages, asking, liveActivity, jarvisState, ask, clear } = useAdminAI(() => {
     loadSummary();
     loadLeads(leadStatusFilter || undefined);
-  });
+  }, handleAssistantFinal);
+
+  const displayJarvisState = voice.speaking ? 'speaking' as const : jarvisState;
 
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
@@ -142,7 +151,16 @@ export function CommandCenterPage({ onLock }: { onLock: () => void }) {
                   <div className="text-[10px] font-semibold uppercase tracking-[0.34em]" style={{ color: COLORS.accent }}>MICHAEL · GID GARAGE</div>
                   <div className="text-[9px] uppercase tracking-[0.22em] mt-1" style={{ color: COLORS.textFaint }}>Owner Copilot</div>
                 </div>
-                <JarvisStatus state={jarvisState} liveActivity={liveActivity} size={390} />
+                <div className="absolute top-5 right-5 z-20">
+                  <VoiceControl
+                    enabled={voice.enabled}
+                    speaking={voice.speaking}
+                    error={voice.error}
+                    onToggle={voice.toggleEnabled}
+                    onStop={voice.stop}
+                  />
+                </div>
+                <JarvisStatus state={displayJarvisState} liveActivity={liveActivity} size={390} />
                 <div className="absolute bottom-6 left-1/2 -translate-x-1/2 w-full flex justify-center px-5">
                   <HeroTelemetry liveActivity={liveActivity} asking={asking} />
                 </div>

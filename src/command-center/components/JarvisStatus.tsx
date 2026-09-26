@@ -5,6 +5,7 @@ const STATE_LABEL: Record<JarvisState, string> = {
   idle: 'IDLE',
   processing: 'ANALYZING',
   tool: 'WORKING',
+  speaking: 'SPEAKING',
   success: 'DONE',
   error: 'ERROR',
 };

@@ -1,0 +1,28 @@
+GID JARVIS TALKBACK — QUICK SETUP
+
+1. Copy the included files over the matching paths in your project.
+
+2. In Cloudflare Pages/Workers settings, add this secret environment variable:
+   OPENAI_API_KEY=your OpenAI API key
+
+   Keep it server-side only. Do NOT put it in VITE_ variables or frontend code.
+
+3. Redeploy.
+
+4. Open the Command Center. AI Voice should show "Armed".
+
+5. Ask GID something. When the Claude agent reaches its final answer, /jarvis-speak
+   converts that answer to speech and plays it automatically.
+
+6. Use the speaker button in the AI Core to mute/unmute. While it is speaking,
+   the square stop button immediately stops playback.
+
+VOICE PROFILE
+- Model: gpt-4o-mini-tts
+- Voice: cedar
+- Style prompt: refined cinematic British-inspired male AI; calm, articulate,
+  precise, slightly formal, controlled lower register.
+
+NOTE
+This is intentionally not an exact imitation of the Marvel JARVIS actor voice.
+An exact cloned voice would require an approved custom voice and the voice owner's consent.
