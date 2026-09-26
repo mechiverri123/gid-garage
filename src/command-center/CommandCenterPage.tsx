@@ -4,6 +4,7 @@ import type { Lead } from './types';
 import { useBusinessSummary } from './hooks/useBusinessSummary';
 import { useAdminAI } from './hooks/useAdminAI';
 import { useJarvisSpeech } from './hooks/useJarvisSpeech';
+import { useJarvisListener } from './hooks/useJarvisListener';
 import { Sidebar } from './components/Sidebar';
 import { TopStatusBar } from './components/TopStatusBar';
 import { JarvisStatus } from './components/JarvisStatus';
@@ -27,6 +28,26 @@ const fadeRise = {
   hidden: { opacity: 0, y: 16 },
   show: (delay: number) => ({ opacity: 1, y: 0, transition: { duration: 0.45, delay, ease: 'easeOut' as const } }),
 };
+
+function HeroTelemetry({ liveActivity, asking }: { liveActivity: { tool: string; status: string }[]; asking: boolean }) {
+  const current = liveActivity.find(i => i.status === 'running');
+  const cells = [
+    { label: 'Agent', value: asking ? 'Active' : 'Standby', color: asking ? COLORS.accent : COLORS.textMuted },
+    { label: 'Stream', value: 'Ready', color: COLORS.success },
+    { label: 'Tools', value: current ? current.tool.replace(/_/g, ' ') : 'Idle', color: current ? COLORS.accent : COLORS.textMuted },
+    { label: 'Focus', value: current ? 'Processing' : 'Monitoring', color: current ? COLORS.warning : COLORS.textMuted },
+  ];
+  return (
+    <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mt-4 w-full max-w-[760px]">
+      {cells.map(cell => (
+        <div key={cell.label} className="rounded-xl border px-3 py-2 backdrop-blur-sm" style={{ borderColor: 'rgba(255,255,255,0.06)', background: 'rgba(255,255,255,0.02)' }}>
+          <div className="text-[10px] uppercase tracking-[0.16em]" style={{ color: COLORS.textFaint }}>{cell.label}</div>
+          <div className="text-sm font-semibold mt-1 capitalize" style={{ color: cell.color }}>{cell.value}</div>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 function greetingFor(summary: any) {
   const hour = new Date().getHours();
@@ -56,6 +77,16 @@ export function CommandCenterPage({ onLock }: { onLock: () => void }) {
     loadSummary();
     loadLeads(leadStatusFilter || undefined);
   }, handleAssistantFinal);
+
+  const handleVoiceCommand = useCallback((command: string) => {
+    voice.stop();
+    ask(command);
+  }, [ask, voice.stop]);
+
+  const hearing = useJarvisListener({
+    onCommand: handleVoiceCommand,
+    suspended: voice.speaking || asking,
+  });
 
   const displayJarvisState = voice.speaking ? 'speaking' as const : jarvisState;
   const greetedRef = useRef(false);
@@ -158,17 +189,21 @@ export function CommandCenterPage({ onLock }: { onLock: () => void }) {
                     enabled={voice.enabled}
                     speaking={voice.speaking}
                     error={voice.error}
-                    errorDetail={voice.errorDetail}
+                    errorDetail={(voice as any).errorDetail}
                     needsInteraction={voice.needsInteraction}
-                    mode={voice.mode}
                     onToggle={voice.toggleEnabled}
                     onStop={voice.stop}
                     onUnlock={voice.unlock}
-                    onRetry={voice.retry}
+                    onRetry={(voice as any).retry}
+                    hearingEnabled={hearing.enabled}
+                    hearingState={hearing.state}
+                    hearingError={hearing.error}
+                    onToggleHearing={hearing.toggle}
                   />
                 </div>
-                <div className="w-full pt-6 pb-2">
-                  <JarvisStatus state={displayJarvisState} liveActivity={liveActivity} size={390} />
+                <JarvisStatus state={displayJarvisState} liveActivity={liveActivity} size={390} />
+                <div className="absolute bottom-6 left-1/2 -translate-x-1/2 w-full flex justify-center px-5">
+                  <HeroTelemetry liveActivity={liveActivity} asking={asking} />
                 </div>
               </div>
 
@@ -208,7 +243,17 @@ export function CommandCenterPage({ onLock }: { onLock: () => void }) {
 
         <div className="relative border-t px-4 sm:px-6 lg:px-8 py-4" style={{ borderColor: COLORS.border, background: 'rgba(4,10,18,0.9)', backdropFilter: 'blur(20px)' }}>
           <div className="absolute inset-x-0 top-0 h-px" style={{ background: `linear-gradient(90deg, transparent, ${COLORS.borderStrong}, transparent)` }} />
-          <CommandInput chatMessages={chatMessages} asking={asking} liveActivity={liveActivity} onAsk={ask} onClear={clear} />
+          <CommandInput
+            chatMessages={chatMessages}
+            asking={asking}
+            liveActivity={liveActivity}
+            onAsk={ask}
+            onClear={clear}
+            hearingEnabled={hearing.enabled}
+            hearingState={hearing.state}
+            hearingError={hearing.error}
+            onToggleHearing={hearing.toggle}
+          />
         </div>
       </div>
     </div>
