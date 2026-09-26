@@ -31,23 +31,12 @@ type Options = {
 const STORAGE_KEY = 'gid.jarvis.alwaysListening';
 const WAKE_RE = /\b(?:hey\s+)?(?:jarvis|jervis|jarviss)\b/i;
 const RMS_START = 0.018;
-const RMS_CONTINUE = 0.012;
+const RMS_CONTINUE = 0.010;
 const SILENCE_MS = 900;
 const MIN_SPEECH_MS = 250;
 const ARMED_MS = 9000;
 const START_TIMEOUT_MS = 10000;
-
-function preferredMimeType() {
-  const candidates = [
-    'audio/webm;codecs=opus',
-    'audio/webm',
-    'audio/ogg;codecs=opus',
-    'audio/mp4',
-  ];
-  return candidates.find(t =>
-    typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported(t)
-  ) || '';
-}
+const PRE_ROLL_MS = 350;
 
 const initialDiag = (): MicDiagnostics => ({
   secureContext: typeof window !== 'undefined' ? window.isSecureContext : false,
@@ -62,6 +51,45 @@ const initialDiag = (): MicDiagnostics => ({
   lastError: '',
 });
 
+function encodeMonoWav(chunks: Float32Array[], sampleRate: number) {
+  let totalSamples = 0;
+  for (const chunk of chunks) totalSamples += chunk.length;
+
+  const buffer = new ArrayBuffer(44 + totalSamples * 2);
+  const view = new DataView(buffer);
+
+  const writeString = (offset: number, value: string) => {
+    for (let i = 0; i < value.length; i++) {
+      view.setUint8(offset + i, value.charCodeAt(i));
+    }
+  };
+
+  writeString(0, 'RIFF');
+  view.setUint32(4, 36 + totalSamples * 2, true);
+  writeString(8, 'WAVE');
+  writeString(12, 'fmt ');
+  view.setUint32(16, 16, true);      // PCM chunk size
+  view.setUint16(20, 1, true);       // PCM
+  view.setUint16(22, 1, true);       // mono
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, sampleRate * 2, true);
+  view.setUint16(32, 2, true);
+  view.setUint16(34, 16, true);
+  writeString(36, 'data');
+  view.setUint32(40, totalSamples * 2, true);
+
+  let offset = 44;
+  for (const chunk of chunks) {
+    for (let i = 0; i < chunk.length; i++) {
+      const s = Math.max(-1, Math.min(1, chunk[i]));
+      view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7fff, true);
+      offset += 2;
+    }
+  }
+
+  return new Blob([buffer], { type: 'audio/wav' });
+}
+
 export function useJarvisListener({ onCommand, suspended = false }: Options) {
   const [enabled, setEnabled] = useState(() => {
     try { return localStorage.getItem(STORAGE_KEY) !== 'off'; } catch { return true; }
@@ -71,20 +99,20 @@ export function useJarvisListener({ onCommand, suspended = false }: Options) {
   const [lastTranscript, setLastTranscript] = useState('');
   const [diagnostics, setDiagnostics] = useState<MicDiagnostics>(initialDiag);
 
-  // Keep changing React callbacks OUT of the microphone lifecycle.
-  // The previous listener could restart every render if `ask`/voice callbacks changed identity,
-  // which looks exactly like a mic permanently stuck on "Starting".
   const onCommandRef = useRef(onCommand);
   const suspendedRef = useRef(suspended);
   useEffect(() => { onCommandRef.current = onCommand; }, [onCommand]);
   useEffect(() => { suspendedRef.current = suspended; }, [suspended]);
 
   const streamRef = useRef<MediaStream | null>(null);
-  const recorderRef = useRef<MediaRecorder | null>(null);
   const contextRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
+  const processorRef = useRef<ScriptProcessorNode | null>(null);
+  const gainRef = useRef<GainNode | null>(null);
   const rafRef = useRef<number | null>(null);
-  const chunksRef = useRef<Blob[]>([]);
+
+  const preRollRef = useRef<Float32Array[]>([]);
+  const speechChunksRef = useRef<Float32Array[]>([]);
   const speechStartedAtRef = useRef(0);
   const lastVoiceAtRef = useRef(0);
   const inSpeechRef = useRef(false);
@@ -102,13 +130,16 @@ export function useJarvisListener({ onCommand, suspended = false }: Options) {
     if (rafRef.current) cancelAnimationFrame(rafRef.current);
     rafRef.current = null;
 
-    const recorder = recorderRef.current;
-    if (recorder && recorder.state !== 'inactive') {
-      recorder.ondataavailable = null;
-      recorder.onerror = null;
-      try { recorder.stop(); } catch {}
+    if (processorRef.current) {
+      processorRef.current.onaudioprocess = null;
+      try { processorRef.current.disconnect(); } catch {}
     }
-    recorderRef.current = null;
+    processorRef.current = null;
+
+    if (gainRef.current) {
+      try { gainRef.current.disconnect(); } catch {}
+    }
+    gainRef.current = null;
 
     streamRef.current?.getTracks().forEach(track => track.stop());
     streamRef.current = null;
@@ -118,25 +149,19 @@ export function useJarvisListener({ onCommand, suspended = false }: Options) {
     analyserRef.current = null;
     if (ctx && ctx.state !== 'closed') void ctx.close().catch(() => {});
 
-    chunksRef.current = [];
+    preRollRef.current = [];
+    speechChunksRef.current = [];
     inSpeechRef.current = false;
     sendingRef.current = false;
   }, []);
 
   const transcribe = useCallback(async (blob: Blob) => {
-    if (sendingRef.current || blob.size < 700) return;
+    if (sendingRef.current || blob.size < 1000) return;
     sendingRef.current = true;
     setState('transcribing');
 
     try {
-      const ext = blob.type.includes('ogg') ? 'ogg'
-        : blob.type.includes('mp4') ? 'm4a'
-        : 'webm';
-
-      const file = new File([blob], `jarvis-${Date.now()}.${ext}`, {
-        type: blob.type || 'audio/webm',
-      });
-
+      const file = new File([blob], `jarvis-${Date.now()}.wav`, { type: 'audio/wav' });
       const form = new FormData();
       form.append('audio', file);
 
@@ -208,14 +233,13 @@ export function useJarvisListener({ onCommand, suspended = false }: Options) {
       return;
     }
 
-    if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') {
+    if (!navigator.mediaDevices?.getUserMedia) {
       setError('Browser microphone APIs are unavailable.');
-      patchDiag({ lastError: 'getUserMedia or MediaRecorder unavailable.' });
+      patchDiag({ lastError: 'getUserMedia unavailable.' });
       setState('error');
       return;
     }
 
-    // Surface the browser's real permission state when supported.
     try {
       const p = await navigator.permissions?.query?.({ name: 'microphone' as PermissionName });
       if (p) {
@@ -232,9 +256,10 @@ export function useJarvisListener({ onCommand, suspended = false }: Options) {
     try {
       const timeoutPromise = new Promise<never>((_, reject) => {
         timeoutId = window.setTimeout(() => {
-          reject(Object.assign(new Error(
-            'getUserMedia did not resolve within 10 seconds. Check the active input device in Opera/Windows.'
-          ), { name: 'MicStartupTimeout' }));
+          reject(Object.assign(
+            new Error('getUserMedia did not resolve within 10 seconds.'),
+            { name: 'MicStartupTimeout' }
+          ));
         }, START_TIMEOUT_MS);
       });
 
@@ -251,53 +276,85 @@ export function useJarvisListener({ onCommand, suspended = false }: Options) {
       ]);
 
       if (timeoutId) window.clearTimeout(timeoutId);
-
       streamRef.current = stream;
+
       const track = stream.getAudioTracks()[0];
       if (!track) throw new Error('No audio track was returned.');
-
-      const settings = track.getSettings?.() || {};
-      patchDiag({
-        getUserMedia: 'resolved',
-        deviceLabel: track.label || String((settings as any).deviceId || 'audio input'),
-        trackState: track.readyState,
-        trackMuted: track.muted,
-      });
-
       if (track.readyState !== 'live') {
         throw new Error(`Microphone track is ${track.readyState}, not live.`);
       }
 
-      track.onended = () => {
-        patchDiag({ trackState: 'ended', lastError: 'Microphone track ended.' });
-        setError('Microphone track ended.');
-        setState('error');
-      };
-      track.onmute = () => patchDiag({ trackMuted: true });
-      track.onunmute = () => patchDiag({ trackMuted: false });
+      patchDiag({
+        getUserMedia: 'resolved',
+        deviceLabel: track.label || 'audio input',
+        trackState: track.readyState,
+        trackMuted: track.muted,
+      });
 
       const AudioContextCtor = window.AudioContext || (window as any).webkitAudioContext;
       const ctx: AudioContext = new AudioContextCtor();
       contextRef.current = ctx;
 
       const source = ctx.createMediaStreamSource(stream);
+
       const analyser = ctx.createAnalyser();
       analyser.fftSize = 1024;
       analyser.smoothingTimeConstant = 0.35;
       source.connect(analyser);
       analyserRef.current = analyser;
 
-      patchDiag({ audioContextState: ctx.state });
+      // Capture raw PCM directly instead of MediaRecorder/WebM.
+      // This eliminates container/header corruption completely.
+      const processor = ctx.createScriptProcessor(4096, 1, 1);
+      processorRef.current = processor;
 
-      // Never await this: Opera may require a gesture and awaiting it caused "Starting mic".
+      const silentGain = ctx.createGain();
+      silentGain.gain.value = 0;
+      gainRef.current = silentGain;
+
+      source.connect(processor);
+      processor.connect(silentGain);
+      silentGain.connect(ctx.destination);
+
+      const preRollMaxChunks = Math.max(
+        1,
+        Math.ceil((PRE_ROLL_MS / 1000) * ctx.sampleRate / 4096)
+      );
+
+      processor.onaudioprocess = event => {
+        if (suspendedRef.current) return;
+
+        const input = event.inputBuffer.getChannelData(0);
+        const copy = new Float32Array(input.length);
+        copy.set(input);
+
+        preRollRef.current.push(copy);
+        while (preRollRef.current.length > preRollMaxChunks) {
+          preRollRef.current.shift();
+        }
+
+        if (inSpeechRef.current) {
+          speechChunksRef.current.push(copy);
+        }
+      };
+
+      patchDiag({
+        audioContextState: ctx.state,
+        recorderState: 'pcm-wav',
+      });
+
       const resume = async () => {
         try {
           if (ctx.state === 'suspended') await ctx.resume();
           patchDiag({ audioContextState: ctx.state });
         } catch (err: any) {
-          patchDiag({ audioContextState: ctx.state, lastError: err?.message || 'AudioContext resume failed.' });
+          patchDiag({
+            audioContextState: ctx.state,
+            lastError: err?.message || 'AudioContext resume failed.',
+          });
         }
       };
+
       void resume();
 
       const unlock = () => {
@@ -310,85 +367,6 @@ export function useJarvisListener({ onCommand, suspended = false }: Options) {
       window.addEventListener('keydown', unlock, true);
       window.addEventListener('touchstart', unlock, true);
 
-      const mimeType = preferredMimeType();
-
-      // IMPORTANT:
-      // Do NOT keep one MediaRecorder running forever and splice arbitrary
-      // timeslice chunks together. In Chromium/WebM, later chunks can depend on
-      // the container header from the first chunk. Sending a subset of those
-      // chunks produces an invalid WebM file and OpenAI returns HTTP 400.
-      //
-      // Instead, create a NEW MediaRecorder for each detected utterance and
-      // stop it after silence. The browser then finalizes a complete, valid
-      // audio container before we upload it.
-      const beginUtteranceRecording = () => {
-        if (recorderRef.current && recorderRef.current.state !== 'inactive') return;
-
-        chunksRef.current = [];
-        const utteranceRecorder = new MediaRecorder(
-          stream,
-          mimeType ? { mimeType } : undefined
-        );
-        recorderRef.current = utteranceRecorder;
-
-        utteranceRecorder.ondataavailable = event => {
-          if (event.data?.size) chunksRef.current.push(event.data);
-        };
-
-        utteranceRecorder.onerror = (event: any) => {
-          const message = event?.error?.message || 'MediaRecorder failed.';
-          patchDiag({ recorderState: utteranceRecorder.state, lastError: message });
-          setError(message);
-          setState('error');
-        };
-
-        utteranceRecorder.onstop = () => {
-          const parts = chunksRef.current;
-          chunksRef.current = [];
-
-          const blob = new Blob(parts, {
-            type: utteranceRecorder.mimeType || mimeType || 'audio/webm',
-          });
-
-          recorderRef.current = null;
-          patchDiag({ recorderState: 'armed' });
-
-          if (blob.size >= 700) {
-            void transcribe(blob);
-          } else {
-            setState(Date.now() < armedUntilRef.current ? 'armed' : 'listening');
-          }
-        };
-
-        utteranceRecorder.start();
-        patchDiag({ recorderState: 'recording' });
-      };
-
-      const finishUtteranceRecording = () => {
-        const utteranceRecorder = recorderRef.current;
-        if (!utteranceRecorder || utteranceRecorder.state === 'inactive') {
-          setState(Date.now() < armedUntilRef.current ? 'armed' : 'listening');
-          return;
-        }
-
-        try {
-          // requestData helps Chromium flush the final Opus/WebM packet before stop.
-          utteranceRecorder.requestData();
-        } catch {}
-
-        try {
-          utteranceRecorder.stop();
-        } catch (err: any) {
-          const message = err?.message || 'Could not finalize microphone recording.';
-          patchDiag({ lastError: message, recorderState: utteranceRecorder.state });
-          setError(message);
-          setState('error');
-        }
-      };
-
-      patchDiag({ recorderState: 'armed' });
-
-      // IMPORTANT: at this point mic hardware is live. Leave STARTING immediately.
       setState('listening');
 
       const samples = new Float32Array(analyser.fftSize);
@@ -399,7 +377,6 @@ export function useJarvisListener({ onCommand, suspended = false }: Options) {
         const a = analyserRef.current;
         const activeCtx = contextRef.current;
         const activeTrack = streamRef.current?.getAudioTracks?.()[0];
-        const activeRecorder = recorderRef.current;
         if (!a || !activeCtx || !activeTrack) return;
 
         if (activeCtx.state === 'suspended') {
@@ -408,7 +385,7 @@ export function useJarvisListener({ onCommand, suspended = false }: Options) {
               audioContextState: activeCtx.state,
               trackState: activeTrack.readyState,
               trackMuted: activeTrack.muted,
-              recorderState: activeRecorder?.state || 'armed',
+              recorderState: 'pcm-wav',
               rms: 0,
             });
           }
@@ -418,8 +395,9 @@ export function useJarvisListener({ onCommand, suspended = false }: Options) {
 
         if (suspendedRef.current) {
           inSpeechRef.current = false;
-          chunksRef.current = [];
-                rafRef.current = requestAnimationFrame(monitor);
+          speechChunksRef.current = [];
+          preRollRef.current = [];
+          rafRef.current = requestAnimationFrame(monitor);
           return;
         }
 
@@ -435,7 +413,7 @@ export function useJarvisListener({ onCommand, suspended = false }: Options) {
             audioContextState: activeCtx.state,
             trackState: activeTrack.readyState,
             trackMuted: activeTrack.muted,
-            recorderState: activeRecorder?.state || 'armed',
+            recorderState: 'pcm-wav',
           });
         }
 
@@ -443,7 +421,7 @@ export function useJarvisListener({ onCommand, suspended = false }: Options) {
           inSpeechRef.current = true;
           speechStartedAtRef.current = now;
           lastVoiceAtRef.current = now;
-          beginUtteranceRecording();
+          speechChunksRef.current = [...preRollRef.current];
           setState('hearing');
         } else if (inSpeechRef.current) {
           if (rms >= RMS_CONTINUE) lastVoiceAtRef.current = now;
@@ -452,20 +430,13 @@ export function useJarvisListener({ onCommand, suspended = false }: Options) {
             const duration = now - speechStartedAtRef.current;
             inSpeechRef.current = false;
 
-            if (duration >= MIN_SPEECH_MS) {
-              // onstop will build one complete finalized WebM/Opus blob
-              // and send it for transcription.
-              finishUtteranceRecording();
+            const chunks = speechChunksRef.current;
+            speechChunksRef.current = [];
+
+            if (duration >= MIN_SPEECH_MS && chunks.length) {
+              const wav = encodeMonoWav(chunks, activeCtx.sampleRate);
+              void transcribe(wav);
             } else {
-              const active = recorderRef.current;
-              if (active && active.state !== 'inactive') {
-                active.onstop = null;
-                active.ondataavailable = null;
-                try { active.stop(); } catch {}
-                recorderRef.current = null;
-              }
-              chunksRef.current = [];
-              patchDiag({ recorderState: 'armed' });
               setState(Date.now() < armedUntilRef.current ? 'armed' : 'listening');
             }
           }
@@ -481,6 +452,7 @@ export function useJarvisListener({ onCommand, suspended = false }: Options) {
       rafRef.current = requestAnimationFrame(monitor);
     } catch (err: any) {
       if (timeoutId) window.clearTimeout(timeoutId);
+
       const name = err?.name || '';
       const message = err?.message || 'Could not start microphone.';
       const denied = name === 'NotAllowedError' || name === 'PermissionDeniedError';
@@ -496,7 +468,7 @@ export function useJarvisListener({ onCommand, suspended = false }: Options) {
         denied
           ? 'Microphone permission was denied by the browser or OS.'
           : timedOut
-            ? 'Microphone startup timed out. Open diagnostics below.'
+            ? 'Microphone startup timed out.'
             : message
       );
       setState(denied ? 'blocked' : 'error');
@@ -521,7 +493,6 @@ export function useJarvisListener({ onCommand, suspended = false }: Options) {
     window.setTimeout(() => { void start(); }, 100);
   }, [start, stopHardware]);
 
-  // Hardware lifecycle depends ONLY on enabled. Not on `ask`, voice callbacks, or renders.
   useEffect(() => {
     mountedRef.current = true;
     if (enabled) void start();
@@ -531,7 +502,10 @@ export function useJarvisListener({ onCommand, suspended = false }: Options) {
       mountedRef.current = false;
       stopHardware();
     };
-  }, [enabled]); // intentionally not depending on start/stopHardware
+    // Deliberately only tied to enabled. Prevents React callback changes from
+    // repeatedly tearing down and restarting the microphone.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [enabled]);
 
   return {
     enabled,
