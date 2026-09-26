@@ -1,9 +1,9 @@
 // ── GID GARAGE — JARVIS COMMAND CENTER ───────────────────────────────────
-// Phase 1 of the visual rebuild: new component architecture, design tokens,
-// new grid layout, existing data wired in. No Three.js Jarvis Core yet
-// (Phase 3), no Motion library yet (Phase 5 polish), no new dependencies —
-// deliberately, so this phase is small enough to verify against the real
-// site before building further on top of it.
+// Full-width layout — this is its own standalone page (gidgarage.com/jarvis),
+// not a tab living inside /admin's narrower max-w-6xl convention, so it
+// uses the whole viewport like an actual command center, not a centered
+// column with dead space on either side. Meant to be usable full-screen
+// (F11 or the in-page fullscreen toggle below).
 //
 // Talks to the same backends as before:
 //   admin-api-data.js  — get-command-center-summary, list-leads, patch-lead,
@@ -25,6 +25,11 @@ import { CommandPalette, useCommandPalette } from './components/CommandPalette';
 import { CommandInput } from './components/CommandInput';
 import { PANEL, PANEL_PADDING } from './tokens';
 
+// Full-bleed page shell — this is the thing that changed. Everywhere else
+// (admin's tabs) intentionally stays a centered max-w-6xl column; this page
+// is the exception, meant to fill a monitor edge to edge.
+const PAGE = 'w-full px-4 sm:px-6 lg:px-10 py-4 space-y-4';
+
 function LiveClock() {
   const [now, setNow] = useState(new Date());
   useEffect(() => {
@@ -32,6 +37,24 @@ function LiveClock() {
     return () => clearInterval(t);
   }, []);
   return <span className="text-[11px] text-[#52616D] font-mono">{now.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}</span>;
+}
+
+function FullscreenToggle() {
+  const [isFull, setIsFull] = useState(false);
+  useEffect(() => {
+    const onChange = () => setIsFull(!!document.fullscreenElement);
+    document.addEventListener('fullscreenchange', onChange);
+    return () => document.removeEventListener('fullscreenchange', onChange);
+  }, []);
+  function toggle() {
+    if (document.fullscreenElement) document.exitFullscreen();
+    else document.documentElement.requestFullscreen().catch(() => {});
+  }
+  return (
+    <button onClick={toggle} className="text-[#52616D] hover:text-[#8899A6] text-[11px] uppercase tracking-wide">
+      {isFull ? '⤢ Exit Fullscreen' : '⛶ Fullscreen'}
+    </button>
+  );
 }
 
 export function CommandCenterPage() {
@@ -59,7 +82,7 @@ export function CommandCenterPage() {
 
   if (loading && !summary) {
     return (
-      <div className="max-w-6xl mx-auto py-4 px-3 sm:px-6 space-y-4">
+      <div className={PAGE}>
         <div className="flex items-center justify-between">
           <div className="space-y-1.5">
             <div className="h-2.5 w-20 bg-white/5 rounded animate-pulse" />
@@ -85,7 +108,7 @@ export function CommandCenterPage() {
   }
   if (error && !summary) {
     return (
-      <div className="max-w-6xl mx-auto py-12 px-4 text-center">
+      <div className={PAGE + ' text-center py-12'}>
         <p className="text-[#FF5353] text-sm mb-3">Failed to load: {error}</p>
         <p className="text-[#52616D] text-xs mb-4">
           If this is the first time loading this tab, make sure you've run <code className="text-[#8899A6]">gid_command_center_migration.sql</code> in the Supabase SQL editor.
@@ -97,7 +120,7 @@ export function CommandCenterPage() {
   if (!summary) return null;
 
   return (
-    <div className="max-w-6xl mx-auto py-4 px-3 sm:px-6 space-y-4">
+    <div className={PAGE}>
       <CommandPalette open={palette.open} onClose={() => palette.setOpen(false)} commands={palette.commands} />
 
       {/* ── Header ──────────────────────────────────────────────────── */}
@@ -110,6 +133,7 @@ export function CommandCenterPage() {
           <button onClick={() => palette.setOpen(true)} className="hidden sm:flex items-center gap-1.5 text-[10px] text-[#52616D] hover:text-[#8899A6] border border-white/10 rounded px-2 py-1">
             <span>Ctrl</span><span className="opacity-50">+</span><span>K</span>
           </button>
+          <FullscreenToggle />
           <LiveClock />
           <button onClick={loadSummary} className="text-[#52616D] hover:text-[#8899A6] text-[11px] uppercase tracking-wide">↻ Refresh</button>
         </div>
@@ -118,34 +142,40 @@ export function CommandCenterPage() {
       {/* ── Business state first (section 34 priority order) ─────────── */}
       <BusinessMetrics today={summary.today} />
 
-      {/* ── Needs Attention + Jarvis status ───────────────────────────── */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
-        <div className="lg:col-span-2">
+      {/* ── Needs Attention + Jarvis Core — denser 12-col band ────────── */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-3">
+        <div className="lg:col-span-5">
           <AttentionPanel items={summary.needsAttention} />
         </div>
-        <div className={`${PANEL} ${PANEL_PADDING} flex items-center justify-center`}>
-          <JarvisStatus state={jarvisState} liveActivity={liveActivity} />
+        <div className={`lg:col-span-3 ${PANEL} ${PANEL_PADDING} flex items-center justify-center`}>
+          <JarvisStatus state={jarvisState} liveActivity={liveActivity} size={200} />
+        </div>
+        <div className="lg:col-span-4">
+          <UpcomingJobs scheduleBar={summary.scheduleBar} />
         </div>
       </div>
 
       {/* ── Command input — central to the interface, not buried ─────── */}
       <CommandInput chatMessages={chatMessages} asking={asking} liveActivity={liveActivity} onAsk={ask} onClear={clear} />
 
-      {/* ── Upcoming work ──────────────────────────────────────────────── */}
-      <UpcomingJobs scheduleBar={summary.scheduleBar} />
-      <UpcomingJobsList jobs={summary.upcomingJobs} />
-
-      {/* ── Leads + Marketing ───────────────────────────────────────────── */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-        <LeadPipeline
-          leadsSummary={summary.leadsSummary}
-          leads={leads}
-          leadsLoading={leadsLoading}
-          leadStatusFilter={leadStatusFilter}
-          onFilterChange={s => { setLeadStatusFilter(s); loadLeads(s || undefined); }}
-          onStatusChange={updateLeadStatus}
-        />
-        <MarketingPanel marketingFunnel={summary.marketingFunnel} onAddSpend={submitSpend} />
+      {/* ── Upcoming jobs (real list) + Leads + Marketing — 12-col body ── */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-3">
+        <div className="lg:col-span-5">
+          <UpcomingJobsList jobs={summary.upcomingJobs} />
+        </div>
+        <div className="lg:col-span-4">
+          <LeadPipeline
+            leadsSummary={summary.leadsSummary}
+            leads={leads}
+            leadsLoading={leadsLoading}
+            leadStatusFilter={leadStatusFilter}
+            onFilterChange={s => { setLeadStatusFilter(s); loadLeads(s || undefined); }}
+            onStatusChange={updateLeadStatus}
+          />
+        </div>
+        <div className="lg:col-span-3">
+          <MarketingPanel marketingFunnel={summary.marketingFunnel} onAddSpend={submitSpend} />
+        </div>
       </div>
     </div>
   );

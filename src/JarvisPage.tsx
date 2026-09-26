@@ -26,7 +26,7 @@ export default function JarvisPage() {
 
   return (
     <div className="min-h-screen" style={{ background: '#06090D' }}>
-      <div className="max-w-6xl mx-auto pt-4 px-3 sm:px-6 flex items-center justify-between">
+      <div className="w-full px-4 sm:px-6 lg:px-10 pt-4 flex items-center justify-between">
         <a href="/admin" className="text-[11px] text-[#52616D] hover:text-[#8899A6] uppercase tracking-wide">← Admin</a>
         <button
           onClick={() => { sessionStorage.removeItem('gg_admin_auth'); setUnlocked(false); }}

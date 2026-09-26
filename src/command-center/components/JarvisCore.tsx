@@ -145,10 +145,10 @@ function Scene({ state, progress }: { state: JarvisState; progress: number }) {
   );
 }
 
-export function JarvisCore({ state, progress = 0, label }: { state: JarvisState; progress?: number; label: string }) {
+export function JarvisCore({ state, progress = 0, label, size = 160 }: { state: JarvisState; progress?: number; label: string; size?: number }) {
   return (
     <div className="relative flex flex-col items-center justify-center">
-      <div style={{ width: 160, height: 160 }}>
+      <div style={{ width: size, height: size }}>
         <Canvas camera={{ position: [0, 0, 3.2], fov: 40 }} gl={{ antialias: true, alpha: true }}>
           <Scene state={state} progress={progress} />
         </Canvas>

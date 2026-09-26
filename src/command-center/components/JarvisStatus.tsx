@@ -13,10 +13,10 @@ const STATE_LABEL: Record<JarvisState, string> = {
 // fraction of in-flight tool calls that have finished, so the outer ring's
 // partial sweep during "tool" state reflects actual work happening, not a
 // fake loading animation.
-export function JarvisStatus({ state, liveActivity = [] }: { state: JarvisState; liveActivity?: ActivityItem[] }) {
+export function JarvisStatus({ state, liveActivity = [], size }: { state: JarvisState; liveActivity?: ActivityItem[]; size?: number }) {
   const total = liveActivity.length;
   const done = liveActivity.filter(a => a.status !== 'running').length;
   const progress = total > 0 ? done / total : 0;
 
-  return <JarvisCore state={state} progress={progress} label={STATE_LABEL[state]} />;
+  return <JarvisCore state={state} progress={progress} label={STATE_LABEL[state]} size={size} />;
 }
