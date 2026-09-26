@@ -20,8 +20,16 @@ export function useJarvisSpeech() {
   const cleanupAudio = useCallback(() => {
     const audio = audioRef.current;
     if (audio) {
+      // Detach handlers before clearing the media source.
+      // Some Chromium browsers emit an `error` event when src is reset to '',
+      // which previously caused a false "Generated AI voice could not be played"
+      // message AFTER the audio had already finished successfully.
+      audio.onplay = null;
+      audio.onended = null;
+      audio.onerror = null;
       audio.pause();
-      audio.src = '';
+      audio.removeAttribute('src');
+      try { audio.load(); } catch {}
     }
     audioRef.current = null;
 
