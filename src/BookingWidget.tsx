@@ -1948,7 +1948,7 @@ function BlackoutDatesModal({ onClose }: { onClose: () => void }) {
 export function AdminSchedule() {
   const [unlocked, setUnlocked] = useState(() => sessionStorage.getItem('gg_admin_auth') === '1');
   const [bookings, setBookings] = useState<Booking[]>([]);
-  const [adminTab, setAdminTab] = useState<'command' | 'jobs' | 'schedule' | 'customers' | 'mileage' | 'hub' | 'pay'>('command');
+  const [adminTab, setAdminTab] = useState<'command' | 'jobs' | 'schedule' | 'customers' | 'mileage' | 'hub' | 'pay'>('jobs');
   const [filter, setFilter] = useState<'all' | 'confirmed' | 'completed' | 'cancelled'>('all');
   const [view, setView] = useState<'list' | 'month' | 'week' | 'day'>('month');
   const [calDate, setCalDate] = useState(new Date());

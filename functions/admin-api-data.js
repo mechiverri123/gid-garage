@@ -1423,7 +1423,7 @@ export async function onRequestPost({ request, env }) {
         const nextWeekEnd = new Date(now.getTime() + 7 * 86400000).toISOString().slice(0, 10);
 
         const [bookingsRes, leadsRes, callsRes, spendRes] = await Promise.all([
-          fetch(`${base}/bookings?select=id,fname,lname,vehicle,date,time,job_status,status,estimate_amount,invoice_amount,amount_paid,paid_at,created_at&date=gte.${weekStart}&date=lte.${nextWeekEnd}`, { headers }),
+          fetch(`${base}/bookings?select=id,fname,lname,vehicle,date,time,job_status,status,estimate_amount,invoice_amount,tax_amount,amount_paid,paid_at,created_at&date=gte.${weekStart}&date=lte.${nextWeekEnd}`, { headers }),
           fetch(`${base}/leads?select=*&created_at=gte.${windowStart}`, { headers }),
           fetch(`${base}/calls?select=*&created_at=gte.${windowStart}`, { headers }),
           fetch(`${base}/marketing_spend?select=*&date=gte.${windowStart}`, { headers }),
@@ -1440,7 +1440,19 @@ export async function onRequestPost({ request, env }) {
 
         // ---- Today ----
         const todaysJobs = bookings.filter(b => b.date === phoenixToday && b.status !== 'cancelled');
-        const todaysRevenue = todaysJobs.reduce((sum, b) => sum + Number(b.invoice_amount ?? b.estimate_amount ?? 0), 0);
+        // Prefer what was actually collected (amount_paid) once paid — that's
+        // the real number. Before payment, use invoice or estimate PLUS tax
+        // (tax_amount is tracked as its own column, separate from
+        // invoice_amount/estimate_amount, and was previously left out of
+        // every revenue sum here — reported as "the number was pretax").
+        function jobRevenue(b) {
+          if (b.paid_at && b.amount_paid != null) return Number(b.amount_paid);
+          const base = Number(b.invoice_amount ?? b.estimate_amount ?? 0);
+          const tax = Number(b.tax_amount ?? 0);
+          return base + tax;
+        }
+
+        const todaysRevenue = todaysJobs.reduce((sum, b) => sum + jobRevenue(b), 0);
         const newLeadsToday = leads.filter(l => (l.created_at || '').slice(0, 10) === phoenixToday);
         const missedCallsToday = calls.filter(c => (c.created_at || '').slice(0, 10) === phoenixToday && (c.outcome === 'missed' || c.outcome === 'no_answer'));
 
@@ -1498,7 +1510,7 @@ export async function onRequestPost({ request, env }) {
           if (l.status === 'booked') {
             byChannel[ch].bookings += 1;
             const b = bookings.find(bb => bb.id === l.booking_id);
-            byChannel[ch].revenue += Number((b && (b.invoice_amount ?? b.estimate_amount)) ?? l.quote_amount ?? 0);
+            byChannel[ch].revenue += b ? jobRevenue(b) : Number(l.quote_amount ?? 0);
           }
         }
         for (const c of calls) {
@@ -1520,7 +1532,7 @@ export async function onRequestPost({ request, env }) {
           scheduleBar.push({
             date: d,
             jobCount: dayJobs.length,
-            revenue: dayJobs.reduce((sum, b) => sum + Number(b.invoice_amount ?? b.estimate_amount ?? 0), 0),
+            revenue: dayJobs.reduce((sum, b) => sum + jobRevenue(b), 0),
           });
         }
 
