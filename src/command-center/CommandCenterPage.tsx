@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { motion } from 'motion/react';
 import type { Lead } from './types';
 import { useBusinessSummary } from './hooks/useBusinessSummary';
@@ -48,6 +48,18 @@ function HeroTelemetry({ liveActivity, asking }: { liveActivity: { tool: string;
   );
 }
 
+function greetingFor(summary: any) {
+  const hour = new Date().getHours();
+  const hello = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
+  const urgent = summary.needsAttention?.length
+    ? `You have ${summary.needsAttention.length} item${summary.needsAttention.length === 1 ? '' : 's'} needing attention.`
+    : 'Nothing urgent is waiting on you.';
+  const jobs = summary.today?.jobCount ?? 0;
+  const revenue = Number(summary.today?.revenue || 0);
+  const leads = summary.today?.newLeads ?? 0;
+  return `${hello}, Michael. GID Garage is online. You have ${jobs} job${jobs === 1 ? '' : 's'} today, ${revenue > 0 ? `$${revenue.toLocaleString()} in revenue` : 'no revenue posted yet'}, and ${leads} new lead${leads === 1 ? '' : 's'}. ${urgent} I'm standing by.`;
+}
+
 export function CommandCenterPage({ onLock }: { onLock: () => void }) {
   const {
     summary, loading, error, loadSummary,
@@ -66,6 +78,16 @@ export function CommandCenterPage({ onLock }: { onLock: () => void }) {
   }, handleAssistantFinal);
 
   const displayJarvisState = voice.speaking ? 'speaking' as const : jarvisState;
+  const greetedRef = useRef(false);
+
+  useEffect(() => {
+    if (!summary || greetedRef.current || !voice.enabled) return;
+    greetedRef.current = true;
+    const timer = window.setTimeout(() => {
+      void voice.speakStartup(greetingFor(summary));
+    }, 350);
+    return () => window.clearTimeout(timer);
+  }, [summary, voice.enabled, voice.speakStartup]);
 
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
@@ -156,8 +178,10 @@ export function CommandCenterPage({ onLock }: { onLock: () => void }) {
                     enabled={voice.enabled}
                     speaking={voice.speaking}
                     error={voice.error}
+                    needsInteraction={voice.needsInteraction}
                     onToggle={voice.toggleEnabled}
                     onStop={voice.stop}
+                    onUnlock={voice.unlock}
                   />
                 </div>
                 <JarvisStatus state={displayJarvisState} liveActivity={liveActivity} size={390} />

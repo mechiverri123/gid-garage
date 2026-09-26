@@ -1,27 +1,41 @@
-import { Volume2, VolumeX, Square } from 'lucide-react';
+import { Volume2, VolumeX, Square, Play } from 'lucide-react';
 import { COLORS } from '../tokens';
 
 export function VoiceControl({
   enabled,
   speaking,
   error,
+  needsInteraction,
   onToggle,
   onStop,
+  onUnlock,
 }: {
   enabled: boolean;
   speaking: boolean;
   error?: string | null;
+  needsInteraction?: boolean;
   onToggle: () => void;
   onStop: () => void;
+  onUnlock?: () => void;
 }) {
   return (
     <div className="flex items-center gap-2">
       <div className="hidden md:block text-right mr-1">
         <div className="text-[9px] uppercase tracking-[0.18em]" style={{ color: COLORS.textFaint }}>AI Voice</div>
-        <div className="text-[10px] font-semibold" style={{ color: error ? COLORS.warning : speaking ? COLORS.accent : enabled ? COLORS.success : COLORS.textMuted }}>
-          {error ? 'Voice error' : speaking ? 'Speaking' : enabled ? 'Armed' : 'Muted'}
+        <div className="text-[10px] font-semibold" style={{ color: error ? COLORS.warning : speaking ? COLORS.accent : needsInteraction ? COLORS.warning : enabled ? COLORS.success : COLORS.textMuted }}>
+          {error ? 'Voice error' : speaking ? 'Speaking' : needsInteraction ? 'Tap to start' : enabled ? 'Armed' : 'Muted'}
         </div>
       </div>
+      {needsInteraction && onUnlock && (
+        <button
+          onClick={onUnlock}
+          title="Start Jarvis voice"
+          className="w-9 h-9 rounded-full border flex items-center justify-center transition-all animate-pulse"
+          style={{ borderColor: COLORS.warning, background: 'rgba(245,185,66,0.09)', boxShadow: '0 0 16px rgba(245,185,66,0.16)' }}
+        >
+          <Play size={13} color={COLORS.warning} fill={COLORS.warning} />
+        </button>
+      )}
       {speaking && (
         <button
           onClick={onStop}
