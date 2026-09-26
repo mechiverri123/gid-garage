@@ -7,7 +7,7 @@ const STATUS_COLOR: Record<string, string> = {
   IN_PROGRESS: '#32D9FF', COMPLETED: '#42D392', INVOICED: '#F5B942', PAID: '#42D392',
 };
 
-export function UpcomingJobsList({ jobs }: { jobs: UpcomingJob[] }) {
+export function UpcomingJobsList({ jobs, onSelect }: { jobs: UpcomingJob[]; onSelect: (id: string) => void }) {
   return (
     <div className={`${PANEL} ${PANEL_PADDING}`}>
       <div className={LABEL + ' mb-3'}>Upcoming Jobs</div>
@@ -18,7 +18,11 @@ export function UpcomingJobsList({ jobs }: { jobs: UpcomingJob[] }) {
           {jobs.map(j => {
             const color = STATUS_COLOR[j.job_status || ''] || '#8899A6';
             return (
-              <div key={j.id} className="flex items-center justify-between gap-3 border-b border-white/5 pb-1.5 text-xs">
+              <button
+                key={j.id}
+                onClick={() => onSelect(j.id)}
+                className="w-full flex items-center justify-between gap-3 border-b border-white/5 pb-1.5 pt-0.5 text-xs text-left rounded transition-colors hover:bg-white/5 px-1 -mx-1"
+              >
                 <div className="flex items-center gap-3 min-w-0">
                   <div className="text-[#32D9FF] font-mono text-[10px] shrink-0 w-16">{fmtDate(j.date)}{j.time ? ` ${j.time}` : ''}</div>
                   <div className="min-w-0">
@@ -30,7 +34,7 @@ export function UpcomingJobsList({ jobs }: { jobs: UpcomingJob[] }) {
                   <span className="text-[#8899A6]">{money(j.amount)}</span>
                   <span className="text-[10px] font-semibold uppercase tracking-wide" style={{ color }}>{j.job_status || '—'}</span>
                 </div>
-              </div>
+              </button>
             );
           })}
         </div>

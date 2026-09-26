@@ -19,6 +19,7 @@ import { BusinessMetrics } from './components/BusinessMetrics';
 import { AttentionPanel } from './components/AttentionPanel';
 import { UpcomingJobs } from './components/UpcomingJobs';
 import { UpcomingJobsList } from './components/UpcomingJobsList';
+import { JobDetailPanel } from './components/JobDetailPanel';
 import { LeadPipeline } from './components/LeadPipeline';
 import { MarketingPanel } from './components/MarketingPanel';
 import { CommandPalette, useCommandPalette } from './components/CommandPalette';
@@ -68,6 +69,8 @@ export function CommandCenterPage() {
     loadSummary();
     loadLeads(leadStatusFilter || undefined);
   });
+
+  const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
 
   const palette = useCommandPalette([
     { id: 'today', label: "Today's jobs", run: () => ask("what's scheduled today") },
@@ -122,6 +125,7 @@ export function CommandCenterPage() {
   return (
     <div className={PAGE}>
       <CommandPalette open={palette.open} onClose={() => palette.setOpen(false)} commands={palette.commands} />
+      <JobDetailPanel jobId={selectedJobId} onClose={() => setSelectedJobId(null)} />
 
       {/* ── Header ──────────────────────────────────────────────────── */}
       <div className="flex items-center justify-between">
@@ -161,7 +165,7 @@ export function CommandCenterPage() {
       {/* ── Upcoming jobs (real list) + Leads + Marketing — 12-col body ── */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-3">
         <div className="lg:col-span-5">
-          <UpcomingJobsList jobs={summary.upcomingJobs} />
+          <UpcomingJobsList jobs={summary.upcomingJobs} onSelect={setSelectedJobId} />
         </div>
         <div className="lg:col-span-4">
           <LeadPipeline
