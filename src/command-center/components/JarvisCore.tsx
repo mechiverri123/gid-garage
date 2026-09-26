@@ -1,26 +1,4 @@
-// ── Jarvis Core (Phase 3, visual pass 2) ─────────────────────────────────
-// The 3D orb. Built with plain Three.js materials — no custom GLSL shaders,
-// no postprocessing pipeline dependency — so it's something I can reason
-// about statically and be confident it compiles/renders correctly. I have
-// no way to actually see WebGL output from here, so anything requiring
-// real visual iteration (exact glow intensity, precise color balance) is a
-// best-effort guess that needs checking live. The "bloom" here is a classic
-// cheap trick (a larger, soft, backside-rendered transparent sphere behind
-// the wireframe core) rather than real postprocessing bloom — safer to
-// build blind, and avoids a new dependency (@react-three/postprocessing)
-// that could fail to install/build without me able to verify it.
-//
-// Visual pass 2 additions vs. the first version: denser wireframe core, a
-// glow layer, a third ring, and a network-globe particle layer (points
-// connected to their nearest neighbors, computed once) instead of a bare
-// point cloud — this is the piece meant to close the gap toward a
-// connected-network look rather than a scattered starfield.
-//
-// One canvas, driven entirely by the same JarvisState the rest of the app
-// uses — idle/processing/tool/success/error, all real, none faked.
-// ─────────────────────────────────────────────────────────────────────────
-
-import { useRef, useMemo, useState, useEffect } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { motion } from 'motion/react';
@@ -36,216 +14,194 @@ const STATE_COLOR: Record<JarvisState, string> = {
 };
 
 const STATE_SPEED: Record<JarvisState, number> = {
-  idle: 0.15,
-  processing: 1.2,
-  tool: 1.6,
-  success: 0.4,
-  error: 0.4,
+  idle: 0.16,
+  processing: 0.9,
+  tool: 1.25,
+  success: 0.35,
+  error: 0.45,
 };
 
-function GlowSphere({ state }: { state: JarvisState }) {
-  const ref = useRef<THREE.Mesh>(null);
-  useFrame(({ clock }) => {
-    if (!ref.current) return;
-    const t = clock.getElapsedTime();
-    const breathSpeed = state === 'idle' ? 0.6 : 2.2;
-    const scale = 1 + Math.sin(t * breathSpeed) * (state === 'idle' ? 0.05 : 0.12);
-    ref.current.scale.setScalar(scale);
-  });
-  return (
-    <mesh ref={ref}>
-      <sphereGeometry args={[0.62, 24, 24]} />
-      <meshBasicMaterial
-        color={STATE_COLOR[state]}
-        transparent
-        opacity={0.2}
-        side={THREE.BackSide}
-        depthWrite={false}
-      />
-    </mesh>
-  );
-}
+function CoreGeometry({ state }: { state: JarvisState }) {
+  const core = useRef<THREE.Mesh>(null);
+  const shell = useRef<THREE.Mesh>(null);
+  const ringA = useRef<THREE.Mesh>(null);
+  const ringB = useRef<THREE.Mesh>(null);
+  const ringC = useRef<THREE.Mesh>(null);
+  const color = STATE_COLOR[state];
 
-function CoreSphere({ state }: { state: JarvisState }) {
-  const meshRef = useRef<THREE.Mesh>(null);
-  const color = useMemo(() => new THREE.Color(STATE_COLOR[state]), [state]);
-
-  useFrame(({ clock }) => {
-    if (!meshRef.current) return;
-    const t = clock.getElapsedTime();
-    const breathSpeed = state === 'idle' ? 0.6 : 2.2;
-    const breathAmount = state === 'idle' ? 0.04 : 0.09;
-    const scale = 1 + Math.sin(t * breathSpeed) * breathAmount;
-    meshRef.current.scale.setScalar(scale);
-    meshRef.current.rotation.y = t * STATE_SPEED[state] * 0.12;
-    const mat = meshRef.current.material as THREE.MeshStandardMaterial;
-    mat.color = color;
-    mat.emissive = color;
-  });
-
-  return (
-    <mesh ref={meshRef}>
-      {/* Subdivision 3 (vs. 2 before) — denser wireframe, closer to a
-          network-mesh look instead of a plain low-poly ball. */}
-      <icosahedronGeometry args={[0.55, 3]} />
-      <meshStandardMaterial
-        color={STATE_COLOR[state]}
-        emissive={STATE_COLOR[state]}
-        emissiveIntensity={1.4}
-        roughness={0.25}
-        metalness={0.1}
-        wireframe
-      />
-    </mesh>
-  );
-}
-
-function Ring({ radius, thickness, speed, tilt, opacity, state, arc }: {
-  radius: number; thickness: number; speed: number; tilt: number; opacity: number; state: JarvisState; arc?: number;
-}) {
-  const ref = useRef<THREE.Mesh>(null);
-  useFrame((_, delta) => {
-    if (!ref.current) return;
-    ref.current.rotation.z += delta * STATE_SPEED[state] * speed;
-    ref.current.rotation.x = tilt;
-  });
-  return (
-    <mesh ref={ref}>
-      <torusGeometry args={[radius, thickness, 8, 96, arc ?? Math.PI * 2]} />
-      <meshBasicMaterial color={STATE_COLOR[state]} transparent opacity={opacity} />
-    </mesh>
-  );
-}
-
-// Points scattered on a sphere shell, connected to their nearest couple of
-// neighbors with thin lines — a network-globe look (like a connected node
-// graph) rather than a bare point cloud. Positions and the connection list
-// are computed once (useMemo), so this costs nothing extra per frame.
-function NetworkGlobe({ state }: { state: JarvisState }) {
-  const pointsRef = useRef<THREE.Points>(null);
-  const linesRef = useRef<THREE.LineSegments>(null);
-  const count = 42;
-
-  const { positions, linePositions } = useMemo(() => {
-    const pts: THREE.Vector3[] = [];
-    for (let i = 0; i < count; i++) {
-      const radius = 1.35 + Math.random() * 0.25;
-      const theta = Math.random() * Math.PI * 2;
-      const phi = Math.acos(2 * Math.random() - 1);
-      pts.push(new THREE.Vector3(
-        radius * Math.sin(phi) * Math.cos(theta),
-        radius * Math.sin(phi) * Math.sin(theta),
-        radius * Math.cos(phi),
-      ));
+  useFrame(({ clock }, delta) => {
+    const t = clock.elapsedTime;
+    const speed = STATE_SPEED[state];
+    if (core.current) {
+      const pulse = 1 + Math.sin(t * (state === 'idle' ? 0.9 : 2.4)) * (state === 'idle' ? 0.025 : 0.055);
+      core.current.scale.setScalar(pulse);
+      core.current.rotation.y += delta * speed * 0.17;
+      core.current.rotation.x = Math.sin(t * 0.22) * 0.08;
     }
-    const positions = new Float32Array(count * 3);
-    pts.forEach((p, i) => { positions[i * 3] = p.x; positions[i * 3 + 1] = p.y; positions[i * 3 + 2] = p.z; });
-
-    // Connect each point to its 2 nearest neighbors — small, fixed cost
-    // (42^2), computed once, never per-frame.
-    const lineVerts: number[] = [];
-    const maxConnectDist = 0.85;
-    for (let i = 0; i < count; i++) {
-      const dists = pts.map((p, j) => ({ j, d: i === j ? Infinity : pts[i].distanceTo(p) }));
-      dists.sort((a, b) => a.d - b.d);
-      for (let k = 0; k < 2; k++) {
-        const nb = dists[k];
-        if (nb.d < maxConnectDist) {
-          lineVerts.push(pts[i].x, pts[i].y, pts[i].z, pts[nb.j].x, pts[nb.j].y, pts[nb.j].z);
-        }
-      }
+    if (shell.current) {
+      shell.current.rotation.y -= delta * speed * 0.07;
+      shell.current.rotation.z += delta * speed * 0.035;
     }
-    return { positions, linePositions: new Float32Array(lineVerts) };
-  }, []);
+    if (ringA.current) ringA.current.rotation.z += delta * speed * 0.34;
+    if (ringB.current) ringB.current.rotation.z -= delta * speed * 0.22;
+    if (ringC.current) ringC.current.rotation.z += delta * speed * 0.12;
+  });
+
+  return (
+    <group>
+      <mesh ref={shell}>
+        <icosahedronGeometry args={[1.05, 2]} />
+        <meshBasicMaterial color={color} wireframe transparent opacity={0.13} />
+      </mesh>
+
+      <mesh ref={core}>
+        <icosahedronGeometry args={[0.78, 3]} />
+        <meshStandardMaterial
+          color={color}
+          emissive={color}
+          emissiveIntensity={1.7}
+          roughness={0.18}
+          metalness={0.08}
+          wireframe
+          transparent
+          opacity={0.95}
+        />
+      </mesh>
+
+      <mesh>
+        <sphereGeometry args={[0.68, 32, 32]} />
+        <meshBasicMaterial color={color} transparent opacity={0.07} depthWrite={false} />
+      </mesh>
+
+      <mesh ref={ringA} rotation={[Math.PI / 2.5, 0.25, 0]}>
+        <torusGeometry args={[1.18, 0.012, 8, 120]} />
+        <meshBasicMaterial color={color} transparent opacity={0.64} />
+      </mesh>
+      <mesh ref={ringB} rotation={[Math.PI / 3.1, -0.3, 0.35]}>
+        <torusGeometry args={[1.42, 0.008, 8, 120, Math.PI * 1.72]} />
+        <meshBasicMaterial color={color} transparent opacity={0.42} />
+      </mesh>
+      <mesh ref={ringC} rotation={[Math.PI / 2.05, 0, -0.28]}>
+        <torusGeometry args={[1.62, 0.006, 8, 120, Math.PI * 1.32]} />
+        <meshBasicMaterial color={color} transparent opacity={0.26} />
+      </mesh>
+    </group>
+  );
+}
+
+function OrbitNodes({ state }: { state: JarvisState }) {
+  const group = useRef<THREE.Group>(null);
+  const color = STATE_COLOR[state];
+  const nodes = useMemo(() => [
+    [1.55, 0.22, 0.1], [-1.28, -0.62, 0.18], [0.72, 1.12, -0.2], [-0.58, 1.38, 0.12], [1.1, -0.94, -0.12],
+  ] as [number, number, number][], []);
 
   useFrame((_, delta) => {
-    const rot = delta * STATE_SPEED[state] * 0.1;
-    if (pointsRef.current) pointsRef.current.rotation.y += rot;
-    if (linesRef.current) linesRef.current.rotation.y += rot;
+    if (group.current) group.current.rotation.z += delta * STATE_SPEED[state] * 0.055;
   });
 
+  return (
+    <group ref={group}>
+      {nodes.map((p, i) => (
+        <mesh key={i} position={p}>
+          <sphereGeometry args={[i === 0 ? 0.05 : 0.035, 12, 12]} />
+          <meshBasicMaterial color={color} transparent opacity={0.9} />
+        </mesh>
+      ))}
+    </group>
+  );
+}
+
+function Scene({ state }: { state: JarvisState }) {
   return (
     <>
-      <points ref={pointsRef}>
-        <bufferGeometry>
-          <bufferAttribute attach="attributes-position" args={[positions, 3]} />
-        </bufferGeometry>
-        <pointsMaterial color={STATE_COLOR[state]} size={0.045} transparent opacity={0.9} sizeAttenuation />
-      </points>
-      <lineSegments ref={linesRef}>
-        <bufferGeometry>
-          <bufferAttribute attach="attributes-position" args={[linePositions, 3]} />
-        </bufferGeometry>
-        <lineBasicMaterial color={STATE_COLOR[state]} transparent opacity={0.35} />
-      </lineSegments>
+      <ambientLight intensity={0.35} />
+      <pointLight position={[2, 2.5, 3]} intensity={1.6} color={STATE_COLOR[state]} />
+      <CoreGeometry state={state} />
+      <OrbitNodes state={state} />
     </>
   );
 }
 
-function Scene({ state, progress }: { state: JarvisState; progress: number }) {
-  const arc = state === 'tool' ? Math.max(0.15, progress) * Math.PI * 2 : undefined;
+function GaugeArc({ rotate, span = 72, radius = 43, opacity = 0.45 }: { rotate: number; span?: number; radius?: number; opacity?: number }) {
+  const circumference = 2 * Math.PI * radius;
+  const dash = (span / 360) * circumference;
   return (
-    <>
-      <ambientLight intensity={0.5} />
-      <pointLight position={[2, 2, 2]} intensity={1.1} color={STATE_COLOR[state]} />
-      <GlowSphere state={state} />
-      <CoreSphere state={state} />
-      <Ring radius={0.78} thickness={0.010} speed={0.6} tilt={Math.PI / 2.4} opacity={0.5} state={state} />
-      <Ring radius={0.95} thickness={0.007} speed={-0.4} tilt={Math.PI / 3.1} opacity={0.35} state={state} />
-      <Ring radius={1.12} thickness={0.006} speed={-0.35} tilt={Math.PI / 2.4} opacity={0.3} state={state} arc={arc} />
-      <NetworkGlobe state={state} />
-    </>
+    <circle
+      cx="50" cy="50" r={radius}
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="0.5"
+      strokeDasharray={`${dash} ${circumference - dash}`}
+      strokeLinecap="round"
+      opacity={opacity}
+      transform={`rotate(${rotate} 50 50)`}
+    />
   );
 }
 
-export function JarvisCore({ state, progress = 0, label, size = 160 }: { state: JarvisState; progress?: number; label: string; size?: number }) {
+export function JarvisCore({ state, progress = 0, label, size = 320 }: { state: JarvisState; progress?: number; label: string; size?: number }) {
   const color = STATE_COLOR[state];
   const [booted, setBooted] = useState(false);
-  useEffect(() => { const t = setTimeout(() => setBooted(true), 50); return () => clearTimeout(t); }, []);
+  const active = state !== 'idle';
+  useEffect(() => {
+    const t = setTimeout(() => setBooted(true), 80);
+    return () => clearTimeout(t);
+  }, []);
+
+  const marks = Array.from({ length: 36 });
+  const progressDeg = Math.max(10, progress * 360);
 
   return (
-    <div className="relative flex flex-col items-center justify-center">
-      {/* Boot flash — a bright pulse that fires once, then fades for good.
-          Plain div, no size-sensitive rendering, safe to animate freely. */}
+    <div className="relative w-full min-h-[330px] md:min-h-[365px] flex items-center justify-center overflow-hidden">
+      <div className="absolute inset-0 pointer-events-none">
+        <div className="absolute left-1/2 top-1/2 w-[72%] h-[72%] -translate-x-1/2 -translate-y-1/2 rounded-full" style={{ background: `radial-gradient(circle, ${color}20 0%, ${color}0A 32%, transparent 70%)`, filter: 'blur(5px)' }} />
+        <div className="absolute inset-y-[12%] left-1/2 w-px bg-white/[0.035]" />
+        <div className="absolute inset-x-[8%] top-1/2 h-px bg-white/[0.035]" />
+        <div className="absolute left-[7%] top-[12%] w-10 h-10 border-l border-t" style={{ borderColor: `${color}55` }} />
+        <div className="absolute right-[7%] top-[12%] w-10 h-10 border-r border-t" style={{ borderColor: `${color}55` }} />
+        <div className="absolute left-[7%] bottom-[12%] w-10 h-10 border-l border-b" style={{ borderColor: `${color}55` }} />
+        <div className="absolute right-[7%] bottom-[12%] w-10 h-10 border-r border-b" style={{ borderColor: `${color}55` }} />
+      </div>
+
       <motion.div
-        className="absolute rounded-full pointer-events-none"
-        style={{ width: size, height: size, background: color }}
-        initial={{ opacity: 0.5, scale: 0.3 }}
-        animate={booted ? { opacity: 0, scale: 1.8 } : {}}
-        transition={{ duration: 0.9, delay: 0.3, ease: 'easeOut' }}
-      />
-      {/* CSS glow behind the canvas — cheap, safe, no WebGL risk. */}
-      <div
-        className="absolute rounded-full pointer-events-none"
-        style={{
-          width: size * 0.9, height: size * 0.9,
-          background: `radial-gradient(circle, ${color}55 0%, transparent 70%)`,
-          filter: 'blur(12px)',
-        }}
-      />
-      {/* IMPORTANT: this div (the Canvas's direct measuring container)
-          must never receive a scale/rotate transform, only opacity. A
-          scaled ancestor collapses what Three.js reads as the render
-          target size at mount, and it does not recover even after the
-          transform animates back — this is what broke the orb entirely
-          in the previous version. Opacity-only fade is safe: it doesn't
-          affect the measured bounding box the way scale does. */}
-      <motion.div
-        style={{ width: size, height: size }}
-        className="relative"
-        initial={{ opacity: 0 }}
-        animate={booted ? { opacity: 1 } : {}}
-        transition={{ duration: 0.6, delay: 0.3 }}
+        className="absolute w-[min(76vw,580px)] aspect-square rounded-full pointer-events-none"
+        initial={{ opacity: 0, scale: 0.88 }}
+        animate={{ opacity: booted ? 1 : 0, scale: booted ? 1 : 0.88 }}
+        transition={{ duration: 0.7, ease: 'easeOut' }}
       >
-        <Canvas camera={{ position: [0, 0, 3.2], fov: 40 }} gl={{ antialias: true, alpha: true }}>
-          <Scene state={state} progress={progress} />
-        </Canvas>
+        <svg viewBox="0 0 100 100" className="w-full h-full overflow-visible" style={{ color }}>
+          <circle cx="50" cy="50" r="46" fill="none" stroke="currentColor" strokeWidth="0.22" opacity="0.14" />
+          <circle cx="50" cy="50" r="39" fill="none" stroke="currentColor" strokeWidth="0.18" opacity="0.12" strokeDasharray="1.2 2.2" />
+          <GaugeArc rotate={-26} span={78} radius={46} opacity={0.52} />
+          <GaugeArc rotate={105} span={52} radius={43} opacity={0.32} />
+          <GaugeArc rotate={198} span={96} radius={40} opacity={0.24} />
+          {marks.map((_, i) => {
+            const a = i * 10;
+            return <line key={i} x1="50" y1="3.1" x2="50" y2={i % 3 === 0 ? '5.3' : '4.4'} stroke="currentColor" strokeWidth={i % 3 === 0 ? '0.36' : '0.2'} opacity={i % 3 === 0 ? 0.55 : 0.22} transform={`rotate(${a} 50 50)`} />;
+          })}
+          {state === 'tool' && (
+            <circle cx="50" cy="50" r="47.5" fill="none" stroke="currentColor" strokeWidth="0.65" strokeDasharray={`${(progressDeg / 360) * 298} 298`} strokeLinecap="round" transform="rotate(-90 50 50)" opacity="0.9" />
+          )}
+        </svg>
       </motion.div>
-      <div
-        className="text-[10px] font-semibold uppercase tracking-[0.2em] -mt-2 relative"
-        style={{ color }}
-      >
-        {label}
+
+      <div className="relative" style={{ width: size, height: size }}>
+        <Canvas camera={{ position: [0, 0, 4.1], fov: 38 }} gl={{ antialias: true, alpha: true }}>
+          <Scene state={state} />
+        </Canvas>
+      </div>
+
+      <div className="absolute bottom-7 left-1/2 -translate-x-1/2 w-[72%] max-w-[600px] text-center">
+        <div className="h-px w-full" style={{ background: `linear-gradient(90deg, transparent, ${color}55, transparent)` }} />
+        <div className="mt-2 flex items-center justify-center gap-3">
+          <span className="w-1.5 h-1.5 rounded-full" style={{ background: color, boxShadow: `0 0 10px ${color}` }} />
+          <span className="text-[10px] font-semibold uppercase tracking-[0.28em]" style={{ color }}>{label}</span>
+          <span className="w-1.5 h-1.5 rounded-full" style={{ background: color, boxShadow: `0 0 10px ${color}` }} />
+        </div>
+        <div className="text-[9px] uppercase tracking-[0.2em] mt-1" style={{ color: COLORS.textFaint }}>
+          {active ? 'State-linked reactor active' : 'Standing by'}
+        </div>
       </div>
     </div>
   );
