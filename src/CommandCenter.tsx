@@ -72,7 +72,7 @@ export function CommandCenterTab() {
   const [leadStatusFilter, setLeadStatusFilter] = useState<string>('');
 
   const [askQuery, setAskQuery] = useState('');
-  const [askHistory, setAskHistory] = useState<{ q: string; a: string }[]>([]);
+  const [chatMessages, setChatMessages] = useState<{ role: 'user' | 'assistant'; content: string }[]>([]);
   const [asking, setAsking] = useState(false);
 
   const [spendDate, setSpendDate] = useState(() => new Date().toISOString().slice(0, 10));
@@ -114,12 +114,23 @@ export function CommandCenterTab() {
     const q = askQuery.trim();
     if (!q || asking) return;
     setAsking(true);
+    const nextMessages = [...chatMessages, { role: 'user' as const, content: q }];
+    setChatMessages(nextMessages);
+    setAskQuery('');
     try {
-      const res = await adminPost('ask-gid', { query: q });
-      setAskHistory(prev => [{ q, a: res?.text || 'No answer.' }, ...prev].slice(0, 8));
-      setAskQuery('');
+      const res = await fetch('/admin-ai-chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messages: nextMessages }),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      const data = await res.json();
+      setChatMessages(prev => [...prev, { role: 'assistant', content: data.reply || 'No answer.' }]);
+      // A tool call may have changed data (lead status, spend, reschedule) — refresh in the background.
+      loadSummary();
+      loadLeads(leadStatusFilter || undefined);
     } catch (err: any) {
-      setAskHistory(prev => [{ q, a: `Error: ${err.message}` }, ...prev].slice(0, 8));
+      setChatMessages(prev => [...prev, { role: 'assistant', content: `Error: ${err.message}` }]);
     } finally {
       setAsking(false);
     }
@@ -164,13 +175,18 @@ export function CommandCenterTab() {
 
       {/* ── Ask GID ─────────────────────────────────────────────────── */}
       <div className={CARD}>
-        <div className={LABEL + ' mb-2'}>Ask GID</div>
+        <div className="flex items-center justify-between mb-2">
+          <div className={LABEL}>Ask GID</div>
+          {chatMessages.length > 0 && (
+            <button onClick={() => setChatMessages([])} className="text-[10px] text-gray-600 hover:text-gray-400 uppercase tracking-wide">Clear</button>
+          )}
+        </div>
         <form onSubmit={submitAsk} className="flex gap-2">
           <input
             type="text"
             value={askQuery}
             onChange={e => setAskQuery(e.target.value)}
-            placeholder="Who needs follow-up? How are my ads doing? What's unpaid?"
+            placeholder="Who needs follow-up? Move John's brakes to Thursday. How are my ads doing?"
             className="flex-1 bg-black/30 border border-white/15 text-white placeholder-white/30 px-4 py-2.5 text-sm outline-none focus:border-red-600 transition-colors"
           />
           <button type="submit" disabled={asking}
@@ -178,14 +194,14 @@ export function CommandCenterTab() {
             {asking ? '…' : 'Ask'}
           </button>
         </form>
-        {askHistory.length > 0 && (
-          <div className="mt-3 space-y-2 max-h-56 overflow-y-auto">
-            {askHistory.map((h, i) => (
-              <div key={i} className="text-xs border-l-2 border-gray-800 pl-3 py-1">
-                <div className="text-gray-500">{h.q}</div>
-                <div className="text-gray-200 mt-0.5">{h.a}</div>
+        {chatMessages.length > 0 && (
+          <div className="mt-3 space-y-2.5 max-h-72 overflow-y-auto">
+            {chatMessages.map((m, i) => (
+              <div key={i} className={`text-xs pl-3 py-1 border-l-2 ${m.role === 'user' ? 'border-gray-800 text-gray-400' : 'border-red-800 text-gray-200'}`}>
+                {m.content}
               </div>
             ))}
+            {asking && <div className="text-xs pl-3 py-1 border-l-2 border-red-800 text-gray-500">…</div>}
           </div>
         )}
       </div>
