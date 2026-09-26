@@ -1,27 +1,26 @@
-GID VOICE + OVERLAP FIX
+GID GARAGE — REAL AI VOICE FIX
 
-Replace these files:
-- functions/jarvis-speak.js
-- src/command-center/hooks/useJarvisSpeech.ts
-- src/command-center/components/VoiceControl.tsx
-- src/command-center/CommandCenterPage.tsx
+Replace these 3 files in your current project:
 
-WHAT THIS FIXES
-1. Removes the duplicated bottom telemetry row that was overlapping the Jarvis core.
-2. Shows the actual voice error instead of only "Voice error".
-3. Adds a retry button.
-4. If OpenAI TTS fails (missing billing, bad key, rate limit, etc.), GID immediately falls back to the browser's local speech voice so Michael still hears the greeting.
-5. The OpenAI endpoint now returns clearer diagnostics.
+1. functions/jarvis-speak.js
+2. src/command-center/hooks/useJarvisSpeech.ts
+3. src/command-center/components/VoiceControl.tsx
 
-IMPORTANT
-- OPENAI_API_KEY must exist in the *production* Cloudflare Pages environment, not only Preview.
-- gpt-4o-mini-tts is not available on the OpenAI API free tier. Billing/credits must be active.
-- Browsers may block autoplay. If so, the UI says "Tap to start" and the first interaction releases the queued greeting.
+WHAT CHANGED
+- Removed the manual Cf-Access-Jwt-Assertion rejection that was blocking /jarvis-speak.
+- Cloudflare Access should protect the route at the edge instead.
+- Disabled the robotic browser speechSynthesis fallback.
+- If OpenAI voice fails, the UI now shows the real error and a Retry button.
+- Tuned the OpenAI cedar voice toward a calm, refined, cinematic British AI-assistant style.
+- Startup greetings still queue behind the browser's autoplay restriction if necessary.
 
-QUICK TEST
-Open this URL while logged into Cloudflare Access:
-  https://www.gidgarage.com/jarvis-speak
-It should return JSON like:
-  {"ok":true,"configured":true,"model":"gpt-4o-mini-tts","voice":"cedar"}
+AFTER DEPLOYING
+1. Purge Cloudflare cache if you get stale chunks.
+2. Visit /jarvis-speak while logged in.
+   It should return JSON with configured:true.
+3. Reload /jarvis.
+4. If the browser blocks autoplay, click once anywhere or press the Play button.
+5. If it still says Voice unavailable, hover the error or press Retry; the exact API error should now be visible.
 
-If configured is false, the Cloudflare production environment variable is missing.
+Cloudflare environment variable required:
+OPENAI_API_KEY

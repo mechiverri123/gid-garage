@@ -1,25 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 type SpeakOptions = { startup?: boolean };
-type VoiceMode = 'openai' | 'browser' | 'idle';
-
-function pickBrowserVoice(): SpeechSynthesisVoice | null {
-  if (!('speechSynthesis' in window)) return null;
-  const voices = window.speechSynthesis.getVoices();
-  const preferred = [
-    /Microsoft George.*English \(United Kingdom\)/i,
-    /Microsoft Ryan.*English \(United Kingdom\)/i,
-    /Google UK English Male/i,
-    /Daniel/i,
-    /British/i,
-    /en-GB/i,
-  ];
-  for (const pattern of preferred) {
-    const found = voices.find(v => pattern.test(`${v.name} ${v.lang}`));
-    if (found) return found;
-  }
-  return voices.find(v => /^en-GB/i.test(v.lang)) || voices.find(v => /^en/i.test(v.lang)) || null;
-}
+type VoiceMode = 'openai' | 'idle';
 
 export function useJarvisSpeech() {
   const [enabled, setEnabled] = useState(true);
@@ -34,7 +16,6 @@ export function useJarvisSpeech() {
   const objectUrlRef = useRef<string | null>(null);
   const requestIdRef = useRef(0);
   const pendingStartupRef = useRef<(() => Promise<void>) | null>(null);
-  const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
 
   const cleanupAudio = useCallback(() => {
     const audio = audioRef.current;
@@ -43,13 +24,14 @@ export function useJarvisSpeech() {
       audio.src = '';
     }
     audioRef.current = null;
+
     if (objectUrlRef.current) {
       URL.revokeObjectURL(objectUrlRef.current);
       objectUrlRef.current = null;
     }
-    if ('speechSynthesis' in window) window.speechSynthesis.cancel();
-    utteranceRef.current = null;
+
     setSpeaking(false);
+    setMode('idle');
   }, []);
 
   const stop = useCallback(() => {
@@ -59,53 +41,10 @@ export function useJarvisSpeech() {
     cleanupAudio();
   }, [cleanupAudio]);
 
-  const browserSpeak = useCallback(async (text: string, startup = false) => {
-    if (!('speechSynthesis' in window)) throw new Error('Browser speech fallback is unavailable.');
-
-    const play = async () => {
-      window.speechSynthesis.cancel();
-      const utter = new SpeechSynthesisUtterance(text);
-      const voice = pickBrowserVoice();
-      if (voice) utter.voice = voice;
-      utter.lang = voice?.lang || 'en-GB';
-      utter.rate = 0.96;
-      utter.pitch = 0.86;
-      utter.volume = 1;
-      utteranceRef.current = utter;
-      utter.onstart = () => {
-        setSpeaking(true);
-        setMode('browser');
-        setNeedsInteraction(false);
-      };
-      utter.onend = () => {
-        setSpeaking(false);
-        utteranceRef.current = null;
-      };
-      utter.onerror = () => {
-        setSpeaking(false);
-        utteranceRef.current = null;
-      };
-      window.speechSynthesis.speak(utter);
-    };
-
-    if (startup) {
-      // Some browsers will suppress startup audio. Queue the same action for
-      // the first click/key if speech does not actually enter speaking state.
-      await play();
-      window.setTimeout(() => {
-        if (!window.speechSynthesis.speaking && !speaking) {
-          pendingStartupRef.current = play;
-          setNeedsInteraction(true);
-        }
-      }, 250);
-    } else {
-      await play();
-    }
-  }, [speaking]);
-
   const playOpenAIAudio = useCallback(async (blob: Blob, startup: boolean) => {
     const url = URL.createObjectURL(blob);
     objectUrlRef.current = url;
+
     const audio = new Audio(url);
     audioRef.current = audio;
     audio.preload = 'auto';
@@ -118,10 +57,12 @@ export function useJarvisSpeech() {
       setError(null);
       setErrorDetail(null);
     };
+
     audio.onended = () => cleanupAudio();
+
     audio.onerror = () => {
-      setError('Generated audio could not be played.');
-      setErrorDetail('The TTS request succeeded, but the browser failed to decode/play the audio file.');
+      setError('Generated AI voice could not be played.');
+      setErrorDetail('The OpenAI request succeeded, but the browser failed to decode or play the WAV audio.');
       cleanupAudio();
     };
 
@@ -132,11 +73,16 @@ export function useJarvisSpeech() {
     try {
       await doPlay();
     } catch (err: any) {
-      if (startup && (err?.name === 'NotAllowedError' || /autoplay|interact|gesture/i.test(err?.message || ''))) {
+      const autoplayBlocked = err?.name === 'NotAllowedError' || /autoplay|interact|gesture/i.test(err?.message || '');
+
+      if (startup && autoplayBlocked) {
         pendingStartupRef.current = doPlay;
         setNeedsInteraction(true);
+        setError(null);
+        setErrorDetail(null);
         return;
       }
+
       throw err;
     }
   }, [cleanupAudio]);
@@ -147,6 +93,7 @@ export function useJarvisSpeech() {
 
     setLastText(clean);
     const requestId = ++requestIdRef.current;
+
     cleanupAudio();
     pendingStartupRef.current = null;
     setNeedsInteraction(false);
@@ -158,11 +105,13 @@ export function useJarvisSpeech() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text: clean }),
+        credentials: 'same-origin',
       });
 
       if (!res.ok) {
         let message = `Voice request failed (${res.status})`;
         let detail = '';
+
         try {
           const body = await res.json();
           message = body?.error || message;
@@ -170,33 +119,40 @@ export function useJarvisSpeech() {
         } catch {}
 
         if (requestId !== requestIdRef.current) return;
-        setError(message);
-        setErrorDetail(detail || null);
 
-        // Always fall back to the browser's local TTS so Michael still hears
-        // a greeting/response even if API billing, key config, or OpenAI is down.
-        await browserSpeak(clean, !!options.startup);
+        setSpeaking(false);
+        setMode('idle');
+        setError(message);
+        setErrorDetail(detail || 'OpenAI voice did not run. Browser fallback is intentionally disabled so you only hear the real AI voice.');
+        return;
+      }
+
+      const contentType = res.headers.get('content-type') || '';
+      if (!contentType.includes('audio/')) {
+        const unexpected = await res.text();
+        if (requestId !== requestIdRef.current) return;
+        setError('Voice endpoint returned a non-audio response.');
+        setErrorDetail(unexpected.slice(0, 600));
         return;
       }
 
       const blob = await res.blob();
       if (requestId !== requestIdRef.current) return;
+
       await playOpenAIAudio(blob, !!options.startup);
     } catch (err: any) {
       if (requestId !== requestIdRef.current) return;
-      setError(err?.message || 'OpenAI voice failed.');
-      setErrorDetail('Using browser fallback voice so GID can still speak.');
-      try {
-        await browserSpeak(clean, !!options.startup);
-      } catch (fallbackErr: any) {
-        setSpeaking(false);
-        setMode('idle');
-        setErrorDetail(fallbackErr?.message || 'Browser fallback voice also failed.');
-      }
-    }
-  }, [browserSpeak, cleanupAudio, enabled, playOpenAIAudio]);
 
-  const speakStartup = useCallback((text: string) => speak(text, { startup: true }), [speak]);
+      setSpeaking(false);
+      setMode('idle');
+      setError(err?.message || 'OpenAI voice failed.');
+      setErrorDetail('The browser voice fallback is disabled. Fix the AI voice connection, then press Retry.');
+    }
+  }, [cleanupAudio, enabled, playOpenAIAudio]);
+
+  const speakStartup = useCallback((text: string) => {
+    return speak(text, { startup: true });
+  }, [speak]);
 
   const unlock = useCallback(async () => {
     const action = pendingStartupRef.current;
@@ -204,12 +160,14 @@ export function useJarvisSpeech() {
       setNeedsInteraction(false);
       return;
     }
+
     try {
       await action();
       pendingStartupRef.current = null;
       setNeedsInteraction(false);
     } catch (err: any) {
       setError(err?.message || 'Could not start GID voice.');
+      setErrorDetail('Your browser blocked audio playback. Click the voice button and try again.');
     }
   }, []);
 
@@ -227,10 +185,15 @@ export function useJarvisSpeech() {
 
   useEffect(() => {
     if (!needsInteraction) return;
-    const handler = () => { void unlock(); };
+
+    const handler = () => {
+      void unlock();
+    };
+
     window.addEventListener('pointerdown', handler, { once: true, capture: true });
     window.addEventListener('keydown', handler, { once: true, capture: true });
     window.addEventListener('touchstart', handler, { once: true, capture: true });
+
     return () => {
       window.removeEventListener('pointerdown', handler, true);
       window.removeEventListener('keydown', handler, true);
