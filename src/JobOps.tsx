@@ -4583,7 +4583,7 @@ function CustomerFileModal({ customerId, jobs, onClose, onSelectJob }: {
   const latest = customerJobs[0];
   const fullName = `${latest.fname} ${latest.lname}`.trim();
   const initials = ((latest.fname?.[0] || '') + (latest.lname?.[0] || '')).toUpperCase() || '?';
-  const accent = accentFor(fullName || customerId);
+  const accent = accentFor(fullName || customerId || '');
   const vehicles = Array.from(new Set(customerJobs.map(j => j.vehicle).filter(Boolean)));
   const filteredJobs = vehicleFilter ? customerJobs.filter(j => j.vehicle === vehicleFilter) : customerJobs;
   const totalRevenue = filteredJobs.reduce((sum, j) => sum + (j.amountPaid || 0), 0);

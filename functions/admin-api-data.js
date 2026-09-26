@@ -1315,6 +1315,325 @@ export async function onRequestPost({ request, env }) {
         return json({ ok: true });
       }
 
+      // ==================================================================
+      // ---- GID Command Center: Leads ----------------------------------
+      // list-leads    { status?, source?, limit? }        -> Lead[]
+      // upsert-lead   { row }                              -> Lead   (row.id present = update, else insert)
+      // patch-lead    { id, fields }                       -> { ok }
+      // ==================================================================
+      case 'list-leads': {
+        const { status, source, limit } = payload;
+        let url = `${base}/leads?select=*&order=created_at.desc&limit=${Number(limit) || 200}`;
+        if (status) url += `&status=eq.${encodeURIComponent(status)}`;
+        if (source) url += `&source=eq.${encodeURIComponent(source)}`;
+        const res = await fetch(url, { headers });
+        if (!res.ok) return json({ error: await res.text() }, 502);
+        return json(await res.json());
+      }
+
+      case 'upsert-lead': {
+        const { row } = payload;
+        if (!row) return json({ error: 'Missing row' }, 400);
+        if (row.id) {
+          const { id, ...fields } = row;
+          const res = await fetch(`${base}/leads?id=eq.${encodeURIComponent(id)}`, {
+            method: 'PATCH', headers: { ...headers, Prefer: 'return=representation' }, body: JSON.stringify(fields),
+          });
+          if (!res.ok) return json({ error: await res.text() }, 502);
+          const rows = await res.json();
+          return json(rows[0] ?? null);
+        }
+        const res = await fetch(`${base}/leads`, {
+          method: 'POST', headers: { ...headers, Prefer: 'return=representation' }, body: JSON.stringify(row),
+        });
+        if (!res.ok) return json({ error: await res.text() }, 502);
+        const rows = await res.json();
+        return json(rows[0] ?? null);
+      }
+
+      case 'patch-lead': {
+        const { id, fields } = payload;
+        if (!id || !fields) return json({ error: 'Missing id or fields' }, 400);
+        const res = await fetch(`${base}/leads?id=eq.${encodeURIComponent(id)}`, {
+          method: 'PATCH', headers: { ...headers, Prefer: 'return=minimal' }, body: JSON.stringify(fields),
+        });
+        if (!res.ok) return json({ error: await res.text() }, 502);
+        return json({ ok: true });
+      }
+
+      // ==================================================================
+      // ---- GID Command Center: Calls -----------------------------------
+      // list-calls { limit? }   -> Call[]
+      // log-call   { row }      -> Call
+      // ==================================================================
+      case 'list-calls': {
+        const limit = Number(payload.limit) || 200;
+        const res = await fetch(`${base}/calls?select=*&order=created_at.desc&limit=${limit}`, { headers });
+        if (!res.ok) return json({ error: await res.text() }, 502);
+        return json(await res.json());
+      }
+
+      case 'log-call': {
+        const { row } = payload;
+        if (!row) return json({ error: 'Missing row' }, 400);
+        const res = await fetch(`${base}/calls`, {
+          method: 'POST', headers: { ...headers, Prefer: 'return=representation' }, body: JSON.stringify(row),
+        });
+        if (!res.ok) return json({ error: await res.text() }, 502);
+        const rows = await res.json();
+        return json(rows[0] ?? null);
+      }
+
+      // ==================================================================
+      // ---- GID Command Center: Marketing spend -------------------------
+      // list-marketing-spend { sinceDate? }  -> MarketingSpend[]
+      // add-marketing-spend  { row }         -> MarketingSpend
+      // ==================================================================
+      case 'list-marketing-spend': {
+        const since = payload.sinceDate; // 'YYYY-MM-DD'
+        let url = `${base}/marketing_spend?select=*&order=date.desc`;
+        if (since) url += `&date=gte.${encodeURIComponent(since)}`;
+        const res = await fetch(url, { headers });
+        if (!res.ok) return json({ error: await res.text() }, 502);
+        return json(await res.json());
+      }
+
+      case 'add-marketing-spend': {
+        const { row } = payload;
+        if (!row || !row.date || !row.channel) return json({ error: 'Missing date or channel' }, 400);
+        const res = await fetch(`${base}/marketing_spend`, {
+          method: 'POST', headers: { ...headers, Prefer: 'return=representation' }, body: JSON.stringify(row),
+        });
+        if (!res.ok) return json({ error: await res.text() }, 502);
+        const rows = await res.json();
+        return json(rows[0] ?? null);
+      }
+
+      // ==================================================================
+      // ---- GID Command Center: Summary (Today / Needs Attention / --
+      // ---- Leads / Marketing funnel / Schedule bar in one call)     --
+      // get-command-center-summary { windowDays? }  -> CommandCenterSummary
+      // ==================================================================
+      case 'get-command-center-summary': {
+        const windowDays = Number(payload.windowDays) || 30;
+        const now = new Date();
+        const phoenixToday = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Phoenix' });
+        const windowStart = new Date(now.getTime() - windowDays * 86400000).toISOString().slice(0, 10);
+        const weekStart = new Date(now.getTime() - 7 * 86400000).toISOString().slice(0, 10);
+        const nextWeekEnd = new Date(now.getTime() + 7 * 86400000).toISOString().slice(0, 10);
+
+        const [bookingsRes, leadsRes, callsRes, spendRes] = await Promise.all([
+          fetch(`${base}/bookings?select=id,fname,lname,vehicle,date,time,job_status,status,estimate_amount,invoice_amount,amount_paid,paid_at,created_at&date=gte.${weekStart}&date=lte.${nextWeekEnd}`, { headers }),
+          fetch(`${base}/leads?select=*&created_at=gte.${windowStart}`, { headers }),
+          fetch(`${base}/calls?select=*&created_at=gte.${windowStart}`, { headers }),
+          fetch(`${base}/marketing_spend?select=*&date=gte.${windowStart}`, { headers }),
+        ]);
+        if (!bookingsRes.ok) return json({ error: await bookingsRes.text() }, 502);
+        if (!leadsRes.ok) return json({ error: await leadsRes.text() }, 502);
+        if (!callsRes.ok) return json({ error: await callsRes.text() }, 502);
+        if (!spendRes.ok) return json({ error: await spendRes.text() }, 502);
+
+        const bookings = await bookingsRes.json();
+        const leads = await leadsRes.json();
+        const calls = await callsRes.json();
+        const spend = await spendRes.json();
+
+        // ---- Today ----
+        const todaysJobs = bookings.filter(b => b.date === phoenixToday && b.status !== 'cancelled');
+        const todaysRevenue = todaysJobs.reduce((sum, b) => sum + Number(b.invoice_amount ?? b.estimate_amount ?? 0), 0);
+        const newLeadsToday = leads.filter(l => (l.created_at || '').slice(0, 10) === phoenixToday);
+        const missedCallsToday = calls.filter(c => (c.created_at || '').slice(0, 10) === phoenixToday && (c.outcome === 'missed' || c.outcome === 'no_answer'));
+
+        // Next open-ish day in the coming week: first day (excluding today)
+        // in range with zero jobs booked.
+        const jobDatesSet = new Set(bookings.filter(b => b.status !== 'cancelled').map(b => b.date));
+        let nextOpenDay = null;
+        for (let i = 1; i <= 7; i++) {
+          const d = new Date(now.getTime() + i * 86400000).toLocaleDateString('en-CA', { timeZone: 'America/Phoenix' });
+          if (!jobDatesSet.has(d)) { nextOpenDay = d; break; }
+        }
+
+        // ---- Needs Attention ----
+        const needsAttention = [];
+        for (const l of leads) {
+          if (l.status === 'booked' || l.status === 'lost') continue;
+          const ageMs = now.getTime() - new Date(l.created_at).getTime();
+          const overdueFollowUp = l.follow_up_at && new Date(l.follow_up_at).getTime() <= now.getTime();
+          const staleNoContact = !l.last_contacted_at && ageMs > 2 * 86400000; // 2+ days, never contacted
+          if (overdueFollowUp || staleNoContact) {
+            needsAttention.push({
+              type: 'lead_follow_up',
+              label: `${l.fname || ''} ${l.lname || ''}`.trim() || l.phone || 'Unknown lead',
+              detail: overdueFollowUp ? 'Follow-up is due' : `No contact in ${Math.floor(ageMs / 86400000)}d`,
+              leadId: l.id,
+            });
+          }
+        }
+        for (const c of missedCallsToday) {
+          needsAttention.push({ type: 'missed_call', label: c.phone || 'Unknown number', detail: 'Missed call today', callId: c.id });
+        }
+        const unpaidInvoices = bookings.filter(b => b.job_status === 'INVOICED' && !b.paid_at && Number(b.invoice_amount || 0) > Number(b.amount_paid || 0));
+        for (const b of unpaidInvoices) {
+          const owed = Number(b.invoice_amount || 0) - Number(b.amount_paid || 0);
+          needsAttention.push({ type: 'unpaid_invoice', label: `${b.fname || ''} ${b.lname || ''}`.trim(), detail: `$${owed.toFixed(2)} owed`, bookingId: b.id });
+        }
+
+        // ---- Leads funnel (this window) ----
+        const leadsContacted = leads.filter(l => l.status !== 'new').length;
+        const leadsBooked = leads.filter(l => l.status === 'booked').length;
+        const conversionRate = leads.length ? (leadsBooked / leads.length) * 100 : 0;
+
+        // ---- Marketing funnel by channel ----
+        const byChannel = {};
+        for (const s of spend) {
+          const ch = s.channel || 'other';
+          byChannel[ch] ??= { channel: ch, spend: 0, calls: 0, leads: 0, bookings: 0, revenue: 0 };
+          byChannel[ch].spend += Number(s.amount || 0);
+          byChannel[ch].calls += Number(s.clicks ? 0 : 0); // clicks tracked separately below if needed
+        }
+        for (const l of leads) {
+          const ch = l.source || 'other';
+          byChannel[ch] ??= { channel: ch, spend: 0, calls: 0, leads: 0, bookings: 0, revenue: 0 };
+          byChannel[ch].leads += 1;
+          if (l.status === 'booked') {
+            byChannel[ch].bookings += 1;
+            const b = bookings.find(bb => bb.id === l.booking_id);
+            byChannel[ch].revenue += Number((b && (b.invoice_amount ?? b.estimate_amount)) ?? l.quote_amount ?? 0);
+          }
+        }
+        for (const c of calls) {
+          const ch = c.source || 'other';
+          byChannel[ch] ??= { channel: ch, spend: 0, calls: 0, leads: 0, bookings: 0, revenue: 0 };
+          byChannel[ch].calls += 1;
+        }
+        const marketingFunnel = Object.values(byChannel).map(row => ({
+          ...row,
+          costPerBooking: row.bookings > 0 ? row.spend / row.bookings : null,
+          costPerLead: row.leads > 0 ? row.spend / row.leads : null,
+        }));
+
+        // ---- Schedule bar (next 7 days, job count + scheduled revenue) ----
+        const scheduleBar = [];
+        for (let i = 0; i < 7; i++) {
+          const d = new Date(now.getTime() + i * 86400000).toLocaleDateString('en-CA', { timeZone: 'America/Phoenix' });
+          const dayJobs = bookings.filter(b => b.date === d && b.status !== 'cancelled');
+          scheduleBar.push({
+            date: d,
+            jobCount: dayJobs.length,
+            revenue: dayJobs.reduce((sum, b) => sum + Number(b.invoice_amount ?? b.estimate_amount ?? 0), 0),
+          });
+        }
+
+        return json({
+          today: {
+            date: phoenixToday,
+            jobCount: todaysJobs.length,
+            revenue: todaysRevenue,
+            newLeads: newLeadsToday.length,
+            missedCalls: missedCallsToday.length,
+            nextOpenDay,
+          },
+          needsAttention,
+          leadsSummary: {
+            windowDays,
+            total: leads.length,
+            contacted: leadsContacted,
+            booked: leadsBooked,
+            conversionRatePct: Math.round(conversionRate * 10) / 10,
+          },
+          marketingFunnel,
+          scheduleBar,
+        });
+      }
+
+      // ==================================================================
+      // ---- GID Command Center: Ask GID (deterministic, read-only) -----
+      // Intentionally does NOT execute writes (e.g. "move this job to
+      // Thursday") in this pass — a small keyword matcher misfiring on a
+      // write action against the live schedule is a much worse failure
+      // mode than a wrong-sounding read-only answer. See MANUAL_STEPS.md
+      // for how to extend this into an LLM-backed version later.
+      // ask-gid { query }  -> { text }
+      // ==================================================================
+      case 'ask-gid': {
+        const q = String(payload.query || '').toLowerCase().trim();
+        if (!q) return json({ text: "Ask me something like: who needs follow-up, how are my ads doing, show leads from Facebook, or what's unpaid." });
+
+        const taxRes = await fetch(`${base}/business_settings?id=eq.default&select=tax_rate`, { headers });
+        const taxRows = taxRes.ok ? await taxRes.json() : [];
+
+        if (q.includes('tax rate') || q.includes('tax percent')) {
+          const rate = taxRows?.[0]?.tax_rate;
+          return json({ text: rate != null ? `Tax rate is ${(Number(rate) * 100).toFixed(3)}%.` : "I couldn't find the tax rate." });
+        }
+
+        if (q.includes('follow up') || q.includes('follow-up') || q.includes("hasn't replied") || q.includes('havent replied') || q.includes('who needs')) {
+          const res = await fetch(`${base}/leads?select=fname,lname,phone,status,follow_up_at,last_contacted_at,created_at&status=neq.booked&status=neq.lost&order=created_at.asc&limit=10`, { headers });
+          const rows = res.ok ? await res.json() : [];
+          const now = Date.now();
+          const due = rows.filter(l => (l.follow_up_at && new Date(l.follow_up_at).getTime() <= now) || (!l.last_contacted_at && now - new Date(l.created_at).getTime() > 2 * 86400000));
+          if (!due.length) return json({ text: 'Nobody is currently overdue for follow-up.' });
+          const names = due.slice(0, 8).map(l => `${l.fname || ''} ${l.lname || ''}`.trim() || l.phone || 'unknown').join(', ');
+          return json({ text: `${due.length} lead(s) need follow-up: ${names}.` });
+        }
+
+        if (q.includes('unpaid') || q.includes('invoice')) {
+          const res = await fetch(`${base}/bookings?select=fname,lname,invoice_amount,amount_paid&job_status=eq.INVOICED&paid_at=is.null`, { headers });
+          const rows = res.ok ? await res.json() : [];
+          const owedRows = rows.filter(b => Number(b.invoice_amount || 0) > Number(b.amount_paid || 0));
+          if (!owedRows.length) return json({ text: 'No unpaid invoices right now.' });
+          const total = owedRows.reduce((s, b) => s + (Number(b.invoice_amount || 0) - Number(b.amount_paid || 0)), 0);
+          return json({ text: `${owedRows.length} unpaid invoice(s) totaling $${total.toFixed(2)}: ${owedRows.slice(0, 6).map(b => `${b.fname || ''} ${b.lname || ''}`.trim()).join(', ')}.` });
+        }
+
+        if (q.includes('ads') || q.includes('marketing') || q.includes('google ads') || q.includes('facebook ads') || q.includes('meta ads')) {
+          const windowStart = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
+          const [spendRes, leadsRes] = await Promise.all([
+            fetch(`${base}/marketing_spend?select=*&date=gte.${windowStart}`, { headers }),
+            fetch(`${base}/leads?select=source,status,quote_amount,booking_id&created_at=gte.${windowStart}`, { headers }),
+          ]);
+          const spend = spendRes.ok ? await spendRes.json() : [];
+          const leads = leadsRes.ok ? await leadsRes.json() : [];
+          const channelFilter = q.includes('google') ? 'google_ads' : q.includes('facebook') || q.includes('meta') ? 'meta_ads' : null;
+          const relevantSpend = channelFilter ? spend.filter(s => s.channel === channelFilter) : spend;
+          const relevantLeads = channelFilter ? leads.filter(l => l.source === channelFilter) : leads;
+          const totalSpend = relevantSpend.reduce((s, r) => s + Number(r.amount || 0), 0);
+          const totalLeads = relevantLeads.length;
+          const totalBooked = relevantLeads.filter(l => l.status === 'booked').length;
+          if (!totalSpend && !totalLeads) return json({ text: 'No marketing spend or leads logged for that channel in the last 30 days yet — add spend entries in the Marketing tab to see this.' });
+          const costPerBooking = totalBooked > 0 ? totalSpend / totalBooked : null;
+          return json({
+            text: `Last 30 days${channelFilter ? ` (${channelFilter.replace('_', ' ')})` : ''}: $${totalSpend.toFixed(2)} spent, ${totalLeads} lead(s), ${totalBooked} booked.` +
+              (costPerBooking != null ? ` Cost per booking: $${costPerBooking.toFixed(2)}.` : ''),
+          });
+        }
+
+        if (q.includes('leads from') || q.includes('show leads') || q.includes('show me leads')) {
+          let src = null;
+          if (q.includes('facebook')) src = 'facebook_organic';
+          else if (q.includes('google ads')) src = 'google_ads';
+          else if (q.includes('google')) src = 'google_ads';
+          else if (q.includes('referral')) src = 'referral';
+          else if (q.includes('website')) src = 'website_form';
+          const url = src ? `${base}/leads?select=fname,lname,status,created_at&source=eq.${src}&order=created_at.desc&limit=10` : `${base}/leads?select=fname,lname,status,created_at&order=created_at.desc&limit=10`;
+          const res = await fetch(url, { headers });
+          const rows = res.ok ? await res.json() : [];
+          if (!rows.length) return json({ text: src ? `No leads found from ${src.replace('_', ' ')}.` : 'No leads found.' });
+          return json({ text: `${rows.length} lead(s)${src ? ` from ${src.replace('_', ' ')}` : ''}: ${rows.map(l => `${l.fname || ''} ${l.lname || ''}`.trim() || 'unknown').join(', ')}.` });
+        }
+
+        if (q.includes('today') || q.includes('schedule') || q.includes('open') || q.includes('slot')) {
+          const phoenixToday = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Phoenix' });
+          const res = await fetch(`${base}/bookings?select=fname,lname,service,time&date=eq.${phoenixToday}&status=neq.cancelled`, { headers });
+          const rows = res.ok ? await res.json() : [];
+          if (!rows.length) return json({ text: 'Nothing scheduled today.' });
+          return json({ text: `${rows.length} job(s) today: ${rows.map(b => `${b.time || ''} ${b.fname || ''} ${b.lname || ''} (${b.service || 'job'})`.trim()).join('; ')}.` });
+        }
+
+        return json({ text: "I didn't catch that. Try asking about: tax rate, follow-ups, unpaid invoices, marketing/ads performance, leads from a specific source, or today's schedule." });
+      }
+
+
       default:
         return json({ error: `Unknown action: ${action}` }, 400);
     }

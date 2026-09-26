@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, type Dispatch, type SetStateAction } from 'react';
 import { JobsTab, BusinessHub, MileageTab, JobDetailPanel, getJobById, getAllJobs, OwnerPayPanel, CustomersTab, type Job } from './JobOps';
+import { CommandCenterTab } from './CommandCenter';
 import { getEngines } from './engineData';
 import { getTrims } from './trimData';
 
@@ -1947,7 +1948,7 @@ function BlackoutDatesModal({ onClose }: { onClose: () => void }) {
 export function AdminSchedule() {
   const [unlocked, setUnlocked] = useState(() => sessionStorage.getItem('gg_admin_auth') === '1');
   const [bookings, setBookings] = useState<Booking[]>([]);
-  const [adminTab, setAdminTab] = useState<'jobs' | 'schedule' | 'customers' | 'mileage' | 'hub' | 'pay'>('jobs');
+  const [adminTab, setAdminTab] = useState<'command' | 'jobs' | 'schedule' | 'customers' | 'mileage' | 'hub' | 'pay'>('command');
   const [filter, setFilter] = useState<'all' | 'confirmed' | 'completed' | 'cancelled'>('all');
   const [view, setView] = useState<'list' | 'month' | 'week' | 'day'>('month');
   const [calDate, setCalDate] = useState(new Date());
@@ -2266,13 +2267,15 @@ export function AdminSchedule() {
 
         {/* Main Tabs */}
         <div className="flex gap-0 mb-8 border-b border-gray-800">
-          {(['jobs', 'schedule', 'customers', 'mileage', 'hub', 'pay'] as const).map(tab => (
+          {(['command', 'jobs', 'schedule', 'customers', 'mileage', 'hub', 'pay'] as const).map(tab => (
             <button key={tab} onClick={() => setAdminTab(tab)}
               className={`text-xs font-bold uppercase tracking-widest px-6 py-3 transition-colors border-b-2 -mb-px ${adminTab === tab ? 'border-red-600 text-white' : 'border-transparent text-gray-500 hover:text-gray-300'}`}>
-              {tab === 'jobs' ? '💼 Jobs' : tab === 'schedule' ? '📅 Schedule' : tab === 'customers' ? '👥 Customers' : tab === 'mileage' ? '🚗 Mileage' : tab === 'hub' ? '🏢 Hub' : '💵 Pay'}
+              {tab === 'command' ? '🎯 Command' : tab === 'jobs' ? '💼 Jobs' : tab === 'schedule' ? '📅 Schedule' : tab === 'customers' ? '👥 Customers' : tab === 'mileage' ? '🚗 Mileage' : tab === 'hub' ? '🏢 Hub' : '💵 Pay'}
             </button>
           ))}
         </div>
+
+        {adminTab === 'command' && <CommandCenterTab />}
 
         {adminTab === 'schedule' && (<>
         {/* Stats */}

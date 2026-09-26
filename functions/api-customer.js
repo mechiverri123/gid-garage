@@ -605,6 +605,23 @@ export async function onRequestPost({ request, env }) {
           if (!res.ok) console.error('quick-quote booking insert failed:', await res.text());
         } catch (e) { console.error('quick-quote booking insert failed:', e.message); }
 
+        // Command Center: log this as a lead too (source = website_form).
+        // Best-effort — never let a leads-table hiccup break the actual quote flow.
+        try {
+          await fetch(`${base}/leads`, {
+            method: 'POST',
+            headers: { ...headers, Prefer: 'return=minimal' },
+            body: JSON.stringify({
+              fname, lname, phone, email: '',
+              source: 'website_form',
+              vehicle,
+              requested_service: issue || '',
+              status: 'new',
+              booking_id: bookingId,
+            }),
+          });
+        } catch (e) { console.error('quick-quote lead insert failed:', e.message); }
+
         try {
           await brevoSend({
             sender: { name: 'GID Garage Bookings', email: 'bookings@gidgarage.com' },
@@ -640,6 +657,29 @@ export async function onRequestPost({ request, env }) {
           body: JSON.stringify(customerId ? { ...row, customer_id: customerId } : row),
         });
         if (!res.ok) return json({ error: await res.text() }, 502);
+
+        // Command Center: log this as an already-booked lead (source =
+        // website_booking) so the funnel counts direct bookings too, not
+        // just quote-form submissions. Best-effort — never block the
+        // actual booking on this.
+        try {
+          await fetch(`${base}/leads`, {
+            method: 'POST',
+            headers: { ...headers, Prefer: 'return=minimal' },
+            body: JSON.stringify({
+              fname: row.fname, lname: row.lname, phone: row.phone, email: row.email,
+              source: 'website_booking',
+              vehicle: row.vehicle,
+              requested_service: row.service || '',
+              quote_amount: row.estimate_amount ?? null,
+              status: 'booked',
+              booking_id: row.id,
+              customer_id: customerId || null,
+              last_contacted_at: new Date().toISOString(),
+            }),
+          });
+        } catch (e) { console.error('insert-booking lead insert failed:', e.message); }
+
         return json({ ok: true });
       }
 
