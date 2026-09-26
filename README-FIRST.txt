@@ -1,62 +1,42 @@
-GID Garage — Always-listening Jarvis wake-word patch
+GID Garage — Opera microphone STARTING fix
 
-This removes the unreliable Web Speech API dictation approach.
+WHY IT WAS STUCK
+----------------
+The listener successfully requests the microphone, then creates an AudioContext for local voice-activity detection.
+Opera/Chromium can create that AudioContext in SUSPENDED state until there has been a user gesture.
 
-NEW BEHAVIOR
-------------
-- The browser keeps a real microphone stream open.
-- Voice activity detection runs locally in the browser.
-- Silence is NOT uploaded.
-- Short spoken segments are transcribed with gpt-4o-mini-transcribe.
-- Jarvis only acts when it hears "Jarvis" / "Hey Jarvis".
-- Saying only "Jarvis" arms it for 9 seconds for your next sentence.
-- While GID is speaking or already working, the listener ignores audio to prevent feedback.
-- After GID finishes, always-listening resumes automatically.
+The previous build did:
+    await audioContext.resume()
 
-EXAMPLES
+That can leave the page sitting at STARTING MIC even though microphone permission is already granted.
+
+THIS FIX
 --------
-"Jarvis, catch me up."
-"Jarvis, what jobs do I have tomorrow?"
-"Jarvis."
-(wait for COMMAND READY)
-"Move John's brake job to Friday."
+- Never waits on audioContext.resume() during startup.
+- As soon as getUserMedia returns a LIVE audio track, UI changes to LISTENING.
+- MediaRecorder starts immediately.
+- AudioContext resume happens in the background.
+- First click/tap/key press automatically unlocks AudioContext if Opera requires it.
+- 8-second getUserMedia timeout now reports a real error instead of hanging forever.
+- Existing wake-word flow remains:
+    "Jarvis, catch me up."
+    or "Jarvis." -> then command.
 
-FIRST VISIT
------------
-Opera/Chrome still controls microphone permission.
-On the first visit, allow microphone access for gidgarage.com.
-Once permission is remembered, Jarvis starts listening automatically on future visits.
-
-FILES
------
-ADD:
-functions/jarvis-transcribe.js
+REPLACE
+-------
 src/command-center/hooks/useJarvisListener.ts
-
-REPLACE:
-src/command-center/hooks/useJarvisSpeech.ts
 src/command-center/components/CommandInput.tsx
-src/command-center/components/VoiceControl.tsx
-src/command-center/CommandCenterPage.tsx
-
-OPENAI
-------
-Uses the same OPENAI_API_KEY already configured for jarvis-speak.js.
 
 TEST
 ----
-1. Deploy the COMPLETE fresh Vite build.
-2. Purge Cloudflare cache if old hashed JS is served.
-3. Open /jarvis.
-4. Allow microphone access.
-5. UI should show ALWAYS LISTENING / SAY "JARVIS..."
-6. Say: "Jarvis, catch me up."
-7. Watch HEARING -> UNDERSTANDING.
-8. Existing Ask GID receives "catch me up".
-9. Existing AI voice speaks the answer.
-10. Listener resumes automatically.
+1. Replace these 2 files.
+2. npm run build
+3. deploy full dist
+4. purge Cloudflare cache if the old hashed chunk is still served
+5. load /jarvis
+6. status should move STARTING MIC -> SAY "JARVIS..."
+7. click once anywhere on the page
+8. say: Jarvis, catch me up.
 
-COST
-----
-This is NOT a continuous OpenAI realtime session.
-Microphone volume detection is local, and only short speech clips are sent for transcription.
+If it still cannot hear you after reaching LISTENING, the next step is device-level diagnostics
+(selected input device / live track / measured RMS), not another permission change.

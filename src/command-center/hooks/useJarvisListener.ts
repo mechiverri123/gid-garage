@@ -169,6 +169,14 @@ export function useJarvisListener({ onCommand, suspended = false }: Options) {
     setError(null);
     setState('starting');
 
+    // Do not let Opera/Chromium sit on "Starting mic" forever.
+    const timeout = window.setTimeout(() => {
+      if (!streamRef.current) {
+        setError('Microphone startup timed out. Check the selected input device, then retry.');
+        setState('error');
+      }
+    }, 8000);
+
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
@@ -178,12 +186,18 @@ export function useJarvisListener({ onCommand, suspended = false }: Options) {
           channelCount: 1,
         },
       });
+
+      window.clearTimeout(timeout);
       streamRef.current = stream;
+
+      const liveTrack = stream.getAudioTracks()[0];
+      if (!liveTrack || liveTrack.readyState !== 'live') {
+        throw new Error('Browser granted microphone permission but did not return a live audio track.');
+      }
 
       const AudioContextCtor = window.AudioContext || (window as any).webkitAudioContext;
       const ctx: AudioContext = new AudioContextCtor();
       contextRef.current = ctx;
-      if (ctx.state === 'suspended') await ctx.resume();
 
       const source = ctx.createMediaStreamSource(stream);
       const analyser = ctx.createAnalyser();
@@ -191,6 +205,28 @@ export function useJarvisListener({ onCommand, suspended = false }: Options) {
       analyser.smoothingTimeConstant = 0.45;
       source.connect(analyser);
       analyserRef.current = analyser;
+
+      // IMPORTANT:
+      // Opera/Chromium may create AudioContext in "suspended" state until a user gesture.
+      // The old build awaited ctx.resume(), which can leave the UI stuck at STARTING MIC.
+      // Start the recorder immediately, show a usable state, and resume audio analysis
+      // opportunistically. A one-time click anywhere on the page will unlock it if needed.
+      const tryResume = async () => {
+        if (ctx.state === 'suspended') {
+          try { await ctx.resume(); } catch {}
+        }
+      };
+      void tryResume();
+
+      const unlock = () => {
+        void tryResume();
+        window.removeEventListener('pointerdown', unlock, true);
+        window.removeEventListener('keydown', unlock, true);
+        window.removeEventListener('touchstart', unlock, true);
+      };
+      window.addEventListener('pointerdown', unlock, true);
+      window.addEventListener('keydown', unlock, true);
+      window.addEventListener('touchstart', unlock, true);
 
       const mimeType = preferredMimeType();
       const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
@@ -211,13 +247,28 @@ export function useJarvisListener({ onCommand, suspended = false }: Options) {
       };
 
       recorder.start(200);
+
+      // We now have an actual live mic stream. Never leave the UI at "starting".
       setState('listening');
 
       const data = new Float32Array(analyser.fftSize);
 
       const monitor = () => {
         const a = analyserRef.current;
-        if (!a) return;
+        const activeCtx = contextRef.current;
+        if (!a || !activeCtx) return;
+
+        // If browser audio analysis is still gesture-blocked, remain visibly armed
+        // instead of pretending startup failed.
+        if (activeCtx.state === 'suspended') {
+          setState(prev =>
+            prev === 'off' || prev === 'blocked' || prev === 'error' || prev === 'transcribing'
+              ? prev
+              : 'listening'
+          );
+          rafRef.current = requestAnimationFrame(monitor);
+          return;
+        }
 
         if (suspendedRef.current) {
           inSpeechRef.current = false;
@@ -267,11 +318,11 @@ export function useJarvisListener({ onCommand, suspended = false }: Options) {
 
       rafRef.current = requestAnimationFrame(monitor);
     } catch (err: any) {
+      window.clearTimeout(timeout);
       const denied = err?.name === 'NotAllowedError' || err?.name === 'PermissionDeniedError';
       setError(denied
         ? 'Microphone permission is blocked. Allow microphone access for gidgarage.com, then enable hearing again.'
         : (err?.message || 'Could not start microphone.'));
-      setState(denied ? 'blocked' : 'error');
       stopAll();
       setState(denied ? 'blocked' : 'error');
     }

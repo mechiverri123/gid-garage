@@ -71,6 +71,11 @@ export function CommandInput({
         <span className={`w-1.5 h-1.5 rounded-full ${state === 'hearing' ? 'animate-pulse' : ''}`} style={{ background: stateColor, boxShadow: micHot ? `0 0 10px ${stateColor}` : 'none' }} />
         {hearingError || HEARING_LABEL[state]}
       </div>
+      {state === 'listening' && (
+        <div className="text-center mb-2 text-[9px] uppercase tracking-[0.12em]" style={{ color: COLORS.textFaint }}>
+          If this is your first load, click once anywhere, then say “Jarvis, catch me up.”
+        </div>
+      )}
 
       <form onSubmit={submit} className="flex items-center justify-center gap-3">
         <div
