@@ -20,6 +20,7 @@
 // Response: streamed newline-delimited JSON (NDJSON), one event per line:
 //   { type: 'tool_call', tool: string, input: object }
 //   { type: 'tool_result', tool: string, ok: boolean, error?: string }
+//   { type: 'data', tool: string, payload: object }   — structured result, worth a real UI card
 //   { type: 'final', text: string }
 //   { type: 'error', message: string }
 // A conversation with no tool calls just streams a single 'final' line.
@@ -28,6 +29,15 @@ const CLAUDE_MODEL = 'claude-haiku-4-5-20251001';
 const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
 const MAX_TOOL_TURNS = 6;
 
+// Tools whose results are worth showing as a real card in the UI, not just
+// summarized in Claude's prose. Anything not in this set (writes, and
+// low-value lookups) only gets the text summary.
+const PRESENTABLE_TOOLS = new Set([
+  'search_customers', 'list_jobs', 'list_leads', 'list_calls',
+  'list_marketing_spend', 'get_owner_pay_summary', 'get_business_summary',
+  'pricing_history', 'get_tax_rate',
+]);
+
 function json(body, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
@@ -35,11 +45,17 @@ function json(body, status = 200) {
   });
 }
 
-const SYSTEM_PROMPT = `You are GID, the business assistant embedded in GID Garage's admin dashboard (a mobile mechanic business in Flagstaff, AZ). You have tools to look up and update real business data: leads, jobs/bookings, marketing spend, calls, and business settings.
+const SYSTEM_PROMPT = `You are GID, the business assistant embedded in GID Garage's admin dashboard (a mobile mechanic business in Flagstaff, AZ). You have tools to look up and update real business data: customers, leads, jobs/bookings, marketing spend, calls, and business settings.
 
-Be concise — this is a small dashboard chat window, not an essay. A few sentences is usually right. When you look something up and find nothing, say so plainly rather than padding the answer.
+RESPONSE STYLE — this is a small chat panel, not a report:
+- 1-3 short sentences, plain conversational English. Never format a raw list of records as your answer (no pipe-separated fields, no numbered field dumps, no markdown tables). The interface already shows the detailed data separately — your job is the short human takeaway, e.g. "Found Jill Castle — 3 jobs on file, one tomorrow at 1pm ready to go" not a field-by-field printout.
+- If there's genuinely nothing to say beyond the data (a plain lookup), one sentence pointing out what actually matters is enough.
 
-When asked to change something (move a job, update a lead's status, log a call, add spend), use the matching tool. For any write action, briefly confirm what you did after it succeeds — don't ask for permission first, the person is already looking at the result.
+CONFIRMING BEFORE ACTING — mark_job_paid and send_customer_email are real financial/external actions and are built to require confirmation:
+- Call the tool WITHOUT confirmed=true first. It returns a summary instead of executing.
+- State that summary to the person in plain language and ask them to confirm (e.g. "Mark Jill's job as paid in full for $762.46, no Stripe id yet — sound right?").
+- Only call the tool again WITH confirmed=true after they clearly say yes in their next message. If they correct a detail instead, use the corrected value.
+- Every other write tool (reschedule, status changes other than paid, lead status, logging a call, adding spend) is low-risk and easily fixed if wrong — just do it and confirm what you did afterward in one short sentence, no need to ask first.
 
 Today's date context is provided in each request — use it for "today", "this week", "next Tuesday" type questions.`;
 
@@ -180,14 +196,28 @@ const TOOLS = [
   },
   {
     name: 'update_job_status',
-    description: 'Change a job\'s status in the pipeline. Get the job id from list_jobs first.',
+    description: 'Change a job\'s status in the pipeline (BOOKED, ESTIMATE_SENT, SIGNED, IN_PROGRESS, COMPLETED, or INVOICED). Do NOT use this to mark something paid — use mark_job_paid instead, which records the actual payment amount, not just a label.',
     input_schema: {
       type: 'object',
       properties: {
         job_id: { type: 'string' },
-        job_status: { type: 'string', description: 'BOOKED, ESTIMATE_SENT, SIGNED, IN_PROGRESS, COMPLETED, INVOICED, or PAID' },
+        job_status: { type: 'string', description: 'BOOKED, ESTIMATE_SENT, SIGNED, IN_PROGRESS, COMPLETED, or INVOICED. Not PAID.' },
       },
       required: ['job_id', 'job_status'],
+    },
+  },
+  {
+    name: 'mark_job_paid',
+    description: "Mark a job as paid in full, recording the actual amount collected (and a Stripe transaction id if you have one — optional, can be added later). This is a real financial record, not just a status label, so it requires confirmation: call this WITHOUT confirmed=true first to get a summary of what would happen, describe that summary to the person in plain language and ask them to confirm, then call again WITH confirmed=true only after they say yes.",
+    input_schema: {
+      type: 'object',
+      properties: {
+        job_id: { type: 'string' },
+        amount: { type: 'number', description: 'The amount actually collected.' },
+        stripe_transaction_id: { type: 'string', description: 'Optional — can be left out and added later.' },
+        confirmed: { type: 'boolean', description: 'Must be true to actually execute the write. Omit or set false to get a confirmation summary first.' },
+      },
+      required: ['job_id', 'amount'],
     },
   },
   {
@@ -200,7 +230,7 @@ const TOOLS = [
   },
   {
     name: 'send_customer_email',
-    description: "Send an email to a customer (e.g. a follow-up, a reminder, an update). Always tell the person what you sent after sending — don't send silently.",
+    description: "Send an email to a customer. This goes out for real and can't be unsent, so it requires confirmation: call this WITHOUT confirmed=true first to preview the recipient/subject/body, describe that to the person and ask them to confirm, then call again WITH confirmed=true only after they say yes.",
     input_schema: {
       type: 'object',
       properties: {
@@ -208,6 +238,7 @@ const TOOLS = [
         to_name: { type: 'string' },
         subject: { type: 'string' },
         body_html: { type: 'string', description: 'Simple HTML — a paragraph or two is fine, e.g. "<p>Hi John, ...</p>"' },
+        confirmed: { type: 'boolean', description: 'Must be true to actually send. Omit or set false to preview first.' },
       },
       required: ['to_email', 'subject', 'body_html'],
     },
@@ -413,8 +444,33 @@ export async function onRequestPost({ request, env }) {
       }
 
       case 'update_job_status': {
-        await sbPatch('bookings', `id=eq.${encodeURIComponent(input.job_id)}`, { job_status: input.job_status.toUpperCase() });
+        const status = String(input.job_status || '').toUpperCase();
+        if (status === 'PAID') throw new Error("Don't use update_job_status for PAID — use mark_job_paid so the actual payment amount gets recorded, not just the label.");
+        await sbPatch('bookings', `id=eq.${encodeURIComponent(input.job_id)}`, { job_status: status });
         return { ok: true };
+      }
+
+      case 'mark_job_paid': {
+        const jobRows = await sbGet('bookings', { select: 'id,fname,lname,vehicle,job_status,invoice_amount,estimate_amount,amount_paid,paid_at', id: `eq.${input.job_id}` });
+        const job = jobRows[0];
+        if (!job) throw new Error('No job found with that id.');
+
+        if (!input.confirmed) {
+          return {
+            needs_confirmation: true,
+            summary: `Mark ${job.fname || ''} ${job.lname || ''}'s job (${job.vehicle || 'vehicle on file'}) as PAID for ${money(input.amount)}` +
+              (input.stripe_transaction_id ? ` with Stripe transaction ${input.stripe_transaction_id} on file.` : ', with no Stripe transaction id yet — can be added later.') +
+              (job.paid_at ? ` Note: this job already shows a payment recorded on ${job.paid_at}.` : ''),
+          };
+        }
+
+        await sbPatch('bookings', `id=eq.${encodeURIComponent(input.job_id)}`, {
+          job_status: 'PAID',
+          amount_paid: input.amount,
+          paid_at: new Date().toISOString(),
+          ...(input.stripe_transaction_id ? { stripe_transaction_id: input.stripe_transaction_id } : {}),
+        });
+        return { ok: true, markedPaid: money(input.amount) };
       }
 
       case 'get_owner_pay_summary': {
@@ -445,6 +501,12 @@ export async function onRequestPost({ request, env }) {
       }
 
       case 'send_customer_email': {
+        if (!input.confirmed) {
+          return {
+            needs_confirmation: true,
+            summary: `Send an email to ${input.to_name || input.to_email} <${input.to_email}> with subject "${input.subject}".`,
+          };
+        }
         await brevoSend(input.to_email, input.to_name, input.subject, input.body_html);
         return { ok: true, sentTo: input.to_email };
       }
@@ -519,6 +581,9 @@ export async function onRequestPost({ request, env }) {
             const result = await runTool(block.name, block.input || {});
             resultContent = JSON.stringify(result);
             await send({ type: 'tool_result', tool: block.name, ok: true });
+            if (PRESENTABLE_TOOLS.has(block.name) && result && !result.needs_confirmation) {
+              await send({ type: 'data', tool: block.name, payload: result });
+            }
           } catch (e) {
             resultContent = JSON.stringify({ error: e.message ?? String(e) });
             await send({ type: 'tool_result', tool: block.name, ok: false, error: e.message ?? String(e) });
