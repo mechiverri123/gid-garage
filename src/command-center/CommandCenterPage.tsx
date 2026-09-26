@@ -104,10 +104,10 @@ export function CommandCenterPage({ onLock }: { onLock: () => void }) {
             <div className="lg:col-span-3">
               <BusinessMetrics today={summary.today} />
             </div>
-            <div className={`lg:col-span-6 ${PANEL} ${PANEL_PADDING} flex flex-col items-center justify-center py-6 relative overflow-hidden`}>
+            <div className={`lg:col-span-6 ${PANEL} ${PANEL_PADDING} flex flex-col items-center justify-center py-2 relative overflow-hidden`}>
               <div className="text-[10px] font-semibold uppercase tracking-[0.3em] relative" style={{ color: COLORS.accent }}>GID GARAGE</div>
-              <div className="text-[9px] uppercase tracking-[0.2em] mb-3 relative" style={{ color: COLORS.textFaint }}>AI Core</div>
-              <JarvisStatus state={jarvisState} liveActivity={liveActivity} size={280} />
+              <div className="text-[9px] uppercase tracking-[0.2em] mb-1 relative" style={{ color: COLORS.textFaint }}>AI Core</div>
+              <JarvisStatus state={jarvisState} liveActivity={liveActivity} size={360} />
             </div>
             <div className="lg:col-span-3">
               <AttentionPanel items={summary.needsAttention} />

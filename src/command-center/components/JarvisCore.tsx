@@ -170,13 +170,13 @@ function NetworkGlobe({ state }: { state: JarvisState }) {
         <bufferGeometry>
           <bufferAttribute attach="attributes-position" args={[positions, 3]} />
         </bufferGeometry>
-        <pointsMaterial color={STATE_COLOR[state]} size={0.025} transparent opacity={0.65} sizeAttenuation />
+        <pointsMaterial color={STATE_COLOR[state]} size={0.045} transparent opacity={0.9} sizeAttenuation />
       </points>
       <lineSegments ref={linesRef}>
         <bufferGeometry>
           <bufferAttribute attach="attributes-position" args={[linePositions, 3]} />
         </bufferGeometry>
-        <lineBasicMaterial color={STATE_COLOR[state]} transparent opacity={0.18} />
+        <lineBasicMaterial color={STATE_COLOR[state]} transparent opacity={0.35} />
       </lineSegments>
     </>
   );
