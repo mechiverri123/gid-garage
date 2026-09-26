@@ -12,6 +12,7 @@
 // ─────────────────────────────────────────────────────────────────────────
 
 import { useEffect, useState } from 'react';
+import { motion } from 'motion/react';
 import type { Lead } from './types';
 import { useBusinessSummary } from './hooks/useBusinessSummary';
 import { useAdminAI } from './hooks/useAdminAI';
@@ -32,6 +33,15 @@ import { PANEL, PANEL_PADDING } from './tokens';
 // (admin's tabs) intentionally stays a centered max-w-6xl column; this page
 // is the exception, meant to fill a monitor edge to edge.
 const PAGE = 'w-full px-4 sm:px-6 lg:px-10 py-4 space-y-4';
+
+// Page-load choreography (spec section 57): each major section fades and
+// rises in with a short stagger, once, on mount — not a looping animation,
+// just an entrance. Kept short (per spec's ~250-400ms workspace-transition
+// range) so it reads as polish, not a delay.
+const fadeRise = {
+  hidden: { opacity: 0, y: 10 },
+  show: (delay: number) => ({ opacity: 1, y: 0, transition: { duration: 0.35, delay, ease: 'easeOut' as const } }),
+};
 
 function LiveClock() {
   const [now, setNow] = useState(new Date());
@@ -132,7 +142,7 @@ export function CommandCenterPage() {
       <LeadDetailPanel lead={selectedLead} onClose={() => setSelectedLead(null)} />
 
       {/* ── Header ──────────────────────────────────────────────────── */}
-      <div className="flex items-center justify-between">
+      <motion.div initial="hidden" animate="show" custom={0} variants={fadeRise} className="flex items-center justify-between">
         <div>
           <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[#52616D]">GID Garage</div>
           <div className="text-lg font-bold text-[#F5F8FA] tracking-tight">Command Center</div>
@@ -145,13 +155,15 @@ export function CommandCenterPage() {
           <LiveClock />
           <button onClick={loadSummary} className="text-[#52616D] hover:text-[#8899A6] text-[11px] uppercase tracking-wide">↻ Refresh</button>
         </div>
-      </div>
+      </motion.div>
 
       {/* ── Business state first (section 34 priority order) ─────────── */}
-      <BusinessMetrics today={summary.today} />
+      <motion.div initial="hidden" animate="show" custom={0.05} variants={fadeRise}>
+        <BusinessMetrics today={summary.today} />
+      </motion.div>
 
       {/* ── Needs Attention + Jarvis Core — denser 12-col band ────────── */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-3">
+      <motion.div initial="hidden" animate="show" custom={0.1} variants={fadeRise} className="grid grid-cols-1 lg:grid-cols-12 gap-3">
         <div className="lg:col-span-5">
           <AttentionPanel items={summary.needsAttention} />
         </div>
@@ -161,13 +173,15 @@ export function CommandCenterPage() {
         <div className="lg:col-span-4">
           <UpcomingJobs scheduleBar={summary.scheduleBar} />
         </div>
-      </div>
+      </motion.div>
 
       {/* ── Command input — central to the interface, not buried ─────── */}
-      <CommandInput chatMessages={chatMessages} asking={asking} liveActivity={liveActivity} onAsk={ask} onClear={clear} />
+      <motion.div initial="hidden" animate="show" custom={0.15} variants={fadeRise}>
+        <CommandInput chatMessages={chatMessages} asking={asking} liveActivity={liveActivity} onAsk={ask} onClear={clear} />
+      </motion.div>
 
       {/* ── Upcoming jobs (real list) + Leads + Marketing — 12-col body ── */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-3">
+      <motion.div initial="hidden" animate="show" custom={0.2} variants={fadeRise} className="grid grid-cols-1 lg:grid-cols-12 gap-3">
         <div className="lg:col-span-5">
           <UpcomingJobsList jobs={summary.upcomingJobs} onSelect={setSelectedJobId} />
         </div>
@@ -185,7 +199,7 @@ export function CommandCenterPage() {
         <div className="lg:col-span-3">
           <MarketingPanel marketingFunnel={summary.marketingFunnel} onAddSpend={submitSpend} />
         </div>
-      </div>
+      </motion.div>
     </div>
   );
 }
