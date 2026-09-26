@@ -25,7 +25,7 @@ export const COLORS = {
 // layout. Tailwind arbitrary values so no tailwind.config.js changes are
 // needed for Phase 1.
 export const PANEL =
-  'bg-[#0f1620]/80 backdrop-blur-xl border border-[rgba(80,210,255,0.12)] rounded-xl shadow-[inset_0_1px_0_rgba(255,255,255,0.03),0_12px_40px_rgba(0,0,0,0.25)]';
+  'bg-[#0f1620]/80 backdrop-blur-xl border border-[rgba(80,210,255,0.12)] rounded-xl shadow-[inset_0_1px_0_rgba(255,255,255,0.03),0_12px_40px_rgba(0,0,0,0.25)] transition-all duration-300 hover:border-[rgba(50,217,255,0.4)] hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.05),0_12px_40px_rgba(0,0,0,0.25),0_0_24px_rgba(50,217,255,0.12)] hover:-translate-y-0.5';
 
 export const PANEL_PADDING = 'p-4 sm:p-5';
 

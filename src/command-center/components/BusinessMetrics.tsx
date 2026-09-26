@@ -14,7 +14,7 @@ function shortDate(iso: string): string {
 // count-up on initial load is enough," explicitly warning against
 // over-animating numbers). Runs once per mount, ~500ms, plain
 // requestAnimationFrame — no need to pull motion in just for this.
-function useCountUp(target: number, durationMs = 500): number {
+function useCountUp(target: number, durationMs = 1400): number {
   const [value, setValue] = useState(0);
   useEffect(() => {
     let raf: number;

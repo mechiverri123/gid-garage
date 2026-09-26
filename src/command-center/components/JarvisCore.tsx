@@ -20,9 +20,10 @@
 // uses — idle/processing/tool/success/error, all real, none faked.
 // ─────────────────────────────────────────────────────────────────────────
 
-import { useRef, useMemo } from 'react';
+import { useRef, useMemo, useState, useEffect } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
+import { motion } from 'motion/react';
 import { COLORS } from '../tokens';
 import type { JarvisState } from '../types';
 
@@ -199,8 +200,24 @@ function Scene({ state, progress }: { state: JarvisState; progress: number }) {
 
 export function JarvisCore({ state, progress = 0, label, size = 160 }: { state: JarvisState; progress?: number; label: string; size?: number }) {
   const color = STATE_COLOR[state];
+  const [booted, setBooted] = useState(false);
+  useEffect(() => { const t = setTimeout(() => setBooted(true), 50); return () => clearTimeout(t); }, []);
+
   return (
-    <div className="relative flex flex-col items-center justify-center">
+    <motion.div
+      className="relative flex flex-col items-center justify-center"
+      initial={{ scale: 0, opacity: 0, rotate: -30 }}
+      animate={booted ? { scale: 1, opacity: 1, rotate: 0 } : {}}
+      transition={{ type: 'spring', stiffness: 120, damping: 12, delay: 0.3 }}
+    >
+      {/* Boot flash — a bright pulse that fires once, then fades for good. */}
+      <motion.div
+        className="absolute rounded-full pointer-events-none"
+        style={{ width: size, height: size, background: color }}
+        initial={{ opacity: 0.5, scale: 0.3 }}
+        animate={booted ? { opacity: 0, scale: 1.8 } : {}}
+        transition={{ duration: 0.9, delay: 0.35, ease: 'easeOut' }}
+      />
       {/* CSS glow behind the canvas — cheap, safe, no WebGL risk, meant to
           read as a soft ambient bleed matching the state color. */}
       <div
@@ -222,6 +239,6 @@ export function JarvisCore({ state, progress = 0, label, size = 160 }: { state: 
       >
         {label}
       </div>
-    </div>
+    </motion.div>
   );
 }

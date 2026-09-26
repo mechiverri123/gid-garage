@@ -39,8 +39,8 @@ const PAGE = 'w-full px-4 sm:px-6 lg:px-10 py-4 space-y-4';
 // just an entrance. Kept short (per spec's ~250-400ms workspace-transition
 // range) so it reads as polish, not a delay.
 const fadeRise = {
-  hidden: { opacity: 0, y: 10 },
-  show: (delay: number) => ({ opacity: 1, y: 0, transition: { duration: 0.35, delay, ease: 'easeOut' as const } }),
+  hidden: { opacity: 0, y: 28, scale: 0.98 },
+  show: (delay: number) => ({ opacity: 1, y: 0, scale: 1, transition: { duration: 0.7, delay, ease: 'easeOut' as const } }),
 };
 
 function LiveClock() {
@@ -158,12 +158,12 @@ export function CommandCenterPage() {
       </motion.div>
 
       {/* ── Business state first (section 34 priority order) ─────────── */}
-      <motion.div initial="hidden" animate="show" custom={0.05} variants={fadeRise}>
+      <motion.div initial="hidden" animate="show" custom={0.18} variants={fadeRise}>
         <BusinessMetrics today={summary.today} />
       </motion.div>
 
       {/* ── Needs Attention + Jarvis Core — denser 12-col band ────────── */}
-      <motion.div initial="hidden" animate="show" custom={0.1} variants={fadeRise} className="grid grid-cols-1 lg:grid-cols-12 gap-3">
+      <motion.div initial="hidden" animate="show" custom={0.36} variants={fadeRise} className="grid grid-cols-1 lg:grid-cols-12 gap-3">
         <div className="lg:col-span-5">
           <AttentionPanel items={summary.needsAttention} />
         </div>
@@ -176,12 +176,12 @@ export function CommandCenterPage() {
       </motion.div>
 
       {/* ── Command input — central to the interface, not buried ─────── */}
-      <motion.div initial="hidden" animate="show" custom={0.15} variants={fadeRise}>
+      <motion.div initial="hidden" animate="show" custom={0.54} variants={fadeRise}>
         <CommandInput chatMessages={chatMessages} asking={asking} liveActivity={liveActivity} onAsk={ask} onClear={clear} />
       </motion.div>
 
       {/* ── Upcoming jobs (real list) + Leads + Marketing — 12-col body ── */}
-      <motion.div initial="hidden" animate="show" custom={0.2} variants={fadeRise} className="grid grid-cols-1 lg:grid-cols-12 gap-3">
+      <motion.div initial="hidden" animate="show" custom={0.72} variants={fadeRise} className="grid grid-cols-1 lg:grid-cols-12 gap-3">
         <div className="lg:col-span-5">
           <UpcomingJobsList jobs={summary.upcomingJobs} onSelect={setSelectedJobId} />
         </div>
