@@ -18,6 +18,31 @@ async function adminPost(action: string, args: Record<string, any> = {}) {
   return text ? JSON.parse(text) : null;
 }
 
+// Human-readable present-tense labels for the live activity feed while
+// Ask GID is working. Falls back to the raw tool name for anything new.
+const TOOL_LABELS: Record<string, string> = {
+  get_business_summary: "Pulling today's business summary",
+  list_leads: 'Looking up leads',
+  update_lead_status: 'Updating lead status',
+  list_jobs: 'Searching jobs',
+  reschedule_job: 'Rescheduling job',
+  pricing_history: 'Checking pricing history',
+  get_tax_rate: 'Checking tax rate',
+  add_marketing_spend: 'Logging marketing spend',
+  log_call: 'Logging call',
+  list_calls: 'Looking up calls',
+  list_marketing_spend: 'Checking marketing spend',
+  search_customers: 'Searching customers',
+  update_job_status: 'Updating job status',
+  get_owner_pay_summary: 'Calculating take-home pay',
+  send_customer_email: 'Sending email',
+};
+function toolLabel(tool: string): string {
+  return TOOL_LABELS[tool] || tool.replace(/_/g, ' ');
+}
+
+interface ActivityItem { tool: string; status: 'running' | 'done' | 'error'; error?: string }
+
 // ── Types (mirror the shapes returned by admin-api-data.js) ─────────────
 interface NeedsAttentionItem {
   type: 'lead_follow_up' | 'missed_call' | 'unpaid_invoice';
@@ -74,6 +99,7 @@ export function CommandCenterTab() {
   const [askQuery, setAskQuery] = useState('');
   const [chatMessages, setChatMessages] = useState<{ role: 'user' | 'assistant'; content: string }[]>([]);
   const [asking, setAsking] = useState(false);
+  const [liveActivity, setLiveActivity] = useState<ActivityItem[]>([]);
 
   const [spendDate, setSpendDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [spendChannel, setSpendChannel] = useState('google_ads');
@@ -114,6 +140,7 @@ export function CommandCenterTab() {
     const q = askQuery.trim();
     if (!q || asking) return;
     setAsking(true);
+    setLiveActivity([]);
     const nextMessages = [...chatMessages, { role: 'user' as const, content: q }];
     setChatMessages(nextMessages);
     setAskQuery('');
@@ -124,13 +151,56 @@ export function CommandCenterTab() {
         body: JSON.stringify({ messages: nextMessages }),
       });
       if (!res.ok) throw new Error(await res.text());
-      const data = await res.json();
-      setChatMessages(prev => [...prev, { role: 'assistant', content: data.reply || 'No answer.' }]);
-      // A tool call may have changed data (lead status, spend, reschedule) — refresh in the background.
-      loadSummary();
-      loadLeads(leadStatusFilter || undefined);
+      if (!res.body) throw new Error('No response stream.');
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      let sawFinal = false;
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() ?? ''; // last (possibly incomplete) line stays in the buffer
+
+        for (const line of lines) {
+          if (!line.trim()) continue;
+          let event: any;
+          try { event = JSON.parse(line); } catch { continue; }
+
+          if (event.type === 'tool_call') {
+            setLiveActivity(prev => [...prev, { tool: event.tool, status: 'running' }]);
+          } else if (event.type === 'tool_result') {
+            setLiveActivity(prev => {
+              const idx = prev.map(a => a.tool).lastIndexOf(event.tool);
+              if (idx === -1) return prev;
+              const copy = [...prev];
+              copy[idx] = { ...copy[idx], status: event.ok ? 'done' : 'error', error: event.error };
+              return copy;
+            });
+          } else if (event.type === 'final') {
+            sawFinal = true;
+            setChatMessages(prev => [...prev, { role: 'assistant', content: event.text || 'No answer.' }]);
+            setLiveActivity([]);
+            loadSummary();
+            loadLeads(leadStatusFilter || undefined);
+          } else if (event.type === 'error') {
+            sawFinal = true;
+            setChatMessages(prev => [...prev, { role: 'assistant', content: `Error: ${event.message}` }]);
+            setLiveActivity([]);
+          }
+        }
+      }
+
+      if (!sawFinal) {
+        setChatMessages(prev => [...prev, { role: 'assistant', content: 'Connection ended before a final answer arrived. Try again.' }]);
+        setLiveActivity([]);
+      }
     } catch (err: any) {
       setChatMessages(prev => [...prev, { role: 'assistant', content: `Error: ${err.message}` }]);
+      setLiveActivity([]);
     } finally {
       setAsking(false);
     }
@@ -178,7 +248,7 @@ export function CommandCenterTab() {
         <div className="flex items-center justify-between mb-2">
           <div className={LABEL}>Ask GID</div>
           {chatMessages.length > 0 && (
-            <button onClick={() => setChatMessages([])} className="text-[10px] text-gray-600 hover:text-gray-400 uppercase tracking-wide">Clear</button>
+            <button onClick={() => { setChatMessages([]); setLiveActivity([]); }} className="text-[10px] text-gray-600 hover:text-gray-400 uppercase tracking-wide">Clear</button>
           )}
         </div>
         <form onSubmit={submitAsk} className="flex gap-2">
@@ -201,7 +271,24 @@ export function CommandCenterTab() {
                 {m.content}
               </div>
             ))}
-            {asking && <div className="text-xs pl-3 py-1 border-l-2 border-red-800 text-gray-500">…</div>}
+            {asking && (
+              <div className="pl-3 py-1 border-l-2 border-red-800 space-y-1">
+                {liveActivity.length === 0 ? (
+                  <div className="text-xs text-gray-500 animate-pulse">Thinking…</div>
+                ) : (
+                  liveActivity.map((a, i) => (
+                    <div key={i} className="text-xs flex items-center gap-1.5">
+                      <span className={a.status === 'running' ? 'text-yellow-500 animate-pulse' : a.status === 'error' ? 'text-red-500' : 'text-green-500'}>
+                        {a.status === 'running' ? '●' : a.status === 'error' ? '✕' : '✓'}
+                      </span>
+                      <span className={a.status === 'error' ? 'text-red-400' : 'text-gray-500'}>
+                        {toolLabel(a.tool)}{a.status === 'error' && a.error ? ` — ${a.error}` : ''}
+                      </span>
+                    </div>
+                  ))
+                )}
+              </div>
+            )}
           </div>
         )}
       </div>

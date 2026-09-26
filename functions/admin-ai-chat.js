@@ -17,7 +17,12 @@
 //
 // Body: { messages: [{ role: 'user'|'assistant', content: string }], ... }
 //   (send the last ~10 turns of conversation; this endpoint is stateless)
-// Response: { reply: string }
+// Response: streamed newline-delimited JSON (NDJSON), one event per line:
+//   { type: 'tool_call', tool: string, input: object }
+//   { type: 'tool_result', tool: string, ok: boolean, error?: string }
+//   { type: 'final', text: string }
+//   { type: 'error', message: string }
+// A conversation with no tool calls just streams a single 'final' line.
 
 const CLAUDE_MODEL = 'claude-haiku-4-5-20251001';
 const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
@@ -449,67 +454,91 @@ export async function onRequestPost({ request, env }) {
     }
   }
 
-  // ---- Claude agent loop ----
+  // ---- Claude agent loop, streamed as NDJSON so the frontend can show
+  // ---- live progress (tool_call / tool_result / final) instead of a
+  // ---- silent wait followed by one block of text.
   const todayCtx = new Date().toLocaleDateString('en-US', { timeZone: 'America/Phoenix', weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
   let messages = [
     ...incomingMessages.map(m => ({ role: m.role, content: m.content })),
   ];
-  // Inject today's date as a system-ish note on first turn
   messages[messages.length - 1] = {
     ...messages[messages.length - 1],
     content: `[Today is ${todayCtx}]\n\n${messages[messages.length - 1].content}`,
   };
 
-  try {
-    for (let turn = 0; turn < MAX_TOOL_TURNS; turn++) {
-      const res = await fetch(CLAUDE_API_URL, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': anthropicKey,
-          'anthropic-version': '2023-06-01',
-        },
-        body: JSON.stringify({
-          model: CLAUDE_MODEL,
-          max_tokens: 1024,
-          system: SYSTEM_PROMPT,
-          tools: TOOLS,
-          messages,
-        }),
-      });
-
-      if (!res.ok) {
-        const detail = await res.text();
-        return json({ error: `Claude API error: ${detail}` }, 502);
-      }
-      const data = await res.json();
-
-      const toolUseBlocks = (data.content || []).filter(b => b.type === 'tool_use');
-      const textBlocks = (data.content || []).filter(b => b.type === 'text');
-
-      if (!toolUseBlocks.length || data.stop_reason !== 'tool_use') {
-        const replyText = textBlocks.map(b => b.text).join('\n').trim();
-        return json({ reply: replyText || "I don't have anything to add." });
-      }
-
-      // Execute each requested tool, append assistant turn + tool results, loop
-      messages.push({ role: 'assistant', content: data.content });
-      const toolResults = [];
-      for (const block of toolUseBlocks) {
-        let resultContent;
-        try {
-          const result = await runTool(block.name, block.input || {});
-          resultContent = JSON.stringify(result);
-        } catch (e) {
-          resultContent = JSON.stringify({ error: e.message ?? String(e) });
-        }
-        toolResults.push({ type: 'tool_result', tool_use_id: block.id, content: resultContent });
-      }
-      messages.push({ role: 'user', content: toolResults });
-    }
-
-    return json({ reply: "That took more steps than I could finish in one go — try breaking it into a smaller question." });
-  } catch (err) {
-    return json({ error: err.message ?? 'Unknown error' }, 500);
+  const { readable, writable } = new TransformStream();
+  const writer = writable.getWriter();
+  const encoder = new TextEncoder();
+  function send(obj) {
+    return writer.write(encoder.encode(JSON.stringify(obj) + '\n'));
   }
+
+  // Run the agent loop in the background; the streamed response is
+  // returned to the client immediately below, independent of this promise.
+  (async () => {
+    try {
+      for (let turn = 0; turn < MAX_TOOL_TURNS; turn++) {
+        const res = await fetch(CLAUDE_API_URL, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-api-key': anthropicKey,
+            'anthropic-version': '2023-06-01',
+          },
+          body: JSON.stringify({
+            model: CLAUDE_MODEL,
+            max_tokens: 1024,
+            system: SYSTEM_PROMPT,
+            tools: TOOLS,
+            messages,
+          }),
+        });
+
+        if (!res.ok) {
+          const detail = await res.text();
+          await send({ type: 'error', message: `Claude API error: ${detail}` });
+          break;
+        }
+        const data = await res.json();
+
+        const toolUseBlocks = (data.content || []).filter(b => b.type === 'tool_use');
+        const textBlocks = (data.content || []).filter(b => b.type === 'text');
+
+        if (!toolUseBlocks.length || data.stop_reason !== 'tool_use') {
+          const replyText = textBlocks.map(b => b.text).join('\n').trim();
+          await send({ type: 'final', text: replyText || "I don't have anything to add." });
+          break;
+        }
+
+        messages.push({ role: 'assistant', content: data.content });
+        const toolResults = [];
+        for (const block of toolUseBlocks) {
+          await send({ type: 'tool_call', tool: block.name, input: block.input || {} });
+          let resultContent;
+          try {
+            const result = await runTool(block.name, block.input || {});
+            resultContent = JSON.stringify(result);
+            await send({ type: 'tool_result', tool: block.name, ok: true });
+          } catch (e) {
+            resultContent = JSON.stringify({ error: e.message ?? String(e) });
+            await send({ type: 'tool_result', tool: block.name, ok: false, error: e.message ?? String(e) });
+          }
+          toolResults.push({ type: 'tool_result', tool_use_id: block.id, content: resultContent });
+        }
+        messages.push({ role: 'user', content: toolResults });
+
+        if (turn === MAX_TOOL_TURNS - 1) {
+          await send({ type: 'final', text: 'That took more steps than I could finish in one go — try breaking it into a smaller question.' });
+        }
+      }
+    } catch (err) {
+      await send({ type: 'error', message: err.message ?? 'Unknown error' });
+    } finally {
+      await writer.close();
+    }
+  })();
+
+  return new Response(readable, {
+    headers: { 'Content-Type': 'application/x-ndjson; charset=utf-8', 'Cache-Control': 'no-cache' },
+  });
 }
