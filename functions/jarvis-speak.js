@@ -53,7 +53,7 @@ export async function onRequestGet({ env }) {
     ok: true,
     configured: !!env.OPENAI_API_KEY,
     model: 'gpt-4o-mini-tts',
-    voice: 'cedar',
+    voice: 'onyx',
     accessValidation: 'handled-by-cloudflare-edge',
   });
 }
@@ -81,20 +81,22 @@ export async function onRequestPost({ request, env }) {
 
   const payload = {
     model: 'gpt-4o-mini-tts',
-    voice: 'cedar',
+    voice: 'onyx',
     input: text,
     instructions: [
-      'Speak as a sophisticated cinematic British male AI assistant for Michael, owner of GID Garage.',
-      'Use a refined modern British accent, a calm lower register, crisp diction, and measured deliberate pacing.',
-      'Sound intelligent, composed, understated, and confident.',
-      'Use restrained emotion with subtle warmth. Never sound cheerful, cartoonish, robotic, breathy, theatrical, or like an announcer.',
-      'Pause briefly around names, dates, money, warnings, and action items.',
-      'Speak slightly slower than normal conversation and keep phrasing concise.',
-      'Address Michael naturally when appropriate, but not in every sentence.',
-      'Do not imitate any specific actor, celebrity, or copyrighted character performance.',
+      'Use a polished, cinematic male AI-assistant delivery.',
+      'Use a neutral Southern British / modern Received Pronunciation accent.',
+      'Keep the voice low, smooth, controlled, precise, and quietly confident.',
+      'Speak with crisp consonants, clean vowels, restrained emotion, and subtle dry wit.',
+      'Avoid sounding elderly, breathy, raspy, cheerful, cartoonish, robotic, synthetic, theatrical, or like a radio announcer.',
+      'Use short, deliberate pauses. Do not over-pause between every phrase.',
+      'Keep cadence conversational but highly composed, as if briefing one person in a private workshop.',
+      'Important numbers, appointments, warnings, and names should receive slightly stronger emphasis.',
+      'Address Michael naturally when useful, but do not repeat his name constantly.',
+      'Do not imitate or clone any specific actor, celebrity, or copyrighted character voice.',
     ].join(' '),
     response_format: 'wav',
-    speed: 0.94,
+    speed: 0.91,
   };
 
   let upstream;
@@ -126,7 +128,7 @@ export async function onRequestPost({ request, env }) {
   const headers = new Headers();
   headers.set('Content-Type', 'audio/wav');
   headers.set('Cache-Control', 'no-store');
-  headers.set('X-GID-Voice', 'openai-cedar');
+  headers.set('X-GID-Voice', 'openai-onyx');
 
   return new Response(upstream.body, {
     status: 200,

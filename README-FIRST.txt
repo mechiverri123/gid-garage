@@ -1,42 +1,19 @@
-GID Garage — Opera microphone STARTING fix
+GID Garage — Voice profile v2
 
-WHY IT WAS STUCK
-----------------
-The listener successfully requests the microphone, then creates an AudioContext for local voice-activity detection.
-Opera/Chromium can create that AudioContext in SUSPENDED state until there has been a user gesture.
+Replace:
+functions/jarvis-speak.js
 
-The previous build did:
-    await audioContext.resume()
+Changes:
+- switches built-in voice from cedar -> onyx
+- lower, smoother, more controlled male delivery
+- neutral Southern British / modern RP accent prompt
+- slower 0.91 speed
+- removes traits that were making the voice sound old/robotic
+- keeps OpenAI gpt-4o-mini-tts
 
-That can leave the page sitting at STARTING MIC even though microphone permission is already granted.
+Deploy the full project after replacement.
 
-THIS FIX
---------
-- Never waits on audioContext.resume() during startup.
-- As soon as getUserMedia returns a LIVE audio track, UI changes to LISTENING.
-- MediaRecorder starts immediately.
-- AudioContext resume happens in the background.
-- First click/tap/key press automatically unlocks AudioContext if Opera requires it.
-- 8-second getUserMedia timeout now reports a real error instead of hanging forever.
-- Existing wake-word flow remains:
-    "Jarvis, catch me up."
-    or "Jarvis." -> then command.
-
-REPLACE
--------
-src/command-center/hooks/useJarvisListener.ts
-src/command-center/components/CommandInput.tsx
-
-TEST
-----
-1. Replace these 2 files.
-2. npm run build
-3. deploy full dist
-4. purge Cloudflare cache if the old hashed chunk is still served
-5. load /jarvis
-6. status should move STARTING MIC -> SAY "JARVIS..."
-7. click once anywhere on the page
-8. say: Jarvis, catch me up.
-
-If it still cannot hear you after reaching LISTENING, the next step is device-level diagnostics
-(selected input device / live track / measured RMS), not another permission change.
+If you want to A/B test later:
+- onyx = deeper / more authoritative
+- cedar = cleaner / more neutral
+- marin = very high-quality but less likely to read as the cinematic male-AI profile you want
