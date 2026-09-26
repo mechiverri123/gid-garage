@@ -4,7 +4,7 @@ import { LEAD_STATUS_OPTIONS } from '../types';
 import type { CommandCenterSummary, Lead } from '../types';
 
 export function LeadPipeline({
-  leadsSummary, leads, leadsLoading, leadStatusFilter, onFilterChange, onStatusChange,
+  leadsSummary, leads, leadsLoading, leadStatusFilter, onFilterChange, onStatusChange, onSelect,
 }: {
   leadsSummary: CommandCenterSummary['leadsSummary'];
   leads: Lead[];
@@ -12,6 +12,7 @@ export function LeadPipeline({
   leadStatusFilter: string;
   onFilterChange: (status: string) => void;
   onStatusChange: (id: string, status: string) => void;
+  onSelect: (lead: Lead) => void;
 }) {
   const stageCounts = LEAD_STATUS_OPTIONS.reduce<Record<string, number>>((acc, s) => {
     acc[s] = leads.filter(l => l.status === s).length;
@@ -61,11 +62,11 @@ export function LeadPipeline({
             </thead>
             <tbody>
               {leads.slice(0, 30).map(l => (
-                <tr key={l.id} className="border-b border-white/5">
+                <tr key={l.id} onClick={() => onSelect(l)} className="border-b border-white/5 cursor-pointer hover:bg-white/5 transition-colors">
                   <td className="py-2 pr-3 text-[#F5F8FA]">{`${l.fname || ''} ${l.lname || ''}`.trim() || l.phone || '—'}</td>
                   <td className="py-2 pr-3 text-[#8899A6]">{fmtSource(l.source)}</td>
                   <td className="py-2 pr-3 text-[#8899A6]">{l.requested_service || '—'}</td>
-                  <td className="py-2 pr-3">
+                  <td className="py-2 pr-3" onClick={e => e.stopPropagation()}>
                     <select value={l.status} onChange={e => onStatusChange(l.id, e.target.value)}
                       className="bg-black/30 border border-white/10 text-[#8899A6] text-[11px] px-1.5 py-0.5 rounded outline-none focus:border-[#32D9FF]">
                       {LEAD_STATUS_OPTIONS.map(s => <option key={s} value={s}>{fmtSource(s)}</option>)}

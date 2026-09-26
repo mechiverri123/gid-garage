@@ -12,6 +12,7 @@
 // ─────────────────────────────────────────────────────────────────────────
 
 import { useEffect, useState } from 'react';
+import type { Lead } from './types';
 import { useBusinessSummary } from './hooks/useBusinessSummary';
 import { useAdminAI } from './hooks/useAdminAI';
 import { JarvisStatus } from './components/JarvisStatus';
@@ -20,6 +21,7 @@ import { AttentionPanel } from './components/AttentionPanel';
 import { UpcomingJobs } from './components/UpcomingJobs';
 import { UpcomingJobsList } from './components/UpcomingJobsList';
 import { JobDetailPanel } from './components/JobDetailPanel';
+import { LeadDetailPanel } from './components/LeadDetailPanel';
 import { LeadPipeline } from './components/LeadPipeline';
 import { MarketingPanel } from './components/MarketingPanel';
 import { CommandPalette, useCommandPalette } from './components/CommandPalette';
@@ -71,6 +73,7 @@ export function CommandCenterPage() {
   });
 
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
+  const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
 
   const palette = useCommandPalette([
     { id: 'today', label: "Today's jobs", run: () => ask("what's scheduled today") },
@@ -126,6 +129,7 @@ export function CommandCenterPage() {
     <div className={PAGE}>
       <CommandPalette open={palette.open} onClose={() => palette.setOpen(false)} commands={palette.commands} />
       <JobDetailPanel jobId={selectedJobId} onClose={() => setSelectedJobId(null)} />
+      <LeadDetailPanel lead={selectedLead} onClose={() => setSelectedLead(null)} />
 
       {/* ── Header ──────────────────────────────────────────────────── */}
       <div className="flex items-center justify-between">
@@ -175,6 +179,7 @@ export function CommandCenterPage() {
             leadStatusFilter={leadStatusFilter}
             onFilterChange={s => { setLeadStatusFilter(s); loadLeads(s || undefined); }}
             onStatusChange={updateLeadStatus}
+            onSelect={setSelectedLead}
           />
         </div>
         <div className="lg:col-span-3">
