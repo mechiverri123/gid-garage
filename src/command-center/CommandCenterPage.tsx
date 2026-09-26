@@ -23,6 +23,8 @@ import { TopStatusBar } from './components/TopStatusBar';
 import { JarvisStatus } from './components/JarvisStatus';
 import { BusinessMetrics } from './components/BusinessMetrics';
 import { AttentionPanel } from './components/AttentionPanel';
+import { WeekSummary } from './components/WeekSummary';
+import { QuickCommands } from './components/QuickCommands';
 import { UpcomingJobsList } from './components/UpcomingJobsList';
 import { LiveFeed } from './components/LiveFeed';
 import { JobDetailPanel } from './components/JobDetailPanel';
@@ -99,23 +101,33 @@ export function CommandCenterPage({ onLock }: { onLock: () => void }) {
 
         {/* ── Scrollable middle region ─────────────────────────────────── */}
         <div className="flex-1 overflow-y-auto px-4 sm:px-6 lg:px-8 py-4 space-y-4">
-          {/* ── Three-zone hero: status | AI CORE (dominant) | attention ── */}
-          <motion.div initial="hidden" animate="show" custom={0.05} variants={fadeRise} className="grid grid-cols-1 lg:grid-cols-12 gap-3">
-            <div className="lg:col-span-3">
+          {/* ── Three-zone hero: status | AI CORE (dominant) | attention ──
+              items-start is the key fix here: grid items default to
+              stretching to match their tallest neighbor, which was
+              forcing Today's 5 lines and Attention's 2 lines into the
+              same tall box as the orb panel — that's what caused the
+              "giant empty panel" look. items-start lets each column size
+              to its own content, and each side column now stacks two
+              real modules instead of one, so the height that's freed up
+              gets used, not left blank. ── */}
+          <motion.div initial="hidden" animate="show" custom={0.05} variants={fadeRise} className="grid grid-cols-1 lg:grid-cols-12 gap-3 items-start">
+            <div className="lg:col-span-3 flex flex-col gap-3">
               <BusinessMetrics today={summary.today} />
+              <WeekSummary leadsSummary={summary.leadsSummary} marketingFunnel={summary.marketingFunnel} />
             </div>
             <div className={`lg:col-span-6 ${PANEL} ${PANEL_PADDING} flex flex-col items-center justify-center py-2 relative overflow-hidden`}>
               <div className="text-[10px] font-semibold uppercase tracking-[0.3em] relative" style={{ color: COLORS.accent }}>GID GARAGE</div>
               <div className="text-[9px] uppercase tracking-[0.2em] mb-1 relative" style={{ color: COLORS.textFaint }}>AI Core</div>
               <JarvisStatus state={jarvisState} liveActivity={liveActivity} size={360} />
             </div>
-            <div className="lg:col-span-3">
+            <div className="lg:col-span-3 flex flex-col gap-3">
               <AttentionPanel items={summary.needsAttention} />
+              <QuickCommands onRun={ask} />
             </div>
           </motion.div>
 
           {/* ── Upcoming jobs timeline + Live Business Feed ───────────── */}
-          <motion.div initial="hidden" animate="show" custom={0.15} variants={fadeRise} className="grid grid-cols-1 lg:grid-cols-12 gap-3">
+          <motion.div initial="hidden" animate="show" custom={0.15} variants={fadeRise} className="grid grid-cols-1 lg:grid-cols-12 gap-3 items-start">
             <div className="lg:col-span-7">
               <UpcomingJobsList jobs={summary.upcomingJobs} onSelect={setSelectedJobId} />
             </div>
@@ -125,7 +137,7 @@ export function CommandCenterPage({ onLock }: { onLock: () => void }) {
           </motion.div>
 
           {/* ── Leads + Marketing ──────────────────────────────────────── */}
-          <motion.div id="marketing" initial="hidden" animate="show" custom={0.25} variants={fadeRise} className="grid grid-cols-1 lg:grid-cols-12 gap-3">
+          <motion.div id="marketing" initial="hidden" animate="show" custom={0.25} variants={fadeRise} className="grid grid-cols-1 lg:grid-cols-12 gap-3 items-start">
             <div className="lg:col-span-7">
               <LeadPipeline
                 leadsSummary={summary.leadsSummary}
