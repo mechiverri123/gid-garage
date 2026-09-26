@@ -18,6 +18,7 @@ import { LeadPipeline } from './components/LeadPipeline';
 import { MarketingPanel } from './components/MarketingPanel';
 import { CommandPalette, useCommandPalette } from './components/CommandPalette';
 import { CommandInput } from './components/CommandInput';
+import { OwnerBriefing } from './components/OwnerBriefing';
 import { COLORS } from './tokens';
 
 const fadeRise = {
@@ -113,7 +114,11 @@ export function CommandCenterPage({ onLock }: { onLock: () => void }) {
 
         <div className="flex-1 overflow-y-auto px-4 sm:px-6 lg:px-8 py-4 relative">
           <div className="max-w-[1880px] mx-auto space-y-4 relative">
-            <motion.div initial="hidden" animate="show" custom={0.03} variants={fadeRise} className="grid grid-cols-1 xl:grid-cols-12 gap-4 items-start">
+            <motion.div initial="hidden" animate="show" custom={0.01} variants={fadeRise}>
+              <OwnerBriefing summary={summary} />
+            </motion.div>
+
+            <motion.div initial="hidden" animate="show" custom={0.05} variants={fadeRise} className="grid grid-cols-1 xl:grid-cols-12 gap-4 items-start">
               <div className="xl:col-span-3 space-y-4">
                 <BusinessMetrics today={summary.today} />
                 <WeekSummary leadsSummary={summary.leadsSummary} marketingFunnel={summary.marketingFunnel} />

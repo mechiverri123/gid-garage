@@ -20,7 +20,8 @@ export function HudPanel({
       style={{
         background: `linear-gradient(180deg, rgba(10,22,38,0.94) 0%, rgba(5,13,24,0.92) 100%)`,
         borderColor: COLORS.border,
-        boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.04), inset 0 0 0 1px rgba(84,231,255,0.05), 0 16px 48px rgba(0,0,0,0.32)',
+        boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), inset 0 -18px 40px rgba(0,0,0,0.18), inset 0 0 0 1px rgba(84,231,255,0.05), 0 20px 55px rgba(0,0,0,0.38)',
+        transform: 'translateZ(0)',
       }}
     >
       <div className="pointer-events-none absolute inset-x-5 top-0 h-px" style={{ background: `linear-gradient(90deg, transparent, ${COLORS.borderStrong}, transparent)` }} />
