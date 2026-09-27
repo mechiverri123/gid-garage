@@ -26,8 +26,8 @@ AGENT_NAME = os.getenv("LIVEKIT_AGENT_NAME", "gid-jarvis")
 LLM_MODEL = os.getenv("JARVIS_LLM_MODEL", "google/gemma-4-31b-it")
 STT_MODEL = os.getenv("JARVIS_STT_MODEL", "deepgram/flux-general")
 TTS_MODEL = os.getenv("JARVIS_TTS_MODEL", "cartesia/sonic-3")
-TTS_VOICE = os.getenv("JARVIS_TTS_VOICE", "9626c31c-bec5-4cca-baa8-f8ba9e84c8bc")
-TTS_SPEED = float(os.getenv("JARVIS_TTS_SPEED", "0.96"))
+TTS_VOICE = os.getenv("JARVIS_TTS_VOICE", "63ff761f-c1e8-414b-b969-d1833d1c870c")
+TTS_SPEED = float(os.getenv("JARVIS_TTS_SPEED", "0.93"))
 
 
 def money(value: Any) -> str:
@@ -598,7 +598,7 @@ async def gid_jarvis(ctx: JobContext):
             model=TTS_MODEL,
             voice=TTS_VOICE,
             language="en",
-            extra_kwargs={"speed": TTS_SPEED, "max_buffer_delay_ms": 80},
+            extra_kwargs={"speed": TTS_SPEED, "emotion": "calm", "volume": 1.0, "max_buffer_delay_ms": 80},
         ),
         turn_handling=TurnHandlingOptions(
             # Deepgram Flux already detects conversational end-of-turn.
