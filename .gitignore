@@ -21,3 +21,10 @@ dist-ssr
 *.sln
 *.sw?
 .env
+
+# LiveKit agent local secrets
+jarvis-agent/.env
+jarvis-agent/.env.local
+jarvis-agent/.env.production
+jarvis-agent/.venv/
+jarvis-agent/__pycache__/

@@ -1,0 +1,33 @@
+GID GARAGE — LIVEKIT JARVIS ALL-IN-ONE BUILD
+
+Kept:
+- existing GID Garage /jarvis dashboard
+- existing Supabase data
+- existing Cloudflare Pages + Cloudflare Access
+- existing typed Ask GID Claude agent as a fallback
+- existing dashboard business panels and UI
+
+Added:
+- Cloudflare /jarvis-livekit-token function
+- browser LiveKit/WebRTC microphone client
+- realtime START JARVIS / LISTENING / SPEAKING UI
+- hosted LiveKit Python agent
+- Claude Haiku realtime tool-calling brain
+- Deepgram streaming speech recognition
+- Cartesia streaming TTS
+- GID Garage live business tools in the voice agent
+- payment/email confirmation safety
+- automatic dashboard refresh while voice is connected
+
+Removed from the realtime architecture:
+- browser MediaRecorder clips
+- WAV upload loop
+- /jarvis-transcribe dependency
+- /jarvis-speak dependency
+- Piper/Railway dependency
+- waiting for a whole TTS file before playback
+
+IMPORTANT:
+The source ZIP's package-lock.json cannot be reliably regenerated in this build environment because npm registry access timed out. Run `npm install` once on your machine before pushing. That updates package-lock.json for the three new LiveKit JS dependencies.
+
+Start with LIVEKIT_JARVIS_SETUP.md.
