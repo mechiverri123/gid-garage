@@ -462,8 +462,15 @@ async def gid_jarvis(ctx: JobContext):
             extra_kwargs={"speed": TTS_SPEED, "max_buffer_delay_ms": 80},
         ),
         turn_handling=TurnHandlingOptions(
-            turn_detection=inference.TurnDetector(),
-            preemptive_generation={"enabled": True, "preemptive_tts": True, "max_speech_duration": 8.0},
+            # Deepgram Flux already detects conversational end-of-turn.
+            # Using its STT-native turn detection avoids the session sitting in
+            # LISTENING after Michael finishes speaking.
+            turn_detection="stt",
+            preemptive_generation={
+                "enabled": True,
+                "preemptive_tts": True,
+                "max_speech_duration": 8.0,
+            },
         ),
     )
 
