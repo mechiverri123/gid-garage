@@ -42,7 +42,7 @@ npm run build
 - `livekit-server-sdk`
 - `@livekit/protocol`
 
-It will also update `package-lock.json` on your machine. Commit/push the updated lock file with the rest of the project.
+It will also update `package-lock.json` on your machine. **Your current pushed commit does not contain the LiveKit packages in package-lock.json yet, so commit/push the updated lock file after running this.**
 
 ## 2. Create a LiveKit Cloud project
 
@@ -118,7 +118,7 @@ BREVO_API_KEY=your existing Brevo key
 LIVEKIT_AGENT_NAME=gid-jarvis
 JARVIS_LLM_MODEL=claude-haiku-4-5-20251001
 JARVIS_STT_MODEL=deepgram/flux-general
-JARVIS_TTS_MODEL=cartesia/sonic-3.6
+JARVIS_TTS_MODEL=cartesia/sonic-3
 JARVIS_TTS_VOICE=9626c31c-bec5-4cca-baa8-f8ba9e84c8bc
 JARVIS_TTS_SPEED=0.96
 ```

@@ -26,7 +26,7 @@ ARIZONA = ZoneInfo("America/Phoenix")
 AGENT_NAME = os.getenv("LIVEKIT_AGENT_NAME", "gid-jarvis")
 LLM_MODEL = os.getenv("JARVIS_LLM_MODEL", "claude-haiku-4-5-20251001")
 STT_MODEL = os.getenv("JARVIS_STT_MODEL", "deepgram/flux-general")
-TTS_MODEL = os.getenv("JARVIS_TTS_MODEL", "cartesia/sonic-3.6")
+TTS_MODEL = os.getenv("JARVIS_TTS_MODEL", "cartesia/sonic-3")
 TTS_VOICE = os.getenv("JARVIS_TTS_VOICE", "9626c31c-bec5-4cca-baa8-f8ba9e84c8bc")
 TTS_SPEED = float(os.getenv("JARVIS_TTS_SPEED", "0.96"))
 

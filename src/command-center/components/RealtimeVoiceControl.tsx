@@ -6,10 +6,14 @@ export function RealtimeVoiceControl({
   state,
   error,
   onToggle,
+  needsAudioUnlock = false,
+  onStartAudio,
 }: {
   state: RealtimeVoiceState;
   error: string | null;
   onToggle: () => void;
+  needsAudioUnlock?: boolean;
+  onStartAudio?: () => void;
 }) {
   const active = state === 'listening' || state === 'speaking' || state === 'connecting';
   const label =
@@ -40,6 +44,20 @@ export function RealtimeVoiceControl({
       <div className="text-[8px] uppercase tracking-[0.16em]" style={{ color: COLORS.textFaint }}>
         LiveKit realtime · WebRTC
       </div>
+      {needsAudioUnlock && onStartAudio ? (
+        <button
+          type="button"
+          onClick={onStartAudio}
+          className="rounded-full border px-3 py-1 text-[9px] font-semibold uppercase tracking-[0.16em]"
+          style={{
+            borderColor: 'rgba(255,186,73,0.5)',
+            color: COLORS.warning,
+            background: 'rgba(255,186,73,0.06)',
+          }}
+        >
+          Enable audio
+        </button>
+      ) : null}
       {error ? (
         <div className="max-w-[360px] text-center text-[9px] leading-4" style={{ color: COLORS.critical }}>
           {error}

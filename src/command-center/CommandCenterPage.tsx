@@ -145,7 +145,13 @@ export function CommandCenterPage({ onLock }: { onLock: () => void }) {
               <div className="text-[10px] font-semibold uppercase tracking-[0.3em] relative" style={{ color: COLORS.accent }}>GID GARAGE</div>
               <div className="text-[9px] uppercase tracking-[0.2em] mb-1 relative" style={{ color: COLORS.textFaint }}>AI Core</div>
               <JarvisStatus state={coreState} liveActivity={liveActivity} size={360} />
-              <RealtimeVoiceControl state={voice.state} error={voice.error} onToggle={voice.toggle} />
+              <RealtimeVoiceControl
+                state={voice.state}
+                error={voice.error}
+                onToggle={voice.toggle}
+                needsAudioUnlock={voice.needsAudioUnlock}
+                onStartAudio={voice.startAudio}
+              />
             </div>
             <div className="lg:col-span-3 flex flex-col gap-3">
               <AttentionPanel items={summary.needsAttention} />

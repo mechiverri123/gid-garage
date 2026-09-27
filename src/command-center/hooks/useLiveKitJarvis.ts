@@ -15,6 +15,7 @@ export function useLiveKitJarvis() {
   const [state, setState] = useState<RealtimeVoiceState>('off');
   const [error, setError] = useState<string | null>(null);
   const [roomName, setRoomName] = useState<string | null>(null);
+  const [needsAudioUnlock, setNeedsAudioUnlock] = useState(false);
   const roomRef = useRef<Room | null>(null);
   const audioNodesRef = useRef<HTMLMediaElement[]>([]);
 
@@ -35,6 +36,7 @@ export function useLiveKitJarvis() {
       room.disconnect();
     }
     setRoomName(null);
+    setNeedsAudioUnlock(false);
     setState('off');
   }, [removeAudioNodes]);
 
@@ -45,6 +47,28 @@ export function useLiveKitJarvis() {
     setState('connecting');
 
     try {
+      // Create/unlock the Room immediately while we are still inside the
+      // user's START JARVIS click. Chromium/Opera can otherwise reject remote
+      // agent audio because the token fetch + WebRTC connection completes
+      // after the original user gesture has expired.
+      const room = new Room({
+        adaptiveStream: true,
+        dynacast: true,
+        disconnectOnPageLeave: true,
+      });
+      roomRef.current = room;
+
+      void room.startAudio()
+        .then(() => setNeedsAudioUnlock(false))
+        .catch(() => {
+          // If the browser still requires a second gesture, the UI exposes an
+          // ENABLE AUDIO button through AudioPlaybackStatusChanged below.
+        });
+
+      room.on(RoomEvent.AudioPlaybackStatusChanged, () => {
+        setNeedsAudioUnlock(!room.canPlaybackAudio);
+      });
+
       const tokenRes = await fetch('/jarvis-livekit-token', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -55,12 +79,6 @@ export function useLiveKitJarvis() {
       const tokenBody = await tokenRes.json().catch(() => ({}));
       if (!tokenRes.ok) throw new Error(tokenBody?.error || `Voice token failed (${tokenRes.status})`);
 
-      const room = new Room({
-        adaptiveStream: true,
-        dynacast: true,
-        disconnectOnPageLeave: true,
-      });
-      roomRef.current = room;
       setRoomName(tokenBody.room_name || null);
 
       room.on(
@@ -73,8 +91,7 @@ export function useLiveKitJarvis() {
           document.body.appendChild(element);
           audioNodesRef.current.push(element);
           void element.play().catch(() => {
-            // Chromium may still require one user gesture. START JARVIS itself
-            // normally satisfies that requirement.
+            setNeedsAudioUnlock(true);
           });
         },
       );
@@ -120,6 +137,7 @@ export function useLiveKitJarvis() {
         autoGainControl: true,
       });
 
+      setNeedsAudioUnlock(!room.canPlaybackAudio);
       setState('listening');
     } catch (err: any) {
       const message = err?.message || 'Could not start realtime JARVIS.';
@@ -132,6 +150,19 @@ export function useLiveKitJarvis() {
     }
   }, [removeAudioNodes, state]);
 
+  const startAudio = useCallback(async () => {
+    const room = roomRef.current;
+    if (!room) return;
+    try {
+      await room.startAudio();
+      setNeedsAudioUnlock(false);
+    } catch (err: any) {
+      const message = err?.message || 'Browser blocked JARVIS audio playback.';
+      setError(message);
+      setNeedsAudioUnlock(true);
+    }
+  }, []);
+
   const toggle = useCallback(() => {
     if (roomRef.current || state === 'connecting') void disconnect();
     else void connect();
@@ -143,7 +174,9 @@ export function useLiveKitJarvis() {
     state,
     error,
     roomName,
+    needsAudioUnlock,
     connected: state === 'listening' || state === 'speaking',
+    startAudio,
     connect,
     disconnect,
     toggle,
