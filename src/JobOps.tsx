@@ -7360,12 +7360,11 @@ export function InvoicePage() {
       <style>{`@media print { ${PRINT_DOC_STYLES} }`}</style>
       <div className="max-w-lg mx-auto print-full print-doc">
 
-        {/* Banner — full width, both screen and print */}
-        <div className="mb-6">
-          <a href="/" className="no-print">
+        {/* Banner — screen only; print gets the clean letterhead below instead */}
+        <div className="mb-6 no-print">
+          <a href="/">
             <img src={img('banner.PNG')} alt="GID Garage" className="w-full h-auto block" />
           </a>
-          <img src={img('banner.PNG')} alt="GID Garage" className="hidden print:block h-auto block mb-2 print-banner" />
           <div className="flex justify-end mt-3">
             {isPaid
               ? <span className="inline-block bg-emerald-900/40 border border-emerald-700 text-emerald-400 text-xs font-bold uppercase tracking-widest px-3 py-1.5">✓ Paid</span>
@@ -7376,8 +7375,122 @@ export function InvoicePage() {
           </div>
         </div>
 
-        {/* Invoice card */}
-        <div className="bg-white/5 border border-white/10">
+        {/* ── Clean print letterhead — this is the ONLY thing that shows when
+            printed/saved as PDF; the dark on-screen card below is hidden in
+            print via no-print. Styled after a plain professional invoice
+            layout: logo + company block, bill-to/invoice meta, itemized
+            table, totals, terms. */}
+        <div className="hidden print:block mb-6">
+          <div className="flex items-start justify-between mb-4">
+            <img src={img('website_logo.png')} alt="GID Garage" style={{ height: 64, width: 64, objectFit: 'contain' }} />
+            <div className="text-right text-[11px] leading-relaxed">
+              <p className="font-bold text-sm">GID Garage</p>
+              <p>Flagstaff, AZ</p>
+              <p>Phone: 480-757-0476</p>
+              <p>Website: gidgarage.com</p>
+            </div>
+          </div>
+          <div className="border-t border-gray-300" />
+
+          <div className="flex items-start justify-between mt-4 mb-4">
+            <div>
+              <p className="font-bold text-xs uppercase tracking-wide mb-1">Bill To:</p>
+              <p className="text-sm">{job.fname} {job.lname}</p>
+              {job.phone && <p className="text-sm">{job.phone}</p>}
+              {job.serviceAddress && <p className="text-sm">{job.serviceAddress}</p>}
+            </div>
+            <div className="text-right text-sm">
+              <div className="flex justify-end gap-3"><span className="font-bold">Invoice:</span><span>{invoiceNumber}</span></div>
+              <div className="flex justify-end gap-3"><span className="font-bold">Invoice Date:</span><span>{serviceDateStr}</span></div>
+              {isPaid && paidDateStr && (
+                <div className="flex justify-end gap-3"><span className="font-bold">Date Paid:</span><span>{paidDateStr}</span></div>
+              )}
+              <div className="flex justify-end gap-3">
+                <span className="font-bold">Status:</span>
+                <span>{isPaid ? 'Paid' : isPartiallyPaid ? 'Partially Paid' : 'Due'}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Line items table */}
+          <table className="w-full text-sm border-collapse">
+            <thead>
+              <tr className="border-t border-b border-gray-300">
+                <th className="text-left font-bold uppercase text-[10px] tracking-wide py-2">Description</th>
+                <th className="text-right font-bold uppercase text-[10px] tracking-wide py-2">Amount</th>
+              </tr>
+            </thead>
+            <tbody>
+              {job.lineItems?.map(item => (
+                <tr key={item.id} className="border-b border-gray-200">
+                  <td className="py-2 pr-3 align-top">{item.label}</td>
+                  <td className="py-2 text-right align-top whitespace-nowrap">
+                    {item.amount === 0 ? 'FREE' : (item.amount < 0 ? `-$${Math.abs(item.amount).toFixed(2)}` : `$${item.amount.toFixed(2)}`)}
+                  </td>
+                </tr>
+              ))}
+              {isPaid && job.adjustmentAmount != null && Math.abs(job.adjustmentAmount) > 0.01 && (
+                <tr className="border-b border-gray-200">
+                  <td className="py-2 pr-3 italic">Price Adjustment{job.adjustmentReason ? ` — ${job.adjustmentReason}` : ''}</td>
+                  <td className="py-2 text-right whitespace-nowrap">
+                    {job.adjustmentAmount < 0 ? '-' : '+'}${Math.abs(job.adjustmentAmount).toFixed(2)}
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+
+          {job.estimateNotes && (
+            <p className="text-xs text-gray-700 mt-2"><span className="font-bold">Scope of Work: </span>{job.estimateNotes}</p>
+          )}
+
+          {/* Totals */}
+          <div className="flex justify-end mt-3">
+            <div className="w-56 text-sm">
+              <div className="flex justify-between py-1"><span>Subtotal</span><span>${amount?.toFixed(2)}</span></div>
+              <div className="flex justify-between py-1 border-b border-gray-300"><span>AZ TPT ({taxRatePercentLabel()}%)</span><span>${(job.taxAmount || 0).toFixed(2)}</span></div>
+              {isPartiallyPaid && (
+                <div className="flex justify-between py-1"><span>Amount Paid</span><span>-${(job.amountPaid || 0).toFixed(2)}</span></div>
+              )}
+              <div className="flex justify-between py-1.5 font-bold text-base">
+                <span>{isPaid ? 'Total Paid' : isPartiallyPaid ? 'Balance Due' : 'Total Due'}</span>
+                <span>${isPaid ? ((job.invoiceAmount || 0) + (job.taxAmount || 0)).toFixed(2) : isPartiallyPaid ? balanceDue.toFixed(2) : (amount ? ((amount) + (job.taxAmount || 0)).toFixed(2) : '0.00')}</span>
+              </div>
+            </div>
+          </div>
+
+          {job.payments?.length > 0 && (
+            <div className="mt-3 border-t border-gray-300 pt-2">
+              <p className="font-bold text-[10px] uppercase tracking-wide mb-1">Payments Received</p>
+              {job.payments.map(p => (
+                <div key={p.id} className="flex justify-between text-xs py-0.5">
+                  <span>{p.method}{p.note ? ` — ${p.note}` : ''} · {new Date(p.at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'America/Phoenix' })}</span>
+                  <span>${p.amount.toFixed(2)}</span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Terms / job details */}
+          <div className="mt-5 border-t border-gray-300 pt-3">
+            <p className="font-bold text-xs uppercase tracking-wide mb-1">Vehicle Details</p>
+            <p className="text-sm">Vehicle: {job.vehicle}</p>
+            {job.vin && <p className="text-sm">VIN: {job.vin}</p>}
+            {job.mileage && <p className="text-sm">Mileage: {fmtMileage(job.mileage)} mi</p>}
+            {job.customerAgreed && (
+              <p className="text-sm mt-1">
+                Estimate approved by {job.customerSignature}
+                {job.signedAt ? ` on ${new Date(job.signedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'America/Phoenix' })}` : ''}.
+              </p>
+            )}
+            {job.garageNotes && (
+              <p className="text-sm mt-1"><span className="font-bold">Technician Notes: </span>{job.garageNotes}</p>
+            )}
+          </div>
+        </div>
+
+        {/* Invoice card — screen only; print uses the letterhead above */}
+        <div className="bg-white/5 border border-white/10 no-print">
 
           {/* Title row */}
           <div className="px-6 py-5 border-b border-white/10 flex items-center justify-between">
@@ -7493,18 +7606,18 @@ export function InvoicePage() {
           )}
         </div>
 
-        {/* Signed disclaimer */}
+        {/* Signed disclaimer — screen only; folded into the print letterhead's Vehicle Details */}
         {job.customerAgreed && (
-          <div className="mt-4 px-4 py-3 border border-white/10 bg-white/5">
+          <div className="mt-4 px-4 py-3 border border-white/10 bg-white/5 no-print">
             <p className="text-gray-600 text-xs">Estimate approved by <strong className="text-gray-400">{job.customerSignature}</strong>
               {job.signedAt ? ` on ${new Date(job.signedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'America/Phoenix' })}` : ''}.
             </p>
           </div>
         )}
 
-        {/* Garage notes if present */}
+        {/* Garage notes if present — screen only; folded into the print letterhead's Vehicle Details */}
         {job.garageNotes && (
-          <div className="mt-4 border border-white/10 bg-white/5 px-6 py-4">
+          <div className="mt-4 border border-white/10 bg-white/5 px-6 py-4 no-print">
             <p className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-1.5">Technician Notes</p>
             <p className="text-gray-300 text-sm leading-relaxed whitespace-pre-wrap">{job.garageNotes}</p>
           </div>
