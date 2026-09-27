@@ -27,9 +27,9 @@ ARIZONA = ZoneInfo("America/Phoenix")
 AGENT_NAME = os.getenv("LIVEKIT_AGENT_NAME", "gid-jarvis")
 LLM_MODEL = os.getenv("JARVIS_LLM_MODEL", "google/gemma-4-31b-it")
 STT_MODEL = os.getenv("JARVIS_STT_MODEL", "deepgram/flux-general")
-TTS_MODEL = os.getenv("JARVIS_TTS_MODEL", "cartesia/sonic-3")
+TTS_MODEL = os.getenv("JARVIS_TTS_MODEL", "cartesia/sonic-3.6")
 TTS_VOICE = os.getenv("JARVIS_TTS_VOICE", "95856005-0332-41b0-935f-352e296aa0df")
-TTS_SPEED = float(os.getenv("JARVIS_TTS_SPEED", "0.90"))
+TTS_SPEED = float(os.getenv("JARVIS_TTS_SPEED", "0.86"))
 
 
 def money(value: Any) -> str:
@@ -123,10 +123,11 @@ class GIDJarvis(Agent):
 Today is {today} in Arizona.
 
 VOICE STYLE:
-- Speak as a refined British technical assistant: measured, precise, understated, intelligent, and calm.
-- Keep the delivery restrained rather than cheerful, sales-like, theatrical, or overly expressive.
-- Use crisp diction, controlled pacing, dry confidence when natural, and short deliberate phrasing.
-- Do not impersonate or claim to be any real actor or copyrighted character performance.
+- Sound like a cinematic British AI butler: low-key, polished, composed, highly articulate, precise, and quietly authoritative.
+- Favor a lower, smoother delivery with restrained emotion, clipped efficiency, subtle dry wit, and deliberate pauses.
+- Never sound bubbly, salesman-like, casual, excitable, or overly warm.
+- Keep sentences compact and elegant. Prefer understated phrasing such as 'Of course.', 'Right away.', 'Already handled.', or a direct factual answer when appropriate.
+- Do not imitate or claim to be any real actor or specific copyrighted character voice.
 - Most answers should be one or two short spoken sentences. Never read database rows field-by-field unless Michael specifically asks.
 - Do not use markdown, bullets, asterisks, URLs, or emoji in spoken replies.
 - Start answering as soon as you have enough information. Avoid filler like 'Certainly', 'Absolutely', or 'Let me check'.
@@ -609,7 +610,7 @@ async def gid_jarvis(ctx: JobContext):
             model=TTS_MODEL,
             voice=TTS_VOICE,
             language="en",
-            extra_kwargs={"speed": TTS_SPEED, "emotion": "calm", "volume": 0.58, "max_buffer_delay_ms": 80},
+            extra_kwargs={"speed": TTS_SPEED, "emotion": "calm", "volume": 0.50, "max_buffer_delay_ms": 80},
         ),
         turn_handling=TurnHandlingOptions(
             turn_detection="stt",
