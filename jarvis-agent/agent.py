@@ -130,6 +130,7 @@ VOICE STYLE:
 BUSINESS DATA:
 - You have one live GID Garage dispatcher tool named gid_business for jobs, customers, leads, calls, marketing, pricing, owner pay, and email.
 - Never invent business facts. For live business information, call gid_business with the appropriate action and a JSON object string in args_json.
+- For questions about revenue, sales, money made, or weekly totals, use action get_revenue_summary. Use period=this_week unless Michael explicitly asks for the last 7 days.
 - Low-risk writes such as rescheduling, lead status, job pipeline status, call logs, and marketing spend may be done immediately and then confirmed.
 - mark_job_paid and send_customer_email are external/financial actions. First call them with confirmed=false. Read the returned confirmation summary and ask Michael to confirm. Only repeat the tool with confirmed=true after a clear yes on the next turn.
 - Never mark a job PAID using update_job_status. Use mark_job_paid so the amount is recorded.
@@ -385,6 +386,72 @@ BUSINESS DATA:
         await db().patch("bookings", f"id=eq.{job_id}", fields)
         return {"ok": True, "markedPaid": money(amount)}
 
+    async def get_revenue_summary(self, context: RunContext, period: str = "this_week") -> dict[str, Any]:
+        """Get a revenue summary for this week or the last 7 days."""
+        now = datetime.now(ARIZONA)
+
+        if period == "last_7_days":
+            start_date = (now.date() - timedelta(days=6))
+            end_date = now.date()
+            label = "Last 7 days"
+        else:
+            # Monday through Sunday in Arizona.
+            start_date = now.date() - timedelta(days=now.weekday())
+            end_date = start_date + timedelta(days=6)
+            label = "This week"
+
+        # Select * on purpose: it survives schema differences between older/newer
+        # bookings tables and lets us use whichever revenue fields are present.
+        bookings = await db().get(
+            "bookings",
+            [
+                ("select", "*"),
+                ("date", f"gte.{start_date.isoformat()}"),
+                ("date", f"lte.{end_date.isoformat()}"),
+                ("order", "date.asc"),
+            ],
+        )
+
+        active = [
+            b for b in bookings
+            if str(b.get("status") or "").lower() != "cancelled"
+            and str(b.get("job_status") or "").upper() != "CANCELLED"
+        ]
+
+        def num(value: Any) -> float:
+            try:
+                return float(value or 0)
+            except (TypeError, ValueError):
+                return 0.0
+
+        collected = sum(num(b.get("amount_paid")) for b in active)
+        invoiced = sum(num(b.get("invoice_amount")) for b in active)
+        estimated = sum(num(b.get("estimate_amount")) for b in active)
+
+        paid_jobs = [b for b in active if num(b.get("amount_paid")) > 0 or b.get("paid_at")]
+        completed_jobs = [
+            b for b in active
+            if str(b.get("job_status") or "").upper() in {"COMPLETED", "INVOICED", "PAID"}
+        ]
+        upcoming_jobs = [
+            b for b in active
+            if b.get("date") and str(b.get("date")) > now.date().isoformat()
+        ]
+
+        return {
+            "ok": True,
+            "period": label,
+            "dateFrom": start_date.isoformat(),
+            "dateTo": end_date.isoformat(),
+            "jobsScheduled": len(active),
+            "jobsCompleted": len(completed_jobs),
+            "jobsPaid": len(paid_jobs),
+            "grossCollected": round(collected, 2),
+            "invoiceTotal": round(invoiced, 2),
+            "estimateTotal": round(estimated, 2),
+            "upcomingJobs": len(upcoming_jobs),
+        }
+
     async def get_owner_pay_summary(self, context: RunContext, period_days: int = 7) -> dict[str, Any]:
         """Estimate owner take-home from recent collected payments."""
         days = max(1, min(period_days, 365))
@@ -436,7 +503,7 @@ BUSINESS DATA:
         """Use GID Garage business data/actions.
 
         action must be one of:
-        get_business_summary, list_leads, update_lead_status, list_jobs,
+        get_business_summary, get_revenue_summary, list_leads, update_lead_status, list_jobs,
         reschedule_job, pricing_history, get_tax_rate, add_marketing_spend,
         log_call, list_calls, list_marketing_spend, search_customers,
         update_job_status, mark_job_paid, get_owner_pay_summary,
@@ -457,6 +524,7 @@ BUSINESS DATA:
 
         actions = {
             "get_business_summary": self.get_business_summary,
+            "get_revenue_summary": self.get_revenue_summary,
             "list_leads": self.list_leads,
             "update_lead_status": self.update_lead_status,
             "list_jobs": self.list_jobs,
@@ -481,6 +549,7 @@ BUSINESS DATA:
         # Fill normal defaults here instead of exposing dozens of nullable/union
         # parameters to Anthropic's tool-schema compiler.
         defaults = {
+            "get_revenue_summary": {"period": "this_week"},
             "list_leads": {"status": "", "source": "", "limit": 15},
             "list_jobs": {
                 "customer_id": "",
@@ -502,7 +571,14 @@ BUSINESS DATA:
             "send_customer_email": {"to_name": "", "confirmed": False},
         }
         merged = {**defaults.get(action, {}), **args}
-        return await fn(context, **merged)
+        try:
+            return await fn(context, **merged)
+        except Exception as exc:
+            return {
+                "ok": False,
+                "action": action,
+                "error": f"{type(exc).__name__}: {exc}",
+            }
 
 
 
