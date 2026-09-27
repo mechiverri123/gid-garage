@@ -7394,9 +7394,9 @@ export function InvoicePage() {
             table, totals, terms. */}
         <div className="hidden print:block mb-6 text-base">
           <div className="flex items-start justify-between mb-4">
-            <div style={{ width: 280 }}>
+            <div style={{ width: 330 }}>
               <img src={`${img('download.png')}?v=2`} alt="GID Garage" style={{ width: '100%', height: 'auto', objectFit: 'contain' }} className="mb-2" />
-              <div className="text-base">
+              <div className="text-base whitespace-nowrap">
                 <div className="flex gap-3"><span className="font-bold">Invoice:</span><span>{invoiceNumber}</span></div>
                 <div className="flex gap-3"><span className="font-bold">Invoice Date:</span><span>{serviceDateStr}</span></div>
                 {isPaid && paidDateStr && (
