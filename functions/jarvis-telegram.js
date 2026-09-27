@@ -197,7 +197,10 @@ export async function onRequestPost({ request, env }) {
     // no Cloudflare Access issue, and no duplicated business-tool logic.
     const internalRequest = new Request('https://internal.gidgarage/admin-ai-chat', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'X-GID-Internal-Jarvis': webhookSecret,
+      },
       body: JSON.stringify({ messages }),
     });
     const aiResponse = await runAdminAI({ request: internalRequest, env });

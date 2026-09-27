@@ -419,7 +419,13 @@ const TOOLS = [
 
 export async function onRequestPost({ request, env }) {
   const accessJwt = request.headers.get('Cf-Access-Jwt-Assertion');
-  if (!accessJwt) return json({ error: 'Unauthorized' }, 401);
+  const internalJarvisSecret = request.headers.get('X-GID-Internal-Jarvis');
+  const trustedInternalJarvis = Boolean(
+    env.TELEGRAM_WEBHOOK_SECRET &&
+    internalJarvisSecret &&
+    internalJarvisSecret === env.TELEGRAM_WEBHOOK_SECRET
+  );
+  if (!accessJwt && !trustedInternalJarvis) return json({ error: 'Unauthorized' }, 401);
 
   const anthropicKey = env.ANTHROPIC_API_KEY;
   const supabaseUrl = env.SUPABASE_URL ?? env.VITE_SUPABASE_URL;
