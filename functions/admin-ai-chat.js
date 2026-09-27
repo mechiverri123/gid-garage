@@ -193,7 +193,8 @@ const PRESENTABLE_TOOLS = new Set([
   'search_customers', 'list_jobs', 'list_leads', 'list_calls',
   'list_marketing_spend', 'get_owner_pay_summary', 'get_business_summary',
   'pricing_history', 'get_tax_rate', 'analyze_lead',
-  'get_owner_briefing', 'list_reminders', 'list_lead_followups',
+  'get_owner_briefing', 'get_action_center', 'list_reminders', 'list_lead_followups',
+  'list_business_notes',
 ]);
 
 function json(body, status = 200) {
@@ -222,8 +223,12 @@ LEAD INTELLIGENCE:
 - Do not claim a pasted lead is in the system, just came through, or will be contacted unless a tool actually confirms or performs that action.
 
 OWNER ASSISTANT BEHAVIOR:
-- For broad prompts like "brief me", "what's going on today", "what needs my attention", or "what does tomorrow look like", use get_owner_briefing rather than making Michael ask several separate questions.
+- For "brief me", "what's going on today", or "what does tomorrow look like", use get_owner_briefing.
+- For "what needs my attention", "what should I handle next", "action center", or similar prioritization requests, use get_action_center. It returns a deterministic ranked queue from real reminders, lead follow-ups, unpaid invoices, jobs, and captured owner notes.
 - When Michael asks a specific question about one area (for example lead follow-ups, reminders, jobs, customers, or revenue), stay on that area. Do not prepend unrelated reminders, briefing items, or other business status unless they are directly necessary to answer the question.
+- NATURAL NOTE CAPTURE: When Michael gives an operational note such as "Jake called, 2013 F150, grinding front brakes, maybe Friday, quoted 350", use capture_business_note. Save only facts explicitly stated. Never invent a last name, phone, email, engine, exact appointment, or diagnostic conclusion. A note is NOT a customer, lead, booking, quote, or completed contact record unless a separate tool confirms/creates that record.
+- If a note clearly contains a future owner action (for example "call him Friday"), capture the note and create a reminder only when Michael explicitly asks to be reminded or clearly states that he needs to do that action at a specific time. Do not turn vague timing like "maybe Friday" into a reminder or appointment.
+- Use list_business_notes to recall captured operational notes and resolve_business_note only when Michael says the item is handled/resolved.
 - Reminders are private owner tasks, not customer appointments. create_reminder may create them without confirmation. Never convert flexible customer scheduling language into a booking.
 - For lead follow-up questions, use list_lead_followups. A lead needing attention does not mean the customer was contacted.
 - When Michael reports that he called/texted/spoke with a lead, use log_lead_contact so last_contacted_at and notes stay accurate. Only set a future follow-up when he asks for one or clearly states one.
@@ -346,6 +351,53 @@ const TOOLS = [
         follow_up_at_local: { type: 'string', description: 'Optional America/Phoenix local time, YYYY-MM-DDTHH:mm' },
       },
       required: ['lead_id'],
+    },
+  },
+  {
+    name: 'get_action_center',
+    description: "Get a ranked owner action queue from real business data: overdue/due reminders, lead follow-ups, unpaid invoices, today's jobs, and open Jarvis business notes. Use for 'what needs my attention', 'what should I handle next', or 'action center'.",
+    input_schema: { type: 'object', properties: {}, required: [] },
+  },
+  {
+    name: 'capture_business_note',
+    description: "Capture a messy owner/business note without modifying customers, leads, bookings, or payments. Extract only details Michael explicitly stated. Use for notes like 'Jake called, 2013 F150, grinding front brakes, maybe Friday, quoted 350'.",
+    input_schema: {
+      type: 'object',
+      properties: {
+        raw_text: { type: 'string', description: 'The original note/message, preserved as stated.' },
+        summary: { type: 'string', description: 'Short factual summary; no invented details.' },
+        contact_name: { type: 'string' },
+        phone: { type: 'string' },
+        email: { type: 'string' },
+        vehicle: { type: 'string' },
+        service: { type: 'string' },
+        quoted_amount: { type: 'number' },
+        preferred_timing: { type: 'string', description: 'Keep vague timing vague, e.g. maybe Friday.' },
+        action_needed: { type: 'string', description: 'Explicit next action only; omit if none is stated.' },
+        due_at_local: { type: 'string', description: 'Only if Michael explicitly states a concrete owner-action date/time. America/Phoenix YYYY-MM-DDTHH:mm.' },
+      },
+      required: ['raw_text', 'summary'],
+    },
+  },
+  {
+    name: 'list_business_notes',
+    description: "List Jarvis-captured owner/business notes. scope can be open, resolved, due, or all. These are scratch/operational notes, not customer or booking records.",
+    input_schema: {
+      type: 'object',
+      properties: {
+        scope: { type: 'string', description: 'open, resolved, due, or all' },
+        query: { type: 'string', description: 'Optional text to search across summary, person, vehicle, service, and raw note.' },
+        limit: { type: 'number' },
+      },
+    },
+  },
+  {
+    name: 'resolve_business_note',
+    description: "Mark a captured Jarvis business note resolved. This only resolves the scratch note; it does not change a lead, customer, booking, payment, or reminder.",
+    input_schema: {
+      type: 'object',
+      properties: { note_id: { type: 'string' } },
+      required: ['note_id'],
     },
   },
   {
@@ -856,6 +908,131 @@ export async function onRequestPost({ request, env }) {
         }
         await sbPatch('leads', `id=eq.${encodeURIComponent(input.lead_id)}`, fields);
         return { ok: true, lead: `${lead.fname || ''} ${lead.lname || ''}`.trim(), status: fields.status || lead.status, follow_up_at: fields.follow_up_at || null };
+      }
+
+
+      case 'get_action_center': {
+        const now = new Date();
+        const today = phoenixDateString(now);
+        const tomorrow = addPhoenixDays(today, 1);
+        const nowMs = now.getTime();
+        const next24h = new Date(nowMs + 24 * 60 * 60 * 1000).toISOString();
+
+        const [jobs, leads, reminders, notes] = await Promise.all([
+          sbGet('bookings', { select: 'id,fname,lname,vehicle,service,date,time,job_status,status,invoice_amount,amount_paid,paid_at', order: 'date.asc', limit: '150' }).catch(() => []),
+          sbGet('leads', { select: 'id,created_at,fname,lname,phone,vehicle,requested_service,status,follow_up_at,last_contacted_at', order: 'created_at.desc', limit: '150' }).catch(() => []),
+          sbGet('jarvis_reminders', { select: 'id,title,notes,due_at,status,notified_at,related_lead_id', status: 'eq.open', order: 'due_at.asc', limit: '100' }).catch(() => []),
+          sbGet('jarvis_business_notes', { select: 'id,created_at,summary,contact_name,vehicle,service,quoted_amount,preferred_timing,action_needed,due_at,status', status: 'eq.open', order: 'created_at.asc', limit: '100' }).catch(() => []),
+        ]);
+
+        const actions = [];
+        const push = (priority, type, id, title, detail, due_at = null) => actions.push({ priority, type, id, title, detail, due_at });
+
+        for (const r of reminders) {
+          const due = r.due_at ? new Date(r.due_at).getTime() : NaN;
+          if (!Number.isFinite(due) || due > new Date(next24h).getTime()) continue;
+          const overdue = due <= nowMs;
+          push(overdue ? 1 : 2, 'reminder', r.id, r.title, overdue ? 'Owner reminder is due/overdue.' : 'Owner reminder is due within 24 hours.', r.due_at);
+        }
+
+        for (const l of leads) {
+          if (['booked','lost'].includes(String(l.status || '').toLowerCase())) continue;
+          const follow = l.follow_up_at ? new Date(l.follow_up_at).getTime() : null;
+          const created = new Date(l.created_at).getTime();
+          const overdueFollow = follow != null && follow <= nowMs;
+          const staleUncontacted = !l.last_contacted_at && Number.isFinite(created) && nowMs - created > 24 * 60 * 60 * 1000;
+          if (!overdueFollow && !staleUncontacted) continue;
+          const customer = `${l.fname || ''} ${l.lname || ''}`.trim() || l.phone || 'Lead';
+          push(1, 'lead_followup', l.id, customer, overdueFollow ? 'Lead follow-up is due/overdue.' : 'Lead has been uncontacted for more than 24 hours.', l.follow_up_at || null);
+        }
+
+        for (const j of jobs) {
+          const owed = Number(j.invoice_amount || 0) - Number(j.amount_paid || 0);
+          if (String(j.job_status || '').toUpperCase() === 'INVOICED' && !j.paid_at && owed > 0.009) {
+            const customer = `${j.fname || ''} ${j.lname || ''}`.trim() || 'Customer';
+            push(1, 'unpaid_invoice', j.id, customer, `Unpaid balance ${money(owed)}.`, null);
+          }
+        }
+
+        for (const n of notes) {
+          const due = n.due_at ? new Date(n.due_at).getTime() : null;
+          const hasAction = Boolean(String(n.action_needed || '').trim());
+          if (!hasAction && due == null) continue;
+          let priority = 3;
+          if (due != null && due <= nowMs) priority = 1;
+          else if (due != null && due <= new Date(next24h).getTime()) priority = 2;
+          const who = n.contact_name ? ` — ${n.contact_name}` : '';
+          push(priority, 'business_note', n.id, `${n.action_needed || n.summary}${who}`, n.summary, n.due_at || null);
+        }
+
+        const todaysJobs = jobs.filter(j => j.date === today && String(j.status || '').toLowerCase() !== 'cancelled');
+        for (const j of todaysJobs) {
+          if (['PAID','COMPLETED'].includes(String(j.job_status || '').toUpperCase())) continue;
+          const customer = `${j.fname || ''} ${j.lname || ''}`.trim() || 'Customer';
+          push(2, 'today_job', j.id, `${j.time || ''} ${customer}`.trim(), `${j.vehicle || 'Vehicle'} — ${j.service || 'service'} (${j.job_status || 'scheduled'})`, j.date ? `${j.date}T${j.time || '00:00'}` : null);
+        }
+
+        const order = { 1: 1, 2: 2, 3: 3 };
+        actions.sort((a, b) => (order[a.priority] - order[b.priority]) || String(a.due_at || '').localeCompare(String(b.due_at || '')) || a.title.localeCompare(b.title));
+        return {
+          generated_at: now.toISOString(),
+          today,
+          tomorrow,
+          total: actions.length,
+          urgent: actions.filter(a => a.priority === 1),
+          soon: actions.filter(a => a.priority === 2),
+          later: actions.filter(a => a.priority === 3),
+          top_actions: actions.slice(0, 12),
+        };
+      }
+
+      case 'capture_business_note': {
+        const rawText = String(input.raw_text || '').trim();
+        const summary = String(input.summary || '').trim();
+        if (!rawText || !summary) throw new Error('raw_text and summary are required.');
+        let dueAt = null;
+        if (input.due_at_local) dueAt = phoenixLocalToIso(input.due_at_local);
+        const row = await sbInsert('jarvis_business_notes', {
+          raw_text: rawText.slice(0, 12000),
+          summary: summary.slice(0, 500),
+          contact_name: input.contact_name ? String(input.contact_name).trim().slice(0, 200) : null,
+          phone: input.phone ? String(input.phone).trim().slice(0, 80) : null,
+          email: input.email ? String(input.email).trim().slice(0, 320) : null,
+          vehicle: input.vehicle ? String(input.vehicle).trim().slice(0, 300) : null,
+          service: input.service ? String(input.service).trim().slice(0, 300) : null,
+          quoted_amount: input.quoted_amount != null && Number.isFinite(Number(input.quoted_amount)) ? Number(input.quoted_amount) : null,
+          preferred_timing: input.preferred_timing ? String(input.preferred_timing).trim().slice(0, 300) : null,
+          action_needed: input.action_needed ? String(input.action_needed).trim().slice(0, 500) : null,
+          due_at: dueAt,
+          status: 'open',
+          source: 'jarvis',
+        });
+        return { ok: true, note: row };
+      }
+
+      case 'list_business_notes': {
+        const scope = String(input.scope || 'open').toLowerCase();
+        const params = { select: '*', order: 'created_at.desc', limit: String(Math.min(Number(input.limit || 20), 100)) };
+        if (scope === 'open') params.status = 'eq.open';
+        else if (scope === 'resolved') params.status = 'eq.resolved';
+        else if (scope === 'due') {
+          params.status = 'eq.open';
+          params.due_at = `lte.${new Date().toISOString()}`;
+        } else if (scope !== 'all') throw new Error('scope must be open, resolved, due, or all.');
+        const rows = await sbGet('jarvis_business_notes', params);
+        const q = String(input.query || '').trim().toLowerCase();
+        if (!q) return rows;
+        return rows.filter(n => [n.summary,n.contact_name,n.phone,n.email,n.vehicle,n.service,n.preferred_timing,n.action_needed,n.raw_text].some(v => String(v || '').toLowerCase().includes(q)));
+      }
+
+      case 'resolve_business_note': {
+        const rows = await sbGet('jarvis_business_notes', { select: 'id,summary,status', id: `eq.${encodeURIComponent(input.note_id)}`, limit: '1' });
+        const note = rows[0];
+        if (!note) throw new Error('No business note found with that id.');
+        if (note.status === 'resolved') return { ok: true, already_resolved: true, summary: note.summary };
+        const nowIso = new Date().toISOString();
+        await sbPatch('jarvis_business_notes', `id=eq.${encodeURIComponent(input.note_id)}`, { status: 'resolved', resolved_at: nowIso, updated_at: nowIso });
+        return { ok: true, resolved: note.summary };
       }
 
       case 'list_jobs': {
