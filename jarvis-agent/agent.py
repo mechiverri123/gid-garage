@@ -89,12 +89,14 @@ def db() -> GIDData:
 
 async def send_brevo_email(to_email: str, to_name: str, subject: str, body_html: str) -> None:
     key = os.getenv("BREVO_API_KEY")
+    reply_to = os.getenv("GID_REPLY_TO_EMAIL", "info@gidgarage.com")
     if not key:
         raise RuntimeError("BREVO_API_KEY is not configured; email was not sent")
 
     safe_body = body_html
     payload = {
         "sender": {"name": "GID Garage", "email": "bookings@gidgarage.com"},
+        "replyTo": {"name": "GID Garage", "email": reply_to},
         "to": [{"email": to_email, "name": to_name or to_email}],
         "subject": subject,
         "htmlContent": (
