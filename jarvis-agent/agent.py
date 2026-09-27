@@ -16,6 +16,7 @@ from livekit.agents import (
     AgentSession,
     JobContext,
     RunContext,
+    StopResponse,
     TurnHandlingOptions,
     function_tool,
     inference,
@@ -169,6 +170,43 @@ BUSINESS DATA:
 - Vague issue text such as "nothing", "nothing just going bad", "not sure", or "just needs work" is not a usable diagnostic complaint. Mark the issue as vague/missing rather than pretending it describes a fault.
 """
         )
+
+    async def on_user_turn_completed(self, turn_ctx, new_message) -> None:
+        """Deterministically intercept pasted lead forms before the LLM can improvise."""
+        raw_text = (new_message.text_content or "").strip()
+        low = raw_text.lower()
+
+        lead_markers = (
+            "email:",
+            "full name:",
+            "what issues are you experiencing with your vehicle?:",
+            "phone number:",
+            "year/make/model/engine size?:",
+            "what date/time works best for you?:",
+        )
+
+        # Require several form labels so normal conversation is never mistaken for a lead.
+        marker_count = sum(1 for marker in lead_markers if marker in low)
+        if marker_count < 3:
+            return
+
+        analysis = await self.analyze_raw_lead(None, raw_text)
+        summary = str(analysis.get("owner_analysis") or "").strip()
+
+        if not summary:
+            summary = (
+                "This looks like a raw lead form, but I could not safely interpret enough "
+                "of it to summarize without guessing."
+            )
+
+        # Speak the deterministic parser result and stop the LLM from generating
+        # its own alternative story about database status, vehicle details, or next actions.
+        await self.session.say(
+            summary,
+            allow_interruptions=True,
+            add_to_chat_ctx=True,
+        )
+        raise StopResponse()
 
     async def get_business_summary(self, context: RunContext) -> dict[str, Any]:
         """Get today's revenue/jobs, attention items, recent lead conversion, and marketing totals."""
