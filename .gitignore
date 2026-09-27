@@ -28,3 +28,5 @@ jarvis-agent/.env.local
 jarvis-agent/.env.production
 jarvis-agent/.venv/
 jarvis-agent/__pycache__/
+
+jarvis-agent/secrets.env
