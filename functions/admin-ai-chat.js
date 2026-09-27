@@ -227,11 +227,66 @@ function isLikelyNaturalBusinessNote(text) {
   return hasPersonishStart && hasOperationalVerb && (hasBusinessDetail || hasVehicleish);
 }
 
+function classifyFocusedIntent(text) {
+  const raw = String(text || '').trim();
+  const lower = raw.toLowerCase();
+  if (!raw) return null;
+
+  if (/\b(clear|clean|cleanup|remove|finish|complete|close)\b.*\btest reminders?\b/i.test(raw) ||
+      /\btest reminders?\b.*\b(clear|clean|cleanup|remove|finish|complete|close)\b/i.test(raw)) return 'test_reminder_cleanup';
+  if (/\b(brief me|owner brief|morning brief|what(?:'s| is) going on today|how(?:'s| is) the business today|what does tomorrow look like|what's tomorrow look like)\b/i.test(lower)) return 'briefing';
+  if (/\b(what needs my attention|what should i handle next|action center|what do i need to handle)\b/i.test(lower)) return 'action_center';
+  if (/\b(remind me|reminder|reminders|what reminders|mark .*reminder|complete .*reminder)\b/i.test(lower)) return 'reminders';
+  if (/\b(lead follow[- ]?up|lead followups|who needs.*follow|which leads.*follow|uncontacted leads?|open leads?|new leads?|lead status)\b/i.test(lower)) return 'leads';
+  if (/\b(unpaid|invoice|invoices|balance owed|outstanding balance)\b/i.test(lower)) return 'unpaid';
+  if (/\b(revenue|take home|take-home|made this week|made today|made this month|owner pay|profit)\b/i.test(lower)) return 'money';
+  if (/\b(what notes|notes do i have|show .*notes|mark .*note resolved|resolve .*note)\b/i.test(lower)) return 'notes';
+  if (/\b(find|search|look up|lookup)\b/i.test(lower)) return 'customer_lookup';
+  if (/\b(job|jobs|appointment|appointments|schedule|scheduled)\b/i.test(lower) && !/\bremind/.test(lower)) return 'jobs';
+  return null;
+}
+
+function toolsForFocusedIntent(intent) {
+  const names = {
+    test_reminder_cleanup: ['cleanup_test_reminders'],
+    briefing: ['get_owner_briefing'],
+    action_center: ['get_action_center'],
+    reminders: ['create_reminder','list_reminders','complete_reminder','cleanup_test_reminders'],
+    leads: ['list_lead_followups','list_leads','analyze_lead','set_lead_followup','log_lead_contact','update_lead_status','create_reminder'],
+    unpaid: ['list_jobs','search_customers'],
+    money: ['get_owner_pay_summary','get_business_summary','list_marketing_spend'],
+    notes: ['list_business_notes','resolve_business_note','capture_business_note'],
+    customer_lookup: ['search_customers','list_jobs','pricing_history','list_calls','list_business_notes'],
+    jobs: ['list_jobs','search_customers','reschedule_job','update_job_status','mark_job_paid','send_customer_email'],
+  }[intent];
+  if (!names) return null;
+  const allowed = new Set(names);
+  return TOOLS.filter(t => allowed.has(t.name));
+}
+
+function focusedRoutingInstruction(intent) {
+  if (!intent) return '';
+  const labels = {
+    test_reminder_cleanup: 'The user explicitly wants old test reminders cleaned up. Use cleanup_test_reminders once and report only how many test reminders were closed.',
+    briefing: 'This is a broad owner briefing request. Use get_owner_briefing and summarize the briefing only.',
+    action_center: 'This is a broad prioritization request. Use get_action_center and summarize the most important actions only.',
+    reminders: 'This turn is specifically about owner reminders. Use only reminder tools. Do not mention leads, jobs, revenue, invoices, or notes unless the reminder itself directly references one.',
+    leads: 'This turn is specifically about leads/follow-ups. Stay on leads. Do not mention unrelated reminders, jobs, revenue, invoices, or owner notes.',
+    unpaid: 'This turn is specifically about unpaid invoices/balances. Stay on payment/job balance information and do not append unrelated business status.',
+    money: 'This turn is specifically about money/revenue/take-home. Stay on the requested financial result and do not append unrelated reminders, leads, jobs, or notes.',
+    notes: 'This turn is specifically about captured business notes. Stay on notes only; do not append unrelated reminders, jobs, leads, or revenue.',
+    customer_lookup: 'This turn is a lookup. Answer only with directly relevant customer/job/history context. Do not append a business-wide status summary.',
+    jobs: 'This turn is specifically about jobs/appointments/schedule. Stay on jobs and scheduling. Do not append unrelated reminders, lead queues, notes, or revenue.',
+  };
+  return `\n\n[FOCUSED ROUTING: ${labels[intent]}]`;
+}
+
 const SYSTEM_PROMPT = `You are GID, the business assistant embedded in GID Garage's admin dashboard (a mobile mechanic business in Flagstaff, AZ). You have tools to look up and update real business data: customers, leads, jobs/bookings, marketing spend, calls, and business settings.
 
 RESPONSE STYLE — this is a small chat panel, not a report:
 - 1-3 short sentences, plain conversational English. Never format a raw list of records as your answer (no pipe-separated fields, no numbered field dumps, no markdown tables). The interface already shows the detailed data separately — your job is the short human takeaway, e.g. "Found Jill Castle — 3 jobs on file, one tomorrow at 1pm ready to go" not a field-by-field printout.
 - If there's genuinely nothing to say beyond the data (a plain lookup), one sentence pointing out what actually matters is enough.
+- FOCUS RULE: A specific request gets a specific answer. Never add a mini-briefing, reminder recap, lead recap, job recap, or other unrelated status to a focused request. Only broad requests such as 'brief me' or 'what needs my attention?' should combine multiple business areas.
 
 CONFIRMING BEFORE ACTING — mark_job_paid and send_customer_email are real financial/external actions and are built to require confirmation:
 - Call the tool WITHOUT confirmed=true first. It returns a summary instead of executing.
@@ -338,6 +393,11 @@ const TOOLS = [
       properties: { reminder_id: { type: 'string' } },
       required: ['reminder_id'],
     },
+  },
+  {
+    name: 'cleanup_test_reminders',
+    description: "Mark obvious reminder-system test reminders complete so they stop cluttering Jarvis. Only affects open reminders whose titles clearly look like test reminders; never touches normal business reminders.",
+    input_schema: { type: 'object', properties: {}, required: [] },
   },
   {
     name: 'list_lead_followups',
@@ -628,6 +688,7 @@ export async function onRequestPost({ request, env }) {
   const latestUserMessage = [...incomingMessages].reverse().find(m => m?.role === 'user');
   const latestUserText = typeof latestUserMessage?.content === 'string' ? latestUserMessage.content : '';
   const forceNaturalNoteCapture = isLikelyNaturalBusinessNote(latestUserText);
+  const focusedIntent = forceNaturalNoteCapture ? null : classifyFocusedIntent(latestUserText);
   if (isPastedLeadForm(latestUserText)) {
     const fields = parseRawLeadForm(latestUserText);
     const analysis = analyzeLeadFields({
@@ -881,6 +942,26 @@ export async function onRequestPost({ request, env }) {
         return { ok: true, completed: reminder.title };
       }
 
+      case 'cleanup_test_reminders': {
+        const rows = await sbGet('jarvis_reminders', {
+          select: 'id,title,status,notified_at,due_at,created_at',
+          status: 'eq.open',
+          order: 'created_at.desc',
+          limit: '200',
+        });
+        const testPattern = /\b(test proactive reminders?|test automatic(?: delivery| reminders?)?|test jarvis(?: again)?|test reminders?|confirm automatic reminders? work|confirm automatic reminders?|automatic reminders? test)\b/i;
+        const matches = rows.filter(r => testPattern.test(String(r.title || '')));
+        const nowIso = new Date().toISOString();
+        for (const r of matches) {
+          await sbPatch('jarvis_reminders', `id=eq.${encodeURIComponent(r.id)}`, {
+            status: 'done',
+            completed_at: nowIso,
+            updated_at: nowIso,
+          });
+        }
+        return { ok: true, completed_count: matches.length, titles: matches.map(r => r.title) };
+      }
+
       case 'list_lead_followups': {
         const scope = String(input.scope || 'needs_attention').toLowerCase();
         const limit = Math.min(Math.max(Number(input.limit || 20), 1), 100);
@@ -953,6 +1034,8 @@ export async function onRequestPost({ request, env }) {
         const push = (priority, type, id, title, detail, due_at = null) => actions.push({ priority, type, id, title, detail, due_at });
 
         for (const r of reminders) {
+          const deliveredTestReminder = Boolean(r.notified_at) && /\b(test proactive reminders?|test automatic(?: delivery| reminders?)?|test jarvis(?: again)?|test reminders?|confirm automatic reminders? work|confirm automatic reminders?)\b/i.test(String(r.title || ''));
+          if (deliveredTestReminder) continue;
           const due = r.due_at ? new Date(r.due_at).getTime() : NaN;
           if (!Number.isFinite(due) || due > new Date(next24h).getTime()) continue;
           const overdue = due <= nowMs;
@@ -1232,13 +1315,16 @@ export async function onRequestPost({ request, env }) {
   const noteCaptureInstruction = forceNaturalNoteCapture
     ? `\n\n[ROUTING: The latest message is an owner operational note, not a status question. You MUST call capture_business_note exactly once using only facts explicitly stated. Do not call get_action_center, get_owner_briefing, list_reminders, or any unrelated tool. After saving, confirm the note briefly and do not invent an appointment/reminder.]`
     : '';
+  const focusInstruction = forceNaturalNoteCapture ? '' : focusedRoutingInstruction(focusedIntent);
   messages[messages.length - 1] = {
     ...messages[messages.length - 1],
-    content: `[Today is ${todayCtx}]\n\n${messages[messages.length - 1].content}${noteCaptureInstruction}`,
+    content: `[Today is ${todayCtx}]\n\n${messages[messages.length - 1].content}${noteCaptureInstruction}${focusInstruction}`,
   };
+  const focusedTools = forceNaturalNoteCapture ? null : toolsForFocusedIntent(focusedIntent);
   const toolsForTurn = forceNaturalNoteCapture
     ? TOOLS.filter(t => t.name === 'capture_business_note')
-    : TOOLS;
+    : (focusedTools && focusedTools.length ? focusedTools : TOOLS);
+
 
   const { readable, writable } = new TransformStream();
   const writer = writable.getWriter();
