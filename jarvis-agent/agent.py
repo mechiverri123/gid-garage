@@ -18,13 +18,12 @@ from livekit.agents import (
     function_tool,
     inference,
 )
-from livekit.plugins import anthropic
 
 load_dotenv()
 
 ARIZONA = ZoneInfo("America/Phoenix")
 AGENT_NAME = os.getenv("LIVEKIT_AGENT_NAME", "gid-jarvis")
-LLM_MODEL = os.getenv("JARVIS_LLM_MODEL", "claude-haiku-4-5-20251001")
+LLM_MODEL = os.getenv("JARVIS_LLM_MODEL", "google/gemma-4-31b-it")
 STT_MODEL = os.getenv("JARVIS_STT_MODEL", "deepgram/flux-general")
 TTS_MODEL = os.getenv("JARVIS_TTS_MODEL", "cartesia/sonic-3")
 TTS_VOICE = os.getenv("JARVIS_TTS_VOICE", "9626c31c-bec5-4cca-baa8-f8ba9e84c8bc")
@@ -129,15 +128,14 @@ VOICE STYLE:
 - Start answering as soon as you have enough information. Avoid filler like 'Certainly' or 'Let me check'.
 
 BUSINESS DATA:
-- You have live GID Garage tools for jobs, customers, leads, calls, marketing, pricing, owner pay, and email.
-- Never invent business facts. Use the relevant tool whenever Michael asks about live business information.
+- You have one live GID Garage dispatcher tool named gid_business for jobs, customers, leads, calls, marketing, pricing, owner pay, and email.
+- Never invent business facts. For live business information, call gid_business with the appropriate action and a JSON object string in args_json.
 - Low-risk writes such as rescheduling, lead status, job pipeline status, call logs, and marketing spend may be done immediately and then confirmed.
 - mark_job_paid and send_customer_email are external/financial actions. First call them with confirmed=false. Read the returned confirmation summary and ask Michael to confirm. Only repeat the tool with confirmed=true after a clear yes on the next turn.
 - Never mark a job PAID using update_job_status. Use mark_job_paid so the amount is recorded.
 """
         )
 
-    @function_tool
     async def get_business_summary(self, context: RunContext) -> dict[str, Any]:
         """Get today's revenue/jobs, attention items, recent lead conversion, and marketing totals."""
         now = datetime.now(ARIZONA)
@@ -221,7 +219,6 @@ BUSINESS DATA:
             },
         }
 
-    @function_tool
     async def list_leads(self, context: RunContext, status: str, source: str, limit: int) -> list[dict[str, Any]]:
         """List recent leads. Pass an empty string for status/source when no filter is wanted. Use 15 for a normal limit."""
         params: dict[str, Any] = {"select": "*", "order": "created_at.desc", "limit": str(min(limit, 50))}
@@ -229,13 +226,11 @@ BUSINESS DATA:
         if source: params["source"] = f"eq.{source}"
         return await db().get("leads", params)
 
-    @function_tool
     async def update_lead_status(self, context: RunContext, lead_id: str, status: str) -> dict[str, Any]:
         """Update a lead's status using its lead id."""
         await db().patch("leads", f"id=eq.{lead_id}", {"status": status, "last_contacted_at": datetime.now(timezone.utc).isoformat()})
         return {"ok": True, "lead_id": lead_id, "status": status}
 
-    @function_tool
     async def list_jobs(
         self,
         context: RunContext,
@@ -268,7 +263,6 @@ BUSINESS DATA:
         if service_keyword: params.append(("service", f"ilike.*{service_keyword}*"))
         return await db().get("bookings", params)
 
-    @function_tool
     async def reschedule_job(self, context: RunContext, job_id: str, date: str = "", time: str = "") -> dict[str, Any]:
         """Reschedule a job by id to a new YYYY-MM-DD date and/or time."""
         fields: dict[str, Any] = {}
@@ -279,7 +273,6 @@ BUSINESS DATA:
         await db().patch("bookings", f"id=eq.{job_id}", fields)
         return {"ok": True, **fields}
 
-    @function_tool
     async def pricing_history(self, context: RunContext, service_keyword: str, vehicle: str = "") -> dict[str, Any]:
         """Look up historical GID Garage prices for a repair/service."""
         params: dict[str, Any] = {
@@ -302,7 +295,6 @@ BUSINESS DATA:
             "samples": [{"vehicle": j.get("vehicle"), "price": money(j.get("invoice_amount") or j.get("estimate_amount"))} for j in jobs[:5]],
         }
 
-    @function_tool
     async def get_tax_rate(self, context: RunContext) -> dict[str, Any]:
         """Get current tax, overhead, and Stripe fee settings."""
         rows = await db().get("business_settings", {"select": "*", "id": "eq.default", "limit": "1"})
@@ -313,33 +305,28 @@ BUSINESS DATA:
             "stripeFeePct": float(s["owner_stripe_fee_pct"]) * 100 if s.get("owner_stripe_fee_pct") is not None else None,
         }
 
-    @function_tool
     async def add_marketing_spend(self, context: RunContext, date: str, channel: str, amount: float) -> dict[str, Any]:
         """Log a marketing-spend entry."""
         row = await db().insert("marketing_spend", {"date": date, "channel": channel, "amount": amount})
         return {"ok": True, "entry": row}
 
-    @function_tool
     async def log_call(self, context: RunContext, phone: str, outcome: str, direction: str = "inbound", notes: str = "") -> dict[str, Any]:
         """Log a phone call and its outcome."""
         row = await db().insert("calls", {"phone": phone, "direction": direction, "outcome": outcome, "notes": notes or None})
         return {"ok": True, "call": row}
 
-    @function_tool
     async def list_calls(self, context: RunContext, outcome: str = "", limit: int = 15) -> list[dict[str, Any]]:
         """List recently logged calls."""
         params: dict[str, Any] = {"select": "*", "order": "created_at.desc", "limit": str(min(limit, 50))}
         if outcome: params["outcome"] = f"eq.{outcome}"
         return await db().get("calls", params)
 
-    @function_tool
     async def list_marketing_spend(self, context: RunContext, channel: str = "", limit: int = 20) -> list[dict[str, Any]]:
         """List recent marketing spend entries, optionally by channel."""
         params: dict[str, Any] = {"select": "*", "order": "date.desc", "limit": str(min(limit, 50))}
         if channel: params["channel"] = f"eq.{channel}"
         return await db().get("marketing_spend", params)
 
-    @function_tool
     async def search_customers(self, context: RunContext, query: str) -> list[dict[str, Any]]:
         """Find a customer by name, phone, or VIN."""
         q = query.strip()
@@ -353,7 +340,6 @@ BUSINESS DATA:
             {"select": "id,fname,lname,phone,email,vehicle,vin,notes", "or": f"({','.join(parts)})", "limit": "10"},
         )
 
-    @function_tool
     async def update_job_status(self, context: RunContext, job_id: str, job_status: str) -> dict[str, Any]:
         """Update a job pipeline status. Never use this for PAID."""
         status = job_status.upper()
@@ -365,7 +351,6 @@ BUSINESS DATA:
         await db().patch("bookings", f"id=eq.{job_id}", {"job_status": status})
         return {"ok": True, "status": status}
 
-    @function_tool
     async def mark_job_paid(
         self,
         context: RunContext,
@@ -400,7 +385,6 @@ BUSINESS DATA:
         await db().patch("bookings", f"id=eq.{job_id}", fields)
         return {"ok": True, "markedPaid": money(amount)}
 
-    @function_tool
     async def get_owner_pay_summary(self, context: RunContext, period_days: int = 7) -> dict[str, Any]:
         """Estimate owner take-home from recent collected payments."""
         days = max(1, min(period_days, 365))
@@ -425,7 +409,6 @@ BUSINESS DATA:
             "estimatedTakeHome": money(gross - stripe_fees - tax_reserve - overhead),
         }
 
-    @function_tool
     async def send_customer_email(
         self,
         context: RunContext,
@@ -443,6 +426,86 @@ BUSINESS DATA:
         return {"ok": True, "sentTo": to_email}
 
 
+    @function_tool
+    async def gid_business(
+        self,
+        context: RunContext,
+        action: str,
+        args_json: str,
+    ) -> Any:
+        """Use GID Garage business data/actions.
+
+        action must be one of:
+        get_business_summary, list_leads, update_lead_status, list_jobs,
+        reschedule_job, pricing_history, get_tax_rate, add_marketing_spend,
+        log_call, list_calls, list_marketing_spend, search_customers,
+        update_job_status, mark_job_paid, get_owner_pay_summary,
+        send_customer_email.
+
+        args_json must be a JSON object string containing that action's arguments.
+        Use empty strings for unused text filters. For list limits, use 15 unless
+        Michael asks for more. mark_job_paid and send_customer_email must first
+        use confirmed=false; only use confirmed=true after Michael clearly confirms.
+        """
+        try:
+            args = json.loads(args_json or "{}")
+        except json.JSONDecodeError as exc:
+            raise ValueError(f"args_json must be valid JSON: {exc}") from exc
+
+        if not isinstance(args, dict):
+            raise ValueError("args_json must decode to a JSON object")
+
+        actions = {
+            "get_business_summary": self.get_business_summary,
+            "list_leads": self.list_leads,
+            "update_lead_status": self.update_lead_status,
+            "list_jobs": self.list_jobs,
+            "reschedule_job": self.reschedule_job,
+            "pricing_history": self.pricing_history,
+            "get_tax_rate": self.get_tax_rate,
+            "add_marketing_spend": self.add_marketing_spend,
+            "log_call": self.log_call,
+            "list_calls": self.list_calls,
+            "list_marketing_spend": self.list_marketing_spend,
+            "search_customers": self.search_customers,
+            "update_job_status": self.update_job_status,
+            "mark_job_paid": self.mark_job_paid,
+            "get_owner_pay_summary": self.get_owner_pay_summary,
+            "send_customer_email": self.send_customer_email,
+        }
+
+        fn = actions.get(action)
+        if fn is None:
+            raise ValueError(f"Unsupported GID action: {action}")
+
+        # Fill normal defaults here instead of exposing dozens of nullable/union
+        # parameters to Anthropic's tool-schema compiler.
+        defaults = {
+            "list_leads": {"status": "", "source": "", "limit": 15},
+            "list_jobs": {
+                "customer_id": "",
+                "customer_name": "",
+                "date_from": "",
+                "date_to": "",
+                "job_status": "",
+                "vehicle": "",
+                "service_keyword": "",
+                "limit": 15,
+            },
+            "reschedule_job": {"date": "", "time": ""},
+            "pricing_history": {"vehicle": ""},
+            "log_call": {"direction": "inbound", "notes": ""},
+            "list_calls": {"outcome": "", "limit": 15},
+            "list_marketing_spend": {"channel": "", "limit": 20},
+            "mark_job_paid": {"stripe_transaction_id": "", "confirmed": False},
+            "get_owner_pay_summary": {"period_days": 7},
+            "send_customer_email": {"to_name": "", "confirmed": False},
+        }
+        merged = {**defaults.get(action, {}), **args}
+        return await fn(context, **merged)
+
+
+
 server = AgentServer()
 
 
@@ -454,7 +517,7 @@ async def gid_jarvis(ctx: JobContext):
 
     session = AgentSession(
         stt=inference.STT(model=STT_MODEL, language="en"),
-        llm=anthropic.LLM(model=LLM_MODEL, temperature=0.2),
+        llm=inference.LLM(model=LLM_MODEL, extra_kwargs={"max_completion_tokens": 512}),
         tts=inference.TTS(
             model=TTS_MODEL,
             voice=TTS_VOICE,
