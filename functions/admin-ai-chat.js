@@ -228,6 +228,7 @@ OWNER ASSISTANT BEHAVIOR:
 - For lead follow-up questions, use list_lead_followups. A lead needing attention does not mean the customer was contacted.
 - When Michael reports that he called/texted/spoke with a lead, use log_lead_contact so last_contacted_at and notes stay accurate. Only set a future follow-up when he asks for one or clearly states one.
 - Times for reminders/follow-ups are Flagstaff/Phoenix local time (America/Phoenix, UTC-07:00).
+- CRITICAL: For relative reminders like 'in 2 minutes', 'in 3 hours', or 'in 2 days', NEVER calculate a clock time yourself. Use create_reminder with due_in_minutes (2 minutes = 2, 3 hours = 180, 2 days = 2880). Use due_at_local only when Michael gives a calendar/clock time like 'tomorrow at 9 AM' or 'Friday at 3'.
 
 Today's date context is provided in each request — use it for "today", "this week", "next Tuesday" type questions.`;
 
@@ -277,16 +278,17 @@ const TOOLS = [
   },
   {
     name: 'create_reminder',
-    description: "Create a private owner reminder/task. due_at_local must be Flagstaff/Phoenix local time in YYYY-MM-DDTHH:mm format. This is not a customer appointment and does not contact anyone.",
+    description: "Create a private owner reminder/task. For relative requests such as 'in 2 minutes' or 'in 3 hours', use due_in_minutes so the server calculates from the real current time. For explicit calendar times, use due_at_local in Flagstaff/Phoenix local time (YYYY-MM-DDTHH:mm). This is not a customer appointment and does not contact anyone.",
     input_schema: {
       type: 'object',
       properties: {
         title: { type: 'string' },
-        due_at_local: { type: 'string', description: 'America/Phoenix local time, YYYY-MM-DDTHH:mm' },
+        due_at_local: { type: 'string', description: 'Use only for explicit calendar/clock times. America/Phoenix local time, YYYY-MM-DDTHH:mm' },
+        due_in_minutes: { type: 'number', description: 'Use for relative times. Examples: in 2 minutes = 2, in 3 hours = 180, in 2 days = 2880.' },
         notes: { type: 'string' },
         related_lead_id: { type: 'string' },
       },
-      required: ['title', 'due_at_local'],
+      required: ['title'],
     },
   },
   {
@@ -749,7 +751,22 @@ export async function onRequestPost({ request, env }) {
       case 'create_reminder': {
         const title = String(input.title || '').trim();
         if (!title) throw new Error('Reminder title is required.');
-        const dueAt = phoenixLocalToIso(input.due_at_local);
+
+        let dueAt;
+        if (input.due_in_minutes != null) {
+          const minutes = Number(input.due_in_minutes);
+          if (!Number.isFinite(minutes) || minutes <= 0 || minutes > 525600) {
+            throw new Error('due_in_minutes must be between 1 and 525600.');
+          }
+          // Relative reminders are anchored to the server's real current time,
+          // so the model never has to guess the current clock time.
+          dueAt = new Date(Date.now() + Math.round(minutes * 60000)).toISOString();
+        } else if (input.due_at_local) {
+          dueAt = phoenixLocalToIso(input.due_at_local);
+        } else {
+          throw new Error('Reminder time is required. Use due_in_minutes for relative reminders or due_at_local for a specific calendar time.');
+        }
+
         return await sbInsert('jarvis_reminders', {
           title: title.slice(0, 240),
           notes: input.notes ? String(input.notes).slice(0, 4000) : null,
@@ -1002,7 +1019,12 @@ export async function onRequestPost({ request, env }) {
   // ---- Claude agent loop, streamed as NDJSON so the frontend can show
   // ---- live progress (tool_call / tool_result / final) instead of a
   // ---- silent wait followed by one block of text.
-  const todayCtx = new Date().toLocaleDateString('en-US', { timeZone: 'America/Phoenix', weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+  const nowCtx = new Date();
+  const todayCtx = nowCtx.toLocaleString('en-US', {
+    timeZone: 'America/Phoenix',
+    weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
+    hour: 'numeric', minute: '2-digit', hour12: true,
+  });
   let messages = [
     ...incomingMessages.map(m => ({ role: m.role, content: m.content })),
   ];
