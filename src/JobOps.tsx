@@ -7392,11 +7392,11 @@ export function InvoicePage() {
             print via no-print. Styled after a plain professional invoice
             layout: logo + company block, bill-to/invoice meta, itemized
             table, totals, terms. */}
-        <div className="hidden print:block mb-6">
+        <div className="hidden print:block mb-6 text-base">
           <div className="flex items-start justify-between mb-4">
-            <div style={{ width: 230 }}>
+            <div style={{ width: 280 }}>
               <img src={`${img('download.png')}?v=2`} alt="GID Garage" style={{ width: '100%', height: 'auto', objectFit: 'contain' }} className="mb-2" />
-              <div className="text-sm">
+              <div className="text-base">
                 <div className="flex gap-3"><span className="font-bold">Invoice:</span><span>{invoiceNumber}</span></div>
                 <div className="flex gap-3"><span className="font-bold">Invoice Date:</span><span>{serviceDateStr}</span></div>
                 {isPaid && paidDateStr && (
@@ -7408,8 +7408,8 @@ export function InvoicePage() {
                 </div>
               </div>
             </div>
-            <div className="text-right text-[11px] leading-relaxed">
-              <p className="font-bold text-sm">GID Garage</p>
+            <div className="text-right text-sm leading-relaxed">
+              <p className="font-bold text-lg">GID Garage</p>
               <p>Flagstaff, AZ</p>
               <p>Phone: 480-757-0476</p>
               <p>Website: gidgarage.com</p>
@@ -7419,25 +7419,25 @@ export function InvoicePage() {
 
           <div className="flex items-start justify-between mt-4 mb-4">
             <div>
-              <p className="font-bold text-xs uppercase tracking-wide mb-1">Bill To:</p>
-              <p className="text-sm">{job.fname} {job.lname}</p>
-              {job.phone && <p className="text-sm">{fmtPhone(job.phone)}</p>}
-              {job.serviceAddress && <p className="text-sm">{job.serviceAddress}</p>}
+              <p className="font-bold text-sm uppercase tracking-wide mb-1">Bill To:</p>
+              <p className="text-base">{job.fname} {job.lname}</p>
+              {job.phone && <p className="text-base">{fmtPhone(job.phone)}</p>}
+              {job.serviceAddress && <p className="text-base">{job.serviceAddress}</p>}
             </div>
-            <div className="text-right text-sm">
-              <p className="font-bold text-xs uppercase tracking-wide mb-1">Vehicle Details</p>
+            <div className="text-right text-base">
+              <p className="font-bold text-sm uppercase tracking-wide mb-1">Vehicle Details</p>
               <p>{job.vehicle}</p>
-              {job.vin && <p className="text-xs">VIN: {job.vin}</p>}
-              {job.mileage && <p className="text-xs">{fmtMileage(job.mileage)} mi</p>}
+              {job.vin && <p className="text-sm">VIN: {job.vin}</p>}
+              {job.mileage && <p className="text-sm">{fmtMileage(job.mileage)} mi</p>}
             </div>
           </div>
 
           {/* Line items table */}
-          <table className="w-full text-sm border-collapse">
+          <table className="w-full text-base border-collapse">
             <thead>
               <tr className="border-t border-b border-gray-300">
-                <th className="text-left font-bold uppercase text-[10px] tracking-wide py-2">Description</th>
-                <th className="text-right font-bold uppercase text-[10px] tracking-wide py-2">Amount</th>
+                <th className="text-left font-bold uppercase text-xs tracking-wide py-2">Description</th>
+                <th className="text-right font-bold uppercase text-xs tracking-wide py-2">Amount</th>
               </tr>
             </thead>
             <tbody>
@@ -7461,18 +7461,18 @@ export function InvoicePage() {
           </table>
 
           {job.estimateNotes && (
-            <p className="text-xs text-gray-700 mt-2"><span className="font-bold">Scope of Work: </span>{job.estimateNotes}</p>
+            <p className="text-sm text-gray-700 mt-2"><span className="font-bold">Scope of Work: </span>{job.estimateNotes}</p>
           )}
 
           {/* Totals */}
           <div className="flex justify-end mt-3">
-            <div className="w-56 text-sm">
+            <div className="w-64 text-base">
               <div className="flex justify-between py-1"><span>Subtotal</span><span>${amount?.toFixed(2)}</span></div>
               <div className="flex justify-between py-1 border-b border-gray-300"><span>AZ TPT ({taxRatePercentLabel()}%)</span><span>${(job.taxAmount || 0).toFixed(2)}</span></div>
               {isPartiallyPaid && (
                 <div className="flex justify-between py-1"><span>Amount Paid</span><span>-${(job.amountPaid || 0).toFixed(2)}</span></div>
               )}
-              <div className="flex justify-between py-1.5 font-bold text-base">
+              <div className="flex justify-between py-1.5 font-bold text-lg">
                 <span>{isPaid ? 'Total Paid' : isPartiallyPaid ? 'Balance Due' : 'Total Due'}</span>
                 <span>${isPaid ? ((job.invoiceAmount || 0) + (job.taxAmount || 0)).toFixed(2) : isPartiallyPaid ? balanceDue.toFixed(2) : (amount ? ((amount) + (job.taxAmount || 0)).toFixed(2) : '0.00')}</span>
               </div>
@@ -7481,9 +7481,9 @@ export function InvoicePage() {
 
           {job.payments?.length > 0 && (
             <div className="mt-3 border-t border-gray-300 pt-2">
-              <p className="font-bold text-[10px] uppercase tracking-wide mb-1">Payments Received</p>
+              <p className="font-bold text-xs uppercase tracking-wide mb-1">Payments Received</p>
               {job.payments.map(p => (
-                <div key={p.id} className="flex justify-between text-xs py-0.5">
+                <div key={p.id} className="flex justify-between text-sm py-0.5">
                   <span>{p.method}{p.note ? ` — ${p.note}` : ''} · {new Date(p.at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'America/Phoenix' })}</span>
                   <span>${p.amount.toFixed(2)}</span>
                 </div>
@@ -7495,17 +7495,21 @@ export function InvoicePage() {
           {(job.customerAgreed || job.garageNotes) && (
             <div className="mt-5 border-t border-gray-300 pt-3">
               {job.customerAgreed && (
-                <p className="text-sm">
-                  Estimate approved by {job.customerSignature}
-                  {job.signedAt ? ` on ${new Date(job.signedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'America/Phoenix' })}` : ''}.
+                <p className="text-base flex items-baseline gap-2 flex-wrap">
+                  <span>Estimate approved by</span>
+                  <span className="text-2xl leading-none" style={{ fontFamily: "'Dancing Script', cursive" }}>{job.customerSignature}</span>
+                  <span>
+                    {job.signedAt ? `on ${new Date(job.signedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'America/Phoenix' })}` : ''}.
+                  </span>
                 </p>
               )}
               {job.garageNotes && (
-                <p className="text-sm mt-1"><span className="font-bold">Technician Notes: </span>{job.garageNotes}</p>
+                <p className="text-base mt-1"><span className="font-bold">Technician Notes: </span>{job.garageNotes}</p>
               )}
             </div>
           )}
         </div>
+
 
         {/* Invoice card — screen only; print uses the letterhead above */}
         <div className="bg-white/5 border border-white/10 no-print">
@@ -7627,8 +7631,12 @@ export function InvoicePage() {
         {/* Signed disclaimer — screen only; folded into the print letterhead's Vehicle Details */}
         {job.customerAgreed && (
           <div className="mt-4 px-4 py-3 border border-white/10 bg-white/5 no-print">
-            <p className="text-gray-600 text-xs">Estimate approved by <strong className="text-gray-400">{job.customerSignature}</strong>
-              {job.signedAt ? ` on ${new Date(job.signedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'America/Phoenix' })}` : ''}.
+            <p className="text-gray-600 text-xs flex items-baseline gap-2 flex-wrap">
+              <span>Estimate approved by</span>
+              <span className="text-lg leading-none text-gray-300" style={{ fontFamily: "'Dancing Script', cursive" }}>{job.customerSignature}</span>
+              <span>
+                {job.signedAt ? `on ${new Date(job.signedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'America/Phoenix' })}` : ''}.
+              </span>
             </p>
           </div>
         )}
@@ -8056,7 +8064,7 @@ export function EstimatePage() {
             {/* Signature block — mirrors the admin panel's "Estimate Signed" display */}
             <div className="bg-white/5 border border-white/10 p-4">
               <p className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-2">Signed By</p>
-              <p className="text-white text-sm font-bold" style={{ fontFamily: 'Georgia, serif', fontStyle: 'italic' }}>{job.customerSignature}</p>
+              <p className="text-white text-3xl leading-none" style={{ fontFamily: "'Dancing Script', cursive" }}>{job.customerSignature}</p>
               {job.signedAt && (
                 <p className="text-gray-600 text-xs mt-1">
                   {new Date(job.signedAt).toLocaleString('en-US', { month: 'long', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: 'America/Phoenix' })}
@@ -8131,6 +8139,14 @@ export function EstimatePage() {
                   placeholder="Full legal name"
                   className="bg-white/10 border border-white/10 text-white px-3 py-3 text-sm w-full focus:border-red-600 outline-none placeholder-gray-700"
                 />
+                {/* Live cursive preview — shows the typed name rendered as a signature
+                    so the customer sees what they're "signing" before submitting. */}
+                <div className="border-b border-white/20 px-3 py-4 mt-3 min-h-[64px] flex items-end">
+                  {signature.trim()
+                    ? <p className="text-white text-3xl leading-none" style={{ fontFamily: "'Dancing Script', cursive" }}>{signature}</p>
+                    : <p className="text-gray-700 text-xs">Your signature preview will appear here as you type</p>
+                  }
+                </div>
                 <p className="text-gray-500 text-[10px] mt-1.5">By checking the box above and typing your name, you are providing an electronic signature legally binding under the Uniform Electronic Transactions Act (UETA).</p>
               </div>
 
