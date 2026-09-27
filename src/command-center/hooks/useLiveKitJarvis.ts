@@ -15,7 +15,6 @@ export function useLiveKitJarvis() {
   const [state, setState] = useState<RealtimeVoiceState>('off');
   const [error, setError] = useState<string | null>(null);
   const [roomName, setRoomName] = useState<string | null>(null);
-  const [needsAudioUnlock, setNeedsAudioUnlock] = useState(false);
   const roomRef = useRef<Room | null>(null);
   const audioNodesRef = useRef<HTMLMediaElement[]>([]);
 
@@ -30,13 +29,15 @@ export function useLiveKitJarvis() {
   const disconnect = useCallback(async () => {
     const room = roomRef.current;
     roomRef.current = null;
-    removeAudioNodes();
+
     if (room) {
       try { await room.localParticipant.setMicrophoneEnabled(false); } catch {}
       room.disconnect();
     }
+
+    removeAudioNodes();
     setRoomName(null);
-    setNeedsAudioUnlock(false);
+    setError(null);
     setState('off');
   }, [removeAudioNodes]);
 
@@ -46,28 +47,28 @@ export function useLiveKitJarvis() {
     setError(null);
     setState('connecting');
 
+    let permissionStream: MediaStream | null = null;
+
     try {
-      // Create/unlock the Room immediately while we are still inside the
-      // user's START JARVIS click. Chromium/Opera can otherwise reject remote
-      // agent audio because the token fetch + WebRTC connection completes
-      // after the original user gesture has expired.
-      const room = new Room({
-        adaptiveStream: true,
-        dynacast: true,
-        disconnectOnPageLeave: true,
-      });
-      roomRef.current = room;
+      if (!navigator.mediaDevices?.getUserMedia) {
+        throw new Error('This browser does not expose microphone access.');
+      }
 
-      void room.startAudio()
-        .then(() => setNeedsAudioUnlock(false))
-        .catch(() => {
-          // If the browser still requires a second gesture, the UI exposes an
-          // ENABLE AUDIO button through AudioPlaybackStatusChanged below.
-        });
-
-      room.on(RoomEvent.AudioPlaybackStatusChanged, () => {
-        setNeedsAudioUnlock(!room.canPlaybackAudio);
+      // IMPORTANT: ask for microphone permission immediately from the actual
+      // START JARVIS click. This is much more reliable in Opera/Chromium than
+      // waiting until after token fetch + WebRTC connection.
+      permissionStream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+        },
       });
+
+      const livePermissionTrack = permissionStream.getAudioTracks()[0];
+      if (!livePermissionTrack || livePermissionTrack.readyState !== 'live') {
+        throw new Error('Microphone permission was granted, but no live microphone track was available.');
+      }
 
       const tokenRes = await fetch('/jarvis-livekit-token', {
         method: 'POST',
@@ -77,21 +78,38 @@ export function useLiveKitJarvis() {
       });
 
       const tokenBody = await tokenRes.json().catch(() => ({}));
-      if (!tokenRes.ok) throw new Error(tokenBody?.error || `Voice token failed (${tokenRes.status})`);
+      if (!tokenRes.ok) {
+        throw new Error(tokenBody?.error || `Voice token failed (${tokenRes.status})`);
+      }
 
+      const room = new Room({
+        adaptiveStream: true,
+        dynacast: true,
+        disconnectOnPageLeave: true,
+        audioCaptureDefaults: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+        },
+      });
+
+      roomRef.current = room;
       setRoomName(tokenBody.room_name || null);
 
       room.on(
         RoomEvent.TrackSubscribed,
         (track: RemoteTrack, _publication: RemoteTrackPublication, _participant: RemoteParticipant) => {
           if (track.kind !== Track.Kind.Audio) return;
+
           const element = track.attach();
           element.autoplay = true;
+          element.playsInline = true;
           element.style.display = 'none';
           document.body.appendChild(element);
           audioNodesRef.current.push(element);
+
           void element.play().catch(() => {
-            setNeedsAudioUnlock(true);
+            setError('JARVIS is connected, but browser audio playback is blocked. Click START JARVIS again.');
           });
         },
       );
@@ -105,9 +123,9 @@ export function useLiveKitJarvis() {
       });
 
       room.on(RoomEvent.ActiveSpeakersChanged, speakers => {
-        // The local participant is Michael. A remote active speaker is the
-        // LiveKit agent, so reflect that immediately on the AI core.
-        const remoteSpeaking = speakers.some(p => p.identity !== room.localParticipant.identity);
+        const remoteSpeaking = speakers.some(
+          p => p.identity !== room.localParticipant.identity,
+        );
         setState(remoteSpeaking ? 'speaking' : 'listening');
       });
 
@@ -131,52 +149,76 @@ export function useLiveKitJarvis() {
       });
 
       await room.connect(tokenBody.server_url, tokenBody.participant_token);
+
+      // Unlock remote audio while this connection was initiated by a user click.
+      try {
+        await room.startAudio();
+      } catch {
+        // Non-fatal. Remote track playback above gets another chance.
+      }
+
+      // Release the permission-probe track before LiveKit opens its own track.
+      for (const track of permissionStream.getTracks()) track.stop();
+      permissionStream = null;
+
       await room.localParticipant.setMicrophoneEnabled(true, {
         echoCancellation: true,
         noiseSuppression: true,
         autoGainControl: true,
       });
 
-      setNeedsAudioUnlock(!room.canPlaybackAudio);
+      // Do not show LISTENING unless LiveKit really published an enabled mic.
+      const micPub = room.localParticipant.getTrackPublication(Track.Source.Microphone);
+      if (
+        !room.localParticipant.isMicrophoneEnabled ||
+        !micPub ||
+        !micPub.track ||
+        micPub.isMuted
+      ) {
+        throw new Error(
+          'Connected to JARVIS, but your microphone was not published. Check Opera site microphone permission and retry.',
+        );
+      }
+
       setState('listening');
     } catch (err: any) {
-      const message = err?.message || 'Could not start realtime JARVIS.';
+      if (permissionStream) {
+        for (const track of permissionStream.getTracks()) track.stop();
+      }
+
       const room = roomRef.current;
       roomRef.current = null;
       if (room) room.disconnect();
+
       removeAudioNodes();
+
+      const raw = err?.message || 'Could not start realtime JARVIS.';
+      const message =
+        err?.name === 'NotAllowedError'
+          ? 'Microphone permission is blocked for this site. Allow microphone access in Opera, then retry.'
+          : err?.name === 'NotFoundError'
+            ? 'No microphone was found. Check the selected Windows input device.'
+            : raw;
+
       setError(message);
       setState('error');
     }
   }, [removeAudioNodes, state]);
-
-  const startAudio = useCallback(async () => {
-    const room = roomRef.current;
-    if (!room) return;
-    try {
-      await room.startAudio();
-      setNeedsAudioUnlock(false);
-    } catch (err: any) {
-      const message = err?.message || 'Browser blocked JARVIS audio playback.';
-      setError(message);
-      setNeedsAudioUnlock(true);
-    }
-  }, []);
 
   const toggle = useCallback(() => {
     if (roomRef.current || state === 'connecting') void disconnect();
     else void connect();
   }, [connect, disconnect, state]);
 
-  useEffect(() => () => { void disconnect(); }, [disconnect]);
+  useEffect(() => () => {
+    void disconnect();
+  }, [disconnect]);
 
   return {
     state,
     error,
     roomName,
-    needsAudioUnlock,
     connected: state === 'listening' || state === 'speaking',
-    startAudio,
     connect,
     disconnect,
     toggle,
