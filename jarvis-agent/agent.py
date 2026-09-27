@@ -222,8 +222,8 @@ BUSINESS DATA:
         }
 
     @function_tool
-    async def list_leads(self, context: RunContext, status: str = "", source: str = "", limit: int = 15) -> list[dict[str, Any]]:
-        """List recent leads, optionally filtered by status or source."""
+    async def list_leads(self, context: RunContext, status: str, source: str, limit: int) -> list[dict[str, Any]]:
+        """List recent leads. Pass an empty string for status/source when no filter is wanted. Use 15 for a normal limit."""
         params: dict[str, Any] = {"select": "*", "order": "created_at.desc", "limit": str(min(limit, 50))}
         if status: params["status"] = f"eq.{status}"
         if source: params["source"] = f"eq.{source}"
@@ -239,16 +239,16 @@ BUSINESS DATA:
     async def list_jobs(
         self,
         context: RunContext,
-        customer_id: str = "",
-        customer_name: str = "",
-        date_from: str = "",
-        date_to: str = "",
-        job_status: str = "",
-        vehicle: str = "",
-        service_keyword: str = "",
-        limit: int = 15,
+        customer_id: str,
+        customer_name: str,
+        date_from: str,
+        date_to: str,
+        job_status: str,
+        vehicle: str,
+        service_keyword: str,
+        limit: int,
     ) -> list[dict[str, Any]]:
-        """List jobs/bookings filtered by customer, dates, status, vehicle, or service."""
+        """List jobs/bookings. Pass empty strings for filters that are not needed. Use 15 for a normal limit."""
         params: list[tuple[str, Any]] = [
             ("select", "id,customer_id,fname,lname,vehicle,service,date,time,job_status,estimate_amount,invoice_amount,amount_paid,paid_at"),
             ("order", "date.desc"),
