@@ -65,7 +65,6 @@ export function useLiveKitJarvis() {
 
   const startMicMeter = useCallback((track: LocalAudioTrack) => {
     stopMicMeter();
-
     const AudioContextCtor = window.AudioContext || (window as any).webkitAudioContext;
     if (!AudioContextCtor) return;
 
@@ -137,8 +136,6 @@ export function useLiveKitJarvis() {
     let micTrack: LocalAudioTrack | null = null;
 
     try {
-      // Acquire through LiveKit itself while still inside the user's click.
-      // This is the browser path LiveKit officially supports.
       micTrack = await createLocalAudioTrack({
         echoCancellation: true,
         noiseSuppression: true,
@@ -244,7 +241,6 @@ export function useLiveKitJarvis() {
       await room.connect(tokenBody.server_url, tokenBody.participant_token);
       patchDiagnostics({ room: true });
 
-      // The same click that started JARVIS also unlocks browser audio playback.
       try {
         await room.startAudio();
         patchDiagnostics({ audioUnlocked: true });
@@ -262,19 +258,22 @@ export function useLiveKitJarvis() {
       }
       patchDiagnostics({ mic: true });
 
-      // Critical: do NOT claim LISTENING merely because the browser joined.
-      // Wait until the LiveKit agent actually joins this room.
       syncAgentPresence();
-      const deadline = Date.now() + 10000;
+
+      // Keep failed room alive for 60 seconds so it can be inspected with:
+      //   lk dispatch list ROOM_NAME
+      const deadline = Date.now() + 60000;
       while (room.remoteParticipants.size === 0 && Date.now() < deadline) {
-        await new Promise(resolve => window.setTimeout(resolve, 200));
+        await new Promise(resolve => window.setTimeout(resolve, 250));
       }
       syncAgentPresence();
 
       if (room.remoteParticipants.size === 0) {
-        throw new Error(
-          `Browser and microphone are connected, but gid-jarvis never joined room ${tokenBody.room_name}. Agent dispatch is the failing layer.`,
+        setError(
+          `Browser + mic connected, but gid-jarvis did not join within 60 seconds. Room stays open until you stop JARVIS so you can inspect dispatches: ${tokenBody.room_name}`,
         );
+        setState('error');
+        return; // IMPORTANT: keep room + mic alive for diagnosis
       }
 
       setState('listening');
@@ -330,7 +329,7 @@ export function useLiveKitJarvis() {
   }, [speakText]);
 
   const toggle = useCallback(() => {
-    if (roomRef.current || state === 'connecting') void disconnect();
+    if (roomRef.current || state === 'connecting' || state === 'error') void disconnect();
     else void connect();
   }, [connect, disconnect, state]);
 

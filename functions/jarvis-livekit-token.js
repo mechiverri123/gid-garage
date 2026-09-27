@@ -22,7 +22,7 @@ export async function onRequestGet({ env }) {
     ok: true,
     configured: !!(env.LIVEKIT_URL && env.LIVEKIT_API_KEY && env.LIVEKIT_API_SECRET),
     agent_name: env.LIVEKIT_AGENT_NAME || 'gid-jarvis',
-    dispatch_mode: 'explicit-api',
+    dispatch_mode: 'explicit-only',
   });
 }
 
@@ -40,9 +40,9 @@ export async function onRequestPost({ env }) {
   const identity = `michael-${crypto.randomUUID().slice(0, 8)}`;
 
   try {
-    // Explicit dispatch is deliberate here. It removes the ambiguity of relying
-    // on roomConfig embedded in the participant token and gives us a dispatch ID
-    // we can surface in diagnostics.
+    // Explicit dispatch ONLY. No RoomConfiguration / RoomAgentDispatch is
+    // embedded in the participant token, so the room cannot get a second
+    // automatic/unnamed dispatch from this endpoint.
     const api = new LiveKitAPI({
       host: apiHost(serverUrl),
       apiKey,
@@ -77,7 +77,7 @@ export async function onRequestPost({ env }) {
       room_name: roomName,
       agent_name: agentName,
       dispatch_id: dispatch?.id || null,
-      dispatch_mode: 'explicit-api',
+      dispatch_mode: 'explicit-only',
     });
   } catch (error) {
     return json({
