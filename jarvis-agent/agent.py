@@ -150,9 +150,13 @@ BUSINESS DATA:
 - Never mark a job PAID using update_job_status. Use mark_job_paid so the amount is recorded.
 - Treat lead-form fields as noisy human input, not trusted schema. A person may put a service in the vehicle field, a vehicle in the issue field, or vague language in any box.
 - When Michael asks about a lead, use analyze_lead before drawing conclusions. Prefer the actual meaning of the answers over the form field labels.
-- If Michael pastes a raw Meta/Facebook/Instagram lead message that is not yet in Supabase, use analyze_raw_lead or recommend_lead_response. Do not require the lead to already exist in the database.
+- If Michael pastes a raw Meta/Facebook/Instagram lead message that is not yet in Supabase, ALWAYS use analyze_raw_lead or recommend_lead_response first. Do not search Supabase for that pasted lead and do not say it is "still processing."
+- A pasted lead is being shown to Michael, the business owner. Respond to Michael with an owner analysis unless he explicitly asks for a customer-facing draft.
 - For manual lead tests, separate three things clearly: what the customer actually said, what can be safely inferred, and what is still missing.
 - Never invent missing vehicle details. If the vehicle field contains only a service such as "brakes change", report vehicle information as missing and classify the service separately.
+- Never infer a vehicle year from today's year, the lead creation year, a phone number, or any unrelated number.
+- Never use the customer's phone number or email as GID Garage's own contact information.
+- Do not make unsupported claims such as a repair being quick, easy, cheap, straightforward, or definitely mobile-serviceable merely from a lead form.
 - Flexible scheduling phrases such as "whenever", "anytime", "ASAP", or "soonest available" mean the customer is flexible. They do NOT mean an appointment has been booked. Report scheduling intent as earliest_available and look at the live schedule before proposing a slot.
 - Vague issue text such as "nothing", "nothing just going bad", "not sure", or "just needs work" is not a usable diagnostic complaint. Mark the issue as vague/missing rather than pretending it describes a fault.
 """
@@ -346,20 +350,65 @@ BUSINESS DATA:
         }
 
     def _extract_raw_lead_fields(self, raw_text: str) -> dict[str, str]:
-        """Parse the common Meta lead form text format without trusting field placement."""
-        raw = raw_text or ""
-        patterns = {
-            "email": r"(?im)^\s*Email:\s*(.+?)\s*$",
-            "full_name": r"(?im)^\s*Full\s*name:\s*(.+?)\s*$",
-            "issue": r"(?im)^\s*What issues are you experiencing with your vehicle\?:\s*(.+?)\s*$",
-            "phone": r"(?im)^\s*Phone\s*number:\s*(.+?)\s*$",
-            "vehicle": r"(?im)^\s*Year/Make/Model/Engine\s*Size\?:\s*(.+?)\s*$",
-            "schedule": r"(?im)^\s*What Date/Time works best for you\?:\s*(.+?)\s*$",
+        """Parse Meta lead text whether fields are separated by newlines or spaces."""
+        raw = " ".join((raw_text or "").replace("\r", " ").replace("\n", " ").split())
+
+        labels = [
+            (
+                "email",
+                re.compile(r"\bEmail\s*:\s*", re.IGNORECASE),
+            ),
+            (
+                "full_name",
+                re.compile(r"\bFull\s*name\s*:\s*", re.IGNORECASE),
+            ),
+            (
+                "issue",
+                re.compile(
+                    r"\bWhat\s+issues\s+are\s+you\s+experiencing\s+with\s+your\s+vehicle\?\s*:\s*",
+                    re.IGNORECASE,
+                ),
+            ),
+            (
+                "phone",
+                re.compile(r"\bPhone\s*number\s*:\s*", re.IGNORECASE),
+            ),
+            (
+                "vehicle",
+                re.compile(
+                    r"\bYear\s*/\s*Make\s*/\s*Model\s*/\s*Engine\s*Size\?\s*:\s*",
+                    re.IGNORECASE,
+                ),
+            ),
+            (
+                "schedule",
+                re.compile(
+                    r"\bWhat\s+Date\s*/\s*Time\s+works\s+best\s+for\s+you\?\s*:\s*",
+                    re.IGNORECASE,
+                ),
+            ),
+        ]
+
+        hits: list[tuple[int, int, str]] = []
+        for key, pattern in labels:
+            match = pattern.search(raw)
+            if match:
+                hits.append((match.start(), match.end(), key))
+
+        hits.sort(key=lambda item: item[0])
+        out = {
+            "email": "",
+            "full_name": "",
+            "issue": "",
+            "phone": "",
+            "vehicle": "",
+            "schedule": "",
         }
-        out: dict[str, str] = {}
-        for key, pattern in patterns.items():
-            match = re.search(pattern, raw)
-            out[key] = match.group(1).strip() if match else ""
+
+        for idx, (_, value_start, key) in enumerate(hits):
+            value_end = hits[idx + 1][0] if idx + 1 < len(hits) else len(raw)
+            out[key] = raw[value_start:value_end].strip(" \t,;.-")
+
         return out
 
     async def analyze_raw_lead(self, context: RunContext, raw_text: str) -> dict[str, Any]:
@@ -483,7 +532,8 @@ BUSINESS DATA:
             "owner_summary": "; ".join(owner_summary_parts) + ".",
             "draft_reply": analysis["recommended_customer_reply"],
             "questions_to_ask": analysis["questions_to_ask"],
-            "safe_to_send_without_editing": True,
+            "safe_to_send_without_editing": False,
+            "requires_owner_confirmation_before_contact": True,
             "safe_to_auto_book": False,
             "analysis": analysis,
         }
