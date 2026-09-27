@@ -16,12 +16,12 @@ from livekit.agents import (
     AgentSession,
     JobContext,
     RunContext,
-    StopResponse,
     TurnHandlingOptions,
     function_tool,
     inference,
     room_io,
 )
+from livekit.agents.llm import StopResponse
 
 load_dotenv()
 
@@ -201,7 +201,8 @@ BUSINESS DATA:
 
         # Speak the deterministic parser result and stop the LLM from generating
         # its own alternative story about database status, vehicle details, or next actions.
-        await self.session.say(
+        print(f"GID_LEAD_INTERCEPT fired markers={marker_count} summary={summary!r}")
+        self.session.say(
             summary,
             allow_interruptions=True,
             add_to_chat_ctx=True,
@@ -1572,9 +1573,7 @@ async def gid_jarvis(ctx: JobContext):
         turn_handling=TurnHandlingOptions(
             turn_detection="stt",
             preemptive_generation={
-                "enabled": True,
-                "preemptive_tts": True,
-                "max_speech_duration": 8.0,
+                "enabled": False,
             },
         ),
     )
