@@ -204,6 +204,29 @@ function json(body, status = 200) {
   });
 }
 
+// Deterministic guard for owner scratch notes. Claude is excellent at extracting
+// the details, but broad business tools can sometimes distract it from saving a
+// plain statement such as "Lisa might want an oil change next week." When a
+// message clearly looks like an operational note (not a question/command), only
+// expose the note-capture tool for that turn. This prevents action-center/briefing
+// cross-talk while leaving every normal Jarvis request unchanged.
+function isLikelyNaturalBusinessNote(text) {
+  const raw = String(text || '').trim();
+  if (!raw || raw.length < 8 || raw.length > 2000) return false;
+  const lower = raw.toLowerCase();
+
+  // Questions and explicit Jarvis commands are not passive notes.
+  if (raw.includes('?')) return false;
+  if (/^(brief|show|list|find|search|what|who|when|where|why|how|remind|mark|move|reschedule|email|send|call|text|update|change|set|book|schedule|cancel|delete|undo|check)\b/i.test(raw)) return false;
+
+  const hasPersonishStart = /^[A-Z][a-z]+(?:\s+[A-Z][a-z]+)?\b/.test(raw);
+  const hasOperationalVerb = /\b(called|texted|messaged|said|asked|wants?|wanted|needs?|needed|might want|may want|interested|quoted|quote(?:d)?|coming|available|prefers?|mentioned|reported|has|having)\b/i.test(raw);
+  const hasBusinessDetail = /\b(oil change|brakes?|rotors?|pads?|diagnostic|diag|suspension|battery|starter|alternator|water pump|coolant|leak|grind(?:ing)?|noise|repair|service|appointment|estimate|quote|\$?\d{2,5}|today|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday|next week|this week|whenever|morning|afternoon|evening)\b/i.test(raw);
+  const hasVehicleish = /\b(19|20)\d{2}\b|\b(f-?150|silverado|ranger|rav4|camry|corolla|accord|civic|tacoma|4runner|wrangler|explorer|edge)\b/i.test(raw);
+
+  return hasPersonishStart && hasOperationalVerb && (hasBusinessDetail || hasVehicleish);
+}
+
 const SYSTEM_PROMPT = `You are GID, the business assistant embedded in GID Garage's admin dashboard (a mobile mechanic business in Flagstaff, AZ). You have tools to look up and update real business data: customers, leads, jobs/bookings, marketing spend, calls, and business settings.
 
 RESPONSE STYLE — this is a small chat panel, not a report:
@@ -604,6 +627,7 @@ export async function onRequestPost({ request, env }) {
   // model from inventing database status, vehicle details, or next actions.
   const latestUserMessage = [...incomingMessages].reverse().find(m => m?.role === 'user');
   const latestUserText = typeof latestUserMessage?.content === 'string' ? latestUserMessage.content : '';
+  const forceNaturalNoteCapture = isLikelyNaturalBusinessNote(latestUserText);
   if (isPastedLeadForm(latestUserText)) {
     const fields = parseRawLeadForm(latestUserText);
     const analysis = analyzeLeadFields({
@@ -1205,10 +1229,16 @@ export async function onRequestPost({ request, env }) {
   let messages = [
     ...incomingMessages.map(m => ({ role: m.role, content: m.content })),
   ];
+  const noteCaptureInstruction = forceNaturalNoteCapture
+    ? `\n\n[ROUTING: The latest message is an owner operational note, not a status question. You MUST call capture_business_note exactly once using only facts explicitly stated. Do not call get_action_center, get_owner_briefing, list_reminders, or any unrelated tool. After saving, confirm the note briefly and do not invent an appointment/reminder.]`
+    : '';
   messages[messages.length - 1] = {
     ...messages[messages.length - 1],
-    content: `[Today is ${todayCtx}]\n\n${messages[messages.length - 1].content}`,
+    content: `[Today is ${todayCtx}]\n\n${messages[messages.length - 1].content}${noteCaptureInstruction}`,
   };
+  const toolsForTurn = forceNaturalNoteCapture
+    ? TOOLS.filter(t => t.name === 'capture_business_note')
+    : TOOLS;
 
   const { readable, writable } = new TransformStream();
   const writer = writable.getWriter();
@@ -1233,7 +1263,7 @@ export async function onRequestPost({ request, env }) {
             model: CLAUDE_MODEL,
             max_tokens: 1024,
             system: SYSTEM_PROMPT,
-            tools: TOOLS,
+            tools: toolsForTurn,
             messages,
           }),
         });
