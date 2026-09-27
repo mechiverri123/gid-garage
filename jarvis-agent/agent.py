@@ -141,7 +141,9 @@ BUSINESS DATA:
 - The bookings.service field uses these canonical admin values: oil, brakes, diag, suspension, audio, full, other. Human phrases such as "Brakes", "brake job", "breaks", "Diagnostics", "Oil Change", "Full Service", and "Other" must be normalized to those values.
 - Never guess which job Michael means when more than one booking could match. Ask a short clarification instead.
 - After a successful reversible change, briefly state what changed and say "Say undo that if that was wrong." If Michael says "undo that", use undo_last_action.
-- mark_job_paid and send_customer_email are external/financial actions. First call them with confirmed=false. Read the returned confirmation summary and ask Michael to confirm. Only repeat the tool with confirmed=true after a clear yes on the next turn.
+- After a successful reschedule, also ask one short follow-up: "Want me to email them the updated appointment?" If Michael says yes, use email_appointment_update with that exact job_id and confirmed=false first. Read back the short confirmation summary, then only send with confirmed=true after Michael clearly confirms.
+- Never invent an email address or appointment detail. email_appointment_update must pull both from the live booking/customer records and the stored appointment_updated template.
+- mark_job_paid, send_customer_email, and email_appointment_update are external/financial actions. First call them with confirmed=false. Read the returned confirmation summary and ask Michael to confirm. Only repeat the tool with confirmed=true after a clear yes on the next turn.
 - Never mark a job PAID using update_job_status. Use mark_job_paid so the amount is recorded.
 """
         )
@@ -274,14 +276,89 @@ BUSINESS DATA:
         return await db().get("bookings", params)
 
     async def reschedule_job(self, context: RunContext, job_id: str, date: str = "", time: str = "") -> dict[str, Any]:
-        """Reschedule a job by id to a new YYYY-MM-DD date and/or time."""
+        """Safely reschedule one booking, log the before/after state, and make it undoable."""
         fields: dict[str, Any] = {}
-        if date: fields["date"] = date
-        if time: fields["time"] = time
+        if date:
+            fields["date"] = date
+        if time:
+            fields["time"] = time
         if not fields:
             raise ValueError("A date or time is required")
-        await db().patch("bookings", f"id=eq.{job_id}", fields)
-        return {"ok": True, **fields}
+
+        rows = await db().get(
+            "bookings",
+            {
+                "select": "id,customer_id,fname,lname,vehicle,service,date,time,job_status",
+                "id": f"eq.{job_id}",
+                "limit": "1",
+            },
+        )
+        if not rows:
+            raise ValueError("No job found with that id")
+
+        job = rows[0]
+        before_patch = {key: job.get(key) for key in fields}
+        changed_fields = {key: value for key, value in fields.items() if str(job.get(key) or "") != str(value)}
+
+        if not changed_fields:
+            return {
+                "ok": True,
+                "changed": False,
+                "job_id": job_id,
+                "message": "That appointment already has that date and time.",
+            }
+
+        before_state = {
+            "date": job.get("date"),
+            "time": job.get("time"),
+            "fname": job.get("fname"),
+            "lname": job.get("lname"),
+            "vehicle": job.get("vehicle"),
+            "service": job.get("service"),
+        }
+        after_state = {**before_state, **changed_fields}
+
+        await db().patch("bookings", f"id=eq.{job_id}", changed_fields)
+
+        customer_name = f"{job.get('fname') or ''} {job.get('lname') or ''}".strip()
+        action = await db().insert(
+            "jarvis_action_log",
+            {
+                "actor": "jarvis",
+                "action_type": "reschedule_job",
+                "entity_table": "bookings",
+                "entity_id": str(job_id),
+                "summary": (
+                    f"Rescheduled {customer_name or 'booking'} from "
+                    f"{job.get('date') or 'no date'} {job.get('time') or ''} to "
+                    f"{after_state.get('date') or 'no date'} {after_state.get('time') or ''}"
+                ).strip(),
+                "resolved_intent": {
+                    "action": "reschedule_job",
+                    "job_id": str(job_id),
+                    "requested_fields": changed_fields,
+                },
+                "before_state": before_state,
+                "after_state": after_state,
+                "undo_patch": before_patch,
+                "reversible": True,
+                "status": "applied",
+            },
+        )
+
+        return {
+            "ok": True,
+            "changed": True,
+            "job_id": job_id,
+            "customer": customer_name,
+            "vehicle": job.get("vehicle"),
+            "from": before_patch,
+            "to": changed_fields,
+            "action_id": action.get("id") if action else None,
+            "undo_available": True,
+            "email_followup_available": True,
+            "suggestion": "Ask Michael whether he wants the customer emailed the updated appointment details.",
+        }
 
     async def _canonical_job_service(self, raw_value: str) -> str:
         """Normalize a spoken/human service name to the exact value used by the current admin."""
@@ -692,6 +769,106 @@ BUSINESS DATA:
             "estimatedTakeHome": money(gross - stripe_fees - tax_reserve - overhead),
         }
 
+    async def email_appointment_update(
+        self,
+        context: RunContext,
+        job_id: str,
+        confirmed: bool = False,
+    ) -> dict[str, Any]:
+        """Prepare/send the standard appointment-updated email for a booking. Always confirm before send."""
+        rows = await db().get(
+            "bookings",
+            {
+                "select": "id,customer_id,fname,lname,vehicle,service,date,time",
+                "id": f"eq.{job_id}",
+                "limit": "1",
+            },
+        )
+        if not rows:
+            raise ValueError("No job found with that id")
+
+        job = rows[0]
+        email = ""
+        customer_name = f"{job.get('fname') or ''} {job.get('lname') or ''}".strip()
+
+        customer_id = str(job.get("customer_id") or "").strip()
+        if customer_id:
+            customers = await db().get(
+                "customers",
+                {
+                    "select": "id,fname,lname,email",
+                    "id": f"eq.{customer_id}",
+                    "limit": "1",
+                },
+            )
+            if customers:
+                customer = customers[0]
+                email = str(customer.get("email") or "").strip()
+                if not customer_name:
+                    customer_name = f"{customer.get('fname') or ''} {customer.get('lname') or ''}".strip()
+
+        if not email:
+            raise ValueError("That booking does not have a customer email on file.")
+
+        templates = await db().get(
+            "jarvis_email_templates",
+            {
+                "select": "subject_template,body_html_template",
+                "template_key": "eq.appointment_updated",
+                "active": "eq.true",
+                "limit": "1",
+            },
+        )
+
+        subject = "Your GID Garage appointment has been updated"
+        body = (
+            "<p>Hi {{first_name}},</p>"
+            "<p>Your GID Garage appointment has been updated to "
+            "<strong>{{new_date}}</strong> at <strong>{{new_time}}</strong>.</p>"
+            "<p>If you have any questions or need another adjustment, just reply to this email.</p>"
+            "<p>Thank you,<br>GID Garage</p>"
+        )
+        if templates:
+            subject = str(templates[0].get("subject_template") or subject)
+            body = str(templates[0].get("body_html_template") or body)
+
+        first_name = str(job.get("fname") or "").strip() or "there"
+        replacements = {
+            "{{first_name}}": html.escape(first_name),
+            "{{new_date}}": html.escape(str(job.get("date") or "the updated date")),
+            "{{new_time}}": html.escape(str(job.get("time") or "the updated time")),
+            "{{service}}": html.escape(str(job.get("service") or "")),
+            "{{vehicle}}": html.escape(str(job.get("vehicle") or "")),
+        }
+        rendered = body
+        for token, value in replacements.items():
+            rendered = rendered.replace(token, value)
+
+        summary = (
+            f"Email {customer_name or email} at {email} confirming the appointment "
+            f"is now {job.get('date') or 'date not set'} at {job.get('time') or 'time not set'}."
+        )
+
+        if not confirmed:
+            return {
+                "needs_confirmation": True,
+                "summary": summary,
+                "to_email": email,
+                "to_name": customer_name,
+                "subject": subject,
+                "preview": rendered,
+            }
+
+        await send_brevo_email(email, customer_name, subject, rendered)
+        return {
+            "ok": True,
+            "sent": True,
+            "sentTo": email,
+            "customer": customer_name,
+            "subject": subject,
+        }
+
+
     async def send_customer_email(
         self,
         context: RunContext,
@@ -722,12 +899,14 @@ BUSINESS DATA:
         get_business_summary, get_revenue_summary, list_leads, update_lead_status, list_jobs,
         reschedule_job, update_job_service, undo_last_action, pricing_history, get_tax_rate,
         add_marketing_spend, log_call, list_calls, list_marketing_spend, search_customers,
-        update_job_status, mark_job_paid, get_owner_pay_summary, send_customer_email.
+        update_job_status, mark_job_paid, get_owner_pay_summary, email_appointment_update,
+        send_customer_email.
 
         args_json must be a JSON object string containing that action's arguments.
         Use empty strings for unused text filters. For list limits, use 15 unless
-        Michael asks for more. mark_job_paid and send_customer_email must first
-        use confirmed=false; only use confirmed=true after Michael clearly confirms.
+        Michael asks for more. mark_job_paid, email_appointment_update, and
+        send_customer_email must first use confirmed=false; only use confirmed=true
+        after Michael clearly confirms.
         """
         try:
             args = json.loads(args_json or "{}")
@@ -756,6 +935,7 @@ BUSINESS DATA:
             "update_job_status": self.update_job_status,
             "mark_job_paid": self.mark_job_paid,
             "get_owner_pay_summary": self.get_owner_pay_summary,
+            "email_appointment_update": self.email_appointment_update,
             "send_customer_email": self.send_customer_email,
         }
 
@@ -787,6 +967,7 @@ BUSINESS DATA:
             "list_marketing_spend": {"channel": "", "limit": 20},
             "mark_job_paid": {"stripe_transaction_id": "", "confirmed": False},
             "get_owner_pay_summary": {"period_days": 7},
+            "email_appointment_update": {"confirmed": False},
             "send_customer_email": {"to_name": "", "confirmed": False},
         }
         merged = {**defaults.get(action, {}), **args}
