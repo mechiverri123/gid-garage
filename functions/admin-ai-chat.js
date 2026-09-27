@@ -193,6 +193,7 @@ const PRESENTABLE_TOOLS = new Set([
   'search_customers', 'list_jobs', 'list_leads', 'list_calls',
   'list_marketing_spend', 'get_owner_pay_summary', 'get_business_summary',
   'pricing_history', 'get_tax_rate', 'analyze_lead',
+  'get_owner_briefing', 'list_reminders', 'list_lead_followups',
 ]);
 
 function json(body, status = 200) {
@@ -219,6 +220,13 @@ LEAD INTELLIGENCE:
 - When discussing a stored lead, use analyze_lead before drawing conclusions. Never invent missing vehicle details.
 - Phrases like whenever/anytime/ASAP mean flexible scheduling or earliest available; they do not mean an appointment is booked.
 - Do not claim a pasted lead is in the system, just came through, or will be contacted unless a tool actually confirms or performs that action.
+
+OWNER ASSISTANT BEHAVIOR:
+- For broad prompts like "brief me", "what's going on today", "what needs my attention", or "what does tomorrow look like", use get_owner_briefing rather than making Michael ask several separate questions.
+- Reminders are private owner tasks, not customer appointments. create_reminder may create them without confirmation. Never convert flexible customer scheduling language into a booking.
+- For lead follow-up questions, use list_lead_followups. A lead needing attention does not mean the customer was contacted.
+- When Michael reports that he called/texted/spoke with a lead, use log_lead_contact so last_contacted_at and notes stay accurate. Only set a future follow-up when he asks for one or clearly states one.
+- Times for reminders/follow-ups are Flagstaff/Phoenix local time (America/Phoenix, UTC-07:00).
 
 Today's date context is provided in each request — use it for "today", "this week", "next Tuesday" type questions.`;
 
@@ -259,6 +267,82 @@ const TOOLS = [
         status: { type: 'string', description: 'new, contacted, quoted, booked, lost, or no_response' },
       },
       required: ['lead_id', 'status'],
+    },
+  },
+  {
+    name: 'get_owner_briefing',
+    description: "Get a compact owner briefing for today: today's jobs, tomorrow's jobs, reminders due/overdue, leads needing follow-up, unpaid invoices, and a 7-day collected-revenue snapshot. Use for 'brief me', 'what's going on today', 'what needs attention', and similar broad owner questions.",
+    input_schema: { type: 'object', properties: {}, required: [] },
+  },
+  {
+    name: 'create_reminder',
+    description: "Create a private owner reminder/task. due_at_local must be Flagstaff/Phoenix local time in YYYY-MM-DDTHH:mm format. This is not a customer appointment and does not contact anyone.",
+    input_schema: {
+      type: 'object',
+      properties: {
+        title: { type: 'string' },
+        due_at_local: { type: 'string', description: 'America/Phoenix local time, YYYY-MM-DDTHH:mm' },
+        notes: { type: 'string' },
+        related_lead_id: { type: 'string' },
+      },
+      required: ['title', 'due_at_local'],
+    },
+  },
+  {
+    name: 'list_reminders',
+    description: "List owner reminders. scope can be today, overdue, upcoming, open, or done. Defaults to open.",
+    input_schema: {
+      type: 'object',
+      properties: {
+        scope: { type: 'string', description: 'today, overdue, upcoming, open, or done' },
+        limit: { type: 'number' },
+      },
+    },
+  },
+  {
+    name: 'complete_reminder',
+    description: "Mark an owner reminder complete. Get its id from list_reminders first if needed.",
+    input_schema: {
+      type: 'object',
+      properties: { reminder_id: { type: 'string' } },
+      required: ['reminder_id'],
+    },
+  },
+  {
+    name: 'list_lead_followups',
+    description: "List leads that need owner attention. scope can be needs_attention, overdue, due_today, uncontacted, or upcoming. Defaults to needs_attention. This reads the real leads table and does not imply contact happened.",
+    input_schema: {
+      type: 'object',
+      properties: {
+        scope: { type: 'string', description: 'needs_attention, overdue, due_today, uncontacted, or upcoming' },
+        limit: { type: 'number' },
+      },
+    },
+  },
+  {
+    name: 'set_lead_followup',
+    description: "Set or change a lead's follow-up time. follow_up_at_local is Flagstaff/Phoenix local time in YYYY-MM-DDTHH:mm. Does not mark the lead contacted.",
+    input_schema: {
+      type: 'object',
+      properties: {
+        lead_id: { type: 'string' },
+        follow_up_at_local: { type: 'string', description: 'America/Phoenix local time, YYYY-MM-DDTHH:mm' },
+      },
+      required: ['lead_id', 'follow_up_at_local'],
+    },
+  },
+  {
+    name: 'log_lead_contact',
+    description: "Record that Michael actually contacted/spoke with a lead. Updates last_contacted_at, can append notes, optionally change status, and optionally set the next follow-up. Use only when Michael says contact really happened.",
+    input_schema: {
+      type: 'object',
+      properties: {
+        lead_id: { type: 'string' },
+        notes: { type: 'string' },
+        status: { type: 'string', description: 'Optional: new, contacted, quoted, booked, lost, or no_response' },
+        follow_up_at_local: { type: 'string', description: 'Optional America/Phoenix local time, YYYY-MM-DDTHH:mm' },
+      },
+      required: ['lead_id'],
     },
   },
   {
@@ -503,6 +587,42 @@ export async function onRequestPost({ request, env }) {
 
   function money(n) { return n == null ? 'unknown' : `$${Number(n).toFixed(2)}`; }
 
+  function phoenixParts(date = new Date()) {
+    const parts = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'America/Phoenix', year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23',
+    }).formatToParts(date);
+    return Object.fromEntries(parts.map(p => [p.type, p.value]));
+  }
+
+  function phoenixDateString(date = new Date()) {
+    const p = phoenixParts(date);
+    return `${p.year}-${p.month}-${p.day}`;
+  }
+
+  function addPhoenixDays(yyyyMmDd, days) {
+    const [y, m, d] = yyyyMmDd.split('-').map(Number);
+    const dt = new Date(Date.UTC(y, m - 1, d + days, 12, 0, 0));
+    return dt.toISOString().slice(0, 10);
+  }
+
+  function phoenixLocalToIso(value) {
+    const raw = String(value || '').trim();
+    if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(raw)) {
+      throw new Error('Time must be YYYY-MM-DDTHH:mm in Flagstaff/Phoenix local time.');
+    }
+    const dt = new Date(`${raw}:00-07:00`);
+    if (Number.isNaN(dt.getTime())) throw new Error('Invalid local date/time.');
+    return dt.toISOString();
+  }
+
+  function localDayBoundsIso(yyyyMmDd) {
+    return {
+      start: new Date(`${yyyyMmDd}T00:00:00-07:00`).toISOString(),
+      end: new Date(`${addPhoenixDays(yyyyMmDd, 1)}T00:00:00-07:00`).toISOString(),
+    };
+  }
+
   async function runTool(name, input) {
     switch (name) {
       case 'get_business_summary': {
@@ -579,6 +699,145 @@ export async function onRequestPost({ request, env }) {
       case 'update_lead_status': {
         await sbPatch('leads', `id=eq.${encodeURIComponent(input.lead_id)}`, { status: input.status, last_contacted_at: new Date().toISOString() });
         return { ok: true };
+      }
+
+      case 'get_owner_briefing': {
+        const now = new Date();
+        const today = phoenixDateString(now);
+        const tomorrow = addPhoenixDays(today, 1);
+        const sevenDaysAgoIso = new Date(now.getTime() - 7 * 86400000).toISOString();
+
+        const [jobs, leads, reminders, paidJobs] = await Promise.all([
+          sbGet('bookings', { select: 'id,fname,lname,vehicle,service,date,time,job_status,status,estimate_amount,invoice_amount,amount_paid,paid_at', order: 'date.asc', limit: '100' }).catch(() => []),
+          sbGet('leads', { select: 'id,created_at,fname,lname,phone,email,vehicle,requested_service,status,follow_up_at,last_contacted_at,notes', order: 'created_at.desc', limit: '100' }).catch(() => []),
+          sbGet('jarvis_reminders', { select: 'id,title,notes,due_at,status,completed_at,related_lead_id', status: 'eq.open', order: 'due_at.asc', limit: '100' }).catch(() => []),
+          sbGet('bookings', { select: 'id,amount_paid,paid_at', paid_at: `gte.${sevenDaysAgoIso}`, limit: '200' }).catch(() => []),
+        ]);
+
+        const activeJob = j => String(j.status || '').toLowerCase() !== 'cancelled';
+        const todaysJobs = jobs.filter(j => j.date === today && activeJob(j));
+        const tomorrowsJobs = jobs.filter(j => j.date === tomorrow && activeJob(j));
+        const nowMs = now.getTime();
+        const todayBounds = localDayBoundsIso(today);
+        const reminderAttention = reminders.filter(r => new Date(r.due_at).getTime() < new Date(todayBounds.end).getTime());
+        const openLeads = leads.filter(l => !['booked','lost'].includes(String(l.status || '').toLowerCase()));
+        const leadAttention = openLeads.filter(l => {
+          const follow = l.follow_up_at ? new Date(l.follow_up_at).getTime() : null;
+          const created = new Date(l.created_at).getTime();
+          const staleUncontacted = !l.last_contacted_at && Number.isFinite(created) && nowMs - created > 86400000;
+          return (follow != null && follow <= nowMs) || staleUncontacted;
+        });
+        const unpaid = jobs.filter(j => String(j.job_status || '').toUpperCase() === 'INVOICED' && !j.paid_at && Number(j.invoice_amount || 0) > Number(j.amount_paid || 0));
+        const collected7d = paidJobs.reduce((sum, j) => sum + Number(j.amount_paid || 0), 0);
+
+        const slimJob = j => ({ id: j.id, customer: `${j.fname || ''} ${j.lname || ''}`.trim(), vehicle: j.vehicle, service: j.service, date: j.date, time: j.time, status: j.job_status });
+        const slimLead = l => ({ id: l.id, customer: `${l.fname || ''} ${l.lname || ''}`.trim(), phone: l.phone, vehicle: l.vehicle, service: l.requested_service, status: l.status, follow_up_at: l.follow_up_at, last_contacted_at: l.last_contacted_at });
+
+        return {
+          date: today,
+          todayJobs: todaysJobs.map(slimJob),
+          tomorrowJobs: tomorrowsJobs.map(slimJob),
+          remindersNeedingAttention: reminderAttention.slice(0, 10),
+          leadsNeedingAttention: leadAttention.slice(0, 10).map(slimLead),
+          unpaidInvoices: unpaid.slice(0, 10).map(j => ({ id: j.id, customer: `${j.fname || ''} ${j.lname || ''}`.trim(), owed: Number(j.invoice_amount || 0) - Number(j.amount_paid || 0) })),
+          collectedLast7Days: money(collected7d),
+          counts: { todayJobs: todaysJobs.length, tomorrowJobs: tomorrowsJobs.length, remindersNeedingAttention: reminderAttention.length, leadsNeedingAttention: leadAttention.length, unpaidInvoices: unpaid.length },
+        };
+      }
+
+      case 'create_reminder': {
+        const title = String(input.title || '').trim();
+        if (!title) throw new Error('Reminder title is required.');
+        const dueAt = phoenixLocalToIso(input.due_at_local);
+        return await sbInsert('jarvis_reminders', {
+          title: title.slice(0, 240),
+          notes: input.notes ? String(input.notes).slice(0, 4000) : null,
+          due_at: dueAt,
+          status: 'open',
+          related_lead_id: input.related_lead_id ? String(input.related_lead_id) : null,
+        });
+      }
+
+      case 'list_reminders': {
+        const scope = String(input.scope || 'open').toLowerCase();
+        const limit = Math.min(Math.max(Number(input.limit || 20), 1), 100);
+        const today = phoenixDateString();
+        const bounds = localDayBoundsIso(today);
+        const nowIso = new Date().toISOString();
+        const params = { select: 'id,title,notes,due_at,status,completed_at,related_lead_id,created_at', order: 'due_at.asc', limit: String(limit) };
+        if (scope === 'done') {
+          params.status = 'eq.done';
+          params.order = 'completed_at.desc';
+        } else {
+          params.status = 'eq.open';
+        }
+        let rows = await sbGet('jarvis_reminders', params);
+        if (scope === 'today') rows = rows.filter(r => r.due_at >= bounds.start && r.due_at < bounds.end);
+        else if (scope === 'overdue') rows = rows.filter(r => r.due_at < nowIso);
+        else if (scope === 'upcoming') rows = rows.filter(r => r.due_at >= nowIso);
+        return rows.slice(0, limit);
+      }
+
+      case 'complete_reminder': {
+        const rows = await sbGet('jarvis_reminders', { select: 'id,title,status', id: `eq.${input.reminder_id}`, limit: '1' });
+        const reminder = rows[0];
+        if (!reminder) throw new Error('No reminder found with that id.');
+        if (reminder.status === 'done') return { ok: true, already_done: true, reminder };
+        await sbPatch('jarvis_reminders', `id=eq.${encodeURIComponent(input.reminder_id)}`, { status: 'done', completed_at: new Date().toISOString(), updated_at: new Date().toISOString() });
+        return { ok: true, completed: reminder.title };
+      }
+
+      case 'list_lead_followups': {
+        const scope = String(input.scope || 'needs_attention').toLowerCase();
+        const limit = Math.min(Math.max(Number(input.limit || 20), 1), 100);
+        const rows = await sbGet('leads', { select: 'id,created_at,fname,lname,phone,email,vehicle,requested_service,status,follow_up_at,last_contacted_at,notes', order: 'created_at.desc', limit: '200' });
+        const now = new Date();
+        const nowMs = now.getTime();
+        const today = phoenixDateString(now);
+        const bounds = localDayBoundsIso(today);
+        const active = rows.filter(l => !['booked','lost'].includes(String(l.status || '').toLowerCase()));
+        const filtered = active.filter(l => {
+          const followMs = l.follow_up_at ? new Date(l.follow_up_at).getTime() : null;
+          const createdMs = new Date(l.created_at).getTime();
+          const uncontacted = !l.last_contacted_at;
+          const staleUncontacted = uncontacted && Number.isFinite(createdMs) && nowMs - createdMs > 86400000;
+          if (scope === 'overdue') return followMs != null && followMs < nowMs;
+          if (scope === 'due_today') return l.follow_up_at && l.follow_up_at >= bounds.start && l.follow_up_at < bounds.end;
+          if (scope === 'uncontacted') return uncontacted;
+          if (scope === 'upcoming') return followMs != null && followMs >= nowMs;
+          return (followMs != null && followMs <= nowMs) || staleUncontacted;
+        });
+        return filtered
+          .sort((a, b) => {
+            const av = a.follow_up_at ? new Date(a.follow_up_at).getTime() : new Date(a.created_at).getTime();
+            const bv = b.follow_up_at ? new Date(b.follow_up_at).getTime() : new Date(b.created_at).getTime();
+            return av - bv;
+          })
+          .slice(0, limit);
+      }
+
+      case 'set_lead_followup': {
+        const dueAt = phoenixLocalToIso(input.follow_up_at_local);
+        const rows = await sbGet('leads', { select: 'id,fname,lname,status', id: `eq.${input.lead_id}`, limit: '1' });
+        if (!rows[0]) throw new Error('No lead found with that id.');
+        await sbPatch('leads', `id=eq.${encodeURIComponent(input.lead_id)}`, { follow_up_at: dueAt, updated_at: new Date().toISOString() });
+        return { ok: true, lead: `${rows[0].fname || ''} ${rows[0].lname || ''}`.trim(), follow_up_at: dueAt };
+      }
+
+      case 'log_lead_contact': {
+        const rows = await sbGet('leads', { select: 'id,fname,lname,status,notes', id: `eq.${input.lead_id}`, limit: '1' });
+        const lead = rows[0];
+        if (!lead) throw new Error('No lead found with that id.');
+        const fields = { last_contacted_at: new Date().toISOString(), updated_at: new Date().toISOString() };
+        if (input.status) fields.status = String(input.status).toLowerCase();
+        if (input.follow_up_at_local) fields.follow_up_at = phoenixLocalToIso(input.follow_up_at_local);
+        if (input.notes) {
+          const stamp = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Phoenix', year: 'numeric', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }).format(new Date());
+          const appended = `[${stamp}] ${String(input.notes).trim()}`;
+          fields.notes = lead.notes ? `${lead.notes}\n${appended}`.slice(0, 12000) : appended.slice(0, 12000);
+        }
+        await sbPatch('leads', `id=eq.${encodeURIComponent(input.lead_id)}`, fields);
+        return { ok: true, lead: `${lead.fname || ''} ${lead.lname || ''}`.trim(), status: fields.status || lead.status, follow_up_at: fields.follow_up_at || null };
       }
 
       case 'list_jobs': {
