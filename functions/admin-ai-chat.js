@@ -29,13 +29,170 @@ const CLAUDE_MODEL = 'claude-haiku-4-5-20251001';
 const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
 const MAX_TOOL_TURNS = 6;
 
+
+// ---- Lead intelligence ----------------------------------------------------
+// Lead forms are noisy human input. These helpers deliberately separate what
+// the customer typed from what can actually be inferred safely.
+function normalizeLeadText(value) {
+  return String(value ?? '').replace(/\r?\n/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+function looksLikeVehicle(value) {
+  const s = normalizeLeadText(value);
+  if (!s) return false;
+  if (/\b(?:19|20)\d{2}\b/.test(s)) return true;
+  const low = s.toLowerCase();
+  return [
+    'toyota','honda','ford','chevy','chevrolet','gmc','nissan','subaru','jeep',
+    'dodge','ram','kia','hyundai','mazda','lexus','acura','bmw','mercedes','audi',
+    'volkswagen','vw','tesla','buick','cadillac','chrysler','lincoln','mitsubishi'
+  ].some(make => low.includes(make));
+}
+
+function classifyLeadService(...values) {
+  const text = values.map(normalizeLeadText).join(' ').toLowerCase();
+  const groups = [
+    ['brakes', ['brake change','brake job','brakes','brake','pads','rotors']],
+    ['oil', ['oil change','oil service']],
+    ['diag', ['diagnostics','diagnostic','check engine','check-engine','diagnose']],
+    ['suspension', ['suspension','struts','strut','shocks','shock','control arm']],
+    ['audio', ['car audio','stereo','speakers','speaker','radio']],
+    ['full', ['full service','maintenance','tune up','tune-up']],
+  ];
+  for (const [canonical, phrases] of groups) {
+    const hit = phrases.find(p => text.includes(p));
+    if (hit) return { service: canonical, evidence: hit };
+  }
+  return { service: null, evidence: null };
+}
+
+function issueQuality(value) {
+  const raw = normalizeLeadText(value);
+  const low = raw.toLowerCase();
+  const vague = new Set([
+    '', 'nothing', 'none', 'n/a', 'na', 'not sure', 'unsure',
+    'nothing just going bad', 'just going bad', 'just needs work', 'needs work',
+    'idk', "i don't know", 'dont know'
+  ]);
+  if (vague.has(low) || low.length < 5) return { usable: false, text: raw, reason: 'vague_or_missing' };
+  return { usable: true, text: raw, reason: null };
+}
+
+function scheduleIntent(value) {
+  const raw = normalizeLeadText(value);
+  const low = raw.toLowerCase();
+  const flexible = ['whenever','anytime','any time','asap','a.s.a.p','soonest','earliest','first available','next available'];
+  if (flexible.some(x => low.includes(x))) {
+    return { kind: 'earliest_available', customer_text: raw, booked: false };
+  }
+  if (!raw) return { kind: 'missing', customer_text: '', booked: false };
+  return { kind: 'customer_preference', customer_text: raw, booked: false };
+}
+
+function parseRawLeadForm(rawInput) {
+  const raw = normalizeLeadText(rawInput);
+  const labels = [
+    ['email', /\bEmail\s*:\s*/i],
+    ['full_name', /\bFull\s*name\s*:\s*/i],
+    ['issue', /\bWhat\s+issues\s+are\s+you\s+experiencing\s+with\s+your\s+vehicle\?\s*:\s*/i],
+    ['phone', /\bPhone\s*number\s*:\s*/i],
+    ['vehicle', /\bYear\s*\/\s*Make\s*\/\s*Model\s*\/\s*Engine\s*Size\?\s*:\s*/i],
+    ['schedule', /\bWhat\s+Date\s*\/\s*Time\s+works\s+best\s+for\s+you\?\s*:\s*/i],
+  ];
+  const hits = [];
+  for (const [key, pattern] of labels) {
+    const m = pattern.exec(raw);
+    if (m) hits.push({ key, start: m.index, valueStart: m.index + m[0].length });
+  }
+  hits.sort((a,b) => a.start - b.start);
+  const fields = { email:'', full_name:'', issue:'', phone:'', vehicle:'', schedule:'' };
+  for (let i = 0; i < hits.length; i++) {
+    const h = hits[i];
+    const end = hits[i+1]?.start ?? raw.length;
+    fields[h.key] = raw.slice(h.valueStart, end).trim().replace(/^[,;.-]+|[,;.-]+$/g, '').trim();
+  }
+  return fields;
+}
+
+function flattenLeadPayload(value, out = []) {
+  if (Array.isArray(value)) for (const item of value) flattenLeadPayload(item, out);
+  else if (value && typeof value === 'object') for (const item of Object.values(value)) flattenLeadPayload(item, out);
+  else if (value != null) {
+    const s = normalizeLeadText(value);
+    if (s) out.push(s);
+  }
+  return out;
+}
+
+function analyzeLeadFields({ fullName='', email='', phone='', vehicle='', issue='', schedule='', requestedService='', rawPayload=null }) {
+  const flattened = flattenLeadPayload(rawPayload);
+  const svc = classifyLeadService(requestedService, vehicle, issue, ...flattened);
+  const vehicleValid = looksLikeVehicle(vehicle);
+  const vehicleFieldService = classifyLeadService(vehicle).service;
+  const misplacedService = Boolean(vehicle && vehicleFieldService && !vehicleValid);
+  let recoveredVehicle = null;
+  if (!vehicleValid) recoveredVehicle = flattened.find(looksLikeVehicle) || null;
+  const issueInfo = issueQuality(issue);
+  const sched = scheduleIntent(schedule);
+
+  const parts = [];
+  const who = normalizeLeadText(fullName) || 'This lead';
+  if (svc.service) parts.push(`${who} appears to want ${svc.service} service.`);
+  else parts.push(`${who} did not provide a clear service request.`);
+
+  if (!(vehicleValid || recoveredVehicle)) {
+    if (misplacedService) parts.push(`The vehicle field contains "${normalizeLeadText(vehicle)}", which looks like a service request rather than year/make/model/engine, so the vehicle information is missing.`);
+    else parts.push('Vehicle information is missing.');
+  }
+  if (!issueInfo.usable) parts.push(`The issue answer "${issueInfo.text || 'blank'}" is too vague to treat as a usable symptom.`);
+  if (sched.kind === 'earliest_available') parts.push(`The scheduling answer "${sched.customer_text}" means the customer is flexible and wants the earliest real opening; it is not a booked appointment.`);
+  else if (sched.kind === 'customer_preference') parts.push(`The customer gave a scheduling preference of "${sched.customer_text}", but no appointment is booked yet.`);
+
+  return {
+    owner_analysis: parts.join(' '),
+    customer: { name: who === 'This lead' ? null : who, email: email || null, phone: phone || null },
+    interpreted: {
+      service: svc.service,
+      vehicle: vehicleValid ? normalizeLeadText(vehicle) : recoveredVehicle,
+      issue: issueInfo,
+      schedule: sched,
+    },
+    flags: [
+      ...(misplacedService ? ['service_answer_found_in_vehicle_field'] : []),
+      ...(!issueInfo.usable ? ['issue_answer_is_vague'] : []),
+      ...(sched.kind === 'earliest_available' ? ['customer_is_schedule_flexible'] : []),
+    ],
+    missing_or_needs_clarification: [
+      ...(!(vehicleValid || recoveredVehicle) ? ['vehicle'] : []),
+      ...(!svc.service ? ['service'] : []),
+      ...(!issueInfo.usable ? ['usable_issue_description'] : []),
+    ],
+  };
+}
+
+function isPastedLeadForm(text) {
+  const low = String(text || '').toLowerCase();
+  const markers = ['email:', 'full name:', 'phone number:', 'year/make/model/engine size?:', 'what date/time works best for you?:'];
+  return markers.filter(m => low.includes(m)).length >= 3;
+}
+
+function ndjsonFinal(text, dataPayload = null) {
+  const encoder = new TextEncoder();
+  let body = '';
+  if (dataPayload) body += JSON.stringify({ type: 'data', tool: 'analyze_lead', payload: dataPayload }) + '\n';
+  body += JSON.stringify({ type: 'final', text }) + '\n';
+  return new Response(encoder.encode(body), {
+    headers: { 'Content-Type': 'application/x-ndjson; charset=utf-8', 'Cache-Control': 'no-cache' },
+  });
+}
+
 // Tools whose results are worth showing as a real card in the UI, not just
 // summarized in Claude's prose. Anything not in this set (writes, and
 // low-value lookups) only gets the text summary.
 const PRESENTABLE_TOOLS = new Set([
   'search_customers', 'list_jobs', 'list_leads', 'list_calls',
   'list_marketing_spend', 'get_owner_pay_summary', 'get_business_summary',
-  'pricing_history', 'get_tax_rate',
+  'pricing_history', 'get_tax_rate', 'analyze_lead',
 ]);
 
 function json(body, status = 200) {
@@ -57,6 +214,12 @@ CONFIRMING BEFORE ACTING — mark_job_paid and send_customer_email are real fina
 - Only call the tool again WITH confirmed=true after they clearly say yes in their next message. If they correct a detail instead, use the corrected value.
 - Every other write tool (reschedule, status changes other than paid, lead status, logging a call, adding spend) is low-risk and easily fixed if wrong — just do it and confirm what you did afterward in one short sentence, no need to ask first.
 
+LEAD INTELLIGENCE:
+- Lead-form fields are noisy human input, not trusted schema. A customer may put a service in the vehicle field or give vague/non-diagnostic text in the issue field.
+- When discussing a stored lead, use analyze_lead before drawing conclusions. Never invent missing vehicle details.
+- Phrases like whenever/anytime/ASAP mean flexible scheduling or earliest available; they do not mean an appointment is booked.
+- Do not claim a pasted lead is in the system, just came through, or will be contacted unless a tool actually confirms or performs that action.
+
 Today's date context is provided in each request — use it for "today", "this week", "next Tuesday" type questions.`;
 
 const TOOLS = [
@@ -75,6 +238,15 @@ const TOOLS = [
         source: { type: 'string' },
         limit: { type: 'number' },
       },
+    },
+  },
+  {
+    name: 'analyze_lead',
+    description: "Deterministically analyze one stored lead by id. Use this after list_leads when Michael asks what a lead actually means, especially for Meta/Facebook form leads with answers in the wrong fields or vague answers.",
+    input_schema: {
+      type: 'object',
+      properties: { lead_id: { type: 'string' } },
+      required: ['lead_id'],
     },
   },
   {
@@ -283,6 +455,24 @@ export async function onRequestPost({ request, env }) {
   const incomingMessages = Array.isArray(payload.messages) ? payload.messages.slice(-10) : [];
   if (!incomingMessages.length) return json({ error: 'Missing messages' }, 400);
 
+  // Pasted Meta/Facebook lead forms bypass Claude entirely. This prevents the
+  // model from inventing database status, vehicle details, or next actions.
+  const latestUserMessage = [...incomingMessages].reverse().find(m => m?.role === 'user');
+  const latestUserText = typeof latestUserMessage?.content === 'string' ? latestUserMessage.content : '';
+  if (isPastedLeadForm(latestUserText)) {
+    const fields = parseRawLeadForm(latestUserText);
+    const analysis = analyzeLeadFields({
+      fullName: fields.full_name,
+      email: fields.email,
+      phone: fields.phone,
+      vehicle: fields.vehicle,
+      issue: fields.issue,
+      schedule: fields.schedule,
+      rawPayload: fields,
+    });
+    return ndjsonFinal(analysis.owner_analysis, analysis);
+  }
+
   // ---- Tool implementations (direct Supabase REST, same pattern as admin-api-data.js) ----
   async function sbGet(table, params) {
     const qs = new URLSearchParams(params).toString();
@@ -351,6 +541,33 @@ export async function onRequestPost({ request, env }) {
         if (input.status) params.status = `eq.${input.status}`;
         if (input.source) params.source = `eq.${input.source}`;
         return await sbGet('leads', params);
+      }
+
+      case 'analyze_lead': {
+        const rows = await sbGet('leads', { select: '*', id: `eq.${input.lead_id}`, limit: '1' });
+        const lead = rows[0];
+        if (!lead) throw new Error('No lead found with that id.');
+
+        const raw = lead.raw_payload || {};
+        const rawFields = raw.field_data && Array.isArray(raw.field_data)
+          ? Object.fromEntries(raw.field_data.map(f => [String(f.name || '').toLowerCase(), Array.isArray(f.values) ? f.values[0] : f.values]))
+          : raw;
+        const values = flattenLeadPayload(rawFields);
+
+        const fullName = `${lead.fname || ''} ${lead.lname || ''}`.trim();
+        const issue = lead.notes || values.find(v => /nothing|noise|grind|vibrat|leak|light|problem|issue|going bad/i.test(v)) || '';
+        const schedule = values.find(v => /whenever|any\s*time|asap|soonest|earliest|available|\b(?:am|pm)\b/i.test(v)) || '';
+
+        return analyzeLeadFields({
+          fullName,
+          email: lead.email,
+          phone: lead.phone,
+          vehicle: lead.vehicle || '',
+          issue,
+          schedule,
+          requestedService: lead.requested_service || '',
+          rawPayload: raw,
+        });
       }
 
       case 'update_lead_status': {
