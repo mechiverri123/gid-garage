@@ -1,8 +1,8 @@
 // Cloudflare Pages Function — POST /jarvis-proactive
-// Scheduled/proactive delivery for GID Jarvis.
+// GID Jarvis proactive owner assistant.
 //
-// Expected caller: Supabase pg_cron + pg_net (see 02_schedule_proactive.sql).
-// The caller must send X-GID-Proactive-Secret matching TELEGRAM_WEBHOOK_SECRET.
+// Called once per minute by the existing Supabase pg_cron job.
+// Caller must send X-GID-Proactive-Secret matching TELEGRAM_WEBHOOK_SECRET.
 //
 // Existing Cloudflare env vars reused:
 //   TELEGRAM_BOT_TOKEN
@@ -10,20 +10,18 @@
 //   TELEGRAM_OWNER_CHAT_ID
 //   SUPABASE_URL (or VITE_SUPABASE_URL)
 //   SUPABASE_SERVICE_KEY
-//   ANTHROPIC_API_KEY
 //
 // Optional env vars:
-//   JARVIS_MORNING_BRIEF_HOUR=8          (America/Phoenix, default 8)
-//   JARVIS_EVENING_PREVIEW_HOUR=19       (America/Phoenix; unset = disabled)
+//   JARVIS_MORNING_BRIEF_HOUR=8       (America/Phoenix, default 8)
+//   JARVIS_EVENING_PREVIEW_HOUR=19    (America/Phoenix, default 19)
 //
 // Behavior:
-// - Sends due owner reminders once, then sets jarvis_reminders.notified_at.
-// - Sends one morning owner briefing each day.
-// - Sends lead-attention alerts only when the attention set changes, and only
-//   between 08:00 and 20:59 Phoenix time.
-// - Optional evening tomorrow preview, once daily, if configured.
-
-import { onRequestPost as runAdminAI } from './admin-ai-chat.js';
+// - Due reminders are pushed exactly once.
+// - Morning brief is sent once/day only when there is something useful to say.
+// - Lead alerts are sent only when the set of leads needing attention changes.
+// - Unpaid-invoice alerts are sent only when the outstanding set changes.
+// - Evening preview is sent once/day only when tomorrow/action items exist.
+// - Proactive business alerts are quiet overnight.
 
 const TZ = 'America/Phoenix';
 const HISTORY_TEXT_LIMIT = 12000;
@@ -37,6 +35,15 @@ function json(body, status = 200) {
 
 function normalizeId(value) {
   return String(value ?? '').trim();
+}
+
+function money(value) {
+  return Number(value || 0).toLocaleString('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
 }
 
 function supabaseConfig(env) {
@@ -65,10 +72,43 @@ function phoenixDateString(date = new Date()) {
   return `${p.year}-${p.month}-${p.day}`;
 }
 
-function configuredHour(value, fallback = null) {
+function addDate(dateString, days) {
+  const [y, m, d] = String(dateString).split('-').map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d + days));
+  return dt.toISOString().slice(0, 10);
+}
+
+function localDayEndIso(dateString) {
+  // Arizona/Phoenix stays UTC-07:00 year-round.
+  return new Date(`${dateString}T23:59:59.999-07:00`).toISOString();
+}
+
+function configuredHour(value, fallback) {
   if (value == null || String(value).trim() === '') return fallback;
   const n = Number(value);
   return Number.isInteger(n) && n >= 0 && n <= 23 ? n : fallback;
+}
+
+function cleanTime(value) {
+  if (!value) return '';
+  const raw = String(value).trim();
+  const match = raw.match(/^(\d{1,2}):(\d{2})/);
+  if (!match) return raw;
+  let hour = Number(match[1]);
+  const minute = match[2];
+  const suffix = hour >= 12 ? 'PM' : 'AM';
+  hour = hour % 12 || 12;
+  return `${hour}:${minute} ${suffix}`;
+}
+
+function personName(row) {
+  return `${row?.fname || ''} ${row?.lname || ''}`.trim() || row?.email || row?.phone || 'Unnamed';
+}
+
+function jobLine(job) {
+  const time = cleanTime(job.time);
+  const pieces = [time, personName(job), job.vehicle, job.service].filter(Boolean);
+  return `• ${pieces.join(' — ')}`;
 }
 
 async function telegramRequest(token, method, body) {
@@ -87,13 +127,10 @@ async function telegramRequest(token, method, body) {
 async function sendTelegramText(token, chatId, text) {
   const clean = String(text || '').trim();
   if (!clean) return;
-  // Keep proactive messages comfortably below Telegram's 4096-char limit.
-  const chunks = [];
-  for (let i = 0; i < clean.length; i += 3900) chunks.push(clean.slice(i, i + 3900));
-  for (const chunk of chunks) {
+  for (let i = 0; i < clean.length; i += 3900) {
     await telegramRequest(token, 'sendMessage', {
       chat_id: chatId,
-      text: chunk,
+      text: clean.slice(i, i + 3900),
       disable_web_page_preview: true,
     });
   }
@@ -171,41 +208,6 @@ async function saveAssistantHistory(env, chatId, content) {
   }).catch(() => {});
 }
 
-async function extractFinalText(response) {
-  const raw = await response.text();
-  let finalText = '';
-  let errorText = '';
-  for (const line of raw.split(/\r?\n/)) {
-    if (!line.trim()) continue;
-    try {
-      const event = JSON.parse(line);
-      if (event.type === 'final' && event.text) finalText = String(event.text);
-      if (event.type === 'error' && event.message) errorText = String(event.message);
-    } catch {
-      // admin-ai-chat normally emits NDJSON; ignore malformed lines.
-    }
-  }
-  if (!response.ok && !errorText) errorText = `Jarvis request failed (${response.status}).`;
-  if (errorText) throw new Error(errorText);
-  return finalText.trim();
-}
-
-async function askJarvis(env, prompt) {
-  const internalRequest = new Request('https://internal.gidgarage/admin-ai-chat', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-GID-Internal-Jarvis': env.TELEGRAM_WEBHOOK_SECRET,
-    },
-    body: JSON.stringify({ messages: [{ role: 'user', content: prompt }] }),
-  });
-  return extractFinalText(await runAdminAI({ request: internalRequest, env }));
-}
-
-function leadName(lead) {
-  return `${lead.fname || ''} ${lead.lname || ''}`.trim() || lead.email || lead.phone || 'Unnamed lead';
-}
-
 function leadAttentionRows(rows, now) {
   const nowMs = now.getTime();
   return rows
@@ -230,15 +232,149 @@ function leadFingerprint(rows) {
     .join('||');
 }
 
+function unpaidFingerprint(rows) {
+  return rows
+    .map(j => `${j.id}|${Number(j.invoice_amount || 0) - Number(j.amount_paid || 0)}|${j.paid_at || ''}`)
+    .sort()
+    .join('||');
+}
+
+async function loadSnapshot(env, now) {
+  const today = phoenixDateString(now);
+  const tomorrow = addDate(today, 1);
+  const sevenDaysAgoIso = new Date(now.getTime() - 7 * 86400000).toISOString();
+
+  const [todayJobsRaw, tomorrowJobsRaw, leads, reminders, invoicedJobs, paidJobs] = await Promise.all([
+    sbGet(env, 'bookings', {
+      select: 'id,fname,lname,vehicle,service,date,time,job_status,status,estimate_amount,invoice_amount,amount_paid,paid_at',
+      date: `eq.${today}`,
+      order: 'time.asc',
+      limit: '40',
+    }),
+    sbGet(env, 'bookings', {
+      select: 'id,fname,lname,vehicle,service,date,time,job_status,status,estimate_amount,invoice_amount,amount_paid,paid_at',
+      date: `eq.${tomorrow}`,
+      order: 'time.asc',
+      limit: '40',
+    }),
+    sbGet(env, 'leads', {
+      select: 'id,created_at,fname,lname,phone,email,vehicle,requested_service,status,follow_up_at,last_contacted_at',
+      order: 'created_at.desc',
+      limit: '200',
+    }),
+    sbGet(env, 'jarvis_reminders', {
+      select: 'id,title,notes,due_at,status,notified_at',
+      status: 'eq.open',
+      order: 'due_at.asc',
+      limit: '100',
+    }),
+    sbGet(env, 'bookings', {
+      select: 'id,fname,lname,vehicle,service,job_status,invoice_amount,amount_paid,paid_at,date,time',
+      job_status: 'eq.INVOICED',
+      order: 'date.desc',
+      limit: '100',
+    }),
+    sbGet(env, 'bookings', {
+      select: 'id,amount_paid,paid_at',
+      paid_at: `gte.${sevenDaysAgoIso}`,
+      limit: '300',
+    }),
+  ]);
+
+  const activeJob = job => String(job.status || '').toLowerCase() !== 'cancelled';
+  const todayJobs = todayJobsRaw.filter(activeJob);
+  const tomorrowJobs = tomorrowJobsRaw.filter(activeJob);
+  const leadAttention = leadAttentionRows(leads, now);
+  const unpaid = invoicedJobs.filter(j => !j.paid_at && Number(j.invoice_amount || 0) > Number(j.amount_paid || 0));
+  const todayEnd = new Date(localDayEndIso(today)).getTime();
+  const tomorrowEnd = new Date(localDayEndIso(tomorrow)).getTime();
+  const remindersToday = reminders.filter(r => new Date(r.due_at).getTime() <= todayEnd);
+  const remindersByTomorrow = reminders.filter(r => new Date(r.due_at).getTime() <= tomorrowEnd);
+  const collected7d = paidJobs.reduce((sum, j) => sum + Number(j.amount_paid || 0), 0);
+  const unpaidTotal = unpaid.reduce((sum, j) => sum + Math.max(0, Number(j.invoice_amount || 0) - Number(j.amount_paid || 0)), 0);
+
+  return {
+    today,
+    tomorrow,
+    todayJobs,
+    tomorrowJobs,
+    leadAttention,
+    unpaid,
+    remindersToday,
+    remindersByTomorrow,
+    collected7d,
+    unpaidTotal,
+  };
+}
+
 function formatLeadAlert(rows) {
   if (rows.length === 1) {
     const l = rows[0];
     const reason = l.follow_up_at ? 'follow-up is due' : 'has not been contacted in over 24 hours';
-    return `Lead follow-up: ${leadName(l)} ${reason}.`;
+    const service = l.requested_service ? ` (${l.requested_service})` : '';
+    return `Lead follow-up: ${personName(l)}${service} — ${reason}.`;
   }
-  const shown = rows.slice(0, 5).map(l => `• ${leadName(l)}${l.requested_service ? ` — ${l.requested_service}` : ''}`);
+  const shown = rows.slice(0, 5).map(l => `• ${personName(l)}${l.requested_service ? ` — ${l.requested_service}` : ''}`);
   const extra = rows.length > 5 ? `\n+${rows.length - 5} more` : '';
-  return `You have ${rows.length} leads needing follow-up:\n${shown.join('\n')}${extra}`;
+  return `Lead follow-ups (${rows.length}):\n${shown.join('\n')}${extra}`;
+}
+
+function formatUnpaidAlert(rows) {
+  const total = rows.reduce((sum, j) => sum + Math.max(0, Number(j.invoice_amount || 0) - Number(j.amount_paid || 0)), 0);
+  if (rows.length === 1) {
+    const j = rows[0];
+    const owed = Math.max(0, Number(j.invoice_amount || 0) - Number(j.amount_paid || 0));
+    return `Payment outstanding: ${personName(j)} — ${money(owed)}.`;
+  }
+  const shown = rows.slice(0, 5).map(j => {
+    const owed = Math.max(0, Number(j.invoice_amount || 0) - Number(j.amount_paid || 0));
+    return `• ${personName(j)} — ${money(owed)}`;
+  });
+  const extra = rows.length > 5 ? `\n+${rows.length - 5} more` : '';
+  return `Outstanding invoices: ${rows.length} totaling ${money(total)}\n${shown.join('\n')}${extra}`;
+}
+
+function formatMorningBrief(snapshot) {
+  const lines = ['Morning brief'];
+
+  if (snapshot.todayJobs.length) {
+    lines.push('', `Today — ${snapshot.todayJobs.length} job${snapshot.todayJobs.length === 1 ? '' : 's'}`);
+    lines.push(...snapshot.todayJobs.slice(0, 6).map(jobLine));
+    if (snapshot.todayJobs.length > 6) lines.push(`+${snapshot.todayJobs.length - 6} more`);
+  }
+
+  const attention = [];
+  if (snapshot.leadAttention.length) attention.push(`${snapshot.leadAttention.length} lead follow-up${snapshot.leadAttention.length === 1 ? '' : 's'}`);
+  if (snapshot.remindersToday.length) attention.push(`${snapshot.remindersToday.length} reminder${snapshot.remindersToday.length === 1 ? '' : 's'} due/overdue`);
+  if (snapshot.unpaid.length) attention.push(`${snapshot.unpaid.length} unpaid invoice${snapshot.unpaid.length === 1 ? '' : 's'} (${money(snapshot.unpaidTotal)})`);
+  if (attention.length) lines.push('', `Needs attention — ${attention.join(' · ')}`);
+
+  if (snapshot.tomorrowJobs.length) {
+    lines.push('', `Tomorrow — ${snapshot.tomorrowJobs.length} job${snapshot.tomorrowJobs.length === 1 ? '' : 's'}`);
+    lines.push(...snapshot.tomorrowJobs.slice(0, 3).map(jobLine));
+    if (snapshot.tomorrowJobs.length > 3) lines.push(`+${snapshot.tomorrowJobs.length - 3} more`);
+  }
+
+  lines.push('', `Collected last 7 days — ${money(snapshot.collected7d)}`);
+  return lines.join('\n');
+}
+
+function formatEveningPreview(snapshot) {
+  const lines = ['Tomorrow preview'];
+
+  if (snapshot.tomorrowJobs.length) {
+    lines.push('', `${snapshot.tomorrowJobs.length} job${snapshot.tomorrowJobs.length === 1 ? '' : 's'} scheduled`);
+    lines.push(...snapshot.tomorrowJobs.slice(0, 8).map(jobLine));
+    if (snapshot.tomorrowJobs.length > 8) lines.push(`+${snapshot.tomorrowJobs.length - 8} more`);
+  }
+
+  const actionItems = [];
+  if (snapshot.leadAttention.length) actionItems.push(`${snapshot.leadAttention.length} lead follow-up${snapshot.leadAttention.length === 1 ? '' : 's'}`);
+  if (snapshot.remindersByTomorrow.length) actionItems.push(`${snapshot.remindersByTomorrow.length} open reminder${snapshot.remindersByTomorrow.length === 1 ? '' : 's'} due by tomorrow`);
+  if (snapshot.unpaid.length) actionItems.push(`${snapshot.unpaid.length} unpaid invoice${snapshot.unpaid.length === 1 ? '' : 's'}`);
+  if (actionItems.length) lines.push('', `Still open — ${actionItems.join(' · ')}`);
+
+  return lines.join('\n');
 }
 
 async function deliverDueReminders(env, botToken, chatId, now, actions) {
@@ -269,65 +405,54 @@ async function deliverDueReminders(env, botToken, chatId, now, actions) {
   actions.push(`reminders:${rows.length}`);
 }
 
-async function maybeMorningBrief(env, botToken, chatId, parts, actions) {
+async function maybeMorningBrief(env, botToken, chatId, parts, snapshot, actions) {
   const hour = Number(parts.hour);
   const minute = Number(parts.minute);
   const configured = configuredHour(env.JARVIS_MORNING_BRIEF_HOUR, 8);
   if (hour !== configured || minute > 29) return;
 
-  const date = `${parts.year}-${parts.month}-${parts.day}`;
-  const stateKey = `morning_brief:${date}`;
+  const stateKey = `morning_brief:${snapshot.today}`;
   if (await getState(env, stateKey)) return;
 
-  const text = await askJarvis(env,
-    'Give me my morning owner briefing for today. Use get_owner_briefing. Keep it to the important business facts and action items only. Do not add generic encouragement or filler.'
-  );
-  if (!text) return;
+  // A completely empty day does not deserve a notification just to say it is empty.
+  const meaningful = snapshot.todayJobs.length || snapshot.tomorrowJobs.length || snapshot.leadAttention.length || snapshot.remindersToday.length || snapshot.unpaid.length;
+  if (!meaningful) {
+    await setState(env, stateKey, { skipped: true, reason: 'nothing_meaningful', checked_at: new Date().toISOString() });
+    actions.push('morning_brief:quiet');
+    return;
+  }
+
+  const text = formatMorningBrief(snapshot);
   await sendTelegramText(botToken, chatId, text);
   await saveAssistantHistory(env, chatId, text);
   await setState(env, stateKey, { sent_at: new Date().toISOString() });
+
+  // The morning brief already surfaced these two attention sets. Seed their
+  // fingerprints so the same minute does not immediately send duplicate alerts.
+  await setState(env, 'lead_attention_fingerprint', {
+    fingerprint: leadFingerprint(snapshot.leadAttention),
+    count: snapshot.leadAttention.length,
+    synced_by: 'morning_brief',
+  });
+  await setState(env, 'unpaid_attention_fingerprint', {
+    fingerprint: unpaidFingerprint(snapshot.unpaid),
+    count: snapshot.unpaid.length,
+    synced_by: 'morning_brief',
+  });
+
   actions.push('morning_brief');
 }
 
-async function maybeEveningPreview(env, botToken, chatId, parts, actions) {
-  const configured = configuredHour(env.JARVIS_EVENING_PREVIEW_HOUR, null);
-  if (configured == null) return;
+async function maybeLeadAlert(env, botToken, chatId, parts, snapshot, actions) {
   const hour = Number(parts.hour);
-  const minute = Number(parts.minute);
-  if (hour !== configured || minute > 29) return;
-
-  const date = `${parts.year}-${parts.month}-${parts.day}`;
-  const stateKey = `evening_preview:${date}`;
-  if (await getState(env, stateKey)) return;
-
-  const text = await askJarvis(env,
-    'Give me a concise preview for tomorrow. Use get_owner_briefing and focus on tomorrow jobs plus anything I should handle before the day starts. Do not include unrelated filler.'
-  );
-  if (!text) return;
-  await sendTelegramText(botToken, chatId, text);
-  await saveAssistantHistory(env, chatId, text);
-  await setState(env, stateKey, { sent_at: new Date().toISOString() });
-  actions.push('evening_preview');
-}
-
-async function maybeLeadAlert(env, botToken, chatId, now, parts, actions) {
-  const hour = Number(parts.hour);
-  // Do not proactively nag about leads overnight.
   if (hour < 8 || hour > 20) return;
 
-  const rows = await sbGet(env, 'leads', {
-    select: 'id,created_at,fname,lname,phone,email,vehicle,requested_service,status,follow_up_at,last_contacted_at',
-    order: 'created_at.desc',
-    limit: '200',
-  });
-  const attention = leadAttentionRows(rows, now);
+  const attention = snapshot.leadAttention;
   const fingerprint = leadFingerprint(attention);
   const stateKey = 'lead_attention_fingerprint';
   const prior = await getState(env, stateKey);
   const priorFingerprint = String(prior?.value?.fingerprint || '');
 
-  // Keep state synchronized when everything becomes clear so the next future
-  // attention item can trigger normally.
   if (!attention.length) {
     if (priorFingerprint) await setState(env, stateKey, { fingerprint: '', count: 0 });
     return;
@@ -343,6 +468,57 @@ async function maybeLeadAlert(env, botToken, chatId, now, parts, actions) {
     sent_at: new Date().toISOString(),
   });
   actions.push(`lead_alert:${attention.length}`);
+}
+
+async function maybeUnpaidAlert(env, botToken, chatId, parts, snapshot, actions) {
+  const hour = Number(parts.hour);
+  if (hour < 8 || hour > 20) return;
+
+  const unpaid = snapshot.unpaid;
+  const fingerprint = unpaidFingerprint(unpaid);
+  const stateKey = 'unpaid_attention_fingerprint';
+  const prior = await getState(env, stateKey);
+  const priorFingerprint = String(prior?.value?.fingerprint || '');
+
+  if (!unpaid.length) {
+    if (priorFingerprint) await setState(env, stateKey, { fingerprint: '', count: 0 });
+    return;
+  }
+  if (fingerprint === priorFingerprint) return;
+
+  const text = formatUnpaidAlert(unpaid);
+  await sendTelegramText(botToken, chatId, text);
+  await saveAssistantHistory(env, chatId, text);
+  await setState(env, stateKey, {
+    fingerprint,
+    count: unpaid.length,
+    total: snapshot.unpaidTotal,
+    sent_at: new Date().toISOString(),
+  });
+  actions.push(`unpaid_alert:${unpaid.length}`);
+}
+
+async function maybeEveningPreview(env, botToken, chatId, parts, snapshot, actions) {
+  const configured = configuredHour(env.JARVIS_EVENING_PREVIEW_HOUR, 19);
+  const hour = Number(parts.hour);
+  const minute = Number(parts.minute);
+  if (hour !== configured || minute > 29) return;
+
+  const stateKey = `evening_preview:${snapshot.today}`;
+  if (await getState(env, stateKey)) return;
+
+  const meaningful = snapshot.tomorrowJobs.length || snapshot.leadAttention.length || snapshot.remindersByTomorrow.length || snapshot.unpaid.length;
+  if (!meaningful) {
+    await setState(env, stateKey, { skipped: true, reason: 'nothing_meaningful', checked_at: new Date().toISOString() });
+    actions.push('evening_preview:quiet');
+    return;
+  }
+
+  const text = formatEveningPreview(snapshot);
+  await sendTelegramText(botToken, chatId, text);
+  await saveAssistantHistory(env, chatId, text);
+  await setState(env, stateKey, { sent_at: new Date().toISOString() });
+  actions.push('evening_preview');
 }
 
 export async function onRequestPost({ request, env }) {
@@ -363,19 +539,36 @@ export async function onRequestPost({ request, env }) {
   const actions = [];
   const errors = [];
 
-  // Each section is isolated: a failure in one proactive feature must not stop
-  // reminders or another feature from delivering.
-  for (const task of [
-    () => deliverDueReminders(env, botToken, chatId, now, actions),
-    () => maybeMorningBrief(env, botToken, chatId, parts, actions),
-    () => maybeLeadAlert(env, botToken, chatId, now, parts, actions),
-    () => maybeEveningPreview(env, botToken, chatId, parts, actions),
-  ]) {
-    try {
-      await task();
-    } catch (error) {
-      console.error('jarvis-proactive task error:', error);
-      errors.push(String(error?.message || error));
+  // Reminders are independent of the business-intelligence snapshot so a
+  // temporary problem with bookings/leads never blocks a due reminder.
+  try {
+    await deliverDueReminders(env, botToken, chatId, now, actions);
+  } catch (error) {
+    console.error('jarvis-proactive reminder error:', error);
+    errors.push(`reminders: ${String(error?.message || error)}`);
+  }
+
+  let snapshot = null;
+  try {
+    snapshot = await loadSnapshot(env, now);
+  } catch (error) {
+    console.error('jarvis-proactive snapshot error:', error);
+    errors.push(`snapshot: ${String(error?.message || error)}`);
+  }
+
+  if (snapshot) {
+    for (const task of [
+      () => maybeMorningBrief(env, botToken, chatId, parts, snapshot, actions),
+      () => maybeLeadAlert(env, botToken, chatId, parts, snapshot, actions),
+      () => maybeUnpaidAlert(env, botToken, chatId, parts, snapshot, actions),
+      () => maybeEveningPreview(env, botToken, chatId, parts, snapshot, actions),
+    ]) {
+      try {
+        await task();
+      } catch (error) {
+        console.error('jarvis-proactive intelligence task error:', error);
+        errors.push(String(error?.message || error));
+      }
     }
   }
 
