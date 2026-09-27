@@ -7395,7 +7395,7 @@ export function InvoicePage() {
         <div className="hidden print:block mb-6">
           <div className="flex items-start justify-between mb-4">
             <div>
-              <img src={img('download.png')} alt="GID Garage" style={{ height: 56, width: 56, objectFit: 'contain' }} className="mb-2" />
+              <img src={img('download.png')} alt="GID Garage" style={{ height: 40, width: 'auto', objectFit: 'contain' }} className="mb-2" />
               <div className="text-sm">
                 <div className="flex gap-3"><span className="font-bold">Invoice:</span><span>{invoiceNumber}</span></div>
                 <div className="flex gap-3"><span className="font-bold">Invoice Date:</span><span>{serviceDateStr}</span></div>
