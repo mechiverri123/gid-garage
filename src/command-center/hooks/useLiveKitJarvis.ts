@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { ChatMsg } from '../types';
 import {
   ConnectionState,
   Room,
@@ -16,9 +15,6 @@ export function useLiveKitJarvis() {
   const [state, setState] = useState<RealtimeVoiceState>('off');
   const [error, setError] = useState<string | null>(null);
   const [roomName, setRoomName] = useState<string | null>(null);
-  const [messages, setMessages] = useState<ChatMsg[]>([]);
-  const [sendingText, setSendingText] = useState(false);
-  const seenTranscriptIdsRef = useRef<Set<string>>(new Set());
   const roomRef = useRef<Room | null>(null);
   const audioNodesRef = useRef<HTMLMediaElement[]>([]);
 
@@ -126,28 +122,6 @@ export function useLiveKitJarvis() {
         });
       });
 
-      // Mirror final LiveKit transcriptions into the on-page chat.
-      // Spoken user turns and JARVIS responses both arrive here.
-      room.on(RoomEvent.TranscriptionReceived, (segments, participant) => {
-        for (const segment of segments) {
-          if (!segment.final || !segment.text?.trim()) continue;
-
-          const id = segment.id || `${participant?.identity || 'unknown'}:${segment.text}`;
-          if (seenTranscriptIdsRef.current.has(id)) continue;
-          seenTranscriptIdsRef.current.add(id);
-
-          const isLocal = participant?.identity === room.localParticipant.identity;
-          const role: ChatMsg['role'] = isLocal ? 'user' : 'assistant';
-          const content = segment.text.trim();
-
-          setMessages(prev => {
-            const last = prev[prev.length - 1];
-            if (last?.role === role && last.content === content) return prev;
-            return [...prev, { role, content }];
-          });
-        }
-      });
-
       room.on(RoomEvent.ActiveSpeakersChanged, speakers => {
         const remoteSpeaking = speakers.some(
           p => p.identity !== room.localParticipant.identity,
@@ -230,36 +204,6 @@ export function useLiveKitJarvis() {
     }
   }, [removeAudioNodes, state]);
 
-  const sendText = useCallback(async (question: string) => {
-    const q = question.trim();
-    const room = roomRef.current;
-    if (!q) return;
-    if (!room || room.state !== ConnectionState.Connected) {
-      throw new Error('Start JARVIS before sending a realtime command.');
-    }
-
-    setSendingText(true);
-    setError(null);
-    setMessages(prev => [...prev, { role: 'user', content: q }]);
-
-    try {
-      // LiveKit Agents listens to lk.chat and will generate its normal
-      // spoken TTS response, exactly like a voice turn.
-      await room.localParticipant.sendText(q, { topic: 'lk.chat' });
-    } catch (err: any) {
-      const message = err?.message || 'Could not send command to JARVIS.';
-      setError(message);
-      throw err;
-    } finally {
-      setSendingText(false);
-    }
-  }, []);
-
-  const clearMessages = useCallback(() => {
-    setMessages([]);
-    seenTranscriptIdsRef.current.clear();
-  }, []);
-
   const toggle = useCallback(() => {
     if (roomRef.current || state === 'connecting') void disconnect();
     else void connect();
@@ -277,9 +221,5 @@ export function useLiveKitJarvis() {
     connect,
     disconnect,
     toggle,
-    sendText,
-    messages,
-    sendingText,
-    clearMessages,
   };
 }

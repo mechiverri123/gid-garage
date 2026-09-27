@@ -56,17 +56,6 @@ export function CommandCenterPage({ onLock }: { onLock: () => void }) {
 
   const voice = useLiveKitJarvis();
 
-  // When realtime JARVIS is connected, every typed/quick command goes through
-  // the SAME LiveKit agent, so it answers with Cartesia audio. Fall back to the
-  // legacy admin text agent only when realtime JARVIS is off.
-  const runCommand = (query: string) => {
-    if (voice.connected) {
-      void voice.sendText(query).catch(() => {});
-    } else {
-      void ask(query);
-    }
-  };
-
   // Voice actions can change the same business records as the typed agent.
   // While the realtime session is open, refresh the dashboard quietly so a
   // reschedule/status change spoken to JARVIS appears without a manual reload.
@@ -93,13 +82,13 @@ export function CommandCenterPage({ onLock }: { onLock: () => void }) {
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
 
   const palette = useCommandPalette([
-    { id: 'today', label: "Today's jobs", run: () => runCommand("what's scheduled today") },
-    { id: 'attention', label: 'Needs attention', run: () => runCommand('what needs my attention') },
-    { id: 'revenue', label: 'Revenue today', run: () => runCommand("how much revenue have we made today") },
-    { id: 'leads', label: 'Show leads', run: () => runCommand('show me recent leads') },
-    { id: 'followup', label: 'Who needs follow-up', run: () => runCommand('who needs follow-up') },
-    { id: 'unpaid', label: 'Unpaid invoices', run: () => runCommand("what's unpaid") },
-    { id: 'takehome', label: 'Take-home this week', run: () => runCommand('what did I actually take home this week') },
+    { id: 'today', label: "Today's jobs", run: () => ask("what's scheduled today") },
+    { id: 'attention', label: 'Needs attention', run: () => ask('what needs my attention') },
+    { id: 'revenue', label: 'Revenue today', run: () => ask("how much revenue have we made today") },
+    { id: 'leads', label: 'Show leads', run: () => ask('show me recent leads') },
+    { id: 'followup', label: 'Who needs follow-up', run: () => ask('who needs follow-up') },
+    { id: 'unpaid', label: 'Unpaid invoices', run: () => ask("what's unpaid") },
+    { id: 'takehome', label: 'Take-home this week', run: () => ask('what did I actually take home this week') },
     { id: 'refresh', label: 'Refresh dashboard', run: () => loadSummary() },
   ]);
 
@@ -160,7 +149,7 @@ export function CommandCenterPage({ onLock }: { onLock: () => void }) {
             </div>
             <div className="lg:col-span-3 flex flex-col gap-3">
               <AttentionPanel items={summary.needsAttention} />
-              <QuickCommands onRun={runCommand} />
+              <QuickCommands onRun={ask} />
             </div>
           </motion.div>
 
@@ -195,16 +184,7 @@ export function CommandCenterPage({ onLock }: { onLock: () => void }) {
 
         {/* ── Persistent bottom Ask GID bar ────────────────────────────── */}
         <div className="border-t px-4 sm:px-6 lg:px-8 py-3" style={{ borderColor: COLORS.border, background: 'rgba(5,11,20,0.9)', backdropFilter: 'blur(16px)' }}>
-          <CommandInput
-            chatMessages={voice.connected ? voice.messages : chatMessages}
-            asking={voice.connected ? voice.sendingText : asking}
-            liveActivity={voice.connected ? [] : liveActivity}
-            onAsk={runCommand}
-            onClear={() => {
-              if (voice.connected) voice.clearMessages();
-              else clear();
-            }}
-          />
+          <CommandInput chatMessages={chatMessages} asking={asking} liveActivity={liveActivity} onAsk={ask} onClear={clear} />
         </div>
       </div>
     </div>
