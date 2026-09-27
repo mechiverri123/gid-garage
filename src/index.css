@@ -50,18 +50,9 @@
   box-shadow: 0 2px 8px rgba(0,0,0,0.1);
 }
 
-/* Print styles for invoice/receipt page */
-@media print {
-  @page { margin: 0; size: letter; }
-  html, body, #root {
-    background: #0f0f0f !important;
-    background-color: #0f0f0f !important;
-    -webkit-print-color-adjust: exact;
-    print-color-adjust: exact;
-  }
-  button, .no-print { display: none !important; }
-  a[href="/"] { pointer-events: none; }
-}
+/* Print styles are handled per-page via PRINT_DOC_STYLES in JobOps.tsx
+   (invoice/estimate/PPI). This global block used to force a dark print
+   background before that existed — removed since it conflicts with it. */
 
 /* Copy-to-clipboard confirmation pop */
 @keyframes fadeIn {
