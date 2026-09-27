@@ -157,23 +157,22 @@ export function useLiveKitJarvis() {
         // Non-fatal. Remote track playback above gets another chance.
       }
 
-      // Release the permission-probe track before LiveKit opens its own track.
-      for (const track of permissionStream.getTracks()) track.stop();
+      // Publish the EXACT microphone track that Opera/Windows just granted.
+      // This avoids a second getUserMedia call, which can silently reopen the
+      // wrong/default device in Opera even though permission succeeded.
+      const micTrack = permissionStream.getAudioTracks()[0];
+      const micPub = await room.localParticipant.publishTrack(micTrack, {
+        source: Track.Source.Microphone,
+        name: 'jarvis-microphone',
+      });
       permissionStream = null;
 
-      await room.localParticipant.setMicrophoneEnabled(true, {
-        echoCancellation: true,
-        noiseSuppression: true,
-        autoGainControl: true,
-      });
-
       // Do not show LISTENING unless LiveKit really published an enabled mic.
-      const micPub = room.localParticipant.getTrackPublication(Track.Source.Microphone);
       if (
-        !room.localParticipant.isMicrophoneEnabled ||
         !micPub ||
         !micPub.track ||
-        micPub.isMuted
+        micPub.isMuted ||
+        micTrack.readyState !== 'live'
       ) {
         throw new Error(
           'Connected to JARVIS, but your microphone was not published. Check Opera site microphone permission and retry.',
