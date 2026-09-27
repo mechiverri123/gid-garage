@@ -136,7 +136,11 @@ BUSINESS DATA:
 - You have one live GID Garage dispatcher tool named gid_business for jobs, customers, leads, calls, marketing, pricing, owner pay, and email.
 - Never invent business facts. For live business information, call gid_business with the appropriate action and a JSON object string in args_json.
 - For questions about revenue, sales, money made, or weekly totals, use action get_revenue_summary. Use period=this_week unless Michael explicitly asks for the last 7 days.
-- Low-risk writes such as rescheduling, lead status, job pipeline status, call logs, and marketing spend may be done immediately and then confirmed.
+- Low-risk writes may be done immediately only after you have identified the exact record and read its current value.
+- For a requested job service/category change, first use list_jobs to identify exactly one booking. Then use update_job_service with that booking id. If Michael says "from X to Y", pass X as expected_current_service so the write is rejected if the live record does not match what he said.
+- The bookings.service field uses these canonical admin values: oil, brakes, diag, suspension, audio, full, other. Human phrases such as "Brakes", "brake job", "breaks", "Diagnostics", "Oil Change", "Full Service", and "Other" must be normalized to those values.
+- Never guess which job Michael means when more than one booking could match. Ask a short clarification instead.
+- After a successful reversible change, briefly state what changed and say "Say undo that if that was wrong." If Michael says "undo that", use undo_last_action.
 - mark_job_paid and send_customer_email are external/financial actions. First call them with confirmed=false. Read the returned confirmation summary and ask Michael to confirm. Only repeat the tool with confirmed=true after a clear yes on the next turn.
 - Never mark a job PAID using update_job_status. Use mark_job_paid so the amount is recorded.
 """
@@ -278,6 +282,213 @@ BUSINESS DATA:
             raise ValueError("A date or time is required")
         await db().patch("bookings", f"id=eq.{job_id}", fields)
         return {"ok": True, **fields}
+
+    async def _canonical_job_service(self, raw_value: str) -> str:
+        """Normalize a spoken/human service name to the exact value used by the current admin."""
+        raw = (raw_value or "").strip().lower()
+        compact = " ".join(raw.replace("_", " ").replace("-", " ").split())
+
+        aliases = {
+            "oil": "oil",
+            "oil change": "oil",
+            "oil changes": "oil",
+            "brake": "brakes",
+            "brakes": "brakes",
+            "break": "brakes",
+            "breaks": "brakes",
+            "brake job": "brakes",
+            "brake service": "brakes",
+            "diag": "diag",
+            "diagnostic": "diag",
+            "diagnostics": "diag",
+            "diagnostic service": "diag",
+            "suspension": "suspension",
+            "suspension work": "suspension",
+            "audio": "audio",
+            "car audio": "audio",
+            "full": "full",
+            "full service": "full",
+            "maintenance": "full",
+            "other": "other",
+            "something else": "other",
+            "general inquiry": "other",
+            "custom": "other",
+            "other custom": "other",
+        }
+
+        if compact in aliases:
+            return aliases[compact]
+
+        # Also honor aliases stored in Supabase so this mapping can grow without
+        # redeploying the agent.
+        rows = await db().get(
+            "jarvis_value_aliases",
+            {
+                "select": "canonical_value,alias",
+                "table_name": "eq.bookings",
+                "column_name": "eq.service",
+                "enabled": "eq.true",
+            },
+        )
+        for row in rows:
+            alias = " ".join(str(row.get("alias") or "").strip().lower().replace("_", " ").replace("-", " ").split())
+            if alias == compact:
+                return str(row.get("canonical_value") or "").strip().lower()
+
+        allowed = {"oil", "brakes", "diag", "suspension", "audio", "full", "other"}
+        if compact in allowed:
+            return compact
+
+        raise ValueError(
+            f"Unknown booking service '{raw_value}'. Allowed admin services are "
+            "Oil Change, Brakes, Diagnostics, Suspension, Car Audio, Full Service, and Other."
+        )
+
+    async def update_job_service(
+        self,
+        context: RunContext,
+        job_id: str,
+        new_service: str,
+        expected_current_service: str = "",
+    ) -> dict[str, Any]:
+        """Safely change one booking's service/category and make the change undoable."""
+        rows = await db().get(
+            "bookings",
+            {
+                "select": "id,fname,lname,vehicle,service,date,time,job_status",
+                "id": f"eq.{job_id}",
+                "limit": "1",
+            },
+        )
+        if not rows:
+            raise ValueError("No job found with that id")
+
+        job = rows[0]
+        current = str(job.get("service") or "").strip().lower()
+        target = await self._canonical_job_service(new_service)
+
+        if expected_current_service:
+            expected = await self._canonical_job_service(expected_current_service)
+            if current != expected:
+                return {
+                    "needs_clarification": True,
+                    "reason": "current_service_mismatch",
+                    "job_id": job_id,
+                    "customer": f"{job.get('fname') or ''} {job.get('lname') or ''}".strip(),
+                    "vehicle": job.get("vehicle"),
+                    "expectedCurrentService": expected,
+                    "actualCurrentService": current or None,
+                    "requestedNewService": target,
+                    "message": (
+                        f"This job currently has service '{current or 'blank'}', not '{expected}'. "
+                        "Do not change it until Michael confirms the correct job."
+                    ),
+                }
+
+        if current == target:
+            return {
+                "ok": True,
+                "changed": False,
+                "job_id": job_id,
+                "service": target,
+                "message": "That job already has that service.",
+            }
+
+        before_state = {
+            "service": current,
+            "fname": job.get("fname"),
+            "lname": job.get("lname"),
+            "vehicle": job.get("vehicle"),
+            "date": job.get("date"),
+            "time": job.get("time"),
+        }
+        after_state = {**before_state, "service": target}
+
+        await db().patch("bookings", f"id=eq.{job_id}", {"service": target})
+
+        action = await db().insert(
+            "jarvis_action_log",
+            {
+                "actor": "jarvis",
+                "action_type": "update_job_service",
+                "entity_table": "bookings",
+                "entity_id": str(job_id),
+                "summary": (
+                    f"Changed {job.get('fname') or ''} {job.get('lname') or ''}'s "
+                    f"job service from {current or 'blank'} to {target}"
+                ).strip(),
+                "resolved_intent": {
+                    "action": "update_job_service",
+                    "job_id": str(job_id),
+                    "new_service": target,
+                    "expected_current_service": expected_current_service or None,
+                },
+                "before_state": before_state,
+                "after_state": after_state,
+                "undo_patch": {"service": current},
+                "reversible": True,
+                "status": "applied",
+            },
+        )
+
+        return {
+            "ok": True,
+            "changed": True,
+            "job_id": job_id,
+            "customer": f"{job.get('fname') or ''} {job.get('lname') or ''}".strip(),
+            "vehicle": job.get("vehicle"),
+            "from": current or None,
+            "to": target,
+            "action_id": action.get("id") if action else None,
+            "undo_available": True,
+        }
+
+    async def undo_last_action(self, context: RunContext) -> dict[str, Any]:
+        """Undo the most recent reversible Jarvis change."""
+        rows = await db().get(
+            "jarvis_action_log",
+            {
+                "select": "*",
+                "status": "eq.applied",
+                "reversible": "eq.true",
+                "order": "created_at.desc",
+                "limit": "1",
+            },
+        )
+        if not rows:
+            return {"ok": False, "nothing_to_undo": True, "message": "There is no reversible Jarvis change to undo."}
+
+        action = rows[0]
+        if action.get("entity_table") != "bookings":
+            raise ValueError("The latest reversible action is not a supported booking change.")
+
+        entity_id = str(action.get("entity_id") or "")
+        undo_patch = action.get("undo_patch") or {}
+        if not entity_id or not isinstance(undo_patch, dict) or not undo_patch:
+            raise ValueError("The latest action does not contain a usable undo patch.")
+
+        allowed_undo_fields = {"service", "date", "time", "job_status"}
+        safe_patch = {k: v for k, v in undo_patch.items() if k in allowed_undo_fields}
+        if not safe_patch:
+            raise ValueError("The latest action has no safe fields to undo.")
+
+        await db().patch("bookings", f"id=eq.{entity_id}", safe_patch)
+        await db().patch(
+            "jarvis_action_log",
+            f"id=eq.{action['id']}",
+            {
+                "status": "undone",
+                "undone_at": datetime.now(timezone.utc).isoformat(),
+            },
+        )
+
+        return {
+            "ok": True,
+            "undone": True,
+            "action_id": action.get("id"),
+            "summary": action.get("summary"),
+            "restored": safe_patch,
+        }
 
     async def pricing_history(self, context: RunContext, service_keyword: str, vehicle: str = "") -> dict[str, Any]:
         """Look up historical GID Garage prices for a repair/service."""
@@ -509,10 +720,9 @@ BUSINESS DATA:
 
         action must be one of:
         get_business_summary, get_revenue_summary, list_leads, update_lead_status, list_jobs,
-        reschedule_job, pricing_history, get_tax_rate, add_marketing_spend,
-        log_call, list_calls, list_marketing_spend, search_customers,
-        update_job_status, mark_job_paid, get_owner_pay_summary,
-        send_customer_email.
+        reschedule_job, update_job_service, undo_last_action, pricing_history, get_tax_rate,
+        add_marketing_spend, log_call, list_calls, list_marketing_spend, search_customers,
+        update_job_status, mark_job_paid, get_owner_pay_summary, send_customer_email.
 
         args_json must be a JSON object string containing that action's arguments.
         Use empty strings for unused text filters. For list limits, use 15 unless
@@ -534,6 +744,8 @@ BUSINESS DATA:
             "update_lead_status": self.update_lead_status,
             "list_jobs": self.list_jobs,
             "reschedule_job": self.reschedule_job,
+            "update_job_service": self.update_job_service,
+            "undo_last_action": self.undo_last_action,
             "pricing_history": self.pricing_history,
             "get_tax_rate": self.get_tax_rate,
             "add_marketing_spend": self.add_marketing_spend,
@@ -567,6 +779,8 @@ BUSINESS DATA:
                 "limit": 15,
             },
             "reschedule_job": {"date": "", "time": ""},
+            "update_job_service": {"expected_current_service": ""},
+            "undo_last_action": {},
             "pricing_history": {"vehicle": ""},
             "log_call": {"direction": "inbound", "notes": ""},
             "list_calls": {"outcome": "", "limit": 15},
