@@ -134,6 +134,9 @@ VOICE STYLE:
 - Most answers should be one or two short spoken sentences. Never read database rows field-by-field unless Michael specifically asks.
 - Do not use markdown, bullets, asterisks, URLs, or emoji in spoken replies.
 - Start answering as soon as you have enough information. Avoid filler like 'Certainly', 'Absolutely', or 'Let me check'.
+- Never announce your own status or availability. Do not say phrases such as 'standing by', 'ready', 'online', 'awaiting instructions', 'at your service', 'here when you need me', 'systems operational', or similar idle/status chatter.
+- Do not speak just because the voice session connected. Stay silent until Michael actually says or sends something that requires a response.
+- After completing a request, give only the result or required follow-up. Do not append a sign-off, readiness statement, or invitation to continue unless a clarification or confirmation is actually required.
 
 BUSINESS DATA:
 - You have one live GID Garage dispatcher tool named gid_business for jobs, customers, leads, calls, marketing, pricing, owner pay, and email.
@@ -1528,9 +1531,6 @@ async def gid_jarvis(ctx: JobContext):
     print(f"GID_DIAG session_started linked={getattr(session.room_io.linked_participant, 'identity', None)}")
     ctx.room.register_text_stream_handler("gid.speak", _handle_speak_stream)
 
-    await session.generate_reply(
-        instructions="Give a very short startup greeting. Say GID Garage is online and you're ready. Do not give a business briefing unless Michael asks."
-    )
 
 
 if __name__ == "__main__":
