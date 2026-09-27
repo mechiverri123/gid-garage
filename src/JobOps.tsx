@@ -7312,6 +7312,7 @@ export function InvoicePage() {
   const [job, setJob] = useState<Job | null>(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
+  const viewer = useDocViewer();
 
   useEffect(() => {
     if (!jobId) { setNotFound(true); setLoading(false); return; }
@@ -7517,7 +7518,11 @@ export function InvoicePage() {
             <div className="space-y-3">
               {job.jobPhotos.map(photo => (
                 <div key={photo.id} className="page-break-avoid">
-                  <img src={photo.url || photo.dataUrl} alt="Job photo" className="w-full max-h-64 object-cover" />
+                  <button onClick={() => viewer.open({ url: photo.url || photo.dataUrl || '', name: photo.note || 'Job photo' })}
+                    className="block w-full no-print">
+                    <img src={photo.url || photo.dataUrl} alt="Job photo" className="w-full max-h-64 object-cover cursor-pointer" />
+                  </button>
+                  <img src={photo.url || photo.dataUrl} alt="Job photo" className="hidden print:block w-full max-h-64 object-cover" />
                   {photo.note && <p className="text-gray-400 text-xs mt-1">{photo.note}</p>}
                 </div>
               ))}
@@ -7694,6 +7699,7 @@ export function InvoicePage() {
 
         <p className="text-gray-700 text-xs text-center mt-8">GID Garage · Flagstaff, AZ · 480-757-0476 · gidgarage.com</p>
       </div>
+      <DocViewerModal doc={viewer.doc} onClose={viewer.close} />
     </div>
   );
 }
