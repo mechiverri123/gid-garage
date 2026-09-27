@@ -20,6 +20,18 @@ function fmtMileage(m: string | number | null | undefined): string {
   return Number.isFinite(n) ? n.toLocaleString() : String(m);
 }
 
+// Phone numbers are stored as raw digits (e.g. "4807570476") — this
+// formats a 10-digit US number for display as "(480)-757-0476". Anything
+// that isn't a clean 10-digit number (extensions, partial input, etc.)
+// is returned unchanged rather than mangled.
+function fmtPhone(p: string | null | undefined): string {
+  if (!p) return '';
+  const digits = p.replace(/[^0-9]/g, '');
+  if (digits.length === 10) return `(${digits.slice(0, 3)})-${digits.slice(3, 6)}-${digits.slice(6)}`;
+  if (digits.length === 11 && digits[0] === '1') return `(${digits.slice(1, 4)})-${digits.slice(4, 7)}-${digits.slice(7)}`;
+  return p;
+}
+
 // ── In-app document/image viewer ─────────────────────────────────────────
 // Photos/scans/receipts used to open via <a target="_blank">, which counts
 // as a real navigation. On mobile home-screen installs (and some desktop
@@ -7382,7 +7394,20 @@ export function InvoicePage() {
             table, totals, terms. */}
         <div className="hidden print:block mb-6">
           <div className="flex items-start justify-between mb-4">
-            <img src={img('website_logo.png')} alt="GID Garage" style={{ height: 64, width: 64, objectFit: 'contain' }} />
+            <div>
+              <img src={img('download.png')} alt="GID Garage" style={{ height: 56, width: 56, objectFit: 'contain' }} className="mb-2" />
+              <div className="text-sm">
+                <div className="flex gap-3"><span className="font-bold">Invoice:</span><span>{invoiceNumber}</span></div>
+                <div className="flex gap-3"><span className="font-bold">Invoice Date:</span><span>{serviceDateStr}</span></div>
+                {isPaid && paidDateStr && (
+                  <div className="flex gap-3"><span className="font-bold">Date Paid:</span><span>{paidDateStr}</span></div>
+                )}
+                <div className="flex gap-3">
+                  <span className="font-bold">Status:</span>
+                  <span>{isPaid ? 'Paid' : isPartiallyPaid ? 'Partially Paid' : 'Due'}</span>
+                </div>
+              </div>
+            </div>
             <div className="text-right text-[11px] leading-relaxed">
               <p className="font-bold text-sm">GID Garage</p>
               <p>Flagstaff, AZ</p>
@@ -7396,19 +7421,14 @@ export function InvoicePage() {
             <div>
               <p className="font-bold text-xs uppercase tracking-wide mb-1">Bill To:</p>
               <p className="text-sm">{job.fname} {job.lname}</p>
-              {job.phone && <p className="text-sm">{job.phone}</p>}
+              {job.phone && <p className="text-sm">{fmtPhone(job.phone)}</p>}
               {job.serviceAddress && <p className="text-sm">{job.serviceAddress}</p>}
             </div>
             <div className="text-right text-sm">
-              <div className="flex justify-end gap-3"><span className="font-bold">Invoice:</span><span>{invoiceNumber}</span></div>
-              <div className="flex justify-end gap-3"><span className="font-bold">Invoice Date:</span><span>{serviceDateStr}</span></div>
-              {isPaid && paidDateStr && (
-                <div className="flex justify-end gap-3"><span className="font-bold">Date Paid:</span><span>{paidDateStr}</span></div>
-              )}
-              <div className="flex justify-end gap-3">
-                <span className="font-bold">Status:</span>
-                <span>{isPaid ? 'Paid' : isPartiallyPaid ? 'Partially Paid' : 'Due'}</span>
-              </div>
+              <p className="font-bold text-xs uppercase tracking-wide mb-1">Vehicle Details</p>
+              <p>{job.vehicle}</p>
+              {job.vin && <p className="text-xs">VIN: {job.vin}</p>}
+              {job.mileage && <p className="text-xs">{fmtMileage(job.mileage)} mi</p>}
             </div>
           </div>
 
@@ -7471,22 +7491,20 @@ export function InvoicePage() {
             </div>
           )}
 
-          {/* Terms / job details */}
-          <div className="mt-5 border-t border-gray-300 pt-3">
-            <p className="font-bold text-xs uppercase tracking-wide mb-1">Vehicle Details</p>
-            <p className="text-sm">Vehicle: {job.vehicle}</p>
-            {job.vin && <p className="text-sm">VIN: {job.vin}</p>}
-            {job.mileage && <p className="text-sm">Mileage: {fmtMileage(job.mileage)} mi</p>}
-            {job.customerAgreed && (
-              <p className="text-sm mt-1">
-                Estimate approved by {job.customerSignature}
-                {job.signedAt ? ` on ${new Date(job.signedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'America/Phoenix' })}` : ''}.
-              </p>
-            )}
-            {job.garageNotes && (
-              <p className="text-sm mt-1"><span className="font-bold">Technician Notes: </span>{job.garageNotes}</p>
-            )}
-          </div>
+          {/* Signed-off + technician notes */}
+          {(job.customerAgreed || job.garageNotes) && (
+            <div className="mt-5 border-t border-gray-300 pt-3">
+              {job.customerAgreed && (
+                <p className="text-sm">
+                  Estimate approved by {job.customerSignature}
+                  {job.signedAt ? ` on ${new Date(job.signedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'America/Phoenix' })}` : ''}.
+                </p>
+              )}
+              {job.garageNotes && (
+                <p className="text-sm mt-1"><span className="font-bold">Technician Notes: </span>{job.garageNotes}</p>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Invoice card — screen only; print uses the letterhead above */}
@@ -7626,7 +7644,7 @@ export function InvoicePage() {
         {/* Job photos if present — printed too, since they're part of the
             documentation the customer is getting */}
         {job.jobPhotos?.length > 0 && (
-          <div className="mt-4 border border-white/10 bg-white/5 px-6 py-4 page-break-avoid">
+          <div className="mt-4 border border-white/10 bg-white/5 px-6 py-4 page-break-avoid print:border-0 print:bg-transparent print:px-0">
             <p className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-3">Job Photos</p>
             <div className="space-y-3">
               {job.jobPhotos.map(photo => (
