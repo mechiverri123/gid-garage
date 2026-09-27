@@ -2,6 +2,7 @@ import asyncio
 import html
 import json
 import os
+import re
 from datetime import datetime, timedelta, timezone
 from typing import Any
 from zoneinfo import ZoneInfo
@@ -147,6 +148,11 @@ BUSINESS DATA:
 - Never invent an email address or appointment detail. email_appointment_update must pull both from the live booking/customer records and the stored appointment_updated template.
 - mark_job_paid, send_customer_email, and email_appointment_update are external/financial actions. First call them with confirmed=false. Read the returned confirmation summary and ask Michael to confirm. Only repeat the tool with confirmed=true after a clear yes on the next turn.
 - Never mark a job PAID using update_job_status. Use mark_job_paid so the amount is recorded.
+- Treat lead-form fields as noisy human input, not trusted schema. A person may put a service in the vehicle field, a vehicle in the issue field, or vague language in any box.
+- When Michael asks about a lead, use analyze_lead before drawing conclusions. Prefer the actual meaning of the answers over the form field labels.
+- Never invent missing vehicle details. If the vehicle field contains only a service such as "brakes change", report vehicle information as missing and classify the service separately.
+- Flexible scheduling phrases such as "whenever", "anytime", "ASAP", or "soonest available" mean the customer is flexible. They do NOT mean an appointment has been booked. Report scheduling intent as earliest_available and look at the live schedule before proposing a slot.
+- Vague issue text such as "nothing", "nothing just going bad", "not sure", or "just needs work" is not a usable diagnostic complaint. Mark the issue as vague/missing rather than pretending it describes a fault.
 """
         )
 
@@ -231,6 +237,272 @@ BUSINESS DATA:
                 "totalSpend": round(sum(float(r.get("amount") or 0) for r in spend), 2),
                 "leadCount": len(leads),
             },
+        }
+
+    def _flatten_lead_payload(self, value: Any) -> list[str]:
+        """Collect human-entered text from an arbitrary raw lead payload."""
+        out: list[str] = []
+        if isinstance(value, dict):
+            for v in value.values():
+                out.extend(self._flatten_lead_payload(v))
+        elif isinstance(value, list):
+            for v in value:
+                out.extend(self._flatten_lead_payload(v))
+        elif value is not None:
+            s = str(value).strip()
+            if s:
+                out.append(s)
+        return out
+
+    def _classify_lead_service(self, *values: Any) -> tuple[str | None, list[str]]:
+        text_blob = " ".join(str(v or "") for v in values).lower()
+        matches: list[tuple[str, tuple[str, ...]]] = [
+            ("brakes", ("brake", "brakes", "brake change", "brake job", "pads", "rotors")),
+            ("oil", ("oil change", "oil service")),
+            ("diag", ("diagnostic", "diagnostics", "check engine", "check-engine", "diagnose")),
+            ("suspension", ("suspension", "strut", "struts", "shock", "shocks", "control arm")),
+            ("audio", ("audio", "stereo", "speaker", "speakers", "radio")),
+            ("full", ("full service", "maintenance", "tune up", "tune-up")),
+        ]
+        evidence: list[str] = []
+        for canonical, phrases in matches:
+            for phrase in phrases:
+                if phrase in text_blob:
+                    evidence.append(phrase)
+                    return canonical, evidence
+        return None, evidence
+
+    def _looks_like_vehicle(self, value: Any) -> bool:
+        s = str(value or "").strip()
+        if not s:
+            return False
+        low = s.lower()
+        # A year plus some other text is a strong vehicle signal.
+        if re.search(r"\b(19|20)\d{2}\b", s):
+            return True
+        common_makes = (
+            "toyota", "honda", "ford", "chevy", "chevrolet", "gmc", "nissan",
+            "subaru", "jeep", "dodge", "ram", "kia", "hyundai", "mazda",
+            "lexus", "acura", "bmw", "mercedes", "audi", "volkswagen", "vw",
+            "tesla", "buick", "cadillac", "chrysler", "lincoln", "mitsubishi",
+        )
+        return any(make in low for make in common_makes)
+
+    def _lead_schedule_intent(self, value: Any) -> dict[str, Any]:
+        raw = str(value or "").strip()
+        low = raw.lower()
+        flexible_terms = (
+            "whenever", "anytime", "any time", "asap", "a.s.a.p",
+            "soonest", "earliest", "first available", "next available",
+        )
+        if any(term in low for term in flexible_terms):
+            return {
+                "kind": "earliest_available",
+                "customer_text": raw,
+                "booked": False,
+                "needs_schedule_lookup": True,
+            }
+        if not raw:
+            return {
+                "kind": "missing",
+                "customer_text": "",
+                "booked": False,
+                "needs_schedule_lookup": False,
+            }
+        return {
+            "kind": "customer_preference",
+            "customer_text": raw,
+            "booked": False,
+            "needs_schedule_lookup": True,
+        }
+
+    def _lead_issue_quality(self, value: Any) -> dict[str, Any]:
+        raw = str(value or "").strip()
+        low = " ".join(raw.lower().split())
+        vague_exact = {
+            "", "nothing", "none", "n/a", "na", "not sure", "unsure",
+            "nothing just going bad", "just going bad", "just needs work",
+            "needs work", "idk", "i don't know", "dont know",
+        }
+        if low in vague_exact:
+            return {
+                "usable": False,
+                "customer_text": raw,
+                "reason": "vague_or_missing",
+            }
+        # Very short non-specific answers should not be treated as a diagnosis.
+        if len(low) < 5:
+            return {
+                "usable": False,
+                "customer_text": raw,
+                "reason": "too_vague",
+            }
+        return {
+            "usable": True,
+            "customer_text": raw,
+            "reason": None,
+        }
+
+    async def analyze_lead(self, context: RunContext, lead_id: str) -> dict[str, Any]:
+        """Interpret one noisy lead form without blindly trusting which field each answer landed in."""
+        rows = await db().get(
+            "leads",
+            {
+                "select": "*",
+                "id": f"eq.{lead_id}",
+                "limit": "1",
+            },
+        )
+        if not rows:
+            raise ValueError("No lead found with that id")
+
+        lead = rows[0]
+        raw_payload = lead.get("raw_payload")
+        flattened = self._flatten_lead_payload(raw_payload)
+
+        vehicle_raw = str(lead.get("vehicle") or "").strip()
+        requested_raw = str(lead.get("requested_service") or "").strip()
+        notes_raw = str(lead.get("notes") or "").strip()
+
+        service, service_evidence = self._classify_lead_service(
+            requested_raw, vehicle_raw, notes_raw, *flattened
+        )
+
+        vehicle_valid = self._looks_like_vehicle(vehicle_raw)
+
+        # A service-only value in the vehicle field is treated as misplaced form data.
+        vehicle_field_service, _ = self._classify_lead_service(vehicle_raw)
+        misplaced_vehicle_field = bool(vehicle_raw and vehicle_field_service and not vehicle_valid)
+
+        # Search likely payload strings for a real vehicle if the normalized vehicle field is bad.
+        recovered_vehicle = None
+        if not vehicle_valid:
+            for candidate in flattened:
+                if self._looks_like_vehicle(candidate):
+                    recovered_vehicle = candidate
+                    break
+
+        # Existing notes often contain the issue text when captured by a webhook.
+        issue_source = notes_raw
+        issue = self._lead_issue_quality(issue_source)
+
+        # Try to recover a schedule answer from raw payload text when present.
+        schedule_candidate = ""
+        for candidate in flattened:
+            low = candidate.lower()
+            if any(x in low for x in ("whenever", "anytime", "asap", "soonest", "available")):
+                schedule_candidate = candidate
+                break
+        schedule = self._lead_schedule_intent(schedule_candidate)
+
+        missing: list[str] = []
+        if not (vehicle_valid or recovered_vehicle):
+            missing.append("vehicle")
+        if not service:
+            missing.append("service")
+        if not issue["usable"]:
+            missing.append("usable_issue_description")
+
+        flags: list[str] = []
+        if misplaced_vehicle_field:
+            flags.append("service_answer_found_in_vehicle_field")
+        if not issue["usable"]:
+            flags.append("issue_answer_is_vague")
+        if schedule["kind"] == "earliest_available":
+            flags.append("customer_is_schedule_flexible")
+
+        return {
+            "lead_id": lead_id,
+            "customer": {
+                "name": f"{lead.get('fname') or ''} {lead.get('lname') or ''}".strip(),
+                "phone": lead.get("phone"),
+                "email": lead.get("email"),
+                "source": lead.get("source"),
+                "campaign": lead.get("campaign"),
+            },
+            "interpreted": {
+                "vehicle": vehicle_raw if vehicle_valid else recovered_vehicle,
+                "service": service,
+                "issue": issue,
+                "schedule": schedule,
+            },
+            "raw": {
+                "vehicle_field": vehicle_raw or None,
+                "requested_service_field": requested_raw or None,
+                "notes": notes_raw or None,
+            },
+            "flags": flags,
+            "missing_or_needs_clarification": missing,
+            "confidence": {
+                "vehicle": "high" if vehicle_valid else ("medium" if recovered_vehicle else "missing"),
+                "service": "high" if service and service_evidence else ("missing" if not service else "medium"),
+                "issue": "high" if issue["usable"] else "low",
+                "schedule": "high" if schedule["kind"] == "earliest_available" else "medium",
+            },
+            "recommended_next_step": (
+                "Ask for the missing vehicle year/make/model/engine before quoting or booking."
+                if "vehicle" in missing
+                else "Check the live schedule and propose the earliest real opening; do not auto-book."
+                if schedule["kind"] == "earliest_available"
+                else "Review missing fields before contacting or booking."
+            ),
+        }
+
+    async def suggest_lead_openings(self, context: RunContext, lead_id: str, days_ahead: int = 14) -> dict[str, Any]:
+        """Show lightly booked upcoming days for a flexible lead. This suggests days only; it does not book anything."""
+        analysis = await self.analyze_lead(context, lead_id)
+        if analysis["interpreted"]["schedule"]["kind"] != "earliest_available":
+            return {
+                "ok": False,
+                "reason": "lead_not_marked_flexible",
+                "analysis": analysis,
+            }
+
+        horizon = max(1, min(days_ahead, 30))
+        today = datetime.now(ARIZONA).date()
+        end = today + timedelta(days=horizon)
+        bookings = await db().get(
+            "bookings",
+            [
+                ("select", "id,date,time,job_status"),
+                ("date", f"gte.{today.isoformat()}"),
+                ("date", f"lte.{end.isoformat()}"),
+                ("order", "date.asc"),
+            ],
+        )
+
+        counts: dict[str, int] = {}
+        times: dict[str, list[str]] = {}
+        for booking in bookings:
+            d = str(booking.get("date") or "")
+            if not d:
+                continue
+            counts[d] = counts.get(d, 0) + 1
+            if booking.get("time"):
+                times.setdefault(d, []).append(str(booking.get("time")))
+
+        # We intentionally do not invent business hours or job duration.
+        candidates: list[dict[str, Any]] = []
+        for offset in range(1, horizon + 1):
+            day = today + timedelta(days=offset)
+            d = day.isoformat()
+            candidates.append({
+                "date": d,
+                "weekday": day.strftime("%A"),
+                "existing_job_count": counts.get(d, 0),
+                "existing_times": sorted(times.get(d, [])),
+            })
+
+        candidates.sort(key=lambda x: (x["existing_job_count"], x["date"]))
+        return {
+            "ok": True,
+            "lead_id": lead_id,
+            "note": (
+                "These are lightly booked days, not guaranteed appointment slots. "
+                "No business-hours or job-duration rules are configured in Jarvis yet."
+            ),
+            "best_days": candidates[:5],
+            "analysis": analysis,
         }
 
     async def list_leads(self, context: RunContext, status: str, source: str, limit: int) -> list[dict[str, Any]]:
@@ -898,7 +1170,8 @@ BUSINESS DATA:
         """Use GID Garage business data/actions.
 
         action must be one of:
-        get_business_summary, get_revenue_summary, list_leads, update_lead_status, list_jobs,
+        get_business_summary, get_revenue_summary, list_leads, analyze_lead, suggest_lead_openings,
+        update_lead_status, list_jobs,
         reschedule_job, update_job_service, undo_last_action, pricing_history, get_tax_rate,
         add_marketing_spend, log_call, list_calls, list_marketing_spend, search_customers,
         update_job_status, mark_job_paid, get_owner_pay_summary, email_appointment_update,
@@ -922,6 +1195,8 @@ BUSINESS DATA:
             "get_business_summary": self.get_business_summary,
             "get_revenue_summary": self.get_revenue_summary,
             "list_leads": self.list_leads,
+            "analyze_lead": self.analyze_lead,
+            "suggest_lead_openings": self.suggest_lead_openings,
             "update_lead_status": self.update_lead_status,
             "list_jobs": self.list_jobs,
             "reschedule_job": self.reschedule_job,
@@ -950,6 +1225,7 @@ BUSINESS DATA:
         defaults = {
             "get_revenue_summary": {"period": "this_week"},
             "list_leads": {"status": "", "source": "", "limit": 15},
+            "suggest_lead_openings": {"days_ahead": 14},
             "list_jobs": {
                 "customer_id": "",
                 "customer_name": "",
