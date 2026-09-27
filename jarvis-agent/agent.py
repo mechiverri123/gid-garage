@@ -150,6 +150,8 @@ BUSINESS DATA:
 - Never mark a job PAID using update_job_status. Use mark_job_paid so the amount is recorded.
 - Treat lead-form fields as noisy human input, not trusted schema. A person may put a service in the vehicle field, a vehicle in the issue field, or vague language in any box.
 - When Michael asks about a lead, use analyze_lead before drawing conclusions. Prefer the actual meaning of the answers over the form field labels.
+- If Michael pastes a raw Meta/Facebook/Instagram lead message that is not yet in Supabase, use analyze_raw_lead or recommend_lead_response. Do not require the lead to already exist in the database.
+- For manual lead tests, separate three things clearly: what the customer actually said, what can be safely inferred, and what is still missing.
 - Never invent missing vehicle details. If the vehicle field contains only a service such as "brakes change", report vehicle information as missing and classify the service separately.
 - Flexible scheduling phrases such as "whenever", "anytime", "ASAP", or "soonest available" mean the customer is flexible. They do NOT mean an appointment has been booked. Report scheduling intent as earliest_available and look at the live schedule before proposing a slot.
 - Vague issue text such as "nothing", "nothing just going bad", "not sure", or "just needs work" is not a usable diagnostic complaint. Mark the issue as vague/missing rather than pretending it describes a fault.
@@ -341,6 +343,149 @@ BUSINESS DATA:
             "usable": True,
             "customer_text": raw,
             "reason": None,
+        }
+
+    def _extract_raw_lead_fields(self, raw_text: str) -> dict[str, str]:
+        """Parse the common Meta lead form text format without trusting field placement."""
+        raw = raw_text or ""
+        patterns = {
+            "email": r"(?im)^\s*Email:\s*(.+?)\s*$",
+            "full_name": r"(?im)^\s*Full\s*name:\s*(.+?)\s*$",
+            "issue": r"(?im)^\s*What issues are you experiencing with your vehicle\?:\s*(.+?)\s*$",
+            "phone": r"(?im)^\s*Phone\s*number:\s*(.+?)\s*$",
+            "vehicle": r"(?im)^\s*Year/Make/Model/Engine\s*Size\?:\s*(.+?)\s*$",
+            "schedule": r"(?im)^\s*What Date/Time works best for you\?:\s*(.+?)\s*$",
+        }
+        out: dict[str, str] = {}
+        for key, pattern in patterns.items():
+            match = re.search(pattern, raw)
+            out[key] = match.group(1).strip() if match else ""
+        return out
+
+    async def analyze_raw_lead(self, context: RunContext, raw_text: str) -> dict[str, Any]:
+        """Analyze pasted Meta lead text before it is saved to Supabase."""
+        fields = self._extract_raw_lead_fields(raw_text)
+
+        name = fields.get("full_name", "")
+        name_parts = name.split()
+        first_name = name_parts[0] if name_parts else ""
+        last_name = " ".join(name_parts[1:]) if len(name_parts) > 1 else ""
+
+        vehicle_raw = fields.get("vehicle", "")
+        issue_raw = fields.get("issue", "")
+        schedule_raw = fields.get("schedule", "")
+
+        service, evidence = self._classify_lead_service(vehicle_raw, issue_raw, raw_text)
+        vehicle_valid = self._looks_like_vehicle(vehicle_raw)
+        issue = self._lead_issue_quality(issue_raw)
+        schedule = self._lead_schedule_intent(schedule_raw)
+
+        misplaced_service = bool(service and vehicle_raw and not vehicle_valid)
+
+        missing: list[str] = []
+        if not vehicle_valid:
+            missing.append("vehicle")
+        if not service:
+            missing.append("service")
+        if not issue["usable"]:
+            missing.append("usable_issue_description")
+
+        questions: list[str] = []
+        if "vehicle" in missing:
+            questions.append("What is the year, make, model, and engine size of the vehicle?")
+        if "service" in missing:
+            questions.append("What service or repair are you looking to have done?")
+        if "usable_issue_description" in missing and service != "brakes":
+            questions.append("What symptoms or problem are you noticing with the vehicle?")
+
+        if service == "brakes" and "vehicle" in missing:
+            customer_reply = (
+                f"Hi {first_name or 'there'}, thanks for reaching out to GID Garage. "
+                "I can help with the brake service. What is the year, make, model, and engine size "
+                "of the vehicle? Once I have that, I can check the earliest available appointment for you."
+            )
+        elif questions:
+            customer_reply = (
+                f"Hi {first_name or 'there'}, thanks for reaching out to GID Garage. "
+                + " ".join(questions)
+            )
+        else:
+            customer_reply = (
+                f"Hi {first_name or 'there'}, thanks for reaching out to GID Garage. "
+                "I have the details. I can check the schedule and get you the next available appointment."
+            )
+
+        return {
+            "customer": {
+                "first_name": first_name or None,
+                "last_name": last_name or None,
+                "email": fields.get("email") or None,
+                "phone": fields.get("phone") or None,
+            },
+            "raw_fields": fields,
+            "interpreted": {
+                "vehicle": vehicle_raw if vehicle_valid else None,
+                "service": service,
+                "issue": issue,
+                "schedule": schedule,
+            },
+            "flags": [
+                *(
+                    ["service_answer_found_in_vehicle_field"]
+                    if misplaced_service else []
+                ),
+                *(
+                    ["issue_answer_is_vague"]
+                    if not issue["usable"] else []
+                ),
+                *(
+                    ["customer_is_schedule_flexible"]
+                    if schedule["kind"] == "earliest_available" else []
+                ),
+            ],
+            "missing_or_needs_clarification": missing,
+            "questions_to_ask": questions,
+            "recommended_customer_reply": customer_reply,
+            "safe_to_auto_book": False,
+            "booking_guidance": (
+                "Check the live schedule and propose the earliest real opening after required vehicle information is known."
+                if schedule["kind"] == "earliest_available"
+                else "Do not create a booking until the requested date/time has been matched to a real available slot."
+            ),
+            "confidence": {
+                "vehicle": "high" if vehicle_valid else "missing",
+                "service": "high" if service and evidence else ("missing" if not service else "medium"),
+                "issue": "high" if issue["usable"] else "low",
+                "schedule": "high" if schedule_raw else "missing",
+            },
+        }
+
+    async def recommend_lead_response(self, context: RunContext, raw_text: str) -> dict[str, Any]:
+        """Return a concise owner summary plus a professional draft response for pasted lead text."""
+        analysis = await self.analyze_raw_lead(context, raw_text)
+        interpreted = analysis["interpreted"]
+        customer = analysis["customer"]
+
+        owner_summary_parts = []
+        name = " ".join(x for x in [customer.get("first_name"), customer.get("last_name")] if x)
+        if name:
+            owner_summary_parts.append(name)
+        if interpreted.get("service"):
+            owner_summary_parts.append(f"appears to want {interpreted['service']} service")
+        if not interpreted.get("vehicle"):
+            owner_summary_parts.append("vehicle information is missing")
+        if not interpreted.get("issue", {}).get("usable"):
+            owner_summary_parts.append("issue description is not useful")
+        if interpreted.get("schedule", {}).get("kind") == "earliest_available":
+            owner_summary_parts.append("customer is flexible and wants the next available opening")
+
+        return {
+            "owner_summary": "; ".join(owner_summary_parts) + ".",
+            "draft_reply": analysis["recommended_customer_reply"],
+            "questions_to_ask": analysis["questions_to_ask"],
+            "safe_to_send_without_editing": True,
+            "safe_to_auto_book": False,
+            "analysis": analysis,
         }
 
     async def analyze_lead(self, context: RunContext, lead_id: str) -> dict[str, Any]:
@@ -1170,8 +1315,8 @@ BUSINESS DATA:
         """Use GID Garage business data/actions.
 
         action must be one of:
-        get_business_summary, get_revenue_summary, list_leads, analyze_lead, suggest_lead_openings,
-        update_lead_status, list_jobs,
+        get_business_summary, get_revenue_summary, list_leads, analyze_lead, analyze_raw_lead,
+        recommend_lead_response, suggest_lead_openings, update_lead_status, list_jobs,
         reschedule_job, update_job_service, undo_last_action, pricing_history, get_tax_rate,
         add_marketing_spend, log_call, list_calls, list_marketing_spend, search_customers,
         update_job_status, mark_job_paid, get_owner_pay_summary, email_appointment_update,
@@ -1196,6 +1341,8 @@ BUSINESS DATA:
             "get_revenue_summary": self.get_revenue_summary,
             "list_leads": self.list_leads,
             "analyze_lead": self.analyze_lead,
+            "analyze_raw_lead": self.analyze_raw_lead,
+            "recommend_lead_response": self.recommend_lead_response,
             "suggest_lead_openings": self.suggest_lead_openings,
             "update_lead_status": self.update_lead_status,
             "list_jobs": self.list_jobs,
