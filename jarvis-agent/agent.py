@@ -154,6 +154,11 @@ BUSINESS DATA:
 - Treat lead-form fields as noisy human input, not trusted schema. A person may put a service in the vehicle field, a vehicle in the issue field, or vague language in any box.
 - When Michael asks about a lead, use analyze_lead before drawing conclusions. Prefer the actual meaning of the answers over the form field labels.
 - If Michael pastes a raw Meta/Facebook/Instagram lead message that is not yet in Supabase, ALWAYS use analyze_raw_lead or recommend_lead_response first. Do not search Supabase for that pasted lead and do not say it is "still processing."
+- IMPORTANT ROUTING RULE: if the user's message contains form labels such as "Email:", "Full name:", "What issues are you experiencing with your vehicle?:", "Phone number:", "Year/Make/Model/Engine Size?:", or "What Date/Time works best for you?:", treat the message itself as the lead payload. This is an implicit request to analyze it. Call gid_business with action="analyze_raw_lead" and pass the ENTIRE user message as raw_text. Do not call search_customers, list_leads, or any database lookup first.
+- After analyze_raw_lead returns, summarize the interpretation to Michael as the owner. Do not say the person is or is not in the database unless Michael separately asks you to check that.
+- RAW LEAD RESPONSE CONTRACT: after analyze_raw_lead returns, the spoken answer must cover inferred service, missing vehicle information, whether the issue description is vague/unusable, and scheduling intent whenever those facts apply.
+- Do not say a pasted lead "just came through", "came through the form", "is in the system", or similar unless a database lookup specifically confirmed that fact.
+- Do not immediately ask whether Michael wants to email or call the lead. First give the owner analysis. Only discuss contact actions if Michael asks what to do next or asks for a reply.
 - A pasted lead is being shown to Michael, the business owner. Respond to Michael with an owner analysis unless he explicitly asks for a customer-facing draft.
 - For manual lead tests, separate three things clearly: what the customer actually said, what can be safely inferred, and what is still missing.
 - Never invent missing vehicle details. If the vehicle field contains only a service such as "brakes change", report vehicle information as missing and classify the service separately.
@@ -415,7 +420,7 @@ BUSINESS DATA:
         return out
 
     async def analyze_raw_lead(self, context: RunContext, raw_text: str) -> dict[str, Any]:
-        """Analyze pasted Meta lead text before it is saved to Supabase."""
+        """Analyze a pasted Meta/Facebook/Instagram lead form directly from the user's message. Use this before any database lookup whenever form labels are present, even if the user did not explicitly ask to analyze it. Prefer the returned owner_analysis for the owner-facing response."""
         fields = self._extract_raw_lead_fields(raw_text)
 
         name = fields.get("full_name", "")
@@ -467,7 +472,39 @@ BUSINESS DATA:
                 "I have the details. I can check the schedule and get you the next available appointment."
             )
 
+        owner_analysis_parts: list[str] = []
+        if service:
+            owner_analysis_parts.append(f"{name or 'This lead'} appears to want {service} service.")
+        else:
+            owner_analysis_parts.append(f"{name or 'This lead'} did not provide a clear service request.")
+
+        if not vehicle_valid:
+            if misplaced_service:
+                owner_analysis_parts.append(
+                    f'The vehicle field contains "{vehicle_raw}", which looks like a service request rather than year/make/model/engine, so the vehicle information is missing.'
+                )
+            else:
+                owner_analysis_parts.append("Vehicle information is missing.")
+
+        if not issue["usable"]:
+            issue_display = issue_raw or "blank"
+            owner_analysis_parts.append(
+                f'The issue answer "{issue_display}" is too vague to treat as a usable symptom.'
+            )
+
+        if schedule["kind"] == "earliest_available":
+            owner_analysis_parts.append(
+                f'The scheduling answer "{schedule_raw}" means the customer is flexible and wants the earliest real opening; it is not a booked appointment.'
+            )
+        elif schedule["kind"] == "customer_preference":
+            owner_analysis_parts.append(
+                f'The customer gave a scheduling preference of "{schedule_raw}", but no appointment is booked yet.'
+            )
+
+        owner_analysis = " ".join(owner_analysis_parts)
+
         return {
+            "owner_analysis": owner_analysis,
             "customer": {
                 "first_name": first_name or None,
                 "last_name": last_name or None,
@@ -1376,6 +1413,15 @@ BUSINESS DATA:
         send_customer_email.
 
         args_json must be a JSON object string containing that action's arguments.
+
+        LEAD ROUTING:
+        - When the user pastes a lead-form message containing labels like Email:, Full name:,
+          Phone number:, Year/Make/Model/Engine Size?:, or What Date/Time works best for you?:,
+          use analyze_raw_lead immediately with {"raw_text": "<the entire pasted message>"}.
+        - Do NOT search customers or leads first for a pasted raw form.
+        - A pasted raw form should be analyzed even when the user does not explicitly say "analyze this."
+        - After analyze_raw_lead, base the spoken answer on owner_analysis. Do not replace it with a generic sales follow-up.
+
         Use empty strings for unused text filters. For list limits, use 15 unless
         Michael asks for more. mark_job_paid, email_appointment_update, and
         send_customer_email must first use confirmed=false; only use confirmed=true
