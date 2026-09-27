@@ -1,14 +1,20 @@
-import { RoomAgentDispatch, RoomConfiguration } from '@livekit/protocol';
-import { AccessToken } from 'livekit-server-sdk';
+import { AccessToken, LiveKitAPI } from 'livekit-server-sdk';
 
 function json(body, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
     headers: {
       'Content-Type': 'application/json',
-      'Cache-Control': 'no-store',
+      'Cache-Control': 'no-store, no-cache, must-revalidate',
     },
   });
+}
+
+function apiHost(url) {
+  return String(url || '')
+    .replace(/^wss:\/\//i, 'https://')
+    .replace(/^ws:\/\//i, 'http://')
+    .replace(/\/+$/, '');
 }
 
 export async function onRequestGet({ env }) {
@@ -16,6 +22,7 @@ export async function onRequestGet({ env }) {
     ok: true,
     configured: !!(env.LIVEKIT_URL && env.LIVEKIT_API_KEY && env.LIVEKIT_API_SECRET),
     agent_name: env.LIVEKIT_AGENT_NAME || 'gid-jarvis',
+    dispatch_mode: 'explicit-api',
   });
 }
 
@@ -32,37 +39,50 @@ export async function onRequestPost({ env }) {
   const roomName = `gid-jarvis-${crypto.randomUUID()}`;
   const identity = `michael-${crypto.randomUUID().slice(0, 8)}`;
 
-  const token = new AccessToken(apiKey, apiSecret, {
-    identity,
-    name: 'Michael',
-    ttl: '20m',
-  });
+  try {
+    // Explicit dispatch is deliberate here. It removes the ambiguity of relying
+    // on roomConfig embedded in the participant token and gives us a dispatch ID
+    // we can surface in diagnostics.
+    const api = new LiveKitAPI({
+      host: apiHost(serverUrl),
+      apiKey,
+      secret: apiSecret,
+    });
 
-  token.addGrant({
-    roomJoin: true,
-    room: roomName,
-    canPublish: true,
-    canSubscribe: true,
-    canPublishData: true,
-  });
-
-  token.roomConfig = new RoomConfiguration({
-    agents: [
-      new RoomAgentDispatch({
-        agentName,
-        metadata: JSON.stringify({
-          app: 'gid-garage',
-          surface: 'jarvis',
-          owner: 'Michael',
-        }),
+    const dispatch = await api.agentDispatch.createDispatch(roomName, agentName, {
+      metadata: JSON.stringify({
+        app: 'gid-garage',
+        surface: 'jarvis',
+        owner: 'Michael',
       }),
-    ],
-  });
+    });
 
-  return json({
-    server_url: serverUrl,
-    participant_token: await token.toJwt(),
-    room_name: roomName,
-    agent_name: agentName,
-  });
+    const token = new AccessToken(apiKey, apiSecret, {
+      identity,
+      name: 'Michael',
+      ttl: '20m',
+    });
+
+    token.addGrant({
+      roomJoin: true,
+      room: roomName,
+      canPublish: true,
+      canSubscribe: true,
+      canPublishData: true,
+    });
+
+    return json({
+      server_url: serverUrl,
+      participant_token: await token.toJwt(),
+      room_name: roomName,
+      agent_name: agentName,
+      dispatch_id: dispatch?.id || null,
+      dispatch_mode: 'explicit-api',
+    });
+  } catch (error) {
+    return json({
+      error: 'LiveKit agent dispatch failed.',
+      detail: error instanceof Error ? error.message : String(error),
+    }, 502);
+  }
 }

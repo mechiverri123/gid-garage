@@ -596,7 +596,9 @@ async def gid_jarvis(ctx: JobContext):
     # IMPORTANT: explicitly bind the AgentSession to the actual browser
     # participant. This removes the race where the agent can start before the
     # site's mic track is published and end up listening to nobody.
+    print(f"GID_DIAG job room={ctx.room.name}")
     participant = await ctx.wait_for_participant()
+    print(f"GID_DIAG participant={participant.identity}")
 
     session = AgentSession(
         stt=inference.STT(model=STT_MODEL, language="en"),
@@ -629,14 +631,15 @@ async def gid_jarvis(ctx: JobContext):
                 text = "".join(str(part) for part in text)
             text = str(text).strip()
             if text:
-                session.say(text, allow_interruptions=True, add_to_chat_ctx=False)
+                print(f"GID_DIAG speak_stream chars={len(text)}")
+                handle = session.say(text, allow_interruptions=True, add_to_chat_ctx=False)
+                await handle
+                print("GID_DIAG speak_stream played")
         except Exception as exc:
             print(f"gid.speak handler error: {type(exc).__name__}: {exc}")
 
     def _handle_speak_stream(reader, participant_identity: str) -> None:
         asyncio.create_task(_speak_stream(reader, participant_identity))
-
-    ctx.room.register_text_stream_handler("gid.speak", _handle_speak_stream)
 
     await session.start(
         room=ctx.room,
@@ -649,6 +652,8 @@ async def gid_jarvis(ctx: JobContext):
             text_output=True,
         ),
     )
+    print(f"GID_DIAG session_started linked={getattr(session.room_io.linked_participant, 'identity', None)}")
+    ctx.room.register_text_stream_handler("gid.speak", _handle_speak_stream)
 
     await session.generate_reply(
         instructions="Give a very short startup greeting. Say GID Garage is online and you're ready. Do not give a business briefing unless Michael asks."
