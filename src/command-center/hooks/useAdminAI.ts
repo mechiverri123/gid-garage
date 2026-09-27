@@ -4,7 +4,7 @@ import type { ActivityItem, ChatMsg, DataCard, JarvisState } from '../types';
 const SUCCESS_PULSE_MS = 500;
 const ERROR_PULSE_MS = 600;
 
-export function useAdminAI(onWriteLikelyHappened: () => void) {
+export function useAdminAI(onWriteLikelyHappened: () => void, onFinalText?: (text: string) => void | Promise<void>) {
   const [chatMessages, setChatMessages] = useState<ChatMsg[]>([]);
   const [asking, setAsking] = useState(false);
   const [liveActivity, setLiveActivity] = useState<ActivityItem[]>([]);
@@ -69,11 +69,13 @@ export function useAdminAI(onWriteLikelyHappened: () => void) {
             pendingCards = [...pendingCards, { tool: event.tool, payload: event.payload }];
           } else if (event.type === 'final') {
             sawFinal = true;
-            setChatMessages(prev => [...prev, { role: 'assistant', content: event.text || 'No answer.', cards: pendingCards.length ? pendingCards : undefined }]);
+            const finalText = event.text || 'No answer.';
+            setChatMessages(prev => [...prev, { role: 'assistant', content: finalText, cards: pendingCards.length ? pendingCards : undefined }]);
             pendingCards = [];
             setLiveActivity([]);
             pulse('success', SUCCESS_PULSE_MS);
             onWriteLikelyHappened();
+            if (onFinalText) void onFinalText(finalText);
           } else if (event.type === 'error') {
             sawFinal = true;
             setChatMessages(prev => [...prev, { role: 'assistant', content: `Error: ${event.message}` }]);
@@ -95,7 +97,7 @@ export function useAdminAI(onWriteLikelyHappened: () => void) {
     } finally {
       setAsking(false);
     }
-  }, [asking, chatMessages, onWriteLikelyHappened, pulse]);
+  }, [asking, chatMessages, onWriteLikelyHappened, onFinalText, pulse]);
 
   const clear = useCallback(() => {
     setChatMessages([]);

@@ -1,3 +1,4 @@
+import asyncio
 import html
 import json
 import os
@@ -17,6 +18,7 @@ from livekit.agents import (
     TurnHandlingOptions,
     function_tool,
     inference,
+    room_io,
 )
 
 load_dotenv()
@@ -591,6 +593,11 @@ async def gid_jarvis(ctx: JobContext):
     # errors surface in the agent logs, not halfway through a voice command.
     db()
 
+    # IMPORTANT: explicitly bind the AgentSession to the actual browser
+    # participant. This removes the race where the agent can start before the
+    # site's mic track is published and end up listening to nobody.
+    participant = await ctx.wait_for_participant()
+
     session = AgentSession(
         stt=inference.STT(model=STT_MODEL, language="en"),
         llm=inference.LLM(model=LLM_MODEL, extra_kwargs={"max_completion_tokens": 512}),
@@ -601,9 +608,6 @@ async def gid_jarvis(ctx: JobContext):
             extra_kwargs={"speed": TTS_SPEED, "emotion": "calm", "volume": 1.0, "max_buffer_delay_ms": 80},
         ),
         turn_handling=TurnHandlingOptions(
-            # Deepgram Flux already detects conversational end-of-turn.
-            # Using its STT-native turn detection avoids the session sitting in
-            # LISTENING after Michael finishes speaking.
             turn_detection="stt",
             preemptive_generation={
                 "enabled": True,
@@ -613,7 +617,39 @@ async def gid_jarvis(ctx: JobContext):
         ),
     )
 
-    await session.start(room=ctx.room, agent=GIDJarvis())
+    # The website's existing text/business agent remains authoritative for
+    # Quick Commands. It sends the final answer on this private text topic and
+    # this handler speaks it through the SAME Cartesia voice, without another LLM call.
+    async def _speak_stream(reader, participant_identity: str) -> None:
+        if participant_identity != participant.identity:
+            return
+        try:
+            text = await reader.read_all()
+            if isinstance(text, list):
+                text = "".join(str(part) for part in text)
+            text = str(text).strip()
+            if text:
+                session.say(text, allow_interruptions=True, add_to_chat_ctx=False)
+        except Exception as exc:
+            print(f"gid.speak handler error: {type(exc).__name__}: {exc}")
+
+    def _handle_speak_stream(reader, participant_identity: str) -> None:
+        asyncio.create_task(_speak_stream(reader, participant_identity))
+
+    ctx.room.register_text_stream_handler("gid.speak", _handle_speak_stream)
+
+    await session.start(
+        room=ctx.room,
+        agent=GIDJarvis(),
+        room_options=room_io.RoomOptions(
+            participant_identity=participant.identity,
+            text_input=True,
+            audio_input=True,
+            audio_output=True,
+            text_output=True,
+        ),
+    )
+
     await session.generate_reply(
         instructions="Give a very short startup greeting. Say GID Garage is online and you're ready. Do not give a business briefing unless Michael asks."
     )

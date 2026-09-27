@@ -49,12 +49,14 @@ export function CommandCenterPage({ onLock }: { onLock: () => void }) {
     updateLeadStatus, submitSpend,
   } = useBusinessSummary();
 
+  const voice = useLiveKitJarvis();
+
   const { chatMessages, asking, liveActivity, jarvisState, ask, clear } = useAdminAI(() => {
     loadSummary();
     loadLeads(leadStatusFilter || undefined);
+  }, async (text) => {
+    if (voice.connected) await voice.speakText(text);
   });
-
-  const voice = useLiveKitJarvis();
 
   // Voice actions can change the same business records as the typed agent.
   // While the realtime session is open, refresh the dashboard quietly so a

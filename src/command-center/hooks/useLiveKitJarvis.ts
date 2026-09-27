@@ -204,6 +204,20 @@ export function useLiveKitJarvis() {
     }
   }, [removeAudioNodes, state]);
 
+  const speakText = useCallback(async (text: string) => {
+    const room = roomRef.current;
+    const value = text.trim();
+    if (!value || !room || room.state !== ConnectionState.Connected) return false;
+
+    try {
+      await room.localParticipant.sendText(value, { topic: 'gid.speak' });
+      return true;
+    } catch (err: any) {
+      setError(err?.message || 'Could not send speech to JARVIS.');
+      return false;
+    }
+  }, []);
+
   const toggle = useCallback(() => {
     if (roomRef.current || state === 'connecting') void disconnect();
     else void connect();
@@ -221,5 +235,6 @@ export function useLiveKitJarvis() {
     connect,
     disconnect,
     toggle,
+    speakText,
   };
 }
