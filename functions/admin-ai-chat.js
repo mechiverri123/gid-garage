@@ -512,6 +512,7 @@ const TOOLS = [
         quoted_amount: { type: 'number' },
         preferred_timing: { type: 'string', description: 'Keep vague timing vague, e.g. maybe Friday.' },
         action_needed: { type: 'string', description: 'Explicit next action only; omit if none is stated.' },
+        job_id: { type: 'string', description: 'Only if the note is explicitly about a specific job id (e.g. GID-1790…).' },
         due_at_local: { type: 'string', description: 'Only if Michael explicitly states a concrete owner-action date/time. America/Phoenix YYYY-MM-DDTHH:mm.' },
       },
       required: ['raw_text', 'summary'],
@@ -1115,7 +1116,9 @@ export async function onRequestPost({ request, env }) {
         if (!rawText || !summary) throw new Error('raw_text and summary are required.');
         let dueAt = null;
         if (input.due_at_local) dueAt = phoenixLocalToIso(input.due_at_local);
-        const row = await sbInsert('jarvis_business_notes', {
+        // Link to the customer/job record only on strong evidence (see noteLinkFor).
+        const link = await ops.noteLinkFor({ contact_name: input.contact_name, phone: input.phone, job_id: input.job_id ? String(input.job_id).trim() : null }).catch(() => ({ customer_id: null, booking_id: null, link: { linked: false, reason: 'lookup_failed' } }));
+        const noteRow = {
           raw_text: rawText.slice(0, 12000),
           summary: summary.slice(0, 500),
           contact_name: input.contact_name ? String(input.contact_name).trim().slice(0, 200) : null,
@@ -1129,16 +1132,30 @@ export async function onRequestPost({ request, env }) {
           due_at: dueAt,
           status: 'open',
           source: 'jarvis',
-        });
+        };
+        const ids = { ...(link.customer_id ? { customer_id: link.customer_id } : {}), ...(link.booking_id ? { booking_id: link.booking_id } : {}) };
+        let row;
+        try {
+          row = await sbInsert('jarvis_business_notes', { ...noteRow, ...ids });
+        } catch (e) {
+          // Link columns not added yet (jarvis_note_links_migration.sql): save the note exactly as before.
+          if (!Object.keys(ids).length || !/customer_id|booking_id/.test(String(e.message))) throw e;
+          row = await sbInsert('jarvis_business_notes', noteRow);
+          link.link = { ...link.link, saved: false, reason: 'link columns not added yet (run jarvis_note_links_migration.sql)' };
+        }
         // Same person already has open notes? The new note is the thread's
         // current state; offer to close the older ones (only on the owner's yes).
+        // Same person = same linked customer, or the same name when not linked to different customers.
         const key = noteContactKey(row.contact_name);
-        const earlier = key
-          ? (await sbGet('jarvis_business_notes', { select: 'id,created_at,summary,contact_name', status: 'eq.open', order: 'created_at.desc', limit: '200' }).catch(() => []))
-            .filter(n => n.id !== row.id && noteContactKey(n.contact_name) === key).slice(0, 10)
+        const samePerson = n => (row.customer_id && n.customer_id
+          ? n.customer_id === row.customer_id
+          : !!key && noteContactKey(n.contact_name) === key);
+        const earlier = key || row.customer_id
+          ? (await sbGet('jarvis_business_notes', { select: '*', status: 'eq.open', order: 'created_at.desc', limit: '200' }).catch(() => []))
+            .filter(n => n.id !== row.id && samePerson(n)).slice(0, 10)
           : [];
         return {
-          ok: true, verified: true, entity: 'note', id: row.id, note: row,
+          ok: true, verified: true, entity: 'note', id: row.id, note: row, link: link.link,
           ...(earlier.length ? {
             earlier_open_notes: earlier.map(n => ({ id: n.id, created_at: n.created_at, summary: n.summary })),
             owner_question: `${row.contact_name} already has ${earlier.length === 1 ? 'an earlier open note' : `${earlier.length} earlier open notes`} (${earlier.map(n => `"${n.summary}"`).join('; ')}). Close ${earlier.length === 1 ? 'it' : 'them'}?`,

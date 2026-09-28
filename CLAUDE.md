@@ -28,6 +28,17 @@ Treat all business data, customer data, schedules, payments, outbound messages, 
   Never point a webhook, cron job or agent at a `/jarvis*` path.
 - Preserve this rule in every future architecture change or refactor.
 
+# 0.2 OWNER NOTES ↔ CUSTOMER LINKS
+
+- `jarvis_note_links_migration.sql` adds nullable `customer_id` and `booking_id` to `jarvis_business_notes`. It's additive, and the owner runs it.
+- The code works before and after the migration. Before it, notes save exactly as they always have.
+- **When a note links:** only on strong evidence (`noteLinkFor` in `functions/_lib/business-data.js`):
+  - the same 10-digit phone, or
+  - a full name that exactly one customer has.
+  First-name-only or ambiguous names never link, and name matching keeps working for them.
+- **Effect of a link:** a linked note belongs only to that customer (`noteMatch`), and "waiting on" groups by `customer_id`.
+- **Backfill:** `node scripts/link-notes.mjs` is a dry run. Add `--apply` to write, which only sets `customer_id` on notes, and the script hard-refuses to write any other table.
+
 # 0.1 SEO / GROWTH MODE — CURRENT STATE
 
 - **Supabase SEO schema is initialized in production.** `seo_migration.sql` ran successfully. The checked-in file is the exact corrected version that ran: plain SQL, and the `seo_gsc_period` / `seo_gsc_service_daily` RPCs have quoted `"position"`, `g.`-qualified columns, `::bigint` sums and explicit aliases. Do not re-run it or change the existing tables casually. Schema changes need a new, additive migration.
@@ -473,8 +484,10 @@ It should not be described as:
 - gross sales
 - dashboard net profit
 
+**VALIDATED 2026-09-28:** the owner confirmed Jarvis's "this month" revenue matches the live Schedule dashboard. Jarvis and voice returned $4,439.02 revenue and $2,976.80 net profit through the canonical `shared/business-metrics.js`. Re-validate after any finance change.
+
 IMPORTANT:
-The latest financial patch was created, but if it has not yet been validated against live dashboard values, treat it as **pending validation**, not proven correct.
+If a later finance change hasn't been validated against live dashboard values, treat it as **pending validation**, not proven correct.
 
 First manual tests after any finance-related change:
 

@@ -446,7 +446,66 @@ export function createBusinessOps({ sbGet, sbPatch, sbInsert = null, now = () =>
       { recorded: money(preview.amount), paidTotal: money(preview.paidAfter), invoiceTotalInclTax: money(preview.totalDue), balance: money(preview.balanceAfter), status: after.job_status });
   }
 
+  // ---- linking owner notes to the customer / job they're about ------------------
+  // Strong evidence only: the same 10-digit phone, or a full name exactly one
+  // customer has. First-name-only or ambiguous names stay unlinked (name
+  // matching keeps working as before). Writes only jarvis_business_notes.
+  const phone10 = v => String(v || '').replace(/\D/g, '').slice(-10);
+  const sameName = (a, b) => cleanSearchText(a).toLowerCase() === cleanSearchText(b).toLowerCase();
+
+  async function noteLinkFor({ contact_name, phone, job_id } = {}) {
+    const name = cleanSearchText(contact_name);
+    const pd = phone10(phone);
+    let customer = null; let reason = name ? 'first_name_only' : 'no_name_or_phone';
+    if (pd.length === 10) {
+      const hits = (await sbGet('customers', { select: 'id,fname,lname,phone', phone: `ilike.*${pd.slice(-4)}*`, limit: '25' })).filter(c => phone10(c.phone) === pd);
+      if (hits.length === 1) { customer = hits[0]; reason = 'phone'; }
+    }
+    if (!customer && name.includes(' ')) {
+      const [first, ...rest] = name.split(' ');
+      const hits = (await sbGet('customers', { select: 'id,fname,lname,phone', fname: `ilike.${first}`, lname: `ilike.${rest.join(' ')}`, limit: '5' })).filter(c => sameName(fullName(c), name));
+      if (hits.length === 1) { customer = hits[0]; reason = 'full_name'; } else reason = hits.length > 1 ? 'ambiguous_full_name' : 'no_customer_with_that_name';
+    }
+    let bookingId = null;
+    if (job_id) {
+      const job = (await sbGet('bookings', { select: 'id,customer_id', id: `eq.${job_id}`, limit: '1' }))[0];
+      // A job id only links when it doesn't contradict the linked customer.
+      if (job && (!customer || !job.customer_id || job.customer_id === customer.id)) bookingId = job.id;
+    }
+    return {
+      customer_id: customer?.id || null,
+      booking_id: bookingId,
+      link: customer ? { linked: true, by: reason, customer: fullName(customer) } : { linked: false, reason },
+    };
+  }
+
+  // Dry run for existing notes: what each unlinked note WOULD link to. Writes nothing.
+  async function planNoteLinks() {
+    const notes = await sbGet('jarvis_business_notes', { select: 'id,created_at,contact_name,phone,status,customer_id', customer_id: 'is.null', order: 'created_at.asc', limit: '2000' })
+      // Before the migration there is no customer_id column: every note is unlinked (preview only).
+      .catch(e => { if (!/customer_id/.test(String(e.message))) throw e; return sbGet('jarvis_business_notes', { select: 'id,created_at,contact_name,phone,status', order: 'created_at.asc', limit: '2000' }); });
+    const cache = new Map();
+    const proposals = [];
+    for (const n of notes) {
+      const key = `${cleanSearchText(n.contact_name).toLowerCase()}|${phone10(n.phone)}`;
+      if (!cache.has(key)) cache.set(key, await noteLinkFor({ contact_name: n.contact_name, phone: n.phone }));
+      const l = cache.get(key);
+      proposals.push({ note_id: n.id, created_at: n.created_at, contact_name: n.contact_name || null, status: n.status, customer_id: l.customer_id, ...l.link });
+    }
+    return proposals;
+  }
+
+  // Applies only the linked proposals: sets customer_id on those notes, verified per row.
+  async function applyNoteLinks(proposals) {
+    const results = [];
+    for (const p of proposals.filter(x => x.customer_id)) {
+      try { await patch('jarvis_business_notes', p.note_id, { customer_id: p.customer_id }); results.push({ note_id: p.note_id, ok: true }); } catch (e) { results.push({ note_id: p.note_id, ok: false, error: e.message }); }
+    }
+    return results;
+  }
+
   return {
+    noteLinkFor, planNoteLinks, applyNoteLinks,
     loadMetricJobs, patch, revenueSummary, comparePeriods, ownerPaySummary, findPeople, customerContext, vehicleJobs,
     resultSetDetails, jobDetail, cancelJob, reopenJob, actionCenter, unpaidSummary, dataHealth, businessSummary,
     ownerBriefing, recordPayment,

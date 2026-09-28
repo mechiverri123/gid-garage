@@ -30,9 +30,9 @@
     "semantic_hash": "ce619fcfd1eeb9713d76458dbcb97c85"
   },
   "functions/admin-ai-chat.js": {
-    "mtime": 1790614144.022563,
-    "seen": 1790614811.794993,
-    "ast_hash": "ac2042b8cd47772e0c5bd8a5f4d76d2f",
+    "mtime": 1790615862.58092,
+    "seen": 1790615991.2810404,
+    "ast_hash": "5e0157eb1c773c57017d5622bc9b8123",
     "semantic_hash": ""
   },
   "functions/admin-api-data.js": {
@@ -666,9 +666,9 @@
     "semantic_hash": "a643d83b7626b709e8beeda21099b3f0"
   },
   "CLAUDE.md": {
-    "mtime": 1790588053.9679754,
-    "seen": 1790588110.9451525,
-    "ast_hash": "f6089ac15b2ecfb9b233daeea897b60a",
+    "mtime": 1790615961.360844,
+    "seen": 1790615991.2954924,
+    "ast_hash": "fb5f698c5f4f66fb0aa6fc13ab8b71d1",
     "semantic_hash": ""
   },
   "CODEBASE.md": {
@@ -1230,9 +1230,9 @@
     "semantic_hash": ""
   },
   "functions/_lib/business-data.js": {
-    "mtime": 1790614132.0894835,
-    "seen": 1790614811.794367,
-    "ast_hash": "462ee6d56271a3da5b3bcbe31694472f",
+    "mtime": 1790615941.2297957,
+    "seen": 1790615991.2804203,
+    "ast_hash": "f11ff9f9bda18e3c7128d95901b01a6b",
     "semantic_hash": ""
   },
   "functions/_lib/jarvis-intent.js": {
@@ -1254,15 +1254,15 @@
     "semantic_hash": ""
   },
   "shared/business-rules.js": {
-    "mtime": 1790612486.1071322,
-    "seen": 1790612517.469034,
-    "ast_hash": "771672ba5f088de5d90a71dad2583c2d",
+    "mtime": 1790615871.974219,
+    "seen": 1790615991.2835171,
+    "ast_hash": "2e5e41769b666c69290cad2aa99b6ce3",
     "semantic_hash": ""
   },
   "shared/job-context.js": {
-    "mtime": 1790576540.2662213,
-    "seen": 1790576691.6518857,
-    "ast_hash": "826c5019825b5a648fe3daee4bf9826f",
+    "mtime": 1790615871.974219,
+    "seen": 1790615991.2835183,
+    "ast_hash": "2092d86359f657613cc98a7f3056152f",
     "semantic_hash": ""
   },
   "tests/business-data.test.js": {
@@ -1599,6 +1599,18 @@
     "mtime": 1790614763.0449743,
     "seen": 1790614811.8043678,
     "ast_hash": "70f4e7b874d946e51f38bd372c9f0dd2",
+    "semantic_hash": ""
+  },
+  "scripts/link-notes.mjs": {
+    "mtime": 1790615941.2297957,
+    "seen": 1790615991.2833266,
+    "ast_hash": "a2339b00e87c05928e1e73375313aa6a",
+    "semantic_hash": ""
+  },
+  "tests/note-links.test.js": {
+    "mtime": 1790615941.2267764,
+    "seen": 1790615991.2902918,
+    "ast_hash": "30f6762104a4c143c4afbd348631f99d",
     "semantic_hash": ""
   }
 }

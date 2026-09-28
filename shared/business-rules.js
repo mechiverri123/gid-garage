@@ -284,9 +284,8 @@ export function dataHealthIssues({ jobs = [], leads = [], reminders = [], custom
 const TEST_REMINDER = /\b(test proactive reminders?|test automatic(?: delivery| reminders?)?|test jarvis(?: again)?|test reminders?|confirm automatic reminders? work|confirm automatic reminders?)\b/i;
 const WAITING_LANGUAGE = /\b(wait\w*|confirm(?!ed\b)\w*|get(?:s|ting)? back|let (?:me|us) know|check(?:s|ing)? with|decid\w*|think\w* (?:about|it over)|maybe|might|tentative\w*)\b/i;
 
-// Same person = same contact name, ignoring case and spacing.
-// ponytail: exact-name match only ("Richard" vs "Richard Smith" stay separate);
-// link notes by customer_id (JARVIS_DATA_COVERAGE_AUDIT.md) when that matters.
+// Same person = same linked customer_id when the note is linked to a record,
+// otherwise the same contact name (ignoring case and spacing).
 export const noteContactKey = name => String(name || '').trim().toLowerCase().replace(/\s+/g, ' ');
 
 // Open notes grouped per contact: the newest note plus the older open ones.
@@ -296,7 +295,7 @@ export function latestNotePerContact(notes) {
   const open = notes.filter(n => !n.status || n.status === 'open')
     .sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')));
   for (const n of open) {
-    const key = noteContactKey(n.contact_name) || `id:${n.id}`;
+    const key = n.customer_id ? `customer:${n.customer_id}` : noteContactKey(n.contact_name) || `id:${n.id}`;
     if (groups.has(key)) groups.get(key).earlier.push(n);
     else groups.set(key, { note: n, earlier: [] });
   }

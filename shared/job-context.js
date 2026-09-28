@@ -351,6 +351,8 @@ export function belongsToPerson(row, person) {
 
 // How an owner note relates to the person — the model is told the match quality.
 export function noteMatch(note, person) {
+  // Linked by record id: exact — and a note linked to a different customer is never theirs.
+  if (note.customer_id && person.customerId) return note.customer_id === person.customerId ? 'linked' : null;
   const pd = digits(person.phone);
   if (pd.length === 10 && digits(note.phone) === pd) return 'phone';
   const name = norm(person.name);
