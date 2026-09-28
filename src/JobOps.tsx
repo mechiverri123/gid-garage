@@ -5,6 +5,7 @@
 
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { decodeVin, cleanVin, vinCheckDigitOk } from './vinDecode';
+import { resolvePeriodWindow, collectedRevenue, netProfit, cardRevenue, ownerTakeHome } from '../shared/business-metrics.js';
 
 // Emails now sent server-side — BREVO_API_KEY removed from client bundle
 const STRIPE_PK = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY as string;
@@ -6832,47 +6833,16 @@ export function JobsTab() {
   const unpaid = jobs.filter(j => j.jobStatus === 'COMPLETED' || j.jobStatus === 'INVOICED').length;
   const awaitingSign = jobs.filter(j => j.jobStatus === 'ESTIMATE_SENT').length;
   const now = new Date();
-  const isThisMonth = (iso: string) => {
-    const d = new Date(iso);
-    return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
-  };
-  const isThisYear = (iso: string) => new Date(iso).getFullYear() === now.getFullYear();
+  // Arizona calendar month/year, not the browser's timezone. Revenue and net
+  // profit come from shared/business-metrics.js, the same code Jarvis uses —
+  // see that file for the payment-log / invoice-fallback rules.
+  const isThisMonth = resolvePeriodWindow('this_month', now).inWindow;
+  const isThisYear = resolvePeriodWindow('this_year', now).inWindow;
   const paidThisMonth = jobs.filter(j => j.jobStatus === 'PAID' && j.paidAt && isThisMonth(j.paidAt));
-  // Revenue collected in a given window — two payment paths don't overlap:
-  // (1) a single full Stripe charge never gets logged into job.payments, so for
-  //     those count the job's total when its paidAt falls in the window;
-  // (2) anything recorded via "Record a Payment" (manual/partial — cash, Zelle,
-  //     a card charge that only covered part of the balance, etc.) lives in
-  //     job.payments regardless of whether the job has reached PAID yet, so sum
-  //     whichever individual entries landed in the window instead of gating on
-  //     job-level status.
-  // Don't trust payments[] alone: a Stripe idempotent-retry can close a job
-  // (jobStatus PAID, paidAt set) without ever appending its closing entry to
-  // payments — logged entries would then under-report what's actually owed.
-  // If logged payments don't add up to the invoice total, fall back to
-  // paidAt/invoiceTotal for this job instead of just what's logged.
-  const revenueFor = (inWindow: (iso: string) => boolean) => jobs.reduce((sum, j) => {
-    const loggedInWindow = (j.payments || []).filter(p => inWindow(p.at)).reduce((s, p) => s + p.amount, 0);
-    const loggedTotal = (j.payments || []).reduce((s, p) => s + p.amount, 0);
-    const invoiceTotal = (j.invoiceAmount || 0) + (j.taxAmount || 0);
-    if (j.jobStatus === 'PAID' && j.paidAt && inWindow(j.paidAt) && loggedTotal < invoiceTotal - 0.01) {
-      return sum + invoiceTotal;
-    }
-    return sum + loggedInWindow;
-  }, 0);
-  const monthRevenue = revenueFor(isThisMonth);
-  const yearRevenue = revenueFor(isThisYear);
-  // Net profit = revenue collected minus the sales tax collected (owed to
-  // AZ, not income) minus parts cost, attributed to the job's close-out date
-  // (paidAt) — parts cost is a lump sum per job, not something that splits
-  // across payment entries the way revenue can.
-  const netProfitFor = (inWindow: (iso: string) => boolean) => jobs.reduce((sum, j) => {
-    if (j.jobStatus !== 'PAID' || !j.paidAt || !inWindow(j.paidAt)) return sum;
-    const paid = j.amountPaid ?? ((j.invoiceAmount || 0) + (j.taxAmount || 0));
-    return sum + (paid - (j.taxAmount || 0) - (j.partsCost || 0));
-  }, 0);
-  const monthNetProfit = netProfitFor(isThisMonth);
-  const yearNetProfit = netProfitFor(isThisYear);
+  const monthRevenue = collectedRevenue(jobs, isThisMonth).total;
+  const yearRevenue = collectedRevenue(jobs, isThisYear).total;
+  const monthNetProfit = netProfit(jobs, isThisMonth);
+  const yearNetProfit = netProfit(jobs, isThisYear);
 
   // Breakdown of what net profit is made of, same PAID/paidAt-in-window
   // gating as netProfitFor above, but split out by line-item type instead
@@ -9498,31 +9468,8 @@ function TaxSummary() {
 // number. Job margin (revenue − sales tax − parts cost) uses the exact same
 // PAID/paidAt-gated methodology as JobsTab's monthNetProfit, just over a
 // rolling 30-day window instead of calendar month — steadier while volume
-// is still ramping up post-W2.
-function netProfitInRange(jobs: Job[], startISO: string, endISO: string): number {
-  return jobs.reduce((sum, j) => {
-    if (j.jobStatus !== 'PAID' || !j.paidAt) return sum;
-    if (j.paidAt < startISO || j.paidAt > endISO) return sum;
-    const paid = j.amountPaid ?? ((j.invoiceAmount || 0) + (j.taxAmount || 0));
-    return sum + (paid - (j.taxAmount || 0) - (j.partsCost || 0));
-  }, 0);
-}
-
-// Card revenue actually run through Stripe, for estimating the fee. Only
-// counts payments explicitly logged with method 'Card (Stripe)' — both
-// payment paths (chargeCardOnFile, markPaid) always log a payments[] entry
-// now, so this covers current jobs. Older/edge-case jobs that fell back to
-// a single paidAt lump without a full payments[] log aren't included —
-// undercounts fees on those rather than guessing, since the fallback lump
-// has no reliable way to tell card from cash/manual.
-function cardRevenueInRange(jobs: Job[], startISO: string, endISO: string): number {
-  return jobs.reduce((sum, j) => {
-    for (const p of j.payments || []) {
-      if (p.method === 'Card (Stripe)' && p.at >= startISO && p.at <= endISO) sum += p.amount;
-    }
-    return sum;
-  }, 0);
-}
+// is still ramping up post-W2. The math lives in shared/business-metrics.js
+// (ownerTakeHome) so Jarvis's take-home answer matches this panel.
 
 // Next occurrence of a biweekly (every-14-days) cadence on/after `today`,
 // anchored to any date on the cycle — past or future, doesn't matter.
@@ -9621,23 +9568,23 @@ export function OwnerPayPanel() {
   }
 
   const todayStr = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Phoenix' });
-  const trailing30Start = (() => {
-    const d = new Date();
-    d.setDate(d.getDate() - 30);
-    return d.toISOString();
-  })();
-
   const overheadTotal = overheadItems.reduce((s, i) => s + (i.amount || 0), 0);
   const taxPctNum = (parseFloat(taxReservePct) || 0) / 100;
   const stripePctNum = (parseFloat(stripeFeePct) || 0) / 100;
 
-  const jobMargin30 = jobs ? netProfitInRange(jobs, trailing30Start, new Date().toISOString()) : null;
-  const cardRevenue30 = jobs ? cardRevenueInRange(jobs, trailing30Start, new Date().toISOString()) : null;
-  const estStripeFees30 = cardRevenue30 != null ? cardRevenue30 * stripePctNum : 0;
-  const businessNetProfit30 = jobMargin30 != null ? jobMargin30 - overheadTotal - estStripeFees30 : null;
-  const inDeficit = businessNetProfit30 != null && businessNetProfit30 <= 0;
-  const taxReserveAmt = businessNetProfit30 != null && !inDeficit ? businessNetProfit30 * taxPctNum : 0;
-  const spendable30 = businessNetProfit30 != null && !inDeficit ? businessNetProfit30 - taxReserveAmt : 0;
+  // Same shared formula Jarvis uses for take-home (shared/business-metrics.js).
+  const window30 = resolvePeriodWindow('last_30_days');
+  const cardRevenue30 = jobs ? cardRevenue(jobs, window30.inWindow) : null;
+  const pay = jobs ? ownerTakeHome(jobs, window30, {
+    taxReservePct: taxPctNum, stripeFeePct: stripePctNum, monthlyOverhead: overheadTotal,
+  }) : null;
+  const jobMargin30 = pay ? pay.jobMargin : null;
+  const estStripeFees30 = pay ? pay.stripeFees : 0;
+  const businessNetProfit30 = pay ? pay.businessNet : null;
+  const inDeficit = pay ? pay.inDeficit : false;
+  const taxReserveAmt = pay ? pay.taxReserve : 0;
+  const spendable30 = pay ? pay.takeHome : 0;
+
   const suggestedPerPayday = spendable30 > 0 ? Math.max(0, Math.round((spendable30 / 30) * 14 * 100) / 100) : 0;
 
   const nextPayday = payAnchorDate ? nextBiweeklyDate(payAnchorDate, todayStr) : null;

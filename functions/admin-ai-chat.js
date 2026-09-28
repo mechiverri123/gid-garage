@@ -25,6 +25,8 @@
 //   { type: 'error', message: string }
 // A conversation with no tool calls just streams a single 'final' line.
 
+import { resolvePeriodWindow, collectedRevenue, netProfit, jobFromRow, ownerPaySettings, ownerTakeHome } from '../shared/business-metrics.js';
+
 const CLAUDE_MODEL = 'claude-haiku-4-5-20251001';
 const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
 const MAX_TOOL_TURNS = 6;
@@ -287,7 +289,7 @@ RESPONSE STYLE — this is a small chat panel, not a report:
 - 1-3 short sentences, plain conversational English. Never format a raw list of records as your answer (no pipe-separated fields, no numbered field dumps, no markdown tables). The interface already shows the detailed data separately — your job is the short human takeaway, e.g. "Found Jill Castle — 3 jobs on file, one tomorrow at 1pm ready to go" not a field-by-field printout.
 - If there's genuinely nothing to say beyond the data (a plain lookup), one sentence pointing out what actually matters is enough.
 - FOCUS RULE: A specific request gets a specific answer. Never add a mini-briefing, reminder recap, lead recap, job recap, or other unrelated status to a focused request. Only broad requests such as 'brief me' or 'what needs my attention?' should combine multiple business areas.
-- FINANCIAL DEFINITIONS: Revenue/gross/sales/collected means actual customer money collected and MUST use get_revenue_summary. Net profit means collected revenue minus sales tax collected minus parts cost and MUST use get_revenue_summary. Take-home/owner pay means the separate estimate after tax reserve, Stripe fees, and prorated overhead and MUST use get_owner_pay_summary. Never call owner take-home "revenue" or "net profit".
+- FINANCIAL DEFINITIONS: Revenue/gross/sales/collected means actual customer money collected and MUST use get_revenue_summary. Net profit means collected revenue minus sales tax collected minus parts cost and MUST use get_revenue_summary. Take-home/owner pay means net profit minus card fees minus prorated overhead minus the tax reserve (the Hub Owner Pay panel) and MUST use get_owner_pay_summary. Never call owner take-home "revenue" or "net profit". If the owner asks something ambiguous like "what did I actually make", call both tools for the same period and give both: dashboard net profit, and estimated take-home after fees/overhead/reserve.
 - PERIOD DEFINITIONS: "this month" means the current Arizona calendar month. "past/last 30 days" means a rolling 30-day window. Do not treat those as the same period.
 
 CONFIRMING BEFORE ACTING — mark_job_paid and send_customer_email are real financial/external actions and are built to require confirmation:
@@ -624,7 +626,7 @@ const TOOLS = [
       properties: {
         period: {
           type: 'string',
-          description: "One of: today, this_week, last_7_days, this_month, last_30_days, this_year. Use last_30_days for 'past 30 days' and this_month for 'this month'."
+          description: "One of: today, this_month, last_month, this_year, last_7_days, last_30_days, or last_N_days (e.g. last_90_days). this_week means the last 7 days. Use last_30_days for 'past 30 days' and this_month for 'this month' — they are different periods."
         }
       },
       required: ['period'],
@@ -632,10 +634,13 @@ const TOOLS = [
   },
   {
     name: 'get_owner_pay_summary',
-    description: "Estimate owner take-home after tax reserve, Stripe fees, and prorated monthly overhead. Use ONLY for take-home/owner-pay/after-fees-and-reserve questions, not for revenue or dashboard net profit.",
+    description: "Estimate owner take-home, same formula as the Hub Owner Pay panel: net profit minus card fees minus prorated overhead, minus the tax reserve. Use ONLY for take-home/owner-pay/after-fees-and-reserve questions, not for revenue or dashboard net profit.",
     input_schema: {
       type: 'object',
-      properties: { periodDays: { type: 'number', description: 'Defaults to 7 (this week).' } },
+      properties: {
+        period: { type: 'string', description: "Same values as get_revenue_summary. Defaults to last_30_days (what the Owner Pay panel shows)." },
+        periodDays: { type: 'number', description: 'Legacy: rolling window in days. Prefer period.' },
+      },
     },
   },
   {
@@ -742,6 +747,16 @@ export async function onRequestPost({ request, env }) {
   }
 
   function money(n) { return n == null ? 'unknown' : `$${Number(n).toFixed(2)}`; }
+
+  // Same rows the Schedule dashboard loads (list-bookings: all statuses,
+  // newest 2000). Errors propagate — a failed load must not read as $0.
+  function loadMetricJobs() {
+    return sbGet('bookings', {
+      select: 'id,job_status,status,paid_at,amount_paid,invoice_amount,tax_amount,parts_cost,payments',
+      order: 'date.desc,time.desc',
+      limit: '2000',
+    });
+  }
 
   function phoenixParts(date = new Date()) {
     const parts = new Intl.DateTimeFormat('en-CA', {
@@ -861,13 +876,12 @@ export async function onRequestPost({ request, env }) {
         const now = new Date();
         const today = phoenixDateString(now);
         const tomorrow = addPhoenixDays(today, 1);
-        const sevenDaysAgoIso = new Date(now.getTime() - 7 * 86400000).toISOString();
 
         const [jobs, leads, reminders, paidJobs] = await Promise.all([
           sbGet('bookings', { select: 'id,fname,lname,vehicle,service,date,time,job_status,status,estimate_amount,invoice_amount,amount_paid,paid_at', order: 'date.asc', limit: '100' }).catch(() => []),
           sbGet('leads', { select: 'id,created_at,fname,lname,phone,email,vehicle,requested_service,status,follow_up_at,last_contacted_at,notes', order: 'created_at.desc', limit: '100' }).catch(() => []),
           sbGet('jarvis_reminders', { select: 'id,title,notes,due_at,status,completed_at,related_lead_id', status: 'eq.open', order: 'due_at.asc', limit: '100' }).catch(() => []),
-          sbGet('bookings', { select: 'id,amount_paid,paid_at', paid_at: `gte.${sevenDaysAgoIso}`, limit: '200' }).catch(() => []),
+          loadMetricJobs().catch(() => null),
         ]);
 
         const activeJob = j => String(j.status || '').toLowerCase() !== 'cancelled';
@@ -884,7 +898,7 @@ export async function onRequestPost({ request, env }) {
           return (follow != null && follow <= nowMs) || staleUncontacted;
         });
         const unpaid = jobs.filter(j => String(j.job_status || '').toUpperCase() === 'INVOICED' && !j.paid_at && Number(j.invoice_amount || 0) > Number(j.amount_paid || 0));
-        const collected7d = paidJobs.reduce((sum, j) => sum + Number(j.amount_paid || 0), 0);
+        const collected7d = paidJobs ? collectedRevenue(paidJobs.map(jobFromRow), resolvePeriodWindow('last_7_days', now).inWindow).total : null;
 
         const slimJob = j => ({ id: j.id, customer: `${j.fname || ''} ${j.lname || ''}`.trim(), vehicle: j.vehicle, service: j.service, date: j.date, time: j.time, status: j.job_status });
         const slimLead = l => ({ id: l.id, customer: `${l.fname || ''} ${l.lname || ''}`.trim(), phone: l.phone, vehicle: l.vehicle, service: l.requested_service, status: l.status, follow_up_at: l.follow_up_at, last_contacted_at: l.last_contacted_at });
@@ -1274,192 +1288,42 @@ export async function onRequestPost({ request, env }) {
       }
 
       case 'get_revenue_summary': {
-        const period = String(input.period || 'this_month').toLowerCase();
-        const now = new Date();
-
-        // Match the Schedule dashboard's revenue logic exactly:
-        // - sum individual payment entries that landed inside the requested window;
-        // - if a PAID job closed in-window but its payment log is incomplete,
-        //   fall back to invoice + tax so Stripe/idempotency gaps do not under-report revenue.
-        const rows = await sbGet('bookings', {
-          select: 'id,job_status,status,paid_at,amount_paid,invoice_amount,tax_amount,parts_cost,payments'
-        }).catch(() => []);
-
-        const parsePayments = value => {
-          if (!value) return [];
-          if (Array.isArray(value)) return value;
-          if (typeof value === 'string') {
-            try {
-              const parsed = JSON.parse(value);
-              return Array.isArray(parsed) ? parsed : [];
-            } catch { return []; }
-          }
-          return [];
-        };
-
-        const phoenixParts = d => {
-          const parts = new Intl.DateTimeFormat('en-US', {
-            timeZone: 'America/Phoenix',
-            year: 'numeric', month: '2-digit', day: '2-digit',
-          }).formatToParts(d);
-          const get = t => Number(parts.find(p => p.type === t)?.value || 0);
-          return { year: get('year'), month: get('month'), day: get('day') };
-        };
-        const nowPhx = phoenixParts(now);
-
-        let label = period;
-        let daysForOwnerPay = 30;
-        let inWindow;
-
-        if (period === 'today') {
-          label = 'today';
-          daysForOwnerPay = 1;
-          inWindow = iso => {
-            if (!iso) return false;
-            const d = new Date(iso);
-            if (Number.isNaN(d.getTime())) return false;
-            const p = phoenixParts(d);
-            return p.year === nowPhx.year && p.month === nowPhx.month && p.day === nowPhx.day;
-          };
-        } else if (period === 'this_month') {
-          label = 'this month';
-          daysForOwnerPay = Math.max(1, nowPhx.day);
-          inWindow = iso => {
-            if (!iso) return false;
-            const d = new Date(iso);
-            if (Number.isNaN(d.getTime())) return false;
-            const p = phoenixParts(d);
-            return p.year === nowPhx.year && p.month === nowPhx.month;
-          };
-        } else if (period === 'this_year') {
-          label = 'this year';
-          daysForOwnerPay = 365;
-          inWindow = iso => {
-            if (!iso) return false;
-            const d = new Date(iso);
-            if (Number.isNaN(d.getTime())) return false;
-            return phoenixParts(d).year === nowPhx.year;
-          };
-        } else {
-          const days = period === 'this_week' ? 7 : period === 'last_7_days' ? 7 : 30;
-          label = period === 'last_30_days' ? 'the last 30 days'
-            : period === 'last_7_days' ? 'the last 7 days'
-            : period === 'this_week' ? 'the last 7 days'
-            : `the last ${days} days`;
-          daysForOwnerPay = days;
-          const startMs = now.getTime() - days * 86400000;
-          inWindow = iso => {
-            if (!iso) return false;
-            const ms = new Date(iso).getTime();
-            return Number.isFinite(ms) && ms >= startMs && ms <= now.getTime();
-          };
-        }
-
-        let grossCollected = 0;
-        let contributingJobs = 0;
-
-        for (const j of rows) {
-          if (String(j.status || '').toLowerCase() === 'cancelled' ||
-              String(j.job_status || '').toUpperCase() === 'CANCELLED') continue;
-
-          const payments = parsePayments(j.payments);
-          const loggedInWindow = payments
-            .filter(p => p?.at && inWindow(p.at))
-            .reduce((s, p) => s + Number(p.amount || 0), 0);
-          const loggedTotal = payments.reduce((s, p) => s + Number(p?.amount || 0), 0);
-          const invoiceTotal = Number(j.invoice_amount || 0) + Number(j.tax_amount || 0);
-
-          let jobRevenue = loggedInWindow;
-          if (String(j.job_status || '').toUpperCase() === 'PAID' &&
-              j.paid_at && inWindow(j.paid_at) &&
-              loggedTotal < invoiceTotal - 0.01) {
-            jobRevenue = invoiceTotal;
-          }
-
-          if (jobRevenue > 0) contributingJobs += 1;
-          grossCollected += jobRevenue;
-        }
-
-        // Match Schedule dashboard net-profit logic: for PAID jobs whose close-out
-        // date is in-window, subtract collected sales tax and actual parts cost.
-        const netProfit = rows.reduce((sum, j) => {
-          if (String(j.job_status || '').toUpperCase() !== 'PAID' || !j.paid_at || !inWindow(j.paid_at)) return sum;
-          const invoiceTotal = Number(j.invoice_amount || 0) + Number(j.tax_amount || 0);
-          const paid = j.amount_paid != null ? Number(j.amount_paid || 0) : invoiceTotal;
-          return sum + paid - Number(j.tax_amount || 0) - Number(j.parts_cost || 0);
-        }, 0);
-
+        // Canonical math shared with the Schedule dashboard: shared/business-metrics.js.
+        const win = resolvePeriodWindow(input.period || 'this_month');
+        const jobs = (await loadMetricJobs()).map(jobFromRow);
+        const revenue = collectedRevenue(jobs, win.inWindow);
         return {
-          period: label,
-          periodKey: period,
-          jobsContributing: contributingJobs,
-          grossCollected: money(grossCollected),
-          netProfit: money(netProfit),
-          definition: 'Revenue matches the Schedule dashboard collection logic; net profit = collected amount minus sales tax minus parts cost.',
-          ownerPayPeriodDays: daysForOwnerPay,
+          period: win.label,
+          periodKey: win.key,
+          jobsContributing: revenue.jobCount,
+          grossCollected: money(revenue.total),
+          netProfit: money(netProfit(jobs, win.inWindow)),
+          definition: 'Same numbers as the Schedule dashboard. Revenue = customer money collected in the period. Net profit = amount paid minus sales tax minus parts cost, for jobs closed out in the period.',
         };
       }
 
       case 'get_owner_pay_summary': {
-        const days = Math.max(1, Math.min(Number(input.periodDays || 7), 365));
-        const now = new Date();
-        const startMs = now.getTime() - days * 86400000;
-        const [bookings, settingsRows] = await Promise.all([
-          sbGet('bookings', { select: 'id,job_status,status,paid_at,amount_paid,invoice_amount,tax_amount,payments' }).catch(() => []),
-          sbGet('business_settings', { select: '*', id: 'eq.default', limit: '1' }).catch(() => []),
+        // Same formula as the Hub Owner Pay panel (shared/business-metrics.js).
+        const period = input.period || (input.periodDays ? `last_${Math.round(Number(input.periodDays))}_days` : 'last_30_days');
+        const win = resolvePeriodWindow(period);
+        const [rows, settingsRows] = await Promise.all([
+          loadMetricJobs(),
+          sbGet('business_settings', { select: 'owner_tax_reserve_pct,owner_stripe_fee_pct,owner_overhead_items', id: 'eq.default', limit: '1' }).catch(() => []),
         ]);
-
-        const parsePayments = value => {
-          if (!value) return [];
-          if (Array.isArray(value)) return value;
-          if (typeof value === 'string') {
-            try {
-              const parsed = JSON.parse(value);
-              return Array.isArray(parsed) ? parsed : [];
-            } catch { return []; }
-          }
-          return [];
-        };
-        const inWindow = iso => {
-          if (!iso) return false;
-          const ms = new Date(iso).getTime();
-          return Number.isFinite(ms) && ms >= startMs && ms <= now.getTime();
-        };
-
-        let grossCollected = 0;
-        let jobsPaid = 0;
-        for (const j of bookings) {
-          if (String(j.status || '').toLowerCase() === 'cancelled' ||
-              String(j.job_status || '').toUpperCase() === 'CANCELLED') continue;
-          const payments = parsePayments(j.payments);
-          const loggedInWindow = payments.filter(p => p?.at && inWindow(p.at)).reduce((s, p) => s + Number(p.amount || 0), 0);
-          const loggedTotal = payments.reduce((s, p) => s + Number(p?.amount || 0), 0);
-          const invoiceTotal = Number(j.invoice_amount || 0) + Number(j.tax_amount || 0);
-          let jobRevenue = loggedInWindow;
-          if (String(j.job_status || '').toUpperCase() === 'PAID' && j.paid_at && inWindow(j.paid_at) && loggedTotal < invoiceTotal - 0.01) {
-            jobRevenue = invoiceTotal;
-          }
-          if (jobRevenue > 0) jobsPaid += 1;
-          grossCollected += jobRevenue;
-        }
-
-        const settings = settingsRows[0] || {};
-        const stripeFeePct = Number(settings.owner_stripe_fee_pct ?? 0.0285);
-        const taxReservePct = Number(settings.owner_tax_reserve_pct ?? 0.3);
-        const monthlyOverhead = Number(settings.owner_monthly_overhead ?? 0);
-        const estStripeFees = grossCollected * stripeFeePct;
-        const estTaxReserve = grossCollected * taxReservePct;
-        const proratedOverhead = (monthlyOverhead / 30) * days;
-        const estimatedTakeHome = grossCollected - estStripeFees - estTaxReserve - proratedOverhead;
+        const settings = ownerPaySettings(settingsRows[0] || {});
+        const t = ownerTakeHome(rows.map(jobFromRow), win, settings);
         return {
-          periodDays: days,
-          jobsPaid,
-          grossCollected: money(grossCollected),
-          estStripeFees: money(estStripeFees),
-          estTaxReserve: money(estTaxReserve),
-          proratedOverhead: money(proratedOverhead),
-          estimatedTakeHome: money(estimatedTakeHome),
-          definition: 'Owner take-home estimate; this is not the same metric as dashboard revenue or dashboard net profit.',
+          period: win.label,
+          periodKey: win.key,
+          jobMargin: money(t.jobMargin),
+          estStripeFees: money(t.stripeFees),
+          overhead: money(t.overhead),
+          businessNetAfterOverhead: money(t.businessNet),
+          inDeficit: t.inDeficit,
+          estTaxReserve: money(t.taxReserve),
+          estimatedTakeHome: money(t.takeHome),
+          settingsUsed: { taxReservePct: settings.taxReservePct, stripeFeePct: settings.stripeFeePct, monthlyOverhead: money(settings.monthlyOverhead) },
+          definition: 'Owner take-home, same as the Hub Owner Pay panel: net profit minus card fees minus overhead (prorated to the period), minus the tax reserve. Not revenue, not dashboard net profit.',
         };
       }
 

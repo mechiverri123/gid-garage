@@ -23,6 +23,8 @@
 // - Evening preview is sent once/day only when tomorrow/action items exist.
 // - Proactive business alerts are quiet overnight.
 
+import { resolvePeriodWindow, collectedRevenue, jobFromRow } from '../shared/business-metrics.js';
+
 const TZ = 'America/Phoenix';
 const HISTORY_TEXT_LIMIT = 12000;
 
@@ -242,7 +244,6 @@ function unpaidFingerprint(rows) {
 async function loadSnapshot(env, now) {
   const today = phoenixDateString(now);
   const tomorrow = addDate(today, 1);
-  const sevenDaysAgoIso = new Date(now.getTime() - 7 * 86400000).toISOString();
 
   const [todayJobsRaw, tomorrowJobsRaw, leads, reminders, invoicedJobs, paidJobs] = await Promise.all([
     sbGet(env, 'bookings', {
@@ -274,10 +275,12 @@ async function loadSnapshot(env, now) {
       order: 'date.desc',
       limit: '100',
     }),
+    // Same rows as the dashboard so "collected" matches it (shared/business-metrics.js).
+    // ponytail: full slim bookings scan every minute; gate to briefing times if it gets slow.
     sbGet(env, 'bookings', {
-      select: 'id,amount_paid,paid_at',
-      paid_at: `gte.${sevenDaysAgoIso}`,
-      limit: '300',
+      select: 'id,job_status,status,paid_at,amount_paid,invoice_amount,tax_amount,parts_cost,payments',
+      order: 'date.desc,time.desc',
+      limit: '2000',
     }),
   ]);
 
@@ -290,7 +293,7 @@ async function loadSnapshot(env, now) {
   const tomorrowEnd = new Date(localDayEndIso(tomorrow)).getTime();
   const remindersToday = reminders.filter(r => new Date(r.due_at).getTime() <= todayEnd);
   const remindersByTomorrow = reminders.filter(r => new Date(r.due_at).getTime() <= tomorrowEnd);
-  const collected7d = paidJobs.reduce((sum, j) => sum + Number(j.amount_paid || 0), 0);
+  const collected7d = collectedRevenue(paidJobs.map(jobFromRow), resolvePeriodWindow('last_7_days', now).inWindow).total;
   const unpaidTotal = unpaid.reduce((sum, j) => sum + Math.max(0, Number(j.invoice_amount || 0) - Number(j.amount_paid || 0)), 0);
 
   return {
