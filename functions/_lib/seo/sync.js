@@ -186,6 +186,10 @@ async function runSlice({ env, store, fetchImpl, budget, now, mode, only, manual
   if (statusRows.length) await store.upsert('seo_provider_status', statusRows, 'provider').catch(() => {});
   // All providers handled: analysis next (its own invocation), even when few
   // providers are connected — first-party data still counts.
-  if (!more) { run.phase = 'analysis'; more = true; }
+  // A backfill is a chain of runs: only the last one (nothing left to pull) re-analyzes.
+  if (!more) {
+    if (mode === 'backfill' && run.pulled > 0) run.phase = 'done';
+    else { run.phase = 'analysis'; more = true; }
+  }
   return { mode, results, more, summary };
 }

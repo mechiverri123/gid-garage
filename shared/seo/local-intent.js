@@ -34,7 +34,9 @@ const LOW_VALUE = ['torque spec', 'torque specs', 'torque specification', 'part 
 const NEAR_ME = ['near me', 'nearby', 'close to me', 'around me', 'in my area'];
 
 const norm = s => String(s || '').toLowerCase().replace(/[’']/g, '').replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
-const has = (t, phrase) => ` ${t} `.includes(` ${norm(phrase)} `);
+const phraseCache = new Map(); // catalog phrases: normalize once (hot path, see service-area.js)
+const normPhrase = p => { let v = phraseCache.get(p); if (v === undefined) { v = norm(p); phraseCache.set(p, v); } return v; };
+const has = (t, phrase) => ` ${t} `.includes(` ${normPhrase(phrase)} `);
 
 export function detectService(query, services = SERVICES) {
   const t = norm(query);
@@ -48,7 +50,24 @@ export function detectService(query, services = SERVICES) {
   return best ? { id: best.service.id, label: best.service.label, offered: best.service.offered, matched: best.term } : null;
 }
 
-export function classifyQuery(query, { brandTerms = BRAND_TERMS, services = SERVICES, area } = {}) {
+// Same query text → same answer, and Search Console repeats each query across
+// dates/pages/devices, so default-option results are cached (capped). Each
+// call gets its own copy so no caller can alter a cached result.
+const classifyCache = new Map();
+const CLASSIFY_CACHE_MAX = 5000;
+export function classifyQuery(query, opts) {
+  if (opts && (opts.brandTerms || opts.services || opts.area)) return classifyQueryUncached(query, opts);
+  const key = String(query ?? '');
+  let hit = classifyCache.get(key);
+  if (!hit) {
+    if (classifyCache.size >= CLASSIFY_CACHE_MAX) classifyCache.clear();
+    hit = classifyQueryUncached(query);
+    classifyCache.set(key, hit);
+  }
+  return { ...hit, reasons: [...hit.reasons] };
+}
+
+function classifyQueryUncached(query, { brandTerms = BRAND_TERMS, services = SERVICES, area } = {}) {
   const t = norm(query);
   const reasons = [];
   const branded = brandTerms.some(b => has(t, b));

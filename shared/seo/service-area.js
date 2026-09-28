@@ -61,14 +61,25 @@ export function distanceMiles(a, b) {
 }
 
 const norm = s => String(s || '').toLowerCase().replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
-const hasPhrase = (hay, phrase) => ` ${hay} `.includes(` ${norm(phrase)} `);
+// Catalog phrases are a fixed set: normalize each once, not on every check
+// (Cloudflare's free plan allows ~10 ms CPU per request; this was the hot path).
+const phraseCache = new Map();
+const normPhrase = p => { let v = phraseCache.get(p); if (v === undefined) { v = norm(p); phraseCache.set(p, v); } return v; };
+const hasPhrase = (hay, phrase) => ` ${hay} `.includes(` ${normPhrase(phrase)} `);
+
+// Every phrase that names a place (name, slug, aliases, ZIPs), built once per place.
+const termsByPlace = new Map();
+const placeTerms = p => {
+  let v = termsByPlace.get(p);
+  if (!v) { v = [p.name, p.slug.replace(/-/g, ' '), ...(p.aliases || []), ...(p.zips || [])]; termsByPlace.set(p, v); }
+  return v;
+};
 
 // Find the known place(s) a free-text string mentions (query, address, city).
 export function findPlaces(text) {
   const t = norm(text);
   if (!t) return { places: [], far: [] };
-  const places = PLACES.filter(p => [p.name, p.slug.replace(/-/g, ' '), ...(p.aliases || [])].some(n => hasPhrase(t, n))
-    || (p.zips || []).some(z => new RegExp(`\\b${z}\\b`).test(t)));
+  const places = PLACES.filter(p => placeTerms(p).some(n => hasPhrase(t, n))); // text is already normalized to space-separated words
   const far = FAR_PLACES.filter(n => hasPhrase(t, n));
   return { places, far };
 }

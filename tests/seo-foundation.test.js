@@ -65,3 +65,25 @@ test('scoring: 40 local commercial impressions beat 1,000 global informational o
   const withBookings = localOpportunityScore({ intentClass: 'high_local_commercial', locality: 'likely_local', serviceOffered: true, position: 7, impressions: 40, conversion: { bookings: 2 } });
   assert.ok(withBookings.score > local.score);
 });
+
+// Production: re-classifying every Search Console row on each request pushed
+// SEO Mode past Cloudflare's CPU limit (HTTP 503). Stored labels are reused.
+test('annotateGsc reuses the labels stored at sync time and only classifies rows without them', async () => {
+  const { annotateGsc } = await import('../shared/seo/kpis.js');
+  const [stored, fresh] = annotateGsc([
+    { query: 'mobile mechanic flagstaff', country: 'usa', clicks: 1, impressions: 5, intent_class: 'service_no_geo', locality: 'unknown', service: null, branded: false },
+    { query: 'mobile mechanic flagstaff', country: 'usa', clicks: 1, impressions: 5 },
+  ]);
+  assert.deepEqual([stored.intentClass, stored.locality], ['service_no_geo', 'unknown']); // the stored label wins
+  assert.deepEqual([fresh.intentClass, fresh.locality], ['high_local_commercial', 'likely_local']); // computed when absent
+});
+
+test('classifyQuery cache returns independent copies and ignores it when custom options are passed', async () => {
+  const { classifyQuery } = await import('../shared/seo/local-intent.js');
+  const a = classifyQuery('brake repair flagstaff'); a.reasons.push('mutated'); a.intentClass = 'x';
+  const b = classifyQuery('brake repair flagstaff');
+  assert.equal(b.intentClass, 'high_local_commercial');
+  assert.ok(!b.reasons.includes('mutated'));
+  assert.equal(classifyQuery('gid garage brakes', { brandTerms: ['nothing'] }).branded, false); // custom options bypass the cache
+  assert.equal(classifyQuery('gid garage brakes').branded, true);
+});

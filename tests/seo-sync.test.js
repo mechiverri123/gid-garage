@@ -155,10 +155,12 @@ test('manual backfill chains runs back-to-back (no cooldown) until the full hist
   for (; runs < 40; runs += 1) {
     last = await syncToEnd(runSeoSync, { env, store, fetch: fetchImpl, now: NOW, mode: 'backfill', manual: true, only: ['weather_history'] });
     assert.equal(last.last.blocked, undefined, `run ${runs} was blocked`);
+    if (last.results.some(r => r.rows != null)) assert.equal(last.analysis, undefined, `run ${runs} should skip analysis`);
     if (!last.results.some(r => r.rows != null)) break;
   }
   // NOAA keeps 730 days, 30 per run: 25 runs pull, the 26th finds nothing left.
   assert.equal(runs, 25);
+  assert.ok(last.analysis, 'the final run re-analyzes'); // earlier backfill runs skip the heavy analysis step
   assert.equal(last.results.find(r => r.provider === 'weather_history').reason, 'backfill complete');
   assert.equal(store.tables.seo_provider_status.find(r => r.provider === 'weather_history').cursor.backfilledFrom, '2024-09-28'); // exactly 730 days back
 });

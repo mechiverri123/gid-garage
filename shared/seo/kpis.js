@@ -20,9 +20,13 @@ const sum = (xs, f) => xs.reduce((s, x) => s + (f(x) || 0), 0);
 const pct = (cur, prev) => (prev > 0 ? Math.round(((cur - prev) / prev) * 1000) / 10 : null);
 const round = (n, d = 1) => (n == null ? null : Math.round(n * 10 ** d) / 10 ** d);
 
-// Classify every GSC row once.
+// Classify every GSC row once. Rows from the database already carry the labels
+// computed at sync time (same classifier), so use those instead of redoing the
+// work on every request — Cloudflare's free plan allows ~10 ms CPU per request.
+// ponytail: stored labels reflect the rules at sync time; a backfill re-sync refreshes them.
 export function annotateGsc(rows) {
   return rows.map(r => {
+    if (r.intent_class && r.locality) return { ...r, intentClass: r.intent_class, service: r.service ?? null, branded: !!r.branded, locality: r.locality };
     const c = classifyQuery(r.query || '');
     return { ...r, intentClass: c.intentClass, service: c.service, branded: c.branded, locality: gscLocality(r, c) };
   });
