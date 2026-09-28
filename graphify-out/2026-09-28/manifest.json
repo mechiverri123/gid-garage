@@ -162,9 +162,9 @@
     "semantic_hash": "1b8c69a11d6d68cf571d27d9aab058ec"
   },
   "functions/jarvis-telegram.js": {
-    "mtime": 1790575312.8133607,
-    "seen": 1790575619.0713515,
-    "ast_hash": "6a7e0229d057375880fc9029615848f8",
+    "mtime": 1790587666.2938943,
+    "seen": 1790588110.9326813,
+    "ast_hash": "852d6f647ed275bf37102673d5577880",
     "semantic_hash": ""
   },
   "functions/jarvis-transcribe.js": {
@@ -192,9 +192,9 @@
     "semantic_hash": ""
   },
   "jarvis-agent/agent.py": {
-    "mtime": 1790582236.0959513,
-    "seen": 1790582568.2120652,
-    "ast_hash": "5060f8074afec06036d2e18281fd276d",
+    "mtime": 1790588053.9689972,
+    "seen": 1790588110.9328735,
+    "ast_hash": "5ad1621263fb42fea9b6b36899ffa785",
     "semantic_hash": ""
   },
   "jarvis_phase1_service_dictionary_fix.sql": {
@@ -666,9 +666,9 @@
     "semantic_hash": "a643d83b7626b709e8beeda21099b3f0"
   },
   "CLAUDE.md": {
-    "mtime": 1790585175.232822,
-    "seen": 1790585197.0126352,
-    "ast_hash": "c4a2b4e53d40e46280c7df344e36beb8",
+    "mtime": 1790588053.9679754,
+    "seen": 1790588110.9451525,
+    "ast_hash": "f6089ac15b2ecfb9b233daeea897b60a",
     "semantic_hash": ""
   },
   "CODEBASE.md": {
@@ -1338,27 +1338,27 @@
     "semantic_hash": ""
   },
   "functions/_lib/seo/providers.js": {
-    "mtime": 1790581766.1009033,
-    "seen": 1790582568.2102814,
-    "ast_hash": "f259c6a74a76fdc22c7a201dcc262cda",
+    "mtime": 1790587744.3330472,
+    "seen": 1790588110.9311945,
+    "ast_hash": "08fd70aa349a720cdd06ed9a47b88e99",
     "semantic_hash": ""
   },
   "functions/_lib/seo/store.js": {
-    "mtime": 1790585834.24884,
-    "seen": 1790586003.4367976,
-    "ast_hash": "af95f85f0aab32816837394084c74a2b",
+    "mtime": 1790587730.9429839,
+    "seen": 1790588110.931196,
+    "ast_hash": "772c228f67791c0debd6fba9b370e7a2",
     "semantic_hash": ""
   },
   "functions/_lib/seo/sync.js": {
-    "mtime": 1790585882.0627189,
-    "seen": 1790586003.4368007,
-    "ast_hash": "bc97a4b05d20f4471e9a9110a9a695fd",
+    "mtime": 1790587785.1349847,
+    "seen": 1790588110.9311972,
+    "ast_hash": "6b689304b8958be31417322e2343cfd3",
     "semantic_hash": ""
   },
   "functions/seo-sync.js": {
-    "mtime": 1790585882.0632384,
-    "seen": 1790586003.4433618,
-    "ast_hash": "0197c14ff4ad0d11056f66043aaac549",
+    "mtime": 1790588053.9695003,
+    "seen": 1790588110.9328723,
+    "ast_hash": "7442680103a7e8155c4de6377deec480",
     "semantic_hash": ""
   },
   "shared/seo/competitors.js": {
@@ -1416,9 +1416,9 @@
     "semantic_hash": ""
   },
   "src/command-center/seo/SeoMode.tsx": {
-    "mtime": 1790582451.822037,
-    "seen": 1790582568.216078,
-    "ast_hash": "8e8d4c9b90d48fa4979528676c8fafb0",
+    "mtime": 1790587901.3076735,
+    "seen": 1790588110.937788,
+    "ast_hash": "9bed39c842a80a075d1e9b666cb17a99",
     "semantic_hash": ""
   },
   "src/command-center/seo/SeoPanels.tsx": {
@@ -1434,15 +1434,15 @@
     "semantic_hash": ""
   },
   "src/command-center/seo/useSeoData.ts": {
-    "mtime": 1790585126.6964052,
-    "seen": 1790585197.0050437,
-    "ast_hash": "636b56f727b71cac96a8f1789d52cf74",
+    "mtime": 1790587910.0800655,
+    "seen": 1790588110.9379957,
+    "ast_hash": "e93c770be74154535bd93b9a98445c8e",
     "semantic_hash": ""
   },
   "tests/seo-fake-store.js": {
-    "mtime": 1790582007.643154,
-    "seen": 1790582568.2175274,
-    "ast_hash": "0b7c64c8755768f88bcac3950fd859c6",
+    "mtime": 1790587826.2146323,
+    "seen": 1790588110.939733,
+    "ast_hash": "268e3b28b6aa7557ac5ba93891842e8c",
     "semantic_hash": ""
   },
   "tests/seo-foundation.test.js": {
@@ -1464,15 +1464,15 @@
     "semantic_hash": ""
   },
   "tests/seo-sync.test.js": {
-    "mtime": 1790585908.8246913,
-    "seen": 1790586003.46849,
-    "ast_hash": "de765ae7c1d81197f4772490756d4203",
+    "mtime": 1790587836.6746638,
+    "seen": 1790588110.9400618,
+    "ast_hash": "2ad557dca1a372099cde1eb122272e45",
     "semantic_hash": ""
   },
   "SEO_SETUP.md": {
-    "mtime": 1790585156.2741668,
-    "seen": 1790585197.013081,
-    "ast_hash": "a22b9924bd07bb36ada9a4c0f7c2226d",
+    "mtime": 1790588065.2026863,
+    "seen": 1790588110.9456325,
+    "ast_hash": "ffa15fbb80bf2791abf25491c1387cdf",
     "semantic_hash": ""
   },
   "functions/_lib/access-auth.js": {
@@ -1494,9 +1494,9 @@
     "semantic_hash": ""
   },
   "tests/seo-auth.test.js": {
-    "mtime": 1790585908.825208,
-    "seen": 1790586003.4675064,
-    "ast_hash": "6b6213e55cc0f55ccf8950ac0d767ff5",
+    "mtime": 1790587826.2687712,
+    "seen": 1790588110.9397314,
+    "ast_hash": "78896c2a90567e2268b470db317b59e7",
     "semantic_hash": ""
   },
   "tests/seo-routing-mode.test.js": {
@@ -1512,21 +1512,51 @@
     "semantic_hash": ""
   },
   "functions/jarvis/seo-data.js": {
-    "mtime": 1790585882.0632384,
-    "seen": 1790586003.4430418,
-    "ast_hash": "f90ba823652af1357174b00cb0c6e984",
+    "mtime": 1790588053.9689972,
+    "seen": 1790588110.9327462,
+    "ast_hash": "53cc7082f1ec269f0bf237eb3cff9f13",
     "semantic_hash": ""
   },
   "functions/_lib/seo/http.js": {
-    "mtime": 1790585833.6756146,
-    "seen": 1790586003.4354863,
-    "ast_hash": "b2fa187f6ee25ee1ba8a3ad5c071023f",
+    "mtime": 1790587730.8955748,
+    "seen": 1790588110.9311252,
+    "ast_hash": "863a01471f5bc78095a01e67735f1bc4",
     "semantic_hash": ""
   },
   "tests/seo-worker-fetch.test.js": {
-    "mtime": 1790585966.0251577,
-    "seen": 1790586003.4684925,
-    "ast_hash": "11f6d1cc6f6e5f4c06d48c71815f60ad",
+    "mtime": 1790587826.2687712,
+    "seen": 1790588110.940063,
+    "ast_hash": "032cc6351eea0fbc32a9e8257f94fa12",
+    "semantic_hash": ""
+  },
+  "functions/hooks/business.js": {
+    "mtime": 1790587648.6428213,
+    "seen": 1790588110.9323618,
+    "ast_hash": "ba416a2b8574fca8896755c26e883176",
+    "semantic_hash": ""
+  },
+  "functions/hooks/proactive.js": {
+    "mtime": 1790587648.6159482,
+    "seen": 1790588110.932363,
+    "ast_hash": "3f1be532dda1d0202fa5c6e59a262a59",
+    "semantic_hash": ""
+  },
+  "functions/hooks/telegram.js": {
+    "mtime": 1790587648.5864866,
+    "seen": 1790588110.932364,
+    "ast_hash": "7520c9ef23fd58648b8b02838f034cdb",
+    "semantic_hash": ""
+  },
+  "tests/jarvis-telegram.test.js": {
+    "mtime": 1790588074.7071903,
+    "seen": 1790588110.9396586,
+    "ast_hash": "d36ef77322b3cdf90d8181172384ae69",
+    "semantic_hash": ""
+  },
+  "tests/seo-sync-budget.test.js": {
+    "mtime": 1790587881.363248,
+    "seen": 1790588110.9400601,
+    "ast_hash": "6d3cbf69298f8c7bface6abf2ceab355",
     "semantic_hash": ""
   }
 }

@@ -1,3 +1,5 @@
+import { requireAccess } from './_lib/access-auth.js';
+
 const TRANSCRIBE_URL = 'https://api.openai.com/v1/audio/transcriptions';
 const MAX_BYTES = 12 * 1024 * 1024;
 
@@ -11,7 +13,7 @@ function json(body, status = 200) {
   });
 }
 
-export async function onRequestGet({ env }) {
+async function handleGet({ env }) {
   return json({
     ok: true,
     configured: !!env.OPENAI_API_KEY,
@@ -20,7 +22,7 @@ export async function onRequestGet({ env }) {
   });
 }
 
-export async function onRequestPost({ request, env }) {
+async function handlePost({ request, env }) {
   if (!env.OPENAI_API_KEY) {
     return json({ error: 'OPENAI_API_KEY is missing in Cloudflare.' }, 500);
   }
@@ -97,3 +99,7 @@ export async function onRequestPost({ request, env }) {
     text: String(result?.text || '').trim(),
   });
 }
+
+// Only a verified Cloudflare Access user (CLAUDE.md §0).
+export const onRequestGet = requireAccess(handleGet);
+export const onRequestPost = requireAccess(handlePost);

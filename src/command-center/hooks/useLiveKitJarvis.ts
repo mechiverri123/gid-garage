@@ -195,7 +195,7 @@ export function useLiveKitJarvis() {
 
           const element = track.attach();
           element.autoplay = true;
-          element.playsInline = true;
+          (element as HTMLVideoElement).playsInline = true; // attach() is typed HTMLMediaElement
           element.style.display = 'none';
           document.body.appendChild(element);
           audioNodesRef.current.push(element);

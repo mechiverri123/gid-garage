@@ -1,6 +1,7 @@
 // Cloudflare Pages Function — /jarvis-speak
 // Primary voice: self-hosted Piper community JARVIS voice service.
 // Optional fallback: existing OpenAI TTS when OPENAI_API_KEY is set.
+import { requireAccess } from './_lib/access-auth.js';
 
 const MAX_TEXT = 1800;
 
@@ -14,7 +15,7 @@ function json(body, status = 200) {
   });
 }
 
-export async function onRequestGet({ env }) {
+async function handleGet({ env }) {
   return json({
     ok: true,
     provider: env.JARVIS_VOICE_URL ? 'piper-jarvis-strict' : 'none',
@@ -24,7 +25,7 @@ export async function onRequestGet({ env }) {
   });
 }
 
-export async function onRequestPost({ request, env }) {
+async function handlePost({ request, env }) {
   let body;
   try {
     body = await request.json();
@@ -79,3 +80,7 @@ export async function onRequestPost({ request, env }) {
       'The Railway JARVIS voice service did not return audio. OpenAI fallback is intentionally disabled so the app cannot secretly switch voices.',
   }, 502);
 }
+
+// Only a verified Cloudflare Access user (CLAUDE.md §0).
+export const onRequestGet = requireAccess(handleGet);
+export const onRequestPost = requireAccess(handlePost);

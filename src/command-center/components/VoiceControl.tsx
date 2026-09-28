@@ -121,7 +121,7 @@ export function VoiceControl({
         onClick={onToggle}
         title={enabled ? 'Mute AI voice' : 'Enable AI voice'}
         className="w-9 h-9 rounded-full border flex items-center justify-center"
-        style={{ borderColor: enabled ? COLORS.borderStrong : COLORS.border, background: enabled ? 'rgba(84,231,255,0.06)' : 'rgba(255,255,255,0.02)' }}
+        style={{ borderColor: enabled ? COLORS.accent : COLORS.border, background: enabled ? 'rgba(84,231,255,0.06)' : 'rgba(255,255,255,0.02)' }}
       >
         {enabled ? <Volume2 size={15} color={COLORS.accent} /> : <VolumeX size={15} color={COLORS.textMuted} />}
       </button>

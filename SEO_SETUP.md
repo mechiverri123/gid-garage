@@ -91,7 +91,7 @@ Everything below is optional and incremental. With no credentials at all, SEO Mo
 | `SEO_CONTACT_EMAIL` | optional contact in the weather.gov User-Agent |
 | `JARVIS_SEO_BRIEF_HOUR` | optional (default 9) |
 
-Put each secret in **Cloudflare Pages → Environment variables** (Production), never in the repo. Voice doesn't need any new variables beyond the existing `GID_INTERNAL_JARVIS_SECRET`.
+Put each secret in **Cloudflare Pages → Environment variables** (Production), never in the repo. Voice needs nothing new. Its one backend secret, `GID_INTERNAL_JARVIS_SECRET`, is a **LiveKit agent secret**, not a Cloudflare variable: it lives in `jarvis-agent/secrets.env` and is set with `lk agent update-secrets`. It must equal Cloudflare's `TELEGRAM_WEBHOOK_SECRET`.
 
 ---
 

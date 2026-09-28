@@ -75,3 +75,14 @@ export function safeEqual(a, b) {
 }
 
 export function _clearAccessCertCache() { certCache.clear(); }
+
+// Wrap a Pages handler so it only runs for a verified Access user. For routes
+// Access already fronts (e.g. /jarvis-*): defense in depth, so a change to the
+// Access path pattern can never silently make them public.
+export function requireAccess(handler) {
+  return async context => {
+    const auth = await verifyAccess(context.request, context.env);
+    if (!auth.ok) return new Response(JSON.stringify({ ok: false, error: auth.error }), { status: auth.status, headers: { 'Content-Type': 'application/json' } });
+    return handler(context);
+  };
+}

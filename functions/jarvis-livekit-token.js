@@ -1,4 +1,5 @@
 import { AccessToken, LiveKitAPI } from 'livekit-server-sdk';
+import { requireAccess } from './_lib/access-auth.js';
 
 function json(body, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -17,7 +18,7 @@ function apiHost(url) {
     .replace(/\/+$/, '');
 }
 
-export async function onRequestGet({ env }) {
+async function handleGet({ env }) {
   return json({
     ok: true,
     configured: !!(env.LIVEKIT_URL && env.LIVEKIT_API_KEY && env.LIVEKIT_API_SECRET),
@@ -26,7 +27,7 @@ export async function onRequestGet({ env }) {
   });
 }
 
-export async function onRequestPost({ env }) {
+async function handlePost({ env }) {
   const serverUrl = env.LIVEKIT_URL;
   const apiKey = env.LIVEKIT_API_KEY;
   const apiSecret = env.LIVEKIT_API_SECRET;
@@ -86,3 +87,7 @@ export async function onRequestPost({ env }) {
     }, 502);
   }
 }
+
+// Only a verified Cloudflare Access user (CLAUDE.md §0).
+export const onRequestGet = requireAccess(handleGet);
+export const onRequestPost = requireAccess(handlePost);

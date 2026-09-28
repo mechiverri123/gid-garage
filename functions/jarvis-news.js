@@ -1,6 +1,7 @@
 // Cloudflare Pages Function — GET /jarvis-news
 // Lightweight owner briefing feed for GID Garage. Uses public Google News RSS
 // server-side so the browser never has to fight CORS. No API key required.
+import { requireAccess } from './_lib/access-auth.js';
 
 const FEEDS = {
   local: 'https://news.google.com/rss/search?q=Flagstaff%20Arizona&hl=en-US&gl=US&ceid=US:en',
@@ -44,7 +45,7 @@ async function getFeed(url) {
   return parseRss(await res.text(), 5);
 }
 
-export async function onRequestGet() {
+async function handleGet() {
   try {
     const [local, national] = await Promise.all([
       getFeed(FEEDS.local),
@@ -68,3 +69,6 @@ export async function onRequestGet() {
     });
   }
 }
+
+// Only a verified Cloudflare Access user (CLAUDE.md §0).
+export const onRequestGet = requireAccess(handleGet);
