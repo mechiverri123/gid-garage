@@ -143,12 +143,6 @@
     "ast_hash": "7efcf11d8187644de421260c4a0d20bc",
     "semantic_hash": ""
   },
-  "functions/jarvis-news.js": {
-    "mtime": 1790591376.0490634,
-    "seen": 1790591450.9604974,
-    "ast_hash": "d51119d0a5f07d5770cdeebdf7fbffae",
-    "semantic_hash": ""
-  },
   "functions/jarvis-proactive.js": {
     "mtime": 1790582220.9829507,
     "seen": 1790582568.211737,
@@ -376,12 +370,6 @@
     "seen": 1790568222.9917018,
     "ast_hash": "409023e7c25da19358250782e6093236",
     "semantic_hash": "409023e7c25da19358250782e6093236"
-  },
-  "src/command-center/components/OwnerBriefing.tsx": {
-    "mtime": 1790571519.9185584,
-    "seen": 1790571944.8935845,
-    "ast_hash": "0dc40567bd5ae7480def01f37d0adc94",
-    "semantic_hash": ""
   },
   "src/command-center/components/QuickCommands.tsx": {
     "mtime": 1790477181.3196938,
@@ -1560,9 +1548,9 @@
     "semantic_hash": ""
   },
   "tests/access-routes.test.js": {
-    "mtime": 1790591399.873977,
-    "seen": 1790591450.9674797,
-    "ast_hash": "dea6717a780dc7fd869f604e41cc9e16",
+    "mtime": 1790616264.4608064,
+    "seen": 1790616291.5576181,
+    "ast_hash": "21739ea79cadc58a0a64134f4da6aa8c",
     "semantic_hash": ""
   },
   "tests/business-threads.test.js": {

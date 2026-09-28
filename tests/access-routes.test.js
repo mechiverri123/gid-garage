@@ -1,4 +1,4 @@
-// /jarvis-livekit-token, /jarvis-speak, /jarvis-transcribe, /jarvis-news used to
+// /jarvis-livekit-token, /jarvis-speak, /jarvis-transcribe used to
 // rely only on the Access "jarvis*" path match. They now verify the Access JWT
 // themselves (requireAccess), so an Access config change can't make them public.
 import { test, afterEach } from 'node:test';
@@ -7,7 +7,6 @@ import { _clearAccessCertCache } from '../functions/_lib/access-auth.js';
 import * as livekitToken from '../functions/jarvis-livekit-token.js';
 import * as speak from '../functions/jarvis-speak.js';
 import * as transcribe from '../functions/jarvis-transcribe.js';
-import * as news from '../functions/jarvis-news.js';
 
 const TEAM = 'gidgarage.cloudflareaccess.com';
 const AUD = 'aud-tag-123';
@@ -31,7 +30,6 @@ const handlers = [
   ['livekit-token GET', livekitToken.onRequestGet], ['livekit-token POST', livekitToken.onRequestPost],
   ['speak GET', speak.onRequestGet], ['speak POST', speak.onRequestPost],
   ['transcribe GET', transcribe.onRequestGet], ['transcribe POST', transcribe.onRequestPost],
-  ['news GET', news.onRequestGet],
 ];
 
 test('every formerly-unauthenticated /jarvis-* route rejects requests without a valid Access JWT', async () => {
