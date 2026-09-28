@@ -30,9 +30,9 @@
     "semantic_hash": "ce619fcfd1eeb9713d76458dbcb97c85"
   },
   "functions/admin-ai-chat.js": {
-    "mtime": 1790583498.3191462,
-    "seen": 1790583732.8632233,
-    "ast_hash": "fb40f32714f46630a71083328b3f2512",
+    "mtime": 1790612437.3469887,
+    "seen": 1790612517.466559,
+    "ast_hash": "cda83eda4ad1018426d851f3776867ba",
     "semantic_hash": ""
   },
   "functions/admin-api-data.js": {
@@ -1254,9 +1254,9 @@
     "semantic_hash": ""
   },
   "shared/business-rules.js": {
-    "mtime": 1790574776.8560765,
-    "seen": 1790575619.071945,
-    "ast_hash": "96ce46e23f5fac59956adbcc0453e734",
+    "mtime": 1790612486.1071322,
+    "seen": 1790612517.469034,
+    "ast_hash": "771672ba5f088de5d90a71dad2583c2d",
     "semantic_hash": ""
   },
   "shared/job-context.js": {
@@ -1302,9 +1302,9 @@
     "semantic_hash": ""
   },
   "functions/_lib/jarvis-context.js": {
-    "mtime": 1790583437.1047947,
-    "seen": 1790583732.8628898,
-    "ast_hash": "c716f65974fdec341b4acbc2b4000bd0",
+    "mtime": 1790612441.418903,
+    "seen": 1790612517.466048,
+    "ast_hash": "7c20a3ac493275beecd8c3ea33ae519f",
     "semantic_hash": ""
   },
   "tests/admin-ai-chat.test.js": {
@@ -1563,6 +1563,12 @@
     "mtime": 1790591399.873977,
     "seen": 1790591450.9674797,
     "ast_hash": "dea6717a780dc7fd869f604e41cc9e16",
+    "semantic_hash": ""
+  },
+  "tests/business-threads.test.js": {
+    "mtime": 1790612486.1071322,
+    "seen": 1790612517.4755025,
+    "ast_hash": "47c07e18a8daefe4d46b1bd510eca1d2",
     "semantic_hash": ""
   }
 }

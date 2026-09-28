@@ -327,6 +327,10 @@ export function updateContext(prev, calls, { intent = null, plan = null, now = n
       case 'compare_revenue_periods':
         ctx.resultSet = { type: 'jobs', items: cap((r.differences || []).map(d => ({ id: d.bookingId, label: `${d.customer || ''} ${d.vehicle || ''}`.trim() }))) };
         break;
+      case 'capture_business_note':
+        // Same person had open notes: "yes" closes exactly those (listed in the question).
+        if (r.earlier_open_notes?.length) ctx.pendingAction = { tool: 'resolve_business_note', input: { note_ids: r.earlier_open_notes.map(n => n.id) } };
+        break;
       case 'mark_job_paid':
       case 'cancel_job':
       case 'reopen_job':

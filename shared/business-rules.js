@@ -282,7 +282,26 @@ export function dataHealthIssues({ jobs = [], leads = [], reminders = [], custom
 // ---- owner action queue ----------------------------------------------------
 
 const TEST_REMINDER = /\b(test proactive reminders?|test automatic(?: delivery| reminders?)?|test jarvis(?: again)?|test reminders?|confirm automatic reminders? work|confirm automatic reminders?)\b/i;
-const WAITING_LANGUAGE = /\b(wait\w*|confirm\w*|get(?:s|ting)? back|let (?:me|us) know|check(?:s|ing)? with|decid\w*|think\w* (?:about|it over)|maybe|might|tentative\w*)\b/i;
+const WAITING_LANGUAGE = /\b(wait\w*|confirm(?!ed\b)\w*|get(?:s|ting)? back|let (?:me|us) know|check(?:s|ing)? with|decid\w*|think\w* (?:about|it over)|maybe|might|tentative\w*)\b/i;
+
+// Same person = same contact name, ignoring case and spacing.
+// ponytail: exact-name match only ("Richard" vs "Richard Smith" stay separate);
+// link notes by customer_id (JARVIS_DATA_COVERAGE_AUDIT.md) when that matters.
+export const noteContactKey = name => String(name || '').trim().toLowerCase().replace(/\s+/g, ' ');
+
+// Open notes grouped per contact: the newest note plus the older open ones.
+// Notes without a contact name stand alone.
+export function latestNotePerContact(notes) {
+  const groups = new Map();
+  const open = notes.filter(n => !n.status || n.status === 'open')
+    .sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')));
+  for (const n of open) {
+    const key = noteContactKey(n.contact_name) || `id:${n.id}`;
+    if (groups.has(key)) groups.get(key).earlier.push(n);
+    else groups.set(key, { note: n, earlier: [] });
+  }
+  return [...groups.values()];
+}
 
 // Deterministic, rule-ranked queue. Priority 1 = overdue/owed now, 2 = due
 // within 24h or needs a fix soon, 3 = open owner notes with an action.
@@ -363,10 +382,11 @@ export function buildActionQueue({ jobs = [], leads = [], reminders = [], notes 
       waiting_on.push({ type: 'quote_decision', id: l.id, who: fullName(l) || l.phone || 'Lead', detail: `Quoted${l.quote_amount != null ? ` $${num(l.quote_amount).toFixed(2)}` : ''}; waiting on their decision.`, date: l.follow_up_at || null });
     }
   }
-  for (const n of notes) {
-    if (n.status && n.status !== 'open') continue;
+  // A person's latest open note is the current state of their thread
+  // ("confirmed Tuesday" supersedes "waiting on Tuesday"), so only it counts.
+  for (const { note: n, earlier } of latestNotePerContact(notes)) {
     if (!n.preferred_timing && !WAITING_LANGUAGE.test(`${n.summary || ''} ${n.raw_text || ''}`)) continue;
-    waiting_on.push({ type: 'owner_note', id: n.id, who: n.contact_name || null, detail: n.summary, tentative_timing: n.preferred_timing || null, date: n.due_at || null });
+    waiting_on.push({ type: 'owner_note', id: n.id, who: n.contact_name || null, detail: n.summary, tentative_timing: n.preferred_timing || null, date: n.due_at || null, ...(earlier.length ? { earlier_open_notes: earlier.length } : {}) });
   }
 
   actions.sort((a, b) => (a.priority - b.priority) || String(a.due_at || '').localeCompare(String(b.due_at || '')) || String(a.title).localeCompare(String(b.title)));

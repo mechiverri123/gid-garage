@@ -33,7 +33,7 @@ import { createSeoStore } from './_lib/seo/store.js';
 import { createSeoOps } from './_lib/seo/ops.js';
 import { isInsideServiceArea } from '../shared/seo/service-area.js';
 import { ownerPaySettings } from '../shared/business-metrics.js';
-import { SETTABLE_JOB_STATUSES, PAYMENT_METHODS, leadStatusUpdate, leadFollowUpReason, isValidYmd, isValidApptTime } from '../shared/business-rules.js';
+import { SETTABLE_JOB_STATUSES, PAYMENT_METHODS, leadStatusUpdate, leadFollowUpReason, isValidYmd, isValidApptTime, noteContactKey } from '../shared/business-rules.js';
 import { jobEvidence } from '../shared/job-context.js';
 
 const CLAUDE_MODEL = 'claude-haiku-4-5-20251001';
@@ -284,6 +284,7 @@ OWNER ASSISTANT BEHAVIOR:
 - NATURAL NOTE CAPTURE: When Michael gives an operational note such as "Jake called, 2013 F150, grinding front brakes, maybe Friday, quoted 350", use capture_business_note. Save only facts explicitly stated. Never invent a last name, phone, email, engine, exact appointment, or diagnostic conclusion. A note is NOT a customer, lead, booking, quote, or completed contact record unless a separate tool confirms/creates that record.
 - If a note clearly contains a future owner action (for example "call him Friday"), capture the note and create a reminder only when Michael explicitly asks to be reminded or clearly states that he needs to do that action at a specific time. Do not turn vague timing like "maybe Friday" into a reminder or appointment.
 - Use list_business_notes to recall captured operational notes and resolve_business_note only when Michael says the item is handled/resolved.
+- When capture_business_note returns owner_question, the person already had open notes: after confirming the save, ask that question word for word. Do not close anything yourself — a "yes" next turn closes them.
 - Reminders are private owner tasks, not customer appointments. create_reminder may create them without confirmation. Never convert flexible customer scheduling language into a booking.
 - For lead follow-up questions, use list_lead_followups. A lead needing attention does not mean the customer was contacted.
 - When Michael reports that he called/texted/spoke with a lead, use log_lead_contact so last_contacted_at and notes stay accurate. Only set a future follow-up when he asks for one or clearly states one.
@@ -530,11 +531,10 @@ const TOOLS = [
   },
   {
     name: 'resolve_business_note',
-    description: "Mark a captured Jarvis business note resolved. This only resolves the scratch note; it does not change a lead, customer, booking, payment, or reminder.",
+    description: "Mark a captured Jarvis business note resolved (note_id), or several at once (note_ids). This only resolves the scratch note; it does not change a lead, customer, booking, payment, or reminder.",
     input_schema: {
       type: 'object',
-      properties: { note_id: { type: 'string' } },
-      required: ['note_id'],
+      properties: { note_id: { type: 'string' }, note_ids: { type: 'array', items: { type: 'string' } } },
     },
   },
   {
@@ -1130,7 +1130,20 @@ export async function onRequestPost({ request, env }) {
           status: 'open',
           source: 'jarvis',
         });
-        return { ok: true, verified: true, entity: 'note', id: row.id, note: row };
+        // Same person already has open notes? The new note is the thread's
+        // current state; offer to close the older ones (only on the owner's yes).
+        const key = noteContactKey(row.contact_name);
+        const earlier = key
+          ? (await sbGet('jarvis_business_notes', { select: 'id,created_at,summary,contact_name', status: 'eq.open', order: 'created_at.desc', limit: '200' }).catch(() => []))
+            .filter(n => n.id !== row.id && noteContactKey(n.contact_name) === key).slice(0, 10)
+          : [];
+        return {
+          ok: true, verified: true, entity: 'note', id: row.id, note: row,
+          ...(earlier.length ? {
+            earlier_open_notes: earlier.map(n => ({ id: n.id, created_at: n.created_at, summary: n.summary })),
+            owner_question: `${row.contact_name} already has ${earlier.length === 1 ? 'an earlier open note' : `${earlier.length} earlier open notes`} (${earlier.map(n => `"${n.summary}"`).join('; ')}). Close ${earlier.length === 1 ? 'it' : 'them'}?`,
+          } : {}),
+        };
       }
 
       case 'list_business_notes': {
@@ -1149,6 +1162,17 @@ export async function onRequestPost({ request, env }) {
       }
 
       case 'resolve_business_note': {
+        // Several ids: closing a person's superseded notes after the owner said yes.
+        if (Array.isArray(input.note_ids) && !input.note_id) {
+          const ids = input.note_ids.map(String).slice(0, 20);
+          if (!ids.length) throw new Error('note_ids is empty.');
+          const results = [];
+          for (const id of ids) results.push(await runTool('resolve_business_note', { note_id: id }).catch(e => ({ ok: false, id, error: e.message })));
+          const failed = results.filter(r => r.ok === false);
+          return failed.length
+            ? { ok: false, error: `${failed.length} of ${ids.length} notes were not closed: ${failed.map(f => f.error).join('; ')}`, results }
+            : { ok: true, verified: true, entity: 'note', closed: ids.length, results };
+        }
         const rows = await sbGet('jarvis_business_notes', { select: 'id,summary,status', id: `eq.${encodeURIComponent(input.note_id)}`, limit: '1' });
         const note = rows[0];
         if (!note) throw new Error('No business note found with that id.');
@@ -1365,7 +1389,7 @@ export async function onRequestPost({ request, env }) {
     ...historyForTurn.map(m => ({ role: m.role, content: m.content })),
   ];
   const noteCaptureInstruction = forceNaturalNoteCapture
-    ? `\n\n[ROUTING: The latest message is an owner operational note, not a status question. You MUST call capture_business_note exactly once using only facts explicitly stated. Do not call get_action_center, get_owner_briefing, list_reminders, or any unrelated tool. After saving, confirm the note briefly and do not invent an appointment/reminder.]`
+    ? `\n\n[ROUTING: The latest message is an owner operational note, not a status question. You MUST call capture_business_note exactly once using only facts explicitly stated. Do not call get_action_center, get_owner_briefing, list_reminders, or any unrelated tool. After saving, confirm the note briefly and do not invent an appointment/reminder. If the result has owner_question, ask it.]`
     : '';
   const focusInstruction = forceNaturalNoteCapture ? '' : focusedRoutingInstruction(focusedIntent);
   messages[messages.length - 1] = {
