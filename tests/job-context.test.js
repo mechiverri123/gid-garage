@@ -134,3 +134,14 @@ test('6/14: booking-only name resolves; "General Inquiry" counts as generic', ()
   assert.equal(ev.serviceCategory.generic, true);
   assert.ok(ev.hints[0].includes('never as "General Inquiry"'));
 });
+
+test('P1: command words in front of a name never break resolution', () => {
+  const rows = [{ id: 'S1', fname: 'Sergei', lname: 'Butaev', phone: '928-555-0190' }];
+  const cust = [{ id: 'c-sergei', fname: 'Sergei', lname: 'Butaev', phone: null }];
+  for (const q of ['Sergei', 'Sergei Butaev', 'Summarize Sergei Butaev', "sergei butaev's job history"]) {
+    const r = resolvePerson(q, cust, rows);
+    assert.equal(r.status, 'resolved', q);
+    assert.deepEqual(r.person.jobIds, ['S1'], q);
+  }
+  assert.equal(resolvePerson('Summarize Nobody', cust, rows).status, 'not_found');
+});

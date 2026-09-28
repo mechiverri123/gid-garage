@@ -27,7 +27,7 @@
 // A conversation with no tool calls just streams a single 'final' line.
 
 import { createBusinessOps, cleanSearchText, writeResult } from './_lib/business-data.js';
-import { planTurn, updateContext, guardFinalText } from './_lib/jarvis-context.js';
+import { planTurn, updateContext, guardFinalText, projectForFacet } from './_lib/jarvis-context.js';
 import { isLikelyNaturalBusinessNote, classifyFocusedIntent, focusedRoutingInstruction, INTENT_TOOL_NAMES } from './_lib/jarvis-intent.js';
 import { ownerPaySettings } from '../shared/business-metrics.js';
 import { SETTABLE_JOB_STATUSES, PAYMENT_METHODS, leadStatusUpdate, leadFollowUpReason, isValidYmd, isValidApptTime } from '../shared/business-rules.js';
@@ -1303,7 +1303,9 @@ export async function onRequestPost({ request, env }) {
       if (PRESENTABLE_TOOLS.has(name) && result && !result.needs_confirmation) {
         await send({ type: 'data', tool: name, payload: result });
       }
-      return JSON.stringify(result);
+      // A one-fact question (diagnosis, mileage, VIN, estimate) only shows the
+      // model that fact; the full result still drives the next turn's context.
+      return JSON.stringify(plan.facet ? projectForFacet(name, result, plan.facet) : result);
     } catch (e) {
       const error = e.message ?? String(e);
       turnCalls.push({ name, input, ok: false, error, result: { ok: false, error } });

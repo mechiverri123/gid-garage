@@ -29,7 +29,8 @@ test('customer/job depth questions route to rich retrieval, not shallow list_job
 test('money routes keep revenue and take-home apart', () => {
   assert.equal(route('What is my revenue this month?'), 'money');
   assert.equal(route('What is my net profit this month?'), 'money');
-  assert.equal(route('What is my take-home for the last 30 days?'), 'money');
+  assert.equal(route('What is my take-home for the last 30 days?'), 'take_home');
+  assert.deepEqual(tools('What can I realistically take home from the last 30 days?'), ['get_owner_pay_summary']);
   assert.ok(tools('What is my revenue this month?').includes('get_revenue_summary'));
   assert.ok(!tools('What is my revenue this month?').includes('get_business_summary'));
 });

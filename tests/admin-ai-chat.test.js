@@ -159,3 +159,118 @@ test('11: payment preview then confirmation records it once', async () => {
   assert.equal(again.guarded, true); // no pending action any more, so nothing was written
   assert.equal(again.db.tables.bookings.find(b => b.id === 'M1').amount_paid, 10);
 });
+
+// ---- 4th pass: remaining Telegram issues ---------------------------------------
+
+const lastToolResult = req => JSON.parse(req.messages.at(-1).content[0].content);
+
+test('P1: "Sergei — what was his job about?", "Summarize Sergei Butaev\'s job history." and "findings on his Ram?" share one booking and its photo evidence', async () => {
+  const about = await chat({ messages: [{ role: 'user', content: 'Sergei — what was his job actually about?' }], script: [claudeText('Sergei\'s Ram was checked for P2509…')] });
+  const aboutCtx = lastToolResult(about.claudeRequests[0]);
+  assert.equal(aboutCtx.status, 'resolved');
+  const aboutJob = aboutCtx.jobsChronological.find(j => j.id === 'S1');
+  assert.ok(aboutJob.photoNotes.some(n => n.includes('P2509')));
+
+  // Same conversation, and also cold (no context) — both must resolve the same booking.
+  for (const context of [about.context, null]) {
+    const hist = await chat({ db: about.db, context, messages: [{ role: 'user', content: "Summarize Sergei Butaev's job history." }], script: [claudeText('Sergei has one job…')] });
+    const histCtx = lastToolResult(hist.claudeRequests[0]);
+    assert.equal(histCtx.status, 'resolved', `context=${!!context}`);
+    const histJob = histCtx.jobsChronological.find(j => j.id === 'S1');
+    assert.ok(histJob, 'history must include booking S1');
+    assert.deepEqual(histJob.photoNotes, aboutJob.photoNotes);
+    assert.deepEqual(histJob.scanDocuments, aboutJob.scanDocuments);
+  }
+
+  // Sergei's Ram booking is active -> that exact booking is re-read (diagnosis facet keeps photo notes).
+  const findings = await chat({ db: about.db, context: about.context, messages: [{ role: 'user', content: 'What were the actual findings on his Ram?' }], script: [claudeText('Both batteries good…')] });
+  assert.deepEqual(findings.calls, ['get_job_detail']);
+  const detail = lastToolResult(findings.claudeRequests[0]);
+  assert.equal(detail.id, 'S1');
+  assert.ok(detail.photoNotes.some(n => n.includes('P2509')));
+  assert.ok(detail.photoNotes.some(n => n.includes('AC condensation')));
+  assert.equal(findings.context.activeBookingId, 'S1');
+
+  // Only the person is active (e.g. after a history summary) -> his Ram jobs, same evidence.
+  const personOnly = await chat({ db: about.db, context: { customer: { name: 'Sergei Butaev' } }, messages: [{ role: 'user', content: 'What were the actual findings on his Ram?' }], script: [claudeText('Both batteries good…')] });
+  assert.deepEqual(personOnly.calls, ['get_vehicle_jobs']);
+  const ram = lastToolResult(personOnly.claudeRequests[0]);
+  assert.deepEqual(ram.jobs.map(j => j.id), ['S1']);
+  assert.deepEqual(ram.jobs[0].photoNotes, detail.photoNotes);
+});
+
+test('P2: cancelling an already-cancelled job changes nothing and cannot be reported as a new cancellation', async () => {
+  const db = fakeSupabase(seed());
+  Object.assign(db.tables.bookings.find(b => b.id === 'R1'), { job_status: 'CANCELLED', status: 'cancelled' });
+  db.tables.jarvis_business_notes.push({ id: 'NC', created_at: '2026-09-27T18:00:00Z', raw_text: 'Job R1 cancelled via Jarvis. Reason: customer cancelled', status: 'resolved' });
+  const ctx = { customer: { name: 'Richard Lee' }, activeBookingId: 'R1', vehicle: '2011 Ford Ranger' };
+  const honest = await chat({ db, context: ctx, messages: [{ role: 'user', content: 'Cancel his job because customer cancelled' }],
+    script: [claudeTool('cancel_job', { job_id: 'R1', reason: 'customer cancelled' }), claudeText("Richard's job was already cancelled (reason: customer cancelled) — nothing changed.")] });
+  const result = JSON.parse(honest.claudeRequests.at(-1).messages.at(-1).content[0].content);
+  assert.deepEqual([result.ok, result.changed, result.already_cancelled, result.existing_reason], [true, false, true, 'customer cancelled']);
+  assert.equal(honest.guarded, false);
+  assert.equal(honest.context.pendingAction, undefined); // no confirmation step
+  assert.equal(db.writes.length, 0);
+
+  const lying = await chat({ db, context: ctx, messages: [{ role: 'user', content: 'Cancel his job because customer cancelled' }],
+    script: [claudeTool('cancel_job', { job_id: 'R1', confirmed: true }), claudeText("Done — I've cancelled Richard's job.")] });
+  assert.equal(lying.guarded, true);
+  assert.equal(db.writes.length, 0);
+});
+
+test('P3: a command naming a nonexistent job id replaces stale Richard context and reports only that failure', async () => {
+  const r = await chat({
+    messages: [
+      { role: 'user', content: "What's the cancellation note on Richard's job?" },
+      { role: 'assistant', content: "The cancellation note on Richard's job is 'customer cancelled'." },
+      { role: 'user', content: 'Cancel job ID fake-test-id because customer cancelled.' },
+    ],
+    context: { customer: { name: 'Richard Lee' }, activeBookingId: 'R1', vehicle: '2011 Ford Ranger' },
+    script: [claudeText('There is no job with id fake-test-id — nothing was changed.')],
+  });
+  assert.deepEqual(r.calls, ['get_job_detail']);
+  const req = r.claudeRequests[0];
+  assert.doesNotMatch(allText(req), /Richard|\bR1\b|Ranger/);
+  assert.match(allText(req), /No job found with that id/);
+  assert.equal(r.context.activeBookingId, null);
+  assert.equal(r.context.customer, null);
+});
+
+test('P4: focused job facts only reach the model as that fact', async () => {
+  const ctx = { customer: { name: 'Jill Castle', customerId: 'c-jill' }, activeBookingId: 'J2', vehicle: '2017 Acura RDX' };
+  const ask = async q => lastToolResult((await chat({ context: ctx, messages: [{ role: 'user', content: q }], script: [claudeText('ok')] })).claudeRequests[0]);
+
+  const diag = JSON.stringify(await ask("What did we diagnose on Jill's last job?"));
+  assert.match(diag, /P0562/);
+  assert.match(diag, /recommend alternator replacement/);
+  assert.doesNotMatch(diag, /84,950|81,200|mileage|5J8TB4H59HL000123|estimateTotal/);
+
+  const miles = JSON.stringify(await ask("What was the mileage on Jill's last visit?"));
+  assert.match(miles, /84,950/);
+  assert.doesNotMatch(miles, /P0562|Alternator output|5J8TB4H59HL000123|estimateTotal/);
+
+  const vin = JSON.stringify(await ask("What VIN do we have for Jill Castle's Acura?"));
+  assert.match(vin, /5J8TB4H59HL000123/);
+  assert.doesNotMatch(vin, /84,950|P0562|estimateTotal/);
+
+  const est = await chat({ messages: [{ role: 'user', content: "What is Richard's Ford Ranger estimate total?" }], script: [claudeText('ok')] });
+  const estText = JSON.stringify(lastToolResult(est.claudeRequests[0]));
+  assert.match(estText, /"estimateTotal":409\.11/);
+  assert.doesNotMatch(estText, /water pump|88 Elm/);
+});
+
+test('P5: a take-home question gets only take-home — no this-month net profit', async () => {
+  const r = await chat({
+    messages: [
+      { role: 'user', content: 'What is my net profit this month?' },
+      { role: 'assistant', content: 'Net profit this month is $250.00.' },
+      { role: 'user', content: 'How much can I realistically take home from the last 30 days?' },
+    ],
+    script: [claudeTool('get_owner_pay_summary', { period: 'last_30_days' }), claudeText('About $X take-home over the last 30 days.')],
+  });
+  const req = r.claudeRequests[0];
+  assert.deepEqual(req.tools.map(t => t.name), ['get_owner_pay_summary']);
+  assert.equal(req.messages.length, 1);
+  assert.doesNotMatch(allText(req), /net profit this month|\$250\.00/i);
+  assert.deepEqual(r.calls, ['get_owner_pay_summary']);
+});

@@ -239,7 +239,20 @@ export function vehicleRecords(rows, customer = null) {
 // customer/booking/lead matches, so "Lisa" who only lives in notes resolves,
 // but a first-name note never hides a real customer. Never guesses between
 // two plausible people.
-export function resolvePerson(query, customers = [], bookingRows = [], { leads = [], notes = [] } = {}) {
+export function resolvePerson(query, customers = [], bookingRows = [], opts = {}) {
+  const first = resolvePersonExact(query, customers, bookingRows, opts);
+  if (first.status !== 'not_found') return first;
+  // Retry without words that are in nobody's name ("Summarize Sergei Butaev",
+  // "sergei butaev job history") — never adds words, only drops unknown ones.
+  const nameTokens = new Set([...customers, ...bookingRows, ...(opts.leads || [])]
+    .flatMap(r => norm(fullName(r)).split(' ')).concat((opts.notes || []).flatMap(n => norm(n.contact_name).split(' '))).filter(Boolean));
+  const words = norm(query).replace(/['’]s\b/g, '').split(' ').filter(Boolean);
+  const kept = words.filter(w => [...nameTokens].some(t => t.startsWith(w)));
+  if (!kept.length || kept.length === words.length) return first;
+  return resolvePersonExact(kept.join(' '), customers, bookingRows, opts);
+}
+
+function resolvePersonExact(query, customers = [], bookingRows = [], { leads = [], notes = [] } = {}) {
   const q = norm(query).replace(/['’]s\b/g, '');
   const qDigits = digits(query);
   const words = q.split(' ').filter(Boolean);
@@ -295,7 +308,7 @@ export function resolvePerson(query, customers = [], bookingRows = [], { leads =
   };
   const shape = p => ({
     key: p.key, customerId: p.customerId, name: p.name, phone: p.phone, email: p.email, vin: p.vin, customerVehicle: p.customerVehicle,
-    vehicles: [...p.vehicles], jobCount: p.jobIds.length, lastJobDate: p.lastDate, sources: [...p.sources],
+    vehicles: [...p.vehicles], jobIds: [...p.jobIds], jobCount: p.jobIds.length, lastJobDate: p.lastDate, sources: [...p.sources],
   });
   const pick = candidates => {
     const scored = candidates.map(p => ({ p, s: score(p) })).filter(x => x.s > 0);

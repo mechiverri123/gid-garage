@@ -134,7 +134,14 @@ test('9: cancel_job previews, then writes exactly the admin fields and reads the
 
   const after = await ops.jobDetail({ job_id: 'R1' });
   assert.equal(after.status, 'CANCELLED');
-  await assert.rejects(ops.cancelJob({ job_id: 'R1', confirmed: true }), /already cancelled/);
+  // Issue 2 (4th pass): cancelling again is idempotent — no prompt, no write, reports the prior reason.
+  const writesBefore = db.writes.length;
+  for (const confirmed of [false, true]) {
+    const again = await ops.cancelJob({ job_id: 'R1', reason: 'customer cancelled', confirmed });
+    assert.deepEqual([again.ok, again.changed, again.already_cancelled, again.needs_confirmation], [true, false, true, undefined]);
+    assert.equal(again.existing_reason, 'customer cancelled');
+  }
+  assert.equal(db.writes.length, writesBefore);
   const reopened = await ops.reopenJob({ job_id: 'R1', confirmed: true });
   assert.deepEqual(reopened.changed.job_status, { before: 'CANCELLED', after: 'BOOKED' });
 });

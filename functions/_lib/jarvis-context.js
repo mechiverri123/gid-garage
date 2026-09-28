@@ -23,6 +23,9 @@ recommendations parts part history happened went came come brought bring in net 
 oil brake brakes battery alternator starter pump water coolant leak noise diag diagnostics suspension audio
 service services repair repairs change check engine light code codes quote quoted appointment schedule scheduled
 morning afternoon evening monday tuesday wednesday thursday friday saturday sunday jarvis hey hi hello
+summarize summarise summary give list find search explain describe pull get compare update reschedule move send
+email text call create add log mark set book open close reopen delete remove confirm verify review report
+findings finding evidence details detail info information job's id booking bookings
 `.split(/\s+/).filter(Boolean));
 
 // Vehicle words that identify a vehicle, not a person.
@@ -42,7 +45,7 @@ const NEGATIVE = /^\s*(no|nope|nah|don'?t|never ?mind|stop|hold off|wait|not yet
 
 // Intents that never depend on earlier turns: send only the current message so
 // an old subject (e.g. "Lisa") can't leak into a revenue answer.
-export const SELF_CONTAINED_INTENTS = new Set(['money', 'briefing', 'action_center', 'waiting_on', 'data_health', 'unpaid', 'test_reminder_cleanup']);
+export const SELF_CONTAINED_INTENTS = new Set(['money', 'take_home', 'briefing', 'action_center', 'waiting_on', 'data_health', 'unpaid', 'test_reminder_cleanup']);
 
 export const WRITE_TOOLS = new Set([
   'create_reminder', 'complete_reminder', 'cleanup_test_reminders', 'update_lead_status', 'set_lead_followup',
@@ -98,6 +101,63 @@ export function extractExplicitSubjects(text) {
 
 const label = ctx => [ctx?.customer?.name, ctx?.vehicle].filter(Boolean).join(' / ');
 
+// "Cancel job ID fake-test-id", "job GID-1718", "booking #R1".
+export function extractJobId(text) {
+  const m = String(text || '').match(/\b(?:job|booking)\s+(?:id\s*)?[:#]?\s*([A-Za-z0-9][A-Za-z0-9_-]{2,})\b/i)
+    || String(text || '').match(/\b(?:id|#)\s*[:#]?\s*([A-Za-z0-9][A-Za-z0-9_-]{2,})\b/i);
+  const id = m?.[1];
+  // Must look like an id (has a digit or a hyphen), not a word like "about".
+  return id && /[\d-]/.test(id) && !/^\d{1,2}$/.test(id) ? id : null;
+}
+
+// ---- focused facts ------------------------------------------------------------
+// A question about ONE fact of a job gets only that fact's fields, so the
+// answer can't wander into mileage when the diagnosis was asked.
+
+const FACETS = [
+  ['diagnosis', /\b(diagnos\w*|findings?|what was wrong|what(?:'s| is) wrong|trouble codes?|dtcs?|what did (?:we|you) find)\b/i],
+  ['mileage', /\b(mileage|odometer|miles)\b/i],
+  ['vin', /\bvin\b/i],
+  ['estimate', /\b(estimate|quote)\b[\w' ]*\b(total|amount|price|cost)\b|\bhow much (?:was|is) (?:the|his|her|their)?\s*(?:estimate|quote)\b|\bsubtotal\b|\bbefore tax\b/i],
+  ['vehicle', /\bwhat (vehicle|car|truck)\b|\bwhich (vehicle|car|truck)\b/i],
+];
+
+export function detectFacet(text) {
+  const hits = FACETS.filter(([, re]) => re.test(String(text || ''))).map(([k]) => k);
+  return hits.length === 1 ? hits[0] : null;
+}
+
+const facetInstruction = facet => (facet ? `The owner asked only about the ${facet === 'estimate' ? 'estimate amount' : facet}. Answer with that fact only — no other job details. ` : '');
+
+const JOB_BASE = ['id', 'customer', 'date', 'time', 'status', 'cancelled', 'vehicle', 'serviceCategory'];
+const FACET_JOB_FIELDS = {
+  diagnosis: ['bookingRequest', 'scopeOfWork', 'technicianNotes', 'inspection', 'photoNotes', 'scanDocuments', 'lineItems', 'evidenceFields', 'gaps', 'hints'],
+  mileage: ['mileage'],
+  vin: ['vin'],
+  estimate: ['money'],
+  vehicle: [],
+};
+const FACET_VEHICLE_FIELDS = { mileage: ['vehicle', 'bookingIds', 'mileageReadings', 'latestMileage'], vin: ['vehicle', 'bookingIds', 'vin', 'vinStatus', 'vins'], vehicle: ['vehicle', 'bookingIds'] };
+const pick = (obj, keys) => Object.fromEntries(keys.filter(k => obj && k in obj).map(k => [k, obj[k]]));
+const projectJob = (job, facet) => pick(job, [...JOB_BASE, ...FACET_JOB_FIELDS[facet]]);
+
+// Strip a job/customer result down to the asked fact (identity kept for disambiguation).
+export function projectForFacet(tool, result, facet) {
+  if (!facet || !result || typeof result !== 'object' || result.ok === false || result.error) return result;
+  if (tool === 'get_job_detail') return projectJob(result, facet);
+  if (tool === 'get_vehicle_jobs') return { ...pick(result, ['vehicleQuery', 'count', 'latestJobId', 'distinctCustomers', 'note']), jobs: (result.jobs || []).map(j => projectJob(j, facet)) };
+  if (tool === 'get_result_set_details' && result.type === 'jobs') return { type: 'jobs', items: (result.items || []).map(j => projectJob(j, facet)) };
+  if (tool === 'get_customer_context') {
+    if (result.status !== 'resolved') return result;
+    return {
+      ...pick(result, ['status', 'customer', 'jobCount', 'lastVisitJobId', 'nextVisitJobId', 'note']),
+      ...(FACET_VEHICLE_FIELDS[facet] ? { vehicleRecords: (result.vehicleRecords || []).map(v => pick(v, FACET_VEHICLE_FIELDS[facet])) } : {}),
+      jobsChronological: (result.jobsChronological || []).map(j => projectJob(j, facet)),
+    };
+  }
+  return result;
+}
+
 // Decide how the current message relates to the saved context. Returns
 // { mode, prefetch?, instruction, keepHistory }.
 export function planTurn(text, ctx, intent) {
@@ -117,22 +177,41 @@ export function planTurn(text, ctx, intent) {
     return { mode: 'declined', keepHistory: true, clearPending: true, instruction: `The owner declined the pending ${c.pendingAction.tool}. Nothing was changed; say so briefly.` };
   }
 
+  const facet = detectFacet(text);
+  const jobId = extractJobId(text);
+  if (jobId) {
+    return {
+      mode: 'explicit_id', keepHistory: false, clearEntities: true, facet,
+      prefetch: { tool: 'get_job_detail', input: { job_id: jobId } },
+      instruction: `The message names job id ${jobId} explicitly. It is the only subject: answer or act on that id only, and if it does not exist say so and nothing else. Do not mention any other customer or job.`,
+    };
+  }
+
   const explicit = extractExplicitSubjects(text);
   if (explicit.names.length || explicit.vehicles.length) {
     const named = [...explicit.names, ...explicit.vehicles].join(', ');
     const stale = label(c);
-    const base = `The current message explicitly names: ${named}. That is the subject now${stale ? ` — earlier subject (${stale}) no longer applies unless it is the same record` : ''}. Look it up fresh; never reuse facts about a different person or vehicle.`;
+    const base = `${facetInstruction(facet)}The current message explicitly names: ${named}. That is the subject now${stale ? ` — earlier subject (${stale}) no longer applies unless it is the same record` : ''}. Look it up fresh; never reuse facts about a different person or vehicle.`;
+    // "Jill's last job" while Jill Castle is active = the same person, by id.
+    const active = c.customer?.name ? c.customer.name.toLowerCase().split(' ') : [];
+    if (explicit.names.length === 1 && intent !== 'notes' && explicit.names[0].toLowerCase().split(' ').every(w => active.includes(w))) {
+      return { mode: 'customer', keepHistory: true, explicit, facet, prefetch: { tool: 'get_customer_context', input: c.customer.customerId ? { customer_id: c.customer.customerId } : { query: c.customer.name } }, instruction: `${facetInstruction(facet)}"${explicit.names[0]}" is ${c.customer.name} from the previous lookup; their records were re-read above.` };
+    }
     if (explicit.names.length) {
       const prefetchTool = intent === 'notes' ? 'list_business_notes' : 'get_customer_context';
       const prefetchInput = intent === 'notes' ? { query: explicit.names[0], scope: 'all' } : { query: explicit.names[0] };
-      return { mode: 'explicit', keepHistory: true, clearEntities: true, explicit, prefetch: { tool: prefetchTool, input: prefetchInput }, instruction: base };
+      return { mode: 'explicit', keepHistory: true, clearEntities: true, explicit, facet, prefetch: { tool: prefetchTool, input: prefetchInput }, instruction: base };
     }
     // Vehicle only: the active booking if it is that vehicle, else search bookings.
     const activeMatches = c.activeBookingId && c.vehicle && explicit.vehicles.every(v => c.vehicle.toLowerCase().includes(v));
     if (activeMatches && !/\b(last|latest|recent|previous)\b/i.test(text)) {
-      return { mode: 'booking', keepHistory: true, explicit, prefetch: { tool: 'get_job_detail', input: { job_id: c.activeBookingId } }, instruction: `${base} It matches the active booking ${c.activeBookingId}.` };
+      return { mode: 'booking', keepHistory: true, explicit, facet, prefetch: { tool: 'get_job_detail', input: { job_id: c.activeBookingId } }, instruction: `${base} It matches the active booking ${c.activeBookingId}.` };
     }
-    return { mode: 'explicit', keepHistory: true, clearEntities: true, explicit, prefetch: { tool: 'get_vehicle_jobs', input: { vehicle: explicit.vehicles.join(' ') } }, instruction: base };
+    // "his Ram" / "her Acura": that person's vehicle, not every Ram on file.
+    if (c.customer?.name && REFERENCE.test(text)) {
+      return { mode: 'booking', keepHistory: true, explicit, facet, prefetch: { tool: 'get_vehicle_jobs', input: { vehicle: explicit.vehicles.join(' '), customer: c.customer.name } }, instruction: `${base} "${text.match(REFERENCE)[0]}" is ${c.customer.name}, so only their ${explicit.vehicles.join(' ')} jobs were read.` };
+    }
+    return { mode: 'explicit', keepHistory: true, clearEntities: true, explicit, facet, prefetch: { tool: 'get_vehicle_jobs', input: { vehicle: explicit.vehicles.join(' ') } }, instruction: base };
   }
 
   if (RESULT_SET.test(text) && c.resultSet?.items?.length) {
@@ -145,10 +224,10 @@ export function planTurn(text, ctx, intent) {
 
   if (REFERENCE.test(text)) {
     if (c.customer && (CUSTOMER_LEVEL.test(text) || !c.activeBookingId)) {
-      return { mode: 'customer', keepHistory: true, prefetch: { tool: 'get_customer_context', input: c.customer.customerId ? { customer_id: c.customer.customerId } : { query: c.customer.name } }, instruction: `The reference means ${c.customer.name} (from the previous lookup). Their records were re-read above; answer only from them.` };
+      return { mode: 'customer', keepHistory: true, facet, prefetch: { tool: 'get_customer_context', input: c.customer.customerId ? { customer_id: c.customer.customerId } : { query: c.customer.name } }, instruction: `${facetInstruction(facet)}The reference means ${c.customer.name} (from the previous lookup). Their records were re-read above; answer only from them.` };
     }
     if (c.activeBookingId) {
-      return { mode: 'booking', keepHistory: true, prefetch: { tool: 'get_job_detail', input: { job_id: c.activeBookingId } }, instruction: `The reference means booking ${c.activeBookingId}${c.vehicle ? ` (${c.vehicle})` : ''} from the previous lookup. It was re-read above; answer only from that record. If the record doesn't contain the fact asked, say it isn't on file.` };
+      return { mode: 'booking', keepHistory: true, facet, prefetch: { tool: 'get_job_detail', input: { job_id: c.activeBookingId } }, instruction: `${facetInstruction(facet)}The reference means booking ${c.activeBookingId}${c.vehicle ? ` (${c.vehicle})` : ''} from the previous lookup. It was re-read above; answer only from that record. If the record doesn't contain the fact asked, say it isn't on file.` };
     }
     return { mode: 'unresolved', keepHistory: true, instruction: 'The message refers to something ("that", "her", "it"…) but no record from the previous answer is active. Ask one short question to identify the customer or job. Do not guess.' };
   }
@@ -163,7 +242,7 @@ export function planTurn(text, ctx, intent) {
 }
 
 const okResult = call => call.ok && call.result && call.result.ok !== false && !call.result.error;
-export const isSuccessfulWrite = call => WRITE_TOOLS.has(call.name) && okResult(call) && !call.result.needs_confirmation;
+export const isSuccessfulWrite = call => WRITE_TOOLS.has(call.name) && okResult(call) && !call.result.needs_confirmation && call.result.changed !== false;
 
 const cap = (items, n = 25) => items.slice(0, n);
 const personLabel = r => `${r?.fname || ''} ${r?.lname || ''}`.trim() || r?.customer || r?.phone || r?.id;

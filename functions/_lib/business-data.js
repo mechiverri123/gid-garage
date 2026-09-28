@@ -10,7 +10,7 @@ import {
 } from '../../shared/business-metrics.js';
 import {
   planPayment, dataHealthIssues, buildActionQueue, unpaidJobs, leadFollowUpReason,
-  bookedValue, jobsOnDate, phoenixToday, addDays, cancelJobPlan, reopenJobPlan,
+  bookedValue, jobsOnDate, phoenixToday, addDays, cancelJobPlan, reopenJobPlan, isCancelled,
 } from '../../shared/business-rules.js';
 import {
   jobEvidence, resolvePerson, belongsToPerson, noteMatch, buildCustomerHistory, vehicleMatches,
@@ -65,6 +65,18 @@ export function writeResult(entity, id, before, after, extra = {}) {
 
 export function createBusinessOps({ sbGet, sbPatch, sbInsert = null, now = () => new Date() }) {
   const patch = (table, id, fields) => patchVerified(sbPatch, table, id, fields);
+
+  // The ONE place job rows get their photo captions. Every path that describes
+  // a job (history, vehicle search, "each one", detail) goes through here, so a
+  // history summary can never be shallower than a single-job answer.
+  async function attachPhotos(rows, max = 15) {
+    const ids = rows.filter(r => !('admin_photos' in r)).slice(-max).map(r => r.id);
+    if (!ids.length) return rows;
+    const photos = await sbGet('bookings', { select: PHOTO_COLUMNS, id: `in.(${ids.join(',')})` });
+    const byId = new Map(photos.map(p => [p.id, p]));
+    for (const r of rows) if (byId.has(r.id)) Object.assign(r, { job_photos: byId.get(r.id).job_photos, admin_photos: byId.get(r.id).admin_photos });
+    return rows;
+  }
   // Same rows the Schedule dashboard loads (list-bookings: all statuses,
   // newest 2000). Errors propagate — a failed load must not read as $0.
   const loadMetricJobs = () => sbGet('bookings', {
@@ -197,7 +209,7 @@ export function createBusinessOps({ sbGet, sbPatch, sbInsert = null, now = () =>
     // subject like "Lisa" has none — answer from notes, never invent a record).
     const [first, ...restName] = cleanSearchText(person.name).split(' ');
     const nameFilter = restName.length ? `and(fname.ilike."${first}",lname.ilike."${restName.join(' ')}")` : `fname.ilike."${first}"`;
-    const jobOr = [nameFilter, ...(person.customerId ? [`customer_id.eq.${person.customerId}`] : [])];
+    const jobOr = [nameFilter, ...(person.customerId ? [`customer_id.eq.${person.customerId}`] : []), ...(person.jobIds.length ? [`id.in.(${person.jobIds.join(',')})`] : [])];
     const hasRecordIdentity = person.sources.some(s => s !== 'note');
     const [jobRows, leads, calls, notes, reminders] = await Promise.all([
       hasRecordIdentity ? sbGet('bookings', { select: CONTEXT_COLUMNS, or: `(${jobOr.join(',')})`, order: 'date.asc', limit: '100' }) : Promise.resolve([]),
@@ -215,14 +227,8 @@ export function createBusinessOps({ sbGet, sbPatch, sbInsert = null, now = () =>
     const nameLower = person.name.toLowerCase();
     const myReminders = reminders.filter(r => leadIds.has(r.related_lead_id) || (nameLower && `${r.title} ${r.notes || ''}`.toLowerCase().includes(nameLower)));
 
-    const myJobs = jobRows.filter(r => belongsToPerson(r, person));
-    // Photo captions for the most recent 10 jobs (often the real findings).
-    const recentIds = myJobs.slice(-10).map(r => r.id);
-    if (recentIds.length) {
-      const photos = await sbGet('bookings', { select: PHOTO_COLUMNS, id: `in.(${recentIds.join(',')})` }).catch(() => []);
-      const byId = new Map(photos.map(p => [p.id, p]));
-      for (const r of myJobs) if (byId.has(r.id)) Object.assign(r, { job_photos: byId.get(r.id).job_photos, admin_photos: byId.get(r.id).admin_photos });
-    }
+    const myJobs = jobRows.filter(r => person.jobIds.includes(r.id) || belongsToPerson(r, person));
+    await attachPhotos(myJobs);
 
     return {
       status: 'resolved',
@@ -241,14 +247,14 @@ export function createBusinessOps({ sbGet, sbPatch, sbInsert = null, now = () =>
     const today = phoenixToday(now());
     let matches = rows.filter(r => vehicleMatches(r.vehicle, words.join(' ')));
     if (customer) matches = matches.filter(r => fullName(r).toLowerCase().includes(cleanSearchText(customer).toLowerCase()));
-    const jobs = matches.map(r => jobEvidence(r));
+    const jobs = (await attachPhotos(matches.slice(0, 15))).map(r => jobEvidence(r));
     const latestPast = jobs.find(j => !j.cancelled && j.date && j.date <= today) || null;
     return {
       vehicleQuery: words.join(' '),
-      count: jobs.length,
+      count: matches.length,
       latestJobId: latestPast?.id || jobs[0]?.id || null,
       distinctCustomers: [...new Set(jobs.map(j => j.customer).filter(Boolean))],
-      jobs: jobs.slice(0, 15),
+      jobs,
       note: jobs.length > 1 && new Set(jobs.map(j => j.customer)).size > 1 ? 'Several customers have this vehicle model; name whose job you mean.' : undefined,
     };
   }
@@ -264,7 +270,7 @@ export function createBusinessOps({ sbGet, sbPatch, sbInsert = null, now = () =>
       return { type, items: rows.map(l => ({ id: l.id, name: fullName(l) || l.phone, status: l.status, created_at: l.created_at, last_contacted_at: l.last_contacted_at, follow_up_at: l.follow_up_at, followUpReason: leadFollowUpReason(l, n), requested_service: l.requested_service, notes: l.notes })) };
     }
     if (type === 'jobs') {
-      const rows = await sbGet('bookings', { select: CONTEXT_COLUMNS, id: inIds });
+      const rows = await attachPhotos(await sbGet('bookings', { select: CONTEXT_COLUMNS, id: inIds }));
       return { type, items: rows.map(r => jobEvidence(r)) };
     }
     if (type === 'notes') return { type, items: await sbGet('jarvis_business_notes', { select: '*', id: inIds }) };
@@ -286,8 +292,20 @@ export function createBusinessOps({ sbGet, sbPatch, sbInsert = null, now = () =>
     const rows = await sbGet('bookings', { select: 'id,fname,lname,vehicle,date,time,job_status,status', id: `eq.${job_id}`, limit: '1' });
     const row = rows[0];
     if (!row) throw new Error('No job found with that id.');
-    const plan = cancelJobPlan(jobFromRow(row));
     const who = fullName(row) || 'this customer';
+    // Idempotent: an already-cancelled job is reported as-is — no confirmation
+    // prompt, no second write, no new reason note.
+    if (isCancelled(jobFromRow(row))) {
+      const notes = await sbGet('jarvis_business_notes', { select: 'id,raw_text,created_at', raw_text: `ilike.*Job ${job_id} cancelled*`, order: 'created_at.desc', limit: '5' }).catch(() => []);
+      const prior = notes.find(n => String(n.raw_text || '').startsWith(`Job ${job_id} cancelled`));
+      return {
+        ok: true, changed: false, already_cancelled: true, entity: 'booking', id: job_id, customer: who,
+        job_status: row.job_status, status: row.status,
+        existing_reason: prior ? String(prior.raw_text).replace(/^.*Reason:\s*/, '') : null,
+        note: 'Already cancelled — nothing was changed.',
+      };
+    }
+    const plan = cancelJobPlan(jobFromRow(row));
     const summary = `Cancel ${who}'s job (${row.vehicle || 'vehicle on file'}, ${row.date || 'no date'}${row.time ? ` ${row.time}` : ''}, currently ${row.job_status}). It is marked Cancelled like the admin button — nothing is deleted.${reason ? ` Reason noted: "${reason}".` : ''}`;
     if (!confirmed) return { needs_confirmation: true, summary };
     const after = await patch('bookings', job_id, plan.fields);

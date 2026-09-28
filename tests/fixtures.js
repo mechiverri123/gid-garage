@@ -82,6 +82,8 @@ export function seed() {
     customers: [
       { id: 'c-jill', fname: 'Jill', lname: 'Castle', phone: '(928) 555-0100', vehicle: '2017 Acura RDX', vin: '', notes: 'Prefers texts' },
       { id: 'c-jm', fname: 'Jill', lname: 'Moreno', phone: '928-555-0177' },
+      // Incomplete linkage: Sergei's customer row has no phone and his booking has no customer_id.
+      { id: 'c-sergei', fname: 'Sergei', lname: 'Butaev', phone: null },
     ],
     leads: [
       { id: 'L1', created_at: '2026-06-01T00:00:00Z', fname: 'Jill', lname: 'Castle', phone: '9285550100', status: 'booked', booking_id: 'J2', requested_service: 'battery light' },

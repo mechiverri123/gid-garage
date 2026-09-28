@@ -57,6 +57,9 @@ export function classifyFocusedIntent(text) {
   if (/\b(remind me|reminder|reminders|what reminders|mark .*reminder|complete .*reminder)\b/i.test(lower)) return 'reminders';
   if (/\b(lead follow[- ]?up|lead followups|who needs.*follow|which leads.*follow|uncontacted leads?|open leads?|new leads?|lead status)\b/i.test(lower)) return 'leads';
   if (/\b(unpaid|balance owed|outstanding balance|who owes|owes me|invoices? (outstanding|due|unpaid)|unpaid invoices?)\b/i.test(lower)) return 'unpaid';
+  // Take-home alone gets only the owner-pay tool — no revenue/net-profit preamble.
+  if (/\b(take[- ]?home|owner pay|pay myself|owner draw)\b|\bhow much can i (realistically )?(take|pay myself|draw)\b/i.test(lower)
+      && !/\b(revenue|profit|gross|collected|sales|compare|versus|vs\.?|actually make)\b/i.test(lower)) return 'take_home';
   if (/\b(revenue|take home|take-home|made this week|made today|made this month|actually make|owner pay|profit|gross|collected)\b/i.test(lower)) return 'money';
   if (/\b(what notes|notes do i have|show .*notes|mark .*note resolved|resolve .*note)\b/i.test(lower)) return 'notes';
   if (CUSTOMER_HISTORY.test(raw)) return 'customer_history';
@@ -76,6 +79,7 @@ export const INTENT_TOOL_NAMES = {
   unpaid: ['get_unpaid_jobs', 'get_customer_context'],
   money: ['get_revenue_summary', 'get_owner_pay_summary', 'list_marketing_spend'],
   money_compare: ['compare_revenue_periods', 'get_revenue_summary'],
+  take_home: ['get_owner_pay_summary'],
   person_followup: ['get_customer_context', 'list_business_notes', 'list_reminders', 'list_lead_followups'],
   notes: ['list_business_notes', 'resolve_business_note', 'capture_business_note'],
   customer_history: ['get_customer_context', 'get_job_detail', 'get_vehicle_jobs', 'list_business_notes'],
@@ -94,6 +98,7 @@ const ROUTING_TEXT = {
   unpaid: 'This turn is specifically about unpaid balances. Use get_unpaid_jobs and stay on it; do not append unrelated business status.',
   money: 'This turn is specifically about money. If the user says revenue/gross/sales/collected, use get_revenue_summary. If they say net profit, use get_revenue_summary. Only use get_owner_pay_summary for take-home/owner pay/after-fees-and-reserve. Preserve the requested period exactly: this month is not last 30 days. Do not append unrelated reminders, leads, jobs, or notes.',
   notes: 'This turn is specifically about captured owner notes. Search the notes (list_business_notes with the person\'s name as query, scope all). A person in a note does NOT need a customer record — never say they are "not a customer" or ask for their phone when a note exists. For "what did I last say", give the most recent note. Stay on notes only.',
+  take_home: 'The owner asked only for take-home. Call get_owner_pay_summary for exactly the requested period and answer with that period\'s take-home (and its breakdown if useful). Do not lead with or add revenue or net profit for any other period.',
   money_compare: 'The owner wants to know exactly which jobs make the difference between two periods. Call compare_revenue_periods with both periods (e.g. last_30_days vs this_month) and list the jobs in `differences` with their amounts and dates. Never say "likely" or ask the owner to remember; the rows are authoritative.',
   person_followup: 'The owner asks what is outstanding with one person. Use get_customer_context with their name (it covers customers, bookings, leads AND owner notes/reminders — a customers row is not required) and answer only from its openItems, owner notes and reminders. If nothing is open, say so.',
   customer_history: 'This is a customer/job depth question. Use get_customer_context (a person), get_job_detail (one job) or get_vehicle_jobs (a vehicle like "the Ranger") and answer from the job evidence: scope of work, technician notes, photo notes, inspection codes, line items, booking request. The service category ("other", "General Inquiry") is never a description. VIN/mileage/address: use vehicleRecords and the per-job fields. Money: quote *_total (includes tax) unless the subtotal is asked for.',
