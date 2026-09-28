@@ -100,7 +100,7 @@ Put each secret in **Cloudflare Pages → Environment variables** (Production), 
 1. Google Cloud Console → create a project (or reuse one) → enable the **Google Search Console API**.
 2. Create a **service account** → Keys → add a JSON key. The whole file goes into `GOOGLE_SERVICE_ACCOUNT_JSON`.
 3. In Search Console → Settings → Users and permissions, add the service account's email as a **Restricted** user.
-4. Set `GSC_SITE_URL` to exactly the property name, for example `sc-domain:gidgarage.com`.
+4. Set `GSC_SITE_URL` to the property: `sc-domain:gidgarage.com` for a Domain property (a bare `gidgarage.com` is treated the same way), or `https://gidgarage.com/` for a URL-prefix property. A 403 error names the property it tried, and the service account must be a user on exactly that property.
 
 **What locality means here:** Search Console never reports where a searcher is. Rows are labeled **likely local** only when the query itself names a Flagstaff-area place or says "near me". Rows with no signal are **unknown**, and rows naming a place outside the area, or from a non-US country, are **nonlocal**. Search Console rows are never labeled "confirmed local". Google also hides rare queries, and the overview shows that hidden share.
 

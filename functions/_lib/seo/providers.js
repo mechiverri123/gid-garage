@@ -23,6 +23,17 @@ const envStatus = (env, required, note) => {
 };
 
 // ---- Google Search Console ----------------------------------------------------------------
+// The API needs the property name exactly: "sc-domain:gidgarage.com" (Domain
+// property) or "https://gidgarage.com/" (URL prefix, trailing slash). A bare
+// "gidgarage.com" is read by Google as http://gidgarage.com, which is never the
+// property — so a bare domain means the Domain property.
+export function gscSiteUrl(value) {
+  const v = String(value || '').trim();
+  if (/^sc-domain:/i.test(v)) return `sc-domain:${v.slice(10).trim().toLowerCase()}`;
+  if (/^https?:\/\//i.test(v)) return v.endsWith('/') ? v : `${v}/`;
+  return v ? `sc-domain:${v.replace(/\/+$/, '').toLowerCase()}` : v;
+}
+
 export const searchConsole = {
   id: 'search_console', label: 'Google Search Console', category: 'search',
   env: ['GOOGLE_SERVICE_ACCOUNT_JSON', 'GSC_SITE_URL'], docs: 'search-console',
@@ -34,10 +45,15 @@ export const searchConsole = {
   },
   async sync(ctx, { from, to }) {
     const token = await serviceAccountToken(ctx.env, ['https://www.googleapis.com/auth/webmasters.readonly'], ctx.fetch, ctx.now);
-    const url = `https://www.googleapis.com/webmasters/v3/sites/${encodeURIComponent(ctx.env.GSC_SITE_URL)}/searchAnalytics/query`;
+    const site = gscSiteUrl(ctx.env.GSC_SITE_URL);
+    const url = `https://www.googleapis.com/webmasters/v3/sites/${encodeURIComponent(site)}/searchAnalytics/query`;
     const post = async body => {
       const res = await ctx.fetch(url, { method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-      if (!res.ok) throw await googleApiError(res, 'Search Console');
+      if (!res.ok) {
+        const e = await googleApiError(res, 'Search Console');
+        if (res.status === 403) e.message += ` Property used: "${site}". Add the service account (client_email) as a user on exactly that property, or set GSC_SITE_URL to the property name shown in Search Console.`;
+        throw e;
+      }
       return res.json();
     };
     let written = 0;

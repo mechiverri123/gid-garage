@@ -144,3 +144,23 @@ test('Bing and Instagram parse their responses; Instagram audience locality by c
   assert.equal(store.tables.seo_instagram_daily[0].followers, 480);
   assert.deepEqual(store.tables.seo_instagram_audience.map(x => [x.city, x.locality]), [['Flagstaff, Arizona', 'likely_local'], ['Los Angeles, California', 'nonlocal']]);
 });
+
+// Production: GSC_SITE_URL "gidgarage.com" made Google check http://gidgarage.com → 403.
+test('Search Console: a bare domain means the Domain property, and a 403 names the property it tried', async () => {
+  const { gscSiteUrl, searchConsole } = await import('../functions/_lib/seo/providers.js');
+  assert.equal(gscSiteUrl('gidgarage.com'), 'sc-domain:gidgarage.com');
+  assert.equal(gscSiteUrl('https://gidgarage.com'), 'https://gidgarage.com/');
+  assert.equal(gscSiteUrl('sc-domain:GIDGarage.com'), 'sc-domain:gidgarage.com');
+  const kp = await crypto.subtle.generateKey({ name: 'RSASSA-PKCS1-v1_5', modulusLength: 2048, publicExponent: new Uint8Array([1, 0, 1]), hash: 'SHA-256' }, true, ['sign', 'verify']);
+  const der = new Uint8Array(await crypto.subtle.exportKey('pkcs8', kp.privateKey));
+  const pem = `-----BEGIN PRIVATE KEY-----\n${btoa(String.fromCharCode(...der))}\n-----END PRIVATE KEY-----`;
+  const asked = [];
+  const fetchImpl = async url => {
+    if (String(url).includes('oauth2')) return new Response(JSON.stringify({ access_token: 't' }));
+    asked.push(String(url));
+    return new Response(JSON.stringify({ error: { code: 403, message: "User does not have sufficient permission for site 'sc-domain:gidgarage.com'." } }), { status: 403 });
+  };
+  const env = { GOOGLE_SERVICE_ACCOUNT_JSON: JSON.stringify({ client_email: 'seo@x.iam.gserviceaccount.com', private_key: pem }), GSC_SITE_URL: 'gidgarage.com' };
+  await assert.rejects(searchConsole.sync({ env, fetch: fetchImpl, store: { upsert: async () => 0 }, now: new Date('2026-09-28T19:00:00Z') }, { from: '2026-09-01', to: '2026-09-02' }), /Property used: "sc-domain:gidgarage\.com"/);
+  assert.match(asked[0], /sites\/sc-domain%3Agidgarage\.com\//);
+});
