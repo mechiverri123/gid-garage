@@ -47,7 +47,7 @@ test('sync with no credentials records honest statuses and makes no network call
     ['google_ads', 'not_configured', true], ['apple_business_connect', 'manual_only', true],
   ]);
   assert.equal(calls.length, 0);
-  assert.equal(store.tables.seo_provider_status.length, 5);
+  assert.equal(store.tables.seo_provider_status.filter(r => r.provider !== '__sync_run__').length, 5);
   assert.match(store.tables.seo_provider_status.find(s => s.provider === 'search_console').detail, /missing: GOOGLE_SERVICE_ACCOUNT_JSON, GSC_SITE_URL/);
 });
 
@@ -60,7 +60,7 @@ test('backfill walks backwards in 30-day chunks and resumes from the cursor; inc
   await runSeoSync({ env, store, fetch: fetchImpl, now: NOW, mode: 'backfill', only: ['weather_history'] });
   // NOAA lags 5 days: backfill starts the day before today−5 and chunks are contiguous.
   assert.deepEqual(ranges, [['2026-08-24', '2026-09-22'], ['2026-07-25', '2026-08-23']]);
-  assert.equal(store.tables.seo_provider_status[0].cursor.backfilledFrom, '2026-07-25');
+  assert.equal(store.tables.seo_provider_status.find(r => r.provider === 'weather_history').cursor.backfilledFrom, '2026-07-25');
   ranges.length = 0;
   await runSeoSync({ env, store, fetch: fetchImpl, now: NOW, mode: 'incremental', only: ['weather_history'] });
   assert.deepEqual(ranges, [['2026-09-19', '2026-09-27']]);

@@ -6,6 +6,8 @@
 //    <PREFIX>_CLIENT_SECRET, <PREFIX>_REFRESH_TOKEN.
 // Tests: tests/seo-providers.test.js
 
+import { workerFetch } from './http.js';
+
 const TOKEN_URL = 'https://oauth2.googleapis.com/token';
 const b64url = bytes => btoa(String.fromCharCode(...new Uint8Array(bytes))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 const b64urlJson = obj => b64url(new TextEncoder().encode(JSON.stringify(obj)));
@@ -34,7 +36,7 @@ export async function signJwt(claims, privateKeyPem) {
   return `${unsigned}.${b64url(sig)}`;
 }
 
-export async function serviceAccountToken(env, scopes, fetchImpl = fetch, now = new Date()) {
+export async function serviceAccountToken(env, scopes, fetchImpl = workerFetch, now = new Date()) {
   const sa = parseServiceAccount(env);
   if (!sa) throw new ProviderError('needs_authorization', 'GOOGLE_SERVICE_ACCOUNT_JSON is missing or invalid.');
   const iat = Math.floor(now.getTime() / 1000);
@@ -45,7 +47,7 @@ export async function serviceAccountToken(env, scopes, fetchImpl = fetch, now = 
   return data.access_token;
 }
 
-export async function refreshTokenAccess(env, prefix, fetchImpl = fetch) {
+export async function refreshTokenAccess(env, prefix, fetchImpl = workerFetch) {
   const id = env[`${prefix}_CLIENT_ID`]; const secret = env[`${prefix}_CLIENT_SECRET`]; const refresh = env[`${prefix}_REFRESH_TOKEN`];
   if (!id || !secret) throw new ProviderError('not_configured', `${prefix}_CLIENT_ID / ${prefix}_CLIENT_SECRET not set.`);
   if (!refresh) throw new ProviderError('needs_authorization', `${prefix}_REFRESH_TOKEN not set — complete the OAuth consent step.`);

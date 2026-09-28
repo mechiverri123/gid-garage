@@ -6,6 +6,7 @@ import { verifyAccess, safeEqual, _clearAccessCertCache } from '../functions/_li
 import { onRequest as seoData, handleSeoData } from '../functions/jarvis/seo-data.js';
 import { onRequestPost as seoSync } from '../functions/seo-sync.js';
 import { fakeSeoStore } from './seo-fake-store.js';
+import { runSeoSync } from '../functions/_lib/seo/sync.js';
 
 const TEAM = 'gidgarage.cloudflareaccess.com';
 const AUD = 'aud-tag-123';
@@ -82,19 +83,19 @@ test('/seo-sync: cron secret only — missing 401, wrong 403, unconfigured 503, 
   assert.equal((await ok.json()).results[0].status, 'not_configured');
 });
 
-test('"Sync now" runs server-side through /jarvis/seo-data with a cooldown; the cron secret is never used', async () => {
-  const store = fakeSeoStore({ seo_sync_runs: [] });
+test('"Sync now" runs server-side through /jarvis/seo-data via the shared run gate; the cron secret is never used', async () => {
+  const store = fakeSeoStore({ seo_provider_status: [] });
   const calls = [];
-  const runSync = async args => { calls.push(args); return { mode: args.mode, results: [] }; };
+  const runSync = async args => { calls.push(args); return runSeoSync({ ...args, only: ['search_console'] }); };
   const now = new Date(NOW);
   const post = body => handleSeoData({ request: new Request('https://x/jarvis/seo-data', { method: 'POST', body: JSON.stringify(body) }), env: {}, store, now, runSync });
   const first = await post({ action: 'sync_now' });
   assert.equal(first.status, 200);
-  assert.equal(calls.length, 1);
+  assert.equal(calls[0].manual, true);
   assert.equal(calls[0].env.SEO_SYNC_SECRET, undefined);
-  store.tables.seo_sync_runs.push({ started_at: new Date(NOW - 60_000).toISOString() });
-  assert.equal((await post({ action: 'sync_now' })).status, 429);
-  assert.equal(calls.length, 1);
+  assert.equal((await first.json()).runStatus, 'completed');
+  const again = await post({ action: 'sync_now' }); // completed moments ago -> cooldown
+  assert.equal(again.status, 429);
 });
 
 test('constant-time secret compare', () => {

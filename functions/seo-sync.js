@@ -30,6 +30,7 @@ export async function onRequestPost({ request, env }) {
   const only = Array.isArray(body?.only) ? body.only.map(String).slice(0, 20) : null;
   try {
     const result = await runSeoSync({ env, store: createSeoStore({ supabaseUrl, serviceKey: env.SUPABASE_SERVICE_KEY }), mode, only });
+    if (result.blocked) return json({ ok: false, error: result.error }, result.status); // a sync is already running
     return json({ ok: true, ...result });
   } catch (e) {
     return json({ ok: false, error: e.message || String(e) }, 500);

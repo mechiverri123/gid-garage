@@ -583,19 +583,6 @@
       "source_location": "L18"
     },
     {
-      "id": "shared_business_rules_d_rulejob",
-      "label": "RuleJob",
-      "_callable": true,
-      "_callable_class": true,
-      "_origin": "ast",
-      "community": 129,
-      "community_name": "business-metrics.js",
-      "file_type": "code",
-      "norm_label": "rulejob",
-      "source_file": "shared/business-rules.d.ts",
-      "source_location": "L4"
-    },
-    {
       "id": "src_command_center_types_lead",
       "label": "Lead",
       "_callable": true,
@@ -919,6 +906,19 @@
       "norm_label": "modelentry",
       "source_file": "src/vehicleData.ts",
       "source_location": "L2"
+    },
+    {
+      "id": "shared_business_rules_d_rulejob",
+      "label": "RuleJob",
+      "_callable": true,
+      "_callable_class": true,
+      "_origin": "ast",
+      "community": 64,
+      "community_name": "createBusinessOps",
+      "file_type": "code",
+      "norm_label": "rulejob",
+      "source_file": "shared/business-rules.d.ts",
+      "source_location": "L4"
     },
     {
       "id": "src_command_center_seo_seopanels_authorityopp",
@@ -2138,6 +2138,18 @@
       "source_location": "L7147"
     },
     {
+      "id": "src_jobops_selfpayform_handlepay",
+      "label": "handlePay()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 1,
+      "community_name": "JobOps.tsx",
+      "file_type": "code",
+      "norm_label": "handlepay()",
+      "source_file": "src/JobOps.tsx",
+      "source_location": "L7201"
+    },
+    {
       "id": "src_jobops_todateinputstr",
       "label": "toDateInputStr()",
       "_callable": true,
@@ -3326,54 +3338,6 @@
       "source_location": "L2353"
     },
     {
-      "id": "src_jobops_invoiceexport",
-      "label": "InvoiceExport()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 12,
-      "community_name": "EstimatePanel",
-      "file_type": "code",
-      "norm_label": "invoiceexport()",
-      "source_file": "src/JobOps.tsx",
-      "source_location": "L8886"
-    },
-    {
-      "id": "src_jobops_invoiceexport_printinvoices",
-      "label": "printInvoices()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 12,
-      "community_name": "EstimatePanel",
-      "file_type": "code",
-      "norm_label": "printinvoices()",
-      "source_file": "src/JobOps.tsx",
-      "source_location": "L8933"
-    },
-    {
-      "id": "src_jobops_invoiceexport_shareinvoicepreview",
-      "label": "shareInvoicePreview()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 12,
-      "community_name": "EstimatePanel",
-      "file_type": "code",
-      "norm_label": "shareinvoicepreview()",
-      "source_file": "src/JobOps.tsx",
-      "source_location": "L9021"
-    },
-    {
-      "id": "src_jobops_loadjspdf",
-      "label": "loadJsPDF()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 12,
-      "community_name": "EstimatePanel",
-      "file_type": "code",
-      "norm_label": "loadjspdf()",
-      "source_file": "src/JobOps.tsx",
-      "source_location": "L8699"
-    },
-    {
       "id": "src_jobops_sendestimateemail",
       "label": "sendEstimateEmail()",
       "_callable": true,
@@ -3384,18 +3348,6 @@
       "norm_label": "sendestimateemail()",
       "source_file": "src/JobOps.tsx",
       "source_location": "L680"
-    },
-    {
-      "id": "src_jobops_taxableamount",
-      "label": "taxableAmount()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 12,
-      "community_name": "EstimatePanel",
-      "file_type": "code",
-      "norm_label": "taxableamount()",
-      "source_file": "src/JobOps.tsx",
-      "source_location": "L190"
     },
     {
       "id": "src_jobops_taxfromitems",
@@ -3420,30 +3372,6 @@
       "norm_label": "taxratepercentlabel()",
       "source_file": "src/JobOps.tsx",
       "source_location": "L151"
-    },
-    {
-      "id": "src_jobops_taxsummary",
-      "label": "TaxSummary()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 12,
-      "community_name": "EstimatePanel",
-      "file_type": "code",
-      "norm_label": "taxsummary()",
-      "source_file": "src/JobOps.tsx",
-      "source_location": "L9368"
-    },
-    {
-      "id": "src_jobops_taxsummary_taxablegrossfor",
-      "label": "taxableGrossFor()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 12,
-      "community_name": "EstimatePanel",
-      "file_type": "code",
-      "norm_label": "taxablegrossfor()",
-      "source_file": "src/JobOps.tsx",
-      "source_location": "L9379"
     },
     {
       "id": "src_jobops_totalfromitems",
@@ -3554,6 +3482,78 @@
       "source_location": "L55"
     },
     {
+      "id": "functions_jarvis_seo_data_handleseodata",
+      "label": "handleSeoData()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 125,
+      "community_name": "seo-data.js",
+      "file_type": "code",
+      "norm_label": "handleseodata()",
+      "source_file": "functions/jarvis/seo-data.js",
+      "source_location": "L31"
+    },
+    {
+      "id": "functions_jarvis_seo_data_isdate",
+      "label": "isDate()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 125,
+      "community_name": "seo-data.js",
+      "file_type": "code",
+      "norm_label": "isdate()",
+      "source_file": "functions/jarvis/seo-data.js",
+      "source_location": "L26"
+    },
+    {
+      "id": "functions_jarvis_seo_data_json",
+      "label": "json()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 125,
+      "community_name": "seo-data.js",
+      "file_type": "code",
+      "norm_label": "json()",
+      "source_file": "functions/jarvis/seo-data.js",
+      "source_location": "L24"
+    },
+    {
+      "id": "functions_jarvis_seo_data_onrequest",
+      "label": "onRequest()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 125,
+      "community_name": "seo-data.js",
+      "file_type": "code",
+      "norm_label": "onrequest()",
+      "source_file": "functions/jarvis/seo-data.js",
+      "source_location": "L117"
+    },
+    {
+      "id": "functions_jarvis_seo_data_slug",
+      "label": "slug()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 125,
+      "community_name": "seo-data.js",
+      "file_type": "code",
+      "norm_label": "slug()",
+      "source_file": "functions/jarvis/seo-data.js",
+      "source_location": "L27"
+    },
+    {
+      "id": "functions_jarvis_seo_data_str",
+      "label": "str()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 125,
+      "community_name": "seo-data.js",
+      "file_type": "code",
+      "norm_label": "str()",
+      "source_file": "functions/jarvis/seo-data.js",
+      "source_location": "L25"
+    },
+    {
       "id": "functions_lib_access_auth_b64urltobytes",
       "label": "b64urlToBytes()",
       "_callable": true,
@@ -3660,78 +3660,6 @@
       "norm_label": "createseostore()",
       "source_file": "functions/_lib/seo/store.js",
       "source_location": "L4"
-    },
-    {
-      "id": "functions_seo_data_handleseodata",
-      "label": "handleSeoData()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 125,
-      "community_name": "seo-data.js",
-      "file_type": "code",
-      "norm_label": "handleseodata()",
-      "source_file": "functions/seo-data.js",
-      "source_location": "L30"
-    },
-    {
-      "id": "functions_seo_data_isdate",
-      "label": "isDate()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 125,
-      "community_name": "seo-data.js",
-      "file_type": "code",
-      "norm_label": "isdate()",
-      "source_file": "functions/seo-data.js",
-      "source_location": "L25"
-    },
-    {
-      "id": "functions_seo_data_json",
-      "label": "json()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 125,
-      "community_name": "seo-data.js",
-      "file_type": "code",
-      "norm_label": "json()",
-      "source_file": "functions/seo-data.js",
-      "source_location": "L23"
-    },
-    {
-      "id": "functions_seo_data_onrequest",
-      "label": "onRequest()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 125,
-      "community_name": "seo-data.js",
-      "file_type": "code",
-      "norm_label": "onrequest()",
-      "source_file": "functions/seo-data.js",
-      "source_location": "L116"
-    },
-    {
-      "id": "functions_seo_data_slug",
-      "label": "slug()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 125,
-      "community_name": "seo-data.js",
-      "file_type": "code",
-      "norm_label": "slug()",
-      "source_file": "functions/seo-data.js",
-      "source_location": "L26"
-    },
-    {
-      "id": "functions_seo_data_str",
-      "label": "str()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 125,
-      "community_name": "seo-data.js",
-      "file_type": "code",
-      "norm_label": "str()",
-      "source_file": "functions/seo-data.js",
-      "source_location": "L24"
     },
     {
       "id": "functions_seo_sync_json",
@@ -3842,6 +3770,18 @@
       "source_location": "L24"
     },
     {
+      "id": "shared_seo_demand_aiassistant",
+      "label": "aiAssistant()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 126,
+      "community_name": "detectors.js",
+      "file_type": "code",
+      "norm_label": "aiassistant()",
+      "source_file": "shared/seo/demand.js",
+      "source_location": "L141"
+    },
+    {
       "id": "shared_seo_demand_citationissues",
       "label": "citationIssues()",
       "_callable": true,
@@ -3900,18 +3840,6 @@
       "norm_label": "normname()",
       "source_file": "shared/seo/demand.js",
       "source_location": "L126"
-    },
-    {
-      "id": "shared_seo_demand_unconfirmedservicedemand",
-      "label": "unconfirmedServiceDemand()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 126,
-      "community_name": "detectors.js",
-      "file_type": "code",
-      "norm_label": "unconfirmedservicedemand()",
-      "source_file": "shared/seo/demand.js",
-      "source_location": "L78"
     },
     {
       "id": "shared_seo_detectors_applypreferences",
@@ -4178,18 +4106,6 @@
       "source_location": "L15"
     },
     {
-      "id": "shared_seo_services_resolveservices",
-      "label": "resolveServices()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 126,
-      "community_name": "detectors.js",
-      "file_type": "code",
-      "norm_label": "resolveservices()",
-      "source_file": "shared/seo/services.js",
-      "source_location": "L47"
-    },
-    {
       "id": "shared_seo_services_serviceeligibility",
       "label": "serviceEligibility()",
       "_callable": true,
@@ -4272,222 +4188,6 @@
       "norm_label": "volumefactor()",
       "source_file": "shared/seo/scoring.js",
       "source_location": "L36"
-    },
-    {
-      "id": "functions_lib_business_data_createbusinessops_ownerpaysummary",
-      "label": "ownerPaySummary()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 129,
-      "community_name": "business-metrics.js",
-      "file_type": "code",
-      "norm_label": "ownerpaysummary()",
-      "source_file": "functions/_lib/business-data.js",
-      "source_location": "L136"
-    },
-    {
-      "id": "functions_lib_business_data_createbusinessops_revenuesummary",
-      "label": "revenueSummary()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 129,
-      "community_name": "business-metrics.js",
-      "file_type": "code",
-      "norm_label": "revenuesummary()",
-      "source_file": "functions/_lib/business-data.js",
-      "source_location": "L96"
-    },
-    {
-      "id": "shared_business_metrics_cardrevenue",
-      "label": "cardRevenue()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 129,
-      "community_name": "business-metrics.js",
-      "file_type": "code",
-      "norm_label": "cardrevenue()",
-      "source_file": "shared/business-metrics.js",
-      "source_location": "L208"
-    },
-    {
-      "id": "shared_business_metrics_cents",
-      "label": "cents()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 129,
-      "community_name": "business-metrics.js",
-      "file_type": "code",
-      "norm_label": "cents()",
-      "source_file": "shared/business-metrics.js",
-      "source_location": "L172"
-    },
-    {
-      "id": "shared_business_metrics_collectedrevenue",
-      "label": "collectedRevenue()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 129,
-      "community_name": "business-metrics.js",
-      "file_type": "code",
-      "norm_label": "collectedrevenue()",
-      "source_file": "shared/business-metrics.js",
-      "source_location": "L155"
-    },
-    {
-      "id": "shared_business_metrics_comparerevenueperiods",
-      "label": "compareRevenuePeriods()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 129,
-      "community_name": "business-metrics.js",
-      "file_type": "code",
-      "norm_label": "comparerevenueperiods()",
-      "source_file": "shared/business-metrics.js",
-      "source_location": "L177"
-    },
-    {
-      "id": "shared_business_metrics_invoicetotal",
-      "label": "invoiceTotal()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 129,
-      "community_name": "business-metrics.js",
-      "file_type": "code",
-      "norm_label": "invoicetotal()",
-      "source_file": "shared/business-metrics.js",
-      "source_location": "L112"
-    },
-    {
-      "id": "shared_business_metrics_jobcontribution",
-      "label": "jobContribution()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 129,
-      "community_name": "business-metrics.js",
-      "file_type": "code",
-      "norm_label": "jobcontribution()",
-      "source_file": "shared/business-metrics.js",
-      "source_location": "L121"
-    },
-    {
-      "id": "shared_business_metrics_netprofit",
-      "label": "netProfit()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 129,
-      "community_name": "business-metrics.js",
-      "file_type": "code",
-      "norm_label": "netprofit()",
-      "source_file": "shared/business-metrics.js",
-      "source_location": "L168"
-    },
-    {
-      "id": "shared_business_metrics_num",
-      "label": "num()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 129,
-      "community_name": "business-metrics.js",
-      "file_type": "code",
-      "norm_label": "num()",
-      "source_file": "shared/business-metrics.js",
-      "source_location": "L111"
-    },
-    {
-      "id": "shared_business_metrics_ownerpaysettings",
-      "label": "ownerPaySettings()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 129,
-      "community_name": "business-metrics.js",
-      "file_type": "code",
-      "norm_label": "ownerpaysettings()",
-      "source_file": "shared/business-metrics.js",
-      "source_location": "L219"
-    },
-    {
-      "id": "shared_business_metrics_ownertakehome",
-      "label": "ownerTakeHome()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 129,
-      "community_name": "business-metrics.js",
-      "file_type": "code",
-      "norm_label": "ownertakehome()",
-      "source_file": "shared/business-metrics.js",
-      "source_location": "L232"
-    },
-    {
-      "id": "shared_business_metrics_parsepayments",
-      "label": "parsePayments()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 129,
-      "community_name": "business-metrics.js",
-      "file_type": "code",
-      "norm_label": "parsepayments()",
-      "source_file": "shared/business-metrics.js",
-      "source_location": "L25"
-    },
-    {
-      "id": "shared_business_metrics_phoenixdateparts",
-      "label": "phoenixDateParts()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 129,
-      "community_name": "business-metrics.js",
-      "file_type": "code",
-      "norm_label": "phoenixdateparts()",
-      "source_file": "shared/business-metrics.js",
-      "source_location": "L19"
-    },
-    {
-      "id": "shared_business_metrics_resolveperiodwindow",
-      "label": "resolvePeriodWindow()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 129,
-      "community_name": "business-metrics.js",
-      "file_type": "code",
-      "norm_label": "resolveperiodwindow()",
-      "source_file": "shared/business-metrics.js",
-      "source_location": "L70"
-    },
-    {
-      "id": "shared_business_metrics_revenuecontributions",
-      "label": "revenueContributions()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 129,
-      "community_name": "business-metrics.js",
-      "file_type": "code",
-      "norm_label": "revenuecontributions()",
-      "source_file": "shared/business-metrics.js",
-      "source_location": "L150"
-    },
-    {
-      "id": "tests_business_metrics_test_cents",
-      "label": "cents()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 129,
-      "community_name": "business-metrics.js",
-      "file_type": "code",
-      "norm_label": "cents()",
-      "source_file": "tests/business-metrics.test.js",
-      "source_location": "L31"
-    },
-    {
-      "id": "tests_business_metrics_test_w",
-      "label": "w()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 129,
-      "community_name": "business-metrics.js",
-      "file_type": "code",
-      "norm_label": "w()",
-      "source_file": "tests/business-metrics.test.js",
-      "source_location": "L30"
     },
     {
       "id": "src_command_center_components_attentionpanel_attentionpanel",
@@ -4644,30 +4344,6 @@
       "norm_label": "fmtsource()",
       "source_file": "src/command-center/utils/formatters.ts",
       "source_location": "L6"
-    },
-    {
-      "id": "functions_lib_seo_ops_windows",
-      "label": "windows()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 130,
-      "community_name": "seo-sync.test.js",
-      "file_type": "code",
-      "norm_label": "windows()",
-      "source_file": "functions/_lib/seo/ops.js",
-      "source_location": "L22"
-    },
-    {
-      "id": "shared_seo_local_intent_gsclocality",
-      "label": "gscLocality()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 130,
-      "community_name": "seo-sync.test.js",
-      "file_type": "code",
-      "norm_label": "gsclocality()",
-      "source_file": "shared/seo/local-intent.js",
-      "source_location": "L98"
     },
     {
       "id": "tests_seo_fake_store_applyfilters",
@@ -5018,102 +4694,6 @@
       "source_location": "L20"
     },
     {
-      "id": "shared_business_rules_isawaitingpayment",
-      "label": "isAwaitingPayment()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 133,
-      "community_name": "business-rules.js",
-      "file_type": "code",
-      "norm_label": "isawaitingpayment()",
-      "source_file": "shared/business-rules.js",
-      "source_location": "L106"
-    },
-    {
-      "id": "shared_business_rules_jobbalance",
-      "label": "jobBalance()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 133,
-      "community_name": "business-rules.js",
-      "file_type": "code",
-      "norm_label": "jobbalance()",
-      "source_file": "shared/business-rules.js",
-      "source_location": "L66"
-    },
-    {
-      "id": "shared_business_rules_jobmoney",
-      "label": "jobMoney()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 133,
-      "community_name": "business-rules.js",
-      "file_type": "code",
-      "norm_label": "jobmoney()",
-      "source_file": "shared/business-rules.js",
-      "source_location": "L74"
-    },
-    {
-      "id": "shared_business_rules_jobtotaldue",
-      "label": "jobTotalDue()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 133,
-      "community_name": "business-rules.js",
-      "file_type": "code",
-      "norm_label": "jobtotaldue()",
-      "source_file": "shared/business-rules.js",
-      "source_location": "L62"
-    },
-    {
-      "id": "shared_business_rules_leadstatusupdate",
-      "label": "leadStatusUpdate()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 133,
-      "community_name": "business-rules.js",
-      "file_type": "code",
-      "norm_label": "leadstatusupdate()",
-      "source_file": "shared/business-rules.js",
-      "source_location": "L143"
-    },
-    {
-      "id": "shared_business_rules_num",
-      "label": "num()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 133,
-      "community_name": "business-rules.js",
-      "file_type": "code",
-      "norm_label": "num()",
-      "source_file": "shared/business-rules.js",
-      "source_location": "L26"
-    },
-    {
-      "id": "shared_business_rules_round2",
-      "label": "round2()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 133,
-      "community_name": "business-rules.js",
-      "file_type": "code",
-      "norm_label": "round2()",
-      "source_file": "shared/business-rules.js",
-      "source_location": "L27"
-    },
-    {
-      "id": "tests_business_rules_test_invoiced",
-      "label": "invoiced()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 133,
-      "community_name": "business-rules.js",
-      "file_type": "code",
-      "norm_label": "invoiced()",
-      "source_file": "tests/business-rules.test.js",
-      "source_location": "L12"
-    },
-    {
       "id": "functions_admin_ai_chat_analyzeleadfields",
       "label": "analyzeLeadFields()",
       "_callable": true,
@@ -5246,6 +4826,18 @@
       "source_location": "L221"
     },
     {
+      "id": "functions_lib_jarvis_context_extractexplicitsubjects",
+      "label": "extractExplicitSubjects()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 135,
+      "community_name": "jarvis-intent.js",
+      "file_type": "code",
+      "norm_label": "extractexplicitsubjects()",
+      "source_file": "functions/_lib/jarvis-context.js",
+      "source_location": "L59"
+    },
+    {
       "id": "functions_lib_jarvis_intent_classifyfocusedintent",
       "label": "classifyFocusedIntent()",
       "_callable": true,
@@ -5340,126 +4932,6 @@
       "norm_label": "tools()",
       "source_file": "tests/jarvis-intent.test.js",
       "source_location": "L6"
-    },
-    {
-      "id": "shared_seo_kpis_annotategsc",
-      "label": "annotateGsc()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 136,
-      "community_name": "kpis.js",
-      "file_type": "code",
-      "norm_label": "annotategsc()",
-      "source_file": "shared/seo/kpis.js",
-      "source_location": "L24"
-    },
-    {
-      "id": "shared_seo_kpis_computeoverview",
-      "label": "computeOverview()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 136,
-      "community_name": "kpis.js",
-      "file_type": "code",
-      "norm_label": "computeoverview()",
-      "source_file": "shared/seo/kpis.js",
-      "source_location": "L98"
-    },
-    {
-      "id": "shared_seo_kpis_customergeography",
-      "label": "customerGeography()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 136,
-      "community_name": "kpis.js",
-      "file_type": "code",
-      "norm_label": "customergeography()",
-      "source_file": "shared/seo/kpis.js",
-      "source_location": "L94"
-    },
-    {
-      "id": "shared_seo_kpis_discoveryfunnel",
-      "label": "discoveryFunnel()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 136,
-      "community_name": "kpis.js",
-      "file_type": "code",
-      "norm_label": "discoveryfunnel()",
-      "source_file": "shared/seo/kpis.js",
-      "source_location": "L69"
-    },
-    {
-      "id": "shared_seo_kpis_gbpside",
-      "label": "gbpSide()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 136,
-      "community_name": "kpis.js",
-      "file_type": "code",
-      "norm_label": "gbpside()",
-      "source_file": "shared/seo/kpis.js",
-      "source_location": "L60"
-    },
-    {
-      "id": "shared_seo_kpis_gscside",
-      "label": "gscSide()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 136,
-      "community_name": "kpis.js",
-      "file_type": "code",
-      "norm_label": "gscside()",
-      "source_file": "shared/seo/kpis.js",
-      "source_location": "L40"
-    },
-    {
-      "id": "shared_seo_kpis_localitybreakdown",
-      "label": "localityBreakdown()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 136,
-      "community_name": "kpis.js",
-      "file_type": "code",
-      "norm_label": "localitybreakdown()",
-      "source_file": "shared/seo/kpis.js",
-      "source_location": "L31"
-    },
-    {
-      "id": "shared_seo_kpis_pct",
-      "label": "pct()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 136,
-      "community_name": "kpis.js",
-      "file_type": "code",
-      "norm_label": "pct()",
-      "source_file": "shared/seo/kpis.js",
-      "source_location": "L20"
-    },
-    {
-      "id": "shared_seo_kpis_round",
-      "label": "round()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 136,
-      "community_name": "kpis.js",
-      "file_type": "code",
-      "norm_label": "round()",
-      "source_file": "shared/seo/kpis.js",
-      "source_location": "L21"
-    },
-    {
-      "id": "shared_seo_kpis_sum",
-      "label": "sum()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 136,
-      "community_name": "kpis.js",
-      "file_type": "code",
-      "norm_label": "sum()",
-      "source_file": "shared/seo/kpis.js",
-      "source_location": "L19"
     },
     {
       "id": "functions_jarvis_telegram_clearhistory",
@@ -5779,7 +5251,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 16,
-      "community_name": "JobsTab",
+      "community_name": "CustomersTab",
       "file_type": "code",
       "norm_label": "accentfor()",
       "source_file": "src/JobOps.tsx",
@@ -5791,7 +5263,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 16,
-      "community_name": "JobsTab",
+      "community_name": "CustomersTab",
       "file_type": "code",
       "norm_label": "aggregatecustomers()",
       "source_file": "src/JobOps.tsx",
@@ -5803,7 +5275,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 16,
-      "community_name": "JobsTab",
+      "community_name": "CustomersTab",
       "file_type": "code",
       "norm_label": "customerfilemodal()",
       "source_file": "src/JobOps.tsx",
@@ -5815,7 +5287,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 16,
-      "community_name": "JobsTab",
+      "community_name": "CustomersTab",
       "file_type": "code",
       "norm_label": "customerstab()",
       "source_file": "src/JobOps.tsx",
@@ -5827,7 +5299,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 16,
-      "community_name": "JobsTab",
+      "community_name": "CustomersTab",
       "file_type": "code",
       "norm_label": "handlejobupdate()",
       "source_file": "src/JobOps.tsx",
@@ -5839,7 +5311,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 16,
-      "community_name": "JobsTab",
+      "community_name": "CustomersTab",
       "file_type": "code",
       "norm_label": "duplicatecustomersmodal()",
       "source_file": "src/JobOps.tsx",
@@ -5851,7 +5323,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 16,
-      "community_name": "JobsTab",
+      "community_name": "CustomersTab",
       "file_type": "code",
       "norm_label": "defaultkeeper()",
       "source_file": "src/JobOps.tsx",
@@ -5863,7 +5335,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 16,
-      "community_name": "JobsTab",
+      "community_name": "CustomersTab",
       "file_type": "code",
       "norm_label": "jobstatsfor()",
       "source_file": "src/JobOps.tsx",
@@ -5875,7 +5347,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 16,
-      "community_name": "JobsTab",
+      "community_name": "CustomersTab",
       "file_type": "code",
       "norm_label": "loadcustomers()",
       "source_file": "src/JobOps.tsx",
@@ -5887,7 +5359,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 16,
-      "community_name": "JobsTab",
+      "community_name": "CustomersTab",
       "file_type": "code",
       "norm_label": "mergegroup()",
       "source_file": "src/JobOps.tsx",
@@ -5899,23 +5371,11 @@
       "_callable": true,
       "_origin": "ast",
       "community": 16,
-      "community_name": "JobsTab",
+      "community_name": "CustomersTab",
       "file_type": "code",
       "norm_label": "undomerge()",
       "source_file": "src/JobOps.tsx",
       "source_location": "L6355"
-    },
-    {
-      "id": "src_jobops_externalleadmodal_handlecreate",
-      "label": "handleCreate()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 16,
-      "community_name": "JobsTab",
-      "file_type": "code",
-      "norm_label": "handlecreate()",
-      "source_file": "src/JobOps.tsx",
-      "source_location": "L5229"
     },
     {
       "id": "src_jobops_findduplicategroups",
@@ -5923,95 +5383,11 @@
       "_callable": true,
       "_origin": "ast",
       "community": 16,
-      "community_name": "JobsTab",
+      "community_name": "CustomersTab",
       "file_type": "code",
       "norm_label": "findduplicategroups()",
       "source_file": "src/JobOps.tsx",
       "source_location": "L6168"
-    },
-    {
-      "id": "src_jobops_getalljobs",
-      "label": "getAllJobs()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 16,
-      "community_name": "JobsTab",
-      "file_type": "code",
-      "norm_label": "getalljobs()",
-      "source_file": "src/JobOps.tsx",
-      "source_location": "L648"
-    },
-    {
-      "id": "src_jobops_getjobbyid",
-      "label": "getJobById()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 16,
-      "community_name": "JobsTab",
-      "file_type": "code",
-      "norm_label": "getjobbyid()",
-      "source_file": "src/JobOps.tsx",
-      "source_location": "L660"
-    },
-    {
-      "id": "src_jobops_jobstab",
-      "label": "JobsTab()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 16,
-      "community_name": "JobsTab",
-      "file_type": "code",
-      "norm_label": "jobstab()",
-      "source_file": "src/JobOps.tsx",
-      "source_location": "L6653"
-    },
-    {
-      "id": "src_jobops_jobstab_handlejobupdate",
-      "label": "handleJobUpdate()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 16,
-      "community_name": "JobsTab",
-      "file_type": "code",
-      "norm_label": "handlejobupdate()",
-      "source_file": "src/JobOps.tsx",
-      "source_location": "L6809"
-    },
-    {
-      "id": "src_jobops_jobstab_loadmileagejobids",
-      "label": "loadMileageJobIds()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 16,
-      "community_name": "JobsTab",
-      "file_type": "code",
-      "norm_label": "loadmileagejobids()",
-      "source_file": "src/JobOps.tsx",
-      "source_location": "L6671"
-    },
-    {
-      "id": "src_jobops_jobstab_openjob",
-      "label": "openJob()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 16,
-      "community_name": "JobsTab",
-      "file_type": "code",
-      "norm_label": "openjob()",
-      "source_file": "src/JobOps.tsx",
-      "source_location": "L6823"
-    },
-    {
-      "id": "src_jobops_mapjob",
-      "label": "mapJob()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 16,
-      "community_name": "JobsTab",
-      "file_type": "code",
-      "norm_label": "mapjob()",
-      "source_file": "src/JobOps.tsx",
-      "source_location": "L578"
     },
     {
       "id": "src_jobops_normstr",
@@ -6019,23 +5395,11 @@
       "_callable": true,
       "_origin": "ast",
       "community": 16,
-      "community_name": "JobsTab",
+      "community_name": "CustomersTab",
       "file_type": "code",
       "norm_label": "normstr()",
       "source_file": "src/JobOps.tsx",
       "source_location": "L6158"
-    },
-    {
-      "id": "src_jobops_prepimodal_setitem",
-      "label": "setItem()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 16,
-      "community_name": "JobsTab",
-      "file_type": "code",
-      "norm_label": "setitem()",
-      "source_file": "src/JobOps.tsx",
-      "source_location": "L5736"
     },
     {
       "id": "src_jobops_previewmerge",
@@ -6043,7 +5407,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 16,
-      "community_name": "JobsTab",
+      "community_name": "CustomersTab",
       "file_type": "code",
       "norm_label": "previewmerge()",
       "source_file": "src/JobOps.tsx",
@@ -6055,7 +5419,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 16,
-      "community_name": "JobsTab",
+      "community_name": "CustomersTab",
       "file_type": "code",
       "norm_label": "resolveservicename()",
       "source_file": "src/JobOps.tsx",
@@ -6067,7 +5431,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 16,
-      "community_name": "JobsTab",
+      "community_name": "CustomersTab",
       "file_type": "code",
       "norm_label": "statusbadge()",
       "source_file": "src/JobOps.tsx",
@@ -6079,7 +5443,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 16,
-      "community_name": "JobsTab",
+      "community_name": "CustomersTab",
       "file_type": "code",
       "norm_label": "tbdjobsmodal()",
       "source_file": "src/JobOps.tsx",
@@ -6091,7 +5455,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 16,
-      "community_name": "JobsTab",
+      "community_name": "CustomersTab",
       "file_type": "code",
       "norm_label": "usecountup()",
       "source_file": "src/JobOps.tsx",
@@ -6103,7 +5467,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 16,
-      "community_name": "JobsTab",
+      "community_name": "CustomersTab",
       "file_type": "code",
       "norm_label": "tick()",
       "source_file": "src/JobOps.tsx",
@@ -6480,6 +5844,18 @@
       "norm_label": "removeitemphoto()",
       "source_file": "src/JobOps.tsx",
       "source_location": "L5761"
+    },
+    {
+      "id": "src_jobops_prepimodal_setitem",
+      "label": "setItem()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 19,
+      "community_name": "PrePIModal",
+      "file_type": "code",
+      "norm_label": "setitem()",
+      "source_file": "src/JobOps.tsx",
+      "source_location": "L5736"
     },
     {
       "id": "src_jobops_prepimodal_startnew",
@@ -7322,18 +6698,6 @@
       "source_location": "L3617"
     },
     {
-      "id": "src_jobops_selfpayform_handlepay",
-      "label": "handlePay()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 22,
-      "community_name": "patchJob",
-      "file_type": "code",
-      "norm_label": "handlepay()",
-      "source_file": "src/JobOps.tsx",
-      "source_location": "L7201"
-    },
-    {
       "id": "src_jobops_senddeclineemail",
       "label": "sendDeclineEmail()",
       "_callable": true,
@@ -7694,18 +7058,6 @@
       "source_location": "L17"
     },
     {
-      "id": "src_bookingwidget_adminschedule_deletebooking",
-      "label": "deleteBooking()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 26,
-      "community_name": "adminPost",
-      "file_type": "code",
-      "norm_label": "deletebooking()",
-      "source_file": "src/BookingWidget.tsx",
-      "source_location": "L2120"
-    },
-    {
       "id": "src_bookingwidget_adminschedule_savegaragenotes",
       "label": "saveGarageNotes()",
       "_callable": true,
@@ -7788,30 +7140,6 @@
       "norm_label": "removedate()",
       "source_file": "src/BookingWidget.tsx",
       "source_location": "L1864"
-    },
-    {
-      "id": "src_bookingwidget_deletelocalbooking",
-      "label": "deleteLocalBooking()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 26,
-      "community_name": "adminPost",
-      "file_type": "code",
-      "norm_label": "deletelocalbooking()",
-      "source_file": "src/BookingWidget.tsx",
-      "source_location": "L110"
-    },
-    {
-      "id": "src_bookingwidget_deletesupabasebooking",
-      "label": "deleteSupabaseBooking()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 26,
-      "community_name": "adminPost",
-      "file_type": "code",
-      "norm_label": "deletesupabasebooking()",
-      "source_file": "src/BookingWidget.tsx",
-      "source_location": "L96"
     },
     {
       "id": "src_bookingwidget_getlocalbookings",
@@ -8186,6 +7514,42 @@
       "source_location": "L165"
     },
     {
+      "id": "src_jobops_businesshub",
+      "label": "BusinessHub()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 29,
+      "community_name": "AdminSchedule",
+      "file_type": "code",
+      "norm_label": "businesshub()",
+      "source_file": "src/JobOps.tsx",
+      "source_location": "L10732"
+    },
+    {
+      "id": "src_jobops_businesshub_resetallnotes",
+      "label": "resetAllNotes()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 29,
+      "community_name": "AdminSchedule",
+      "file_type": "code",
+      "norm_label": "resetallnotes()",
+      "source_file": "src/JobOps.tsx",
+      "source_location": "L10741"
+    },
+    {
+      "id": "src_jobops_businesshub_selectcat",
+      "label": "selectCat()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 29,
+      "community_name": "AdminSchedule",
+      "file_type": "code",
+      "norm_label": "selectcat()",
+      "source_file": "src/JobOps.tsx",
+      "source_location": "L10737"
+    },
+    {
       "id": "src_bookingwidget_bookingwidget",
       "label": "BookingWidget()",
       "_callable": true,
@@ -8330,6 +7694,30 @@
       "source_location": "L613"
     },
     {
+      "id": "src_bookingwidget_cardonfilestep",
+      "label": "CardOnFileStep()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 30,
+      "community_name": "BookingWidget",
+      "file_type": "code",
+      "norm_label": "cardonfilestep()",
+      "source_file": "src/BookingWidget.tsx",
+      "source_location": "L823"
+    },
+    {
+      "id": "src_bookingwidget_cardonfilestep_handlesavecard",
+      "label": "handleSaveCard()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 30,
+      "community_name": "BookingWidget",
+      "file_type": "code",
+      "norm_label": "handlesavecard()",
+      "source_file": "src/BookingWidget.tsx",
+      "source_location": "L871"
+    },
+    {
       "id": "src_bookingwidget_datekey",
       "label": "dateKey()",
       "_callable": true,
@@ -8366,6 +7754,18 @@
       "source_location": "L178"
     },
     {
+      "id": "src_bookingwidget_loadstripe",
+      "label": "loadStripe()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 30,
+      "community_name": "BookingWidget",
+      "file_type": "code",
+      "norm_label": "loadstripe()",
+      "source_file": "src/BookingWidget.tsx",
+      "source_location": "L802"
+    },
+    {
       "id": "src_bookingwidget_pad",
       "label": "pad()",
       "_callable": true,
@@ -8378,364 +7778,88 @@
       "source_location": "L171"
     },
     {
-      "id": "functions_lib_business_data_createbusinessops",
-      "label": "createBusinessOps()",
+      "id": "src_bookingwidget_requiresdeposit",
+      "label": "requiresDeposit()",
       "_callable": true,
       "_origin": "ast",
-      "community": 31,
-      "community_name": "createBusinessOps",
+      "community": 30,
+      "community_name": "BookingWidget",
       "file_type": "code",
-      "norm_label": "createbusinessops()",
-      "source_file": "functions/_lib/business-data.js",
-      "source_location": "L66"
+      "norm_label": "requiresdeposit()",
+      "source_file": "src/BookingWidget.tsx",
+      "source_location": "L553"
     },
     {
-      "id": "functions_lib_business_data_createbusinessops_actioncenter",
-      "label": "actionCenter()",
+      "id": "src_bookingwidget_returningcustomerbanner",
+      "label": "ReturningCustomerBanner()",
       "_callable": true,
       "_origin": "ast",
-      "community": 31,
-      "community_name": "createBusinessOps",
+      "community": 30,
+      "community_name": "BookingWidget",
       "file_type": "code",
-      "norm_label": "actioncenter()",
-      "source_file": "functions/_lib/business-data.js",
-      "source_location": "L334"
+      "norm_label": "returningcustomerbanner()",
+      "source_file": "src/BookingWidget.tsx",
+      "source_location": "L673"
     },
     {
-      "id": "functions_lib_business_data_createbusinessops_attachphotos",
-      "label": "attachPhotos()",
+      "id": "src_bookingwidget_returningcustomerbanner_handleupdatecard",
+      "label": "handleUpdateCard()",
       "_callable": true,
       "_origin": "ast",
-      "community": 31,
-      "community_name": "createBusinessOps",
+      "community": 30,
+      "community_name": "BookingWidget",
       "file_type": "code",
-      "norm_label": "attachphotos()",
-      "source_file": "functions/_lib/business-data.js",
-      "source_location": "L72"
+      "norm_label": "handleupdatecard()",
+      "source_file": "src/BookingWidget.tsx",
+      "source_location": "L717"
     },
     {
-      "id": "functions_lib_business_data_createbusinessops_businesssummary",
-      "label": "businessSummary()",
+      "id": "src_bookingwidget_stepheader",
+      "label": "StepHeader()",
       "_callable": true,
       "_origin": "ast",
-      "community": 31,
-      "community_name": "createBusinessOps",
+      "community": 30,
+      "community_name": "BookingWidget",
       "file_type": "code",
-      "norm_label": "businesssummary()",
-      "source_file": "functions/_lib/business-data.js",
-      "source_location": "L373"
+      "norm_label": "stepheader()",
+      "source_file": "src/BookingWidget.tsx",
+      "source_location": "L1701"
     },
     {
-      "id": "functions_lib_business_data_createbusinessops_canceljob",
-      "label": "cancelJob()",
+      "id": "src_bookingwidget_adminschedule_deletebooking",
+      "label": "deleteBooking()",
       "_callable": true,
       "_origin": "ast",
       "community": 31,
-      "community_name": "createBusinessOps",
+      "community_name": "deleteLocalBooking",
       "file_type": "code",
-      "norm_label": "canceljob()",
-      "source_file": "functions/_lib/business-data.js",
-      "source_location": "L290"
+      "norm_label": "deletebooking()",
+      "source_file": "src/BookingWidget.tsx",
+      "source_location": "L2120"
     },
     {
-      "id": "functions_lib_business_data_createbusinessops_compareperiods",
-      "label": "comparePeriods()",
+      "id": "src_bookingwidget_deletelocalbooking",
+      "label": "deleteLocalBooking()",
       "_callable": true,
       "_origin": "ast",
       "community": 31,
-      "community_name": "createBusinessOps",
+      "community_name": "deleteLocalBooking",
       "file_type": "code",
-      "norm_label": "compareperiods()",
-      "source_file": "functions/_lib/business-data.js",
-      "source_location": "L116"
-    },
-    {
-      "id": "functions_lib_business_data_createbusinessops_datahealth",
-      "label": "dataHealth()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 31,
-      "community_name": "createBusinessOps",
-      "file_type": "code",
-      "norm_label": "datahealth()",
-      "source_file": "functions/_lib/business-data.js",
-      "source_location": "L359"
-    },
-    {
-      "id": "functions_lib_business_data_createbusinessops_ownerbriefing",
-      "label": "ownerBriefing()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 31,
-      "community_name": "createBusinessOps",
-      "file_type": "code",
-      "norm_label": "ownerbriefing()",
-      "source_file": "functions/_lib/business-data.js",
-      "source_location": "L404"
-    },
-    {
-      "id": "functions_lib_business_data_createbusinessops_recordpayment",
-      "label": "recordPayment()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 31,
-      "community_name": "createBusinessOps",
-      "file_type": "code",
-      "norm_label": "recordpayment()",
-      "source_file": "functions/_lib/business-data.js",
-      "source_location": "L429"
-    },
-    {
-      "id": "functions_lib_business_data_createbusinessops_reopenjob",
-      "label": "reopenJob()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 31,
-      "community_name": "createBusinessOps",
-      "file_type": "code",
-      "norm_label": "reopenjob()",
-      "source_file": "functions/_lib/business-data.js",
-      "source_location": "L323"
-    },
-    {
-      "id": "functions_lib_business_data_createbusinessops_resultsetdetails",
-      "label": "resultSetDetails()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 31,
-      "community_name": "createBusinessOps",
-      "file_type": "code",
-      "norm_label": "resultsetdetails()",
-      "source_file": "functions/_lib/business-data.js",
-      "source_location": "L263"
-    },
-    {
-      "id": "functions_lib_business_data_createbusinessops_unpaidsummary",
-      "label": "unpaidSummary()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 31,
-      "community_name": "createBusinessOps",
-      "file_type": "code",
-      "norm_label": "unpaidsummary()",
-      "source_file": "functions/_lib/business-data.js",
-      "source_location": "L344"
-    },
-    {
-      "id": "functions_lib_business_data_createbusinessops_vehiclejobs",
-      "label": "vehicleJobs()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 31,
-      "community_name": "createBusinessOps",
-      "file_type": "code",
-      "norm_label": "vehiclejobs()",
-      "source_file": "functions/_lib/business-data.js",
-      "source_location": "L243"
-    },
-    {
-      "id": "functions_lib_business_data_fullname",
-      "label": "fullName()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 31,
-      "community_name": "createBusinessOps",
-      "file_type": "code",
-      "norm_label": "fullname()",
-      "source_file": "functions/_lib/business-data.js",
-      "source_location": "L20"
-    },
-    {
-      "id": "functions_lib_business_data_money",
-      "label": "money()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 31,
-      "community_name": "createBusinessOps",
-      "file_type": "code",
-      "norm_label": "money()",
-      "source_file": "functions/_lib/business-data.js",
-      "source_location": "L19"
-    },
-    {
-      "id": "functions_lib_business_data_writeresult",
-      "label": "writeResult()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 31,
-      "community_name": "createBusinessOps",
-      "file_type": "code",
-      "norm_label": "writeresult()",
-      "source_file": "functions/_lib/business-data.js",
-      "source_location": "L60"
-    },
-    {
-      "id": "shared_business_metrics_jobfromrow",
-      "label": "jobFromRow()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 31,
-      "community_name": "createBusinessOps",
-      "file_type": "code",
-      "norm_label": "jobfromrow()",
-      "source_file": "shared/business-metrics.js",
-      "source_location": "L38"
-    },
-    {
-      "id": "shared_business_rules_adddays",
-      "label": "addDays()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 31,
-      "community_name": "createBusinessOps",
-      "file_type": "code",
-      "norm_label": "adddays()",
-      "source_file": "shared/business-rules.js",
-      "source_location": "L37"
-    },
-    {
-      "id": "shared_business_rules_bookedvalue",
-      "label": "bookedValue()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 31,
-      "community_name": "createBusinessOps",
-      "file_type": "code",
-      "norm_label": "bookedvalue()",
-      "source_file": "shared/business-rules.js",
-      "source_location": "L119"
-    },
-    {
-      "id": "shared_business_rules_buildactionqueue",
-      "label": "buildActionQueue()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 31,
-      "community_name": "createBusinessOps",
-      "file_type": "code",
-      "norm_label": "buildactionqueue()",
-      "source_file": "shared/business-rules.js",
-      "source_location": "L291"
-    },
-    {
-      "id": "shared_business_rules_canceljobplan",
-      "label": "cancelJobPlan()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 31,
-      "community_name": "createBusinessOps",
-      "file_type": "code",
-      "norm_label": "canceljobplan()",
-      "source_file": "shared/business-rules.js",
-      "source_location": "L94"
-    },
-    {
-      "id": "shared_business_rules_datahealthissues",
-      "label": "dataHealthIssues()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 31,
-      "community_name": "createBusinessOps",
-      "file_type": "code",
-      "norm_label": "datahealthissues()",
-      "source_file": "shared/business-rules.js",
-      "source_location": "L228"
-    },
-    {
-      "id": "shared_business_rules_fullname",
-      "label": "fullName()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 31,
-      "community_name": "createBusinessOps",
-      "file_type": "code",
-      "norm_label": "fullname()",
-      "source_file": "shared/business-rules.js",
-      "source_location": "L28"
-    },
-    {
-      "id": "shared_business_rules_iscancelled",
-      "label": "isCancelled()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 31,
-      "community_name": "createBusinessOps",
-      "file_type": "code",
-      "norm_label": "iscancelled()",
-      "source_file": "shared/business-rules.js",
-      "source_location": "L57"
-    },
-    {
-      "id": "shared_business_rules_jobsondate",
-      "label": "jobsOnDate()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 31,
-      "community_name": "createBusinessOps",
-      "file_type": "code",
-      "norm_label": "jobsondate()",
-      "source_file": "shared/business-rules.js",
-      "source_location": "L124"
-    },
-    {
-      "id": "shared_business_rules_leadfollowupreason",
-      "label": "leadFollowUpReason()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 31,
-      "community_name": "createBusinessOps",
-      "file_type": "code",
-      "norm_label": "leadfollowupreason()",
-      "source_file": "shared/business-rules.js",
-      "source_location": "L131"
-    },
-    {
-      "id": "shared_business_rules_phoenixtoday",
-      "label": "phoenixToday()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 31,
-      "community_name": "createBusinessOps",
-      "file_type": "code",
-      "norm_label": "phoenixtoday()",
-      "source_file": "shared/business-rules.js",
-      "source_location": "L32"
-    },
-    {
-      "id": "shared_business_rules_planpayment",
-      "label": "planPayment()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 31,
-      "community_name": "createBusinessOps",
-      "file_type": "code",
-      "norm_label": "planpayment()",
-      "source_file": "shared/business-rules.js",
-      "source_location": "L157"
-    },
-    {
-      "id": "shared_business_rules_reopenjobplan",
-      "label": "reopenJobPlan()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 31,
-      "community_name": "createBusinessOps",
-      "file_type": "code",
-      "norm_label": "reopenjobplan()",
-      "source_file": "shared/business-rules.js",
-      "source_location": "L100"
-    },
-    {
-      "id": "shared_business_rules_unpaidjobs",
-      "label": "unpaidJobs()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 31,
-      "community_name": "createBusinessOps",
-      "file_type": "code",
-      "norm_label": "unpaidjobs()",
-      "source_file": "shared/business-rules.js",
+      "norm_label": "deletelocalbooking()",
+      "source_file": "src/BookingWidget.tsx",
       "source_location": "L110"
+    },
+    {
+      "id": "src_bookingwidget_deletesupabasebooking",
+      "label": "deleteSupabaseBooking()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 31,
+      "community_name": "deleteLocalBooking",
+      "file_type": "code",
+      "norm_label": "deletesupabasebooking()",
+      "source_file": "src/BookingWidget.tsx",
+      "source_location": "L96"
     },
     {
       "id": "jarvis_agent_agent_gid_jarvis",
@@ -9614,18 +8738,6 @@
       "source_location": "L127"
     },
     {
-      "id": "functions_lib_jarvis_context_extractexplicitsubjects",
-      "label": "extractExplicitSubjects()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 4,
-      "community_name": "jarvis-context.js",
-      "file_type": "code",
-      "norm_label": "extractexplicitsubjects()",
-      "source_file": "functions/_lib/jarvis-context.js",
-      "source_location": "L59"
-    },
-    {
       "id": "functions_lib_jarvis_context_extractjobid",
       "label": "extractJobId()",
       "_callable": true,
@@ -9768,18 +8880,6 @@
       "norm_label": "updatecontext()",
       "source_file": "functions/_lib/jarvis-context.js",
       "source_location": "L264"
-    },
-    {
-      "id": "functions_lib_business_data_patchverified",
-      "label": "patchVerified()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 42,
-      "community_name": "seo-routing-mode.test.js",
-      "file_type": "code",
-      "norm_label": "patchverified()",
-      "source_file": "functions/_lib/business-data.js",
-      "source_location": "L47"
     },
     {
       "id": "tests_admin_ai_chat_test_alltext",
@@ -10622,54 +9722,6 @@
       "source_location": "L10362"
     },
     {
-      "id": "src_jobops_businesshub",
-      "label": "BusinessHub()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 5,
-      "community_name": "adminPost",
-      "file_type": "code",
-      "norm_label": "businesshub()",
-      "source_file": "src/JobOps.tsx",
-      "source_location": "L10732"
-    },
-    {
-      "id": "src_jobops_businesshub_resetallnotes",
-      "label": "resetAllNotes()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 5,
-      "community_name": "adminPost",
-      "file_type": "code",
-      "norm_label": "resetallnotes()",
-      "source_file": "src/JobOps.tsx",
-      "source_location": "L10741"
-    },
-    {
-      "id": "src_jobops_businesshub_selectcat",
-      "label": "selectCat()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 5,
-      "community_name": "adminPost",
-      "file_type": "code",
-      "norm_label": "selectcat()",
-      "source_file": "src/JobOps.tsx",
-      "source_location": "L10737"
-    },
-    {
-      "id": "src_jobops_csvcell",
-      "label": "csvCell()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 5,
-      "community_name": "adminPost",
-      "file_type": "code",
-      "norm_label": "csvcell()",
-      "source_file": "src/JobOps.tsx",
-      "source_location": "L9118"
-    },
-    {
       "id": "src_jobops_equitytracker",
       "label": "EquityTracker()",
       "_callable": true,
@@ -10826,40 +9878,16 @@
       "source_location": "L3864"
     },
     {
-      "id": "src_jobops_jobscsvexport",
-      "label": "JobsCSVExport()",
+      "id": "src_jobops_jobstab_loadmileagejobids",
+      "label": "loadMileageJobIds()",
       "_callable": true,
       "_origin": "ast",
       "community": 5,
       "community_name": "adminPost",
       "file_type": "code",
-      "norm_label": "jobscsvexport()",
+      "norm_label": "loadmileagejobids()",
       "source_file": "src/JobOps.tsx",
-      "source_location": "L9123"
-    },
-    {
-      "id": "src_jobops_jobscsvexport_exportcsv",
-      "label": "exportCsv()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 5,
-      "community_name": "adminPost",
-      "file_type": "code",
-      "norm_label": "exportcsv()",
-      "source_file": "src/JobOps.tsx",
-      "source_location": "L9145"
-    },
-    {
-      "id": "src_jobops_jobscsvexport_sharecsv",
-      "label": "shareCsv()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 5,
-      "community_name": "adminPost",
-      "file_type": "code",
-      "norm_label": "sharecsv()",
-      "source_file": "src/JobOps.tsx",
-      "source_location": "L9134"
+      "source_location": "L6671"
     },
     {
       "id": "src_jobops_mileagetab",
@@ -11018,16 +10046,16 @@
       "source_location": "L150"
     },
     {
-      "id": "src_jobops_shareordownloadfile",
-      "label": "shareOrDownloadFile()",
+      "id": "src_jobops_taxableamount",
+      "label": "taxableAmount()",
       "_callable": true,
       "_origin": "ast",
       "community": 5,
       "community_name": "adminPost",
       "file_type": "code",
-      "norm_label": "shareordownloadfile()",
+      "norm_label": "taxableamount()",
       "source_file": "src/JobOps.tsx",
-      "source_location": "L8671"
+      "source_location": "L190"
     },
     {
       "id": "src_jobops_taxratesettings",
@@ -11052,6 +10080,30 @@
       "norm_label": "save()",
       "source_file": "src/JobOps.tsx",
       "source_location": "L9312"
+    },
+    {
+      "id": "src_jobops_taxsummary",
+      "label": "TaxSummary()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 5,
+      "community_name": "adminPost",
+      "file_type": "code",
+      "norm_label": "taxsummary()",
+      "source_file": "src/JobOps.tsx",
+      "source_location": "L9368"
+    },
+    {
+      "id": "src_jobops_taxsummary_taxablegrossfor",
+      "label": "taxableGrossFor()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 5,
+      "community_name": "adminPost",
+      "file_type": "code",
+      "norm_label": "taxablegrossfor()",
+      "source_file": "src/JobOps.tsx",
+      "source_location": "L9379"
     },
     {
       "id": "src_jobops_todaystr",
@@ -11124,90 +10176,6 @@
       "norm_label": "load()",
       "source_file": "src/JobOps.tsx",
       "source_location": "L8616"
-    },
-    {
-      "id": "src_bookingwidget_cardonfilestep",
-      "label": "CardOnFileStep()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 51,
-      "community_name": "CardOnFileStep",
-      "file_type": "code",
-      "norm_label": "cardonfilestep()",
-      "source_file": "src/BookingWidget.tsx",
-      "source_location": "L823"
-    },
-    {
-      "id": "src_bookingwidget_cardonfilestep_handlesavecard",
-      "label": "handleSaveCard()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 51,
-      "community_name": "CardOnFileStep",
-      "file_type": "code",
-      "norm_label": "handlesavecard()",
-      "source_file": "src/BookingWidget.tsx",
-      "source_location": "L871"
-    },
-    {
-      "id": "src_bookingwidget_loadstripe",
-      "label": "loadStripe()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 51,
-      "community_name": "CardOnFileStep",
-      "file_type": "code",
-      "norm_label": "loadstripe()",
-      "source_file": "src/BookingWidget.tsx",
-      "source_location": "L802"
-    },
-    {
-      "id": "src_bookingwidget_requiresdeposit",
-      "label": "requiresDeposit()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 51,
-      "community_name": "CardOnFileStep",
-      "file_type": "code",
-      "norm_label": "requiresdeposit()",
-      "source_file": "src/BookingWidget.tsx",
-      "source_location": "L553"
-    },
-    {
-      "id": "src_bookingwidget_returningcustomerbanner",
-      "label": "ReturningCustomerBanner()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 51,
-      "community_name": "CardOnFileStep",
-      "file_type": "code",
-      "norm_label": "returningcustomerbanner()",
-      "source_file": "src/BookingWidget.tsx",
-      "source_location": "L673"
-    },
-    {
-      "id": "src_bookingwidget_returningcustomerbanner_handleupdatecard",
-      "label": "handleUpdateCard()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 51,
-      "community_name": "CardOnFileStep",
-      "file_type": "code",
-      "norm_label": "handleupdatecard()",
-      "source_file": "src/BookingWidget.tsx",
-      "source_location": "L717"
-    },
-    {
-      "id": "src_bookingwidget_stepheader",
-      "label": "StepHeader()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 51,
-      "community_name": "CardOnFileStep",
-      "file_type": "code",
-      "norm_label": "stepheader()",
-      "source_file": "src/BookingWidget.tsx",
-      "source_location": "L1701"
     },
     {
       "id": "functions_jarvis_livekit_token_apihost",
@@ -11366,6 +10334,114 @@
       "source_location": "L26"
     },
     {
+      "id": "shared_seo_kpis_computeoverview",
+      "label": "computeOverview()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 57,
+      "community_name": "local-intent.js",
+      "file_type": "code",
+      "norm_label": "computeoverview()",
+      "source_file": "shared/seo/kpis.js",
+      "source_location": "L98"
+    },
+    {
+      "id": "shared_seo_kpis_customergeography",
+      "label": "customerGeography()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 57,
+      "community_name": "local-intent.js",
+      "file_type": "code",
+      "norm_label": "customergeography()",
+      "source_file": "shared/seo/kpis.js",
+      "source_location": "L94"
+    },
+    {
+      "id": "shared_seo_kpis_discoveryfunnel",
+      "label": "discoveryFunnel()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 57,
+      "community_name": "local-intent.js",
+      "file_type": "code",
+      "norm_label": "discoveryfunnel()",
+      "source_file": "shared/seo/kpis.js",
+      "source_location": "L69"
+    },
+    {
+      "id": "shared_seo_kpis_gbpside",
+      "label": "gbpSide()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 57,
+      "community_name": "local-intent.js",
+      "file_type": "code",
+      "norm_label": "gbpside()",
+      "source_file": "shared/seo/kpis.js",
+      "source_location": "L60"
+    },
+    {
+      "id": "shared_seo_kpis_gscside",
+      "label": "gscSide()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 57,
+      "community_name": "local-intent.js",
+      "file_type": "code",
+      "norm_label": "gscside()",
+      "source_file": "shared/seo/kpis.js",
+      "source_location": "L40"
+    },
+    {
+      "id": "shared_seo_kpis_localitybreakdown",
+      "label": "localityBreakdown()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 57,
+      "community_name": "local-intent.js",
+      "file_type": "code",
+      "norm_label": "localitybreakdown()",
+      "source_file": "shared/seo/kpis.js",
+      "source_location": "L31"
+    },
+    {
+      "id": "shared_seo_kpis_pct",
+      "label": "pct()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 57,
+      "community_name": "local-intent.js",
+      "file_type": "code",
+      "norm_label": "pct()",
+      "source_file": "shared/seo/kpis.js",
+      "source_location": "L20"
+    },
+    {
+      "id": "shared_seo_kpis_round",
+      "label": "round()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 57,
+      "community_name": "local-intent.js",
+      "file_type": "code",
+      "norm_label": "round()",
+      "source_file": "shared/seo/kpis.js",
+      "source_location": "L21"
+    },
+    {
+      "id": "shared_seo_kpis_sum",
+      "label": "sum()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 57,
+      "community_name": "local-intent.js",
+      "file_type": "code",
+      "norm_label": "sum()",
+      "source_file": "shared/seo/kpis.js",
+      "source_location": "L19"
+    },
+    {
       "id": "shared_seo_local_intent_citylocality",
       "label": "cityLocality()",
       "_callable": true,
@@ -11412,6 +10488,18 @@
       "norm_label": "firstpartylocality()",
       "source_file": "shared/seo/local-intent.js",
       "source_location": "L126"
+    },
+    {
+      "id": "shared_seo_local_intent_gsclocality",
+      "label": "gscLocality()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 57,
+      "community_name": "local-intent.js",
+      "file_type": "code",
+      "norm_label": "gsclocality()",
+      "source_file": "shared/seo/local-intent.js",
+      "source_location": "L98"
     },
     {
       "id": "shared_seo_local_intent_has",
@@ -12007,11 +11095,83 @@
       "_callable": true,
       "_origin": "ast",
       "community": 64,
-      "community_name": "job-context.js",
+      "community_name": "createBusinessOps",
       "file_type": "code",
       "norm_label": "cleansearchtext()",
       "source_file": "functions/_lib/business-data.js",
       "source_location": "L39"
+    },
+    {
+      "id": "functions_lib_business_data_createbusinessops",
+      "label": "createBusinessOps()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 64,
+      "community_name": "createBusinessOps",
+      "file_type": "code",
+      "norm_label": "createbusinessops()",
+      "source_file": "functions/_lib/business-data.js",
+      "source_location": "L66"
+    },
+    {
+      "id": "functions_lib_business_data_createbusinessops_actioncenter",
+      "label": "actionCenter()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 64,
+      "community_name": "createBusinessOps",
+      "file_type": "code",
+      "norm_label": "actioncenter()",
+      "source_file": "functions/_lib/business-data.js",
+      "source_location": "L334"
+    },
+    {
+      "id": "functions_lib_business_data_createbusinessops_attachphotos",
+      "label": "attachPhotos()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 64,
+      "community_name": "createBusinessOps",
+      "file_type": "code",
+      "norm_label": "attachphotos()",
+      "source_file": "functions/_lib/business-data.js",
+      "source_location": "L72"
+    },
+    {
+      "id": "functions_lib_business_data_createbusinessops_businesssummary",
+      "label": "businessSummary()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 64,
+      "community_name": "createBusinessOps",
+      "file_type": "code",
+      "norm_label": "businesssummary()",
+      "source_file": "functions/_lib/business-data.js",
+      "source_location": "L373"
+    },
+    {
+      "id": "functions_lib_business_data_createbusinessops_canceljob",
+      "label": "cancelJob()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 64,
+      "community_name": "createBusinessOps",
+      "file_type": "code",
+      "norm_label": "canceljob()",
+      "source_file": "functions/_lib/business-data.js",
+      "source_location": "L290"
+    },
+    {
+      "id": "functions_lib_business_data_createbusinessops_compareperiods",
+      "label": "comparePeriods()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 64,
+      "community_name": "createBusinessOps",
+      "file_type": "code",
+      "norm_label": "compareperiods()",
+      "source_file": "functions/_lib/business-data.js",
+      "source_location": "L116"
     },
     {
       "id": "functions_lib_business_data_createbusinessops_customercontext",
@@ -12019,11 +11179,23 @@
       "_callable": true,
       "_origin": "ast",
       "community": 64,
-      "community_name": "job-context.js",
+      "community_name": "createBusinessOps",
       "file_type": "code",
       "norm_label": "customercontext()",
       "source_file": "functions/_lib/business-data.js",
       "source_location": "L185"
+    },
+    {
+      "id": "functions_lib_business_data_createbusinessops_datahealth",
+      "label": "dataHealth()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 64,
+      "community_name": "createBusinessOps",
+      "file_type": "code",
+      "norm_label": "datahealth()",
+      "source_file": "functions/_lib/business-data.js",
+      "source_location": "L359"
     },
     {
       "id": "functions_lib_business_data_createbusinessops_findpeople",
@@ -12031,7 +11203,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 64,
-      "community_name": "job-context.js",
+      "community_name": "createBusinessOps",
       "file_type": "code",
       "norm_label": "findpeople()",
       "source_file": "functions/_lib/business-data.js",
@@ -12043,11 +11215,35 @@
       "_callable": true,
       "_origin": "ast",
       "community": 64,
-      "community_name": "job-context.js",
+      "community_name": "createBusinessOps",
       "file_type": "code",
       "norm_label": "jobdetail()",
       "source_file": "functions/_lib/business-data.js",
       "source_location": "L280"
+    },
+    {
+      "id": "functions_lib_business_data_createbusinessops_ownerbriefing",
+      "label": "ownerBriefing()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 64,
+      "community_name": "createBusinessOps",
+      "file_type": "code",
+      "norm_label": "ownerbriefing()",
+      "source_file": "functions/_lib/business-data.js",
+      "source_location": "L404"
+    },
+    {
+      "id": "functions_lib_business_data_createbusinessops_ownerpaysummary",
+      "label": "ownerPaySummary()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 64,
+      "community_name": "createBusinessOps",
+      "file_type": "code",
+      "norm_label": "ownerpaysummary()",
+      "source_file": "functions/_lib/business-data.js",
+      "source_location": "L136"
     },
     {
       "id": "functions_lib_business_data_createbusinessops_peoplesources",
@@ -12055,11 +11251,83 @@
       "_callable": true,
       "_origin": "ast",
       "community": 64,
-      "community_name": "job-context.js",
+      "community_name": "createBusinessOps",
       "file_type": "code",
       "norm_label": "peoplesources()",
       "source_file": "functions/_lib/business-data.js",
       "source_location": "L161"
+    },
+    {
+      "id": "functions_lib_business_data_createbusinessops_recordpayment",
+      "label": "recordPayment()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 64,
+      "community_name": "createBusinessOps",
+      "file_type": "code",
+      "norm_label": "recordpayment()",
+      "source_file": "functions/_lib/business-data.js",
+      "source_location": "L429"
+    },
+    {
+      "id": "functions_lib_business_data_createbusinessops_reopenjob",
+      "label": "reopenJob()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 64,
+      "community_name": "createBusinessOps",
+      "file_type": "code",
+      "norm_label": "reopenjob()",
+      "source_file": "functions/_lib/business-data.js",
+      "source_location": "L323"
+    },
+    {
+      "id": "functions_lib_business_data_createbusinessops_resultsetdetails",
+      "label": "resultSetDetails()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 64,
+      "community_name": "createBusinessOps",
+      "file_type": "code",
+      "norm_label": "resultsetdetails()",
+      "source_file": "functions/_lib/business-data.js",
+      "source_location": "L263"
+    },
+    {
+      "id": "functions_lib_business_data_createbusinessops_revenuesummary",
+      "label": "revenueSummary()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 64,
+      "community_name": "createBusinessOps",
+      "file_type": "code",
+      "norm_label": "revenuesummary()",
+      "source_file": "functions/_lib/business-data.js",
+      "source_location": "L96"
+    },
+    {
+      "id": "functions_lib_business_data_createbusinessops_unpaidsummary",
+      "label": "unpaidSummary()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 64,
+      "community_name": "createBusinessOps",
+      "file_type": "code",
+      "norm_label": "unpaidsummary()",
+      "source_file": "functions/_lib/business-data.js",
+      "source_location": "L344"
+    },
+    {
+      "id": "functions_lib_business_data_createbusinessops_vehiclejobs",
+      "label": "vehicleJobs()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 64,
+      "community_name": "createBusinessOps",
+      "file_type": "code",
+      "norm_label": "vehiclejobs()",
+      "source_file": "functions/_lib/business-data.js",
+      "source_location": "L243"
     },
     {
       "id": "functions_lib_business_data_digits",
@@ -12067,11 +11335,479 @@
       "_callable": true,
       "_origin": "ast",
       "community": 64,
-      "community_name": "job-context.js",
+      "community_name": "createBusinessOps",
       "file_type": "code",
       "norm_label": "digits()",
       "source_file": "functions/_lib/business-data.js",
       "source_location": "L21"
+    },
+    {
+      "id": "functions_lib_business_data_fullname",
+      "label": "fullName()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 64,
+      "community_name": "createBusinessOps",
+      "file_type": "code",
+      "norm_label": "fullname()",
+      "source_file": "functions/_lib/business-data.js",
+      "source_location": "L20"
+    },
+    {
+      "id": "functions_lib_business_data_money",
+      "label": "money()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 64,
+      "community_name": "createBusinessOps",
+      "file_type": "code",
+      "norm_label": "money()",
+      "source_file": "functions/_lib/business-data.js",
+      "source_location": "L19"
+    },
+    {
+      "id": "functions_lib_business_data_patchverified",
+      "label": "patchVerified()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 64,
+      "community_name": "createBusinessOps",
+      "file_type": "code",
+      "norm_label": "patchverified()",
+      "source_file": "functions/_lib/business-data.js",
+      "source_location": "L47"
+    },
+    {
+      "id": "functions_lib_business_data_writeresult",
+      "label": "writeResult()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 64,
+      "community_name": "createBusinessOps",
+      "file_type": "code",
+      "norm_label": "writeresult()",
+      "source_file": "functions/_lib/business-data.js",
+      "source_location": "L60"
+    },
+    {
+      "id": "shared_business_metrics_cardrevenue",
+      "label": "cardRevenue()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 64,
+      "community_name": "createBusinessOps",
+      "file_type": "code",
+      "norm_label": "cardrevenue()",
+      "source_file": "shared/business-metrics.js",
+      "source_location": "L208"
+    },
+    {
+      "id": "shared_business_metrics_cents",
+      "label": "cents()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 64,
+      "community_name": "createBusinessOps",
+      "file_type": "code",
+      "norm_label": "cents()",
+      "source_file": "shared/business-metrics.js",
+      "source_location": "L172"
+    },
+    {
+      "id": "shared_business_metrics_collectedrevenue",
+      "label": "collectedRevenue()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 64,
+      "community_name": "createBusinessOps",
+      "file_type": "code",
+      "norm_label": "collectedrevenue()",
+      "source_file": "shared/business-metrics.js",
+      "source_location": "L155"
+    },
+    {
+      "id": "shared_business_metrics_comparerevenueperiods",
+      "label": "compareRevenuePeriods()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 64,
+      "community_name": "createBusinessOps",
+      "file_type": "code",
+      "norm_label": "comparerevenueperiods()",
+      "source_file": "shared/business-metrics.js",
+      "source_location": "L177"
+    },
+    {
+      "id": "shared_business_metrics_invoicetotal",
+      "label": "invoiceTotal()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 64,
+      "community_name": "createBusinessOps",
+      "file_type": "code",
+      "norm_label": "invoicetotal()",
+      "source_file": "shared/business-metrics.js",
+      "source_location": "L112"
+    },
+    {
+      "id": "shared_business_metrics_jobcontribution",
+      "label": "jobContribution()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 64,
+      "community_name": "createBusinessOps",
+      "file_type": "code",
+      "norm_label": "jobcontribution()",
+      "source_file": "shared/business-metrics.js",
+      "source_location": "L121"
+    },
+    {
+      "id": "shared_business_metrics_jobfromrow",
+      "label": "jobFromRow()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 64,
+      "community_name": "createBusinessOps",
+      "file_type": "code",
+      "norm_label": "jobfromrow()",
+      "source_file": "shared/business-metrics.js",
+      "source_location": "L38"
+    },
+    {
+      "id": "shared_business_metrics_netprofit",
+      "label": "netProfit()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 64,
+      "community_name": "createBusinessOps",
+      "file_type": "code",
+      "norm_label": "netprofit()",
+      "source_file": "shared/business-metrics.js",
+      "source_location": "L168"
+    },
+    {
+      "id": "shared_business_metrics_num",
+      "label": "num()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 64,
+      "community_name": "createBusinessOps",
+      "file_type": "code",
+      "norm_label": "num()",
+      "source_file": "shared/business-metrics.js",
+      "source_location": "L111"
+    },
+    {
+      "id": "shared_business_metrics_ownerpaysettings",
+      "label": "ownerPaySettings()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 64,
+      "community_name": "createBusinessOps",
+      "file_type": "code",
+      "norm_label": "ownerpaysettings()",
+      "source_file": "shared/business-metrics.js",
+      "source_location": "L219"
+    },
+    {
+      "id": "shared_business_metrics_ownertakehome",
+      "label": "ownerTakeHome()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 64,
+      "community_name": "createBusinessOps",
+      "file_type": "code",
+      "norm_label": "ownertakehome()",
+      "source_file": "shared/business-metrics.js",
+      "source_location": "L232"
+    },
+    {
+      "id": "shared_business_metrics_parsepayments",
+      "label": "parsePayments()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 64,
+      "community_name": "createBusinessOps",
+      "file_type": "code",
+      "norm_label": "parsepayments()",
+      "source_file": "shared/business-metrics.js",
+      "source_location": "L25"
+    },
+    {
+      "id": "shared_business_metrics_phoenixdateparts",
+      "label": "phoenixDateParts()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 64,
+      "community_name": "createBusinessOps",
+      "file_type": "code",
+      "norm_label": "phoenixdateparts()",
+      "source_file": "shared/business-metrics.js",
+      "source_location": "L19"
+    },
+    {
+      "id": "shared_business_metrics_resolveperiodwindow",
+      "label": "resolvePeriodWindow()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 64,
+      "community_name": "createBusinessOps",
+      "file_type": "code",
+      "norm_label": "resolveperiodwindow()",
+      "source_file": "shared/business-metrics.js",
+      "source_location": "L70"
+    },
+    {
+      "id": "shared_business_metrics_revenuecontributions",
+      "label": "revenueContributions()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 64,
+      "community_name": "createBusinessOps",
+      "file_type": "code",
+      "norm_label": "revenuecontributions()",
+      "source_file": "shared/business-metrics.js",
+      "source_location": "L150"
+    },
+    {
+      "id": "shared_business_rules_adddays",
+      "label": "addDays()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 64,
+      "community_name": "createBusinessOps",
+      "file_type": "code",
+      "norm_label": "adddays()",
+      "source_file": "shared/business-rules.js",
+      "source_location": "L37"
+    },
+    {
+      "id": "shared_business_rules_bookedvalue",
+      "label": "bookedValue()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 64,
+      "community_name": "createBusinessOps",
+      "file_type": "code",
+      "norm_label": "bookedvalue()",
+      "source_file": "shared/business-rules.js",
+      "source_location": "L119"
+    },
+    {
+      "id": "shared_business_rules_buildactionqueue",
+      "label": "buildActionQueue()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 64,
+      "community_name": "createBusinessOps",
+      "file_type": "code",
+      "norm_label": "buildactionqueue()",
+      "source_file": "shared/business-rules.js",
+      "source_location": "L291"
+    },
+    {
+      "id": "shared_business_rules_canceljobplan",
+      "label": "cancelJobPlan()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 64,
+      "community_name": "createBusinessOps",
+      "file_type": "code",
+      "norm_label": "canceljobplan()",
+      "source_file": "shared/business-rules.js",
+      "source_location": "L94"
+    },
+    {
+      "id": "shared_business_rules_datahealthissues",
+      "label": "dataHealthIssues()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 64,
+      "community_name": "createBusinessOps",
+      "file_type": "code",
+      "norm_label": "datahealthissues()",
+      "source_file": "shared/business-rules.js",
+      "source_location": "L228"
+    },
+    {
+      "id": "shared_business_rules_fullname",
+      "label": "fullName()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 64,
+      "community_name": "createBusinessOps",
+      "file_type": "code",
+      "norm_label": "fullname()",
+      "source_file": "shared/business-rules.js",
+      "source_location": "L28"
+    },
+    {
+      "id": "shared_business_rules_isawaitingpayment",
+      "label": "isAwaitingPayment()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 64,
+      "community_name": "createBusinessOps",
+      "file_type": "code",
+      "norm_label": "isawaitingpayment()",
+      "source_file": "shared/business-rules.js",
+      "source_location": "L106"
+    },
+    {
+      "id": "shared_business_rules_iscancelled",
+      "label": "isCancelled()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 64,
+      "community_name": "createBusinessOps",
+      "file_type": "code",
+      "norm_label": "iscancelled()",
+      "source_file": "shared/business-rules.js",
+      "source_location": "L57"
+    },
+    {
+      "id": "shared_business_rules_jobbalance",
+      "label": "jobBalance()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 64,
+      "community_name": "createBusinessOps",
+      "file_type": "code",
+      "norm_label": "jobbalance()",
+      "source_file": "shared/business-rules.js",
+      "source_location": "L66"
+    },
+    {
+      "id": "shared_business_rules_jobmoney",
+      "label": "jobMoney()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 64,
+      "community_name": "createBusinessOps",
+      "file_type": "code",
+      "norm_label": "jobmoney()",
+      "source_file": "shared/business-rules.js",
+      "source_location": "L74"
+    },
+    {
+      "id": "shared_business_rules_jobsondate",
+      "label": "jobsOnDate()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 64,
+      "community_name": "createBusinessOps",
+      "file_type": "code",
+      "norm_label": "jobsondate()",
+      "source_file": "shared/business-rules.js",
+      "source_location": "L124"
+    },
+    {
+      "id": "shared_business_rules_jobtotaldue",
+      "label": "jobTotalDue()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 64,
+      "community_name": "createBusinessOps",
+      "file_type": "code",
+      "norm_label": "jobtotaldue()",
+      "source_file": "shared/business-rules.js",
+      "source_location": "L62"
+    },
+    {
+      "id": "shared_business_rules_leadfollowupreason",
+      "label": "leadFollowUpReason()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 64,
+      "community_name": "createBusinessOps",
+      "file_type": "code",
+      "norm_label": "leadfollowupreason()",
+      "source_file": "shared/business-rules.js",
+      "source_location": "L131"
+    },
+    {
+      "id": "shared_business_rules_leadstatusupdate",
+      "label": "leadStatusUpdate()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 64,
+      "community_name": "createBusinessOps",
+      "file_type": "code",
+      "norm_label": "leadstatusupdate()",
+      "source_file": "shared/business-rules.js",
+      "source_location": "L143"
+    },
+    {
+      "id": "shared_business_rules_num",
+      "label": "num()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 64,
+      "community_name": "createBusinessOps",
+      "file_type": "code",
+      "norm_label": "num()",
+      "source_file": "shared/business-rules.js",
+      "source_location": "L26"
+    },
+    {
+      "id": "shared_business_rules_phoenixtoday",
+      "label": "phoenixToday()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 64,
+      "community_name": "createBusinessOps",
+      "file_type": "code",
+      "norm_label": "phoenixtoday()",
+      "source_file": "shared/business-rules.js",
+      "source_location": "L32"
+    },
+    {
+      "id": "shared_business_rules_planpayment",
+      "label": "planPayment()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 64,
+      "community_name": "createBusinessOps",
+      "file_type": "code",
+      "norm_label": "planpayment()",
+      "source_file": "shared/business-rules.js",
+      "source_location": "L157"
+    },
+    {
+      "id": "shared_business_rules_reopenjobplan",
+      "label": "reopenJobPlan()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 64,
+      "community_name": "createBusinessOps",
+      "file_type": "code",
+      "norm_label": "reopenjobplan()",
+      "source_file": "shared/business-rules.js",
+      "source_location": "L100"
+    },
+    {
+      "id": "shared_business_rules_round2",
+      "label": "round2()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 64,
+      "community_name": "createBusinessOps",
+      "file_type": "code",
+      "norm_label": "round2()",
+      "source_file": "shared/business-rules.js",
+      "source_location": "L27"
+    },
+    {
+      "id": "shared_business_rules_unpaidjobs",
+      "label": "unpaidJobs()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 64,
+      "community_name": "createBusinessOps",
+      "file_type": "code",
+      "norm_label": "unpaidjobs()",
+      "source_file": "shared/business-rules.js",
+      "source_location": "L110"
     },
     {
       "id": "shared_job_context_belongstoperson",
@@ -12079,7 +11815,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 64,
-      "community_name": "job-context.js",
+      "community_name": "createBusinessOps",
       "file_type": "code",
       "norm_label": "belongstoperson()",
       "source_file": "shared/job-context.js",
@@ -12091,7 +11827,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 64,
-      "community_name": "job-context.js",
+      "community_name": "createBusinessOps",
       "file_type": "code",
       "norm_label": "bookingvin()",
       "source_file": "shared/job-context.js",
@@ -12103,7 +11839,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 64,
-      "community_name": "job-context.js",
+      "community_name": "createBusinessOps",
       "file_type": "code",
       "norm_label": "buildcustomerhistory()",
       "source_file": "shared/job-context.js",
@@ -12115,7 +11851,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 64,
-      "community_name": "job-context.js",
+      "community_name": "createBusinessOps",
       "file_type": "code",
       "norm_label": "bydateasc()",
       "source_file": "shared/job-context.js",
@@ -12127,7 +11863,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 64,
-      "community_name": "job-context.js",
+      "community_name": "createBusinessOps",
       "file_type": "code",
       "norm_label": "cleanvin()",
       "source_file": "shared/job-context.js",
@@ -12139,7 +11875,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 64,
-      "community_name": "job-context.js",
+      "community_name": "createBusinessOps",
       "file_type": "code",
       "norm_label": "clip()",
       "source_file": "shared/job-context.js",
@@ -12151,7 +11887,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 64,
-      "community_name": "job-context.js",
+      "community_name": "createBusinessOps",
       "file_type": "code",
       "norm_label": "digits()",
       "source_file": "shared/job-context.js",
@@ -12163,7 +11899,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 64,
-      "community_name": "job-context.js",
+      "community_name": "createBusinessOps",
       "file_type": "code",
       "norm_label": "fullname()",
       "source_file": "shared/job-context.js",
@@ -12175,7 +11911,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 64,
-      "community_name": "job-context.js",
+      "community_name": "createBusinessOps",
       "file_type": "code",
       "norm_label": "inspectionsummary()",
       "source_file": "shared/job-context.js",
@@ -12187,7 +11923,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 64,
-      "community_name": "job-context.js",
+      "community_name": "createBusinessOps",
       "file_type": "code",
       "norm_label": "jobevidence()",
       "source_file": "shared/job-context.js",
@@ -12199,7 +11935,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 64,
-      "community_name": "job-context.js",
+      "community_name": "createBusinessOps",
       "file_type": "code",
       "norm_label": "lookslikevin()",
       "source_file": "shared/job-context.js",
@@ -12211,7 +11947,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 64,
-      "community_name": "job-context.js",
+      "community_name": "createBusinessOps",
       "file_type": "code",
       "norm_label": "norm()",
       "source_file": "shared/job-context.js",
@@ -12223,7 +11959,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 64,
-      "community_name": "job-context.js",
+      "community_name": "createBusinessOps",
       "file_type": "code",
       "norm_label": "notematch()",
       "source_file": "shared/job-context.js",
@@ -12235,7 +11971,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 64,
-      "community_name": "job-context.js",
+      "community_name": "createBusinessOps",
       "file_type": "code",
       "norm_label": "parsebookingnotes()",
       "source_file": "shared/job-context.js",
@@ -12247,7 +11983,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 64,
-      "community_name": "job-context.js",
+      "community_name": "createBusinessOps",
       "file_type": "code",
       "norm_label": "parsejson()",
       "source_file": "shared/job-context.js",
@@ -12259,7 +11995,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 64,
-      "community_name": "job-context.js",
+      "community_name": "createBusinessOps",
       "file_type": "code",
       "norm_label": "resolveperson()",
       "source_file": "shared/job-context.js",
@@ -12271,7 +12007,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 64,
-      "community_name": "job-context.js",
+      "community_name": "createBusinessOps",
       "file_type": "code",
       "norm_label": "resolvepersonexact()",
       "source_file": "shared/job-context.js",
@@ -12283,7 +12019,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 64,
-      "community_name": "job-context.js",
+      "community_name": "createBusinessOps",
       "file_type": "code",
       "norm_label": "vehiclekey()",
       "source_file": "shared/job-context.js",
@@ -12295,7 +12031,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 64,
-      "community_name": "job-context.js",
+      "community_name": "createBusinessOps",
       "file_type": "code",
       "norm_label": "vehiclematches()",
       "source_file": "shared/job-context.js",
@@ -12307,11 +12043,71 @@
       "_callable": true,
       "_origin": "ast",
       "community": 64,
-      "community_name": "job-context.js",
+      "community_name": "createBusinessOps",
       "file_type": "code",
       "norm_label": "vehiclerecords()",
       "source_file": "shared/job-context.js",
       "source_location": "L199"
+    },
+    {
+      "id": "src_jobops_jobstab",
+      "label": "JobsTab()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 64,
+      "community_name": "createBusinessOps",
+      "file_type": "code",
+      "norm_label": "jobstab()",
+      "source_file": "src/JobOps.tsx",
+      "source_location": "L6653"
+    },
+    {
+      "id": "src_jobops_jobstab_handlejobupdate",
+      "label": "handleJobUpdate()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 64,
+      "community_name": "createBusinessOps",
+      "file_type": "code",
+      "norm_label": "handlejobupdate()",
+      "source_file": "src/JobOps.tsx",
+      "source_location": "L6809"
+    },
+    {
+      "id": "tests_business_metrics_test_cents",
+      "label": "cents()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 64,
+      "community_name": "createBusinessOps",
+      "file_type": "code",
+      "norm_label": "cents()",
+      "source_file": "tests/business-metrics.test.js",
+      "source_location": "L31"
+    },
+    {
+      "id": "tests_business_metrics_test_w",
+      "label": "w()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 64,
+      "community_name": "createBusinessOps",
+      "file_type": "code",
+      "norm_label": "w()",
+      "source_file": "tests/business-metrics.test.js",
+      "source_location": "L30"
+    },
+    {
+      "id": "tests_business_rules_test_invoiced",
+      "label": "invoiced()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 64,
+      "community_name": "createBusinessOps",
+      "file_type": "code",
+      "norm_label": "invoiced()",
+      "source_file": "tests/business-rules.test.js",
+      "source_location": "L12"
     },
     {
       "id": "functions_admin_delete_onrequestoptions",
@@ -12410,6 +12206,162 @@
       "source_location": "L5"
     },
     {
+      "id": "src_jobops_csvcell",
+      "label": "csvCell()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 69,
+      "community_name": "OwnerPayPanel",
+      "file_type": "code",
+      "norm_label": "csvcell()",
+      "source_file": "src/JobOps.tsx",
+      "source_location": "L9118"
+    },
+    {
+      "id": "src_jobops_externalleadmodal_handlecreate",
+      "label": "handleCreate()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 69,
+      "community_name": "OwnerPayPanel",
+      "file_type": "code",
+      "norm_label": "handlecreate()",
+      "source_file": "src/JobOps.tsx",
+      "source_location": "L5229"
+    },
+    {
+      "id": "src_jobops_getalljobs",
+      "label": "getAllJobs()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 69,
+      "community_name": "OwnerPayPanel",
+      "file_type": "code",
+      "norm_label": "getalljobs()",
+      "source_file": "src/JobOps.tsx",
+      "source_location": "L648"
+    },
+    {
+      "id": "src_jobops_getjobbyid",
+      "label": "getJobById()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 69,
+      "community_name": "OwnerPayPanel",
+      "file_type": "code",
+      "norm_label": "getjobbyid()",
+      "source_file": "src/JobOps.tsx",
+      "source_location": "L660"
+    },
+    {
+      "id": "src_jobops_invoiceexport",
+      "label": "InvoiceExport()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 69,
+      "community_name": "OwnerPayPanel",
+      "file_type": "code",
+      "norm_label": "invoiceexport()",
+      "source_file": "src/JobOps.tsx",
+      "source_location": "L8886"
+    },
+    {
+      "id": "src_jobops_invoiceexport_printinvoices",
+      "label": "printInvoices()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 69,
+      "community_name": "OwnerPayPanel",
+      "file_type": "code",
+      "norm_label": "printinvoices()",
+      "source_file": "src/JobOps.tsx",
+      "source_location": "L8933"
+    },
+    {
+      "id": "src_jobops_invoiceexport_shareinvoicepreview",
+      "label": "shareInvoicePreview()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 69,
+      "community_name": "OwnerPayPanel",
+      "file_type": "code",
+      "norm_label": "shareinvoicepreview()",
+      "source_file": "src/JobOps.tsx",
+      "source_location": "L9021"
+    },
+    {
+      "id": "src_jobops_jobscsvexport",
+      "label": "JobsCSVExport()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 69,
+      "community_name": "OwnerPayPanel",
+      "file_type": "code",
+      "norm_label": "jobscsvexport()",
+      "source_file": "src/JobOps.tsx",
+      "source_location": "L9123"
+    },
+    {
+      "id": "src_jobops_jobscsvexport_exportcsv",
+      "label": "exportCsv()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 69,
+      "community_name": "OwnerPayPanel",
+      "file_type": "code",
+      "norm_label": "exportcsv()",
+      "source_file": "src/JobOps.tsx",
+      "source_location": "L9145"
+    },
+    {
+      "id": "src_jobops_jobscsvexport_sharecsv",
+      "label": "shareCsv()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 69,
+      "community_name": "OwnerPayPanel",
+      "file_type": "code",
+      "norm_label": "sharecsv()",
+      "source_file": "src/JobOps.tsx",
+      "source_location": "L9134"
+    },
+    {
+      "id": "src_jobops_jobstab_openjob",
+      "label": "openJob()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 69,
+      "community_name": "OwnerPayPanel",
+      "file_type": "code",
+      "norm_label": "openjob()",
+      "source_file": "src/JobOps.tsx",
+      "source_location": "L6823"
+    },
+    {
+      "id": "src_jobops_loadjspdf",
+      "label": "loadJsPDF()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 69,
+      "community_name": "OwnerPayPanel",
+      "file_type": "code",
+      "norm_label": "loadjspdf()",
+      "source_file": "src/JobOps.tsx",
+      "source_location": "L8699"
+    },
+    {
+      "id": "src_jobops_mapjob",
+      "label": "mapJob()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 69,
+      "community_name": "OwnerPayPanel",
+      "file_type": "code",
+      "norm_label": "mapjob()",
+      "source_file": "src/JobOps.tsx",
+      "source_location": "L578"
+    },
+    {
       "id": "src_jobops_nextbiweeklydate",
       "label": "nextBiweeklyDate()",
       "_callable": true,
@@ -12492,6 +12444,18 @@
       "norm_label": "updateoverheaditem()",
       "source_file": "src/JobOps.tsx",
       "source_location": "L9559"
+    },
+    {
+      "id": "src_jobops_shareordownloadfile",
+      "label": "shareOrDownloadFile()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 69,
+      "community_name": "OwnerPayPanel",
+      "file_type": "code",
+      "norm_label": "shareordownloadfile()",
+      "source_file": "src/JobOps.tsx",
+      "source_location": "L8671"
     },
     {
       "id": "functions_jarvis_proactive_adddate",
@@ -13658,6 +13622,18 @@
       "source_location": "L290"
     },
     {
+      "id": "functions_lib_seo_ops_windows",
+      "label": "windows()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 99,
+      "community_name": "ops.js",
+      "file_type": "code",
+      "norm_label": "windows()",
+      "source_file": "functions/_lib/seo/ops.js",
+      "source_location": "L22"
+    },
+    {
       "id": "functions_lib_seo_ops_ymd",
       "label": "ymd()",
       "_callable": true,
@@ -13718,18 +13694,6 @@
       "source_location": "L47"
     },
     {
-      "id": "shared_seo_demand_aiassistant",
-      "label": "aiAssistant()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 99,
-      "community_name": "ops.js",
-      "file_type": "code",
-      "norm_label": "aiassistant()",
-      "source_file": "shared/seo/demand.js",
-      "source_location": "L141"
-    },
-    {
       "id": "shared_seo_demand_authorityscore",
       "label": "authorityScore()",
       "_callable": true,
@@ -13776,6 +13740,30 @@
       "norm_label": "serviceclusters()",
       "source_file": "shared/seo/demand.js",
       "source_location": "L13"
+    },
+    {
+      "id": "shared_seo_demand_unconfirmedservicedemand",
+      "label": "unconfirmedServiceDemand()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 99,
+      "community_name": "ops.js",
+      "file_type": "code",
+      "norm_label": "unconfirmedservicedemand()",
+      "source_file": "shared/seo/demand.js",
+      "source_location": "L78"
+    },
+    {
+      "id": "shared_seo_kpis_annotategsc",
+      "label": "annotateGsc()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 99,
+      "community_name": "ops.js",
+      "file_type": "code",
+      "norm_label": "annotategsc()",
+      "source_file": "shared/seo/kpis.js",
+      "source_location": "L24"
     },
     {
       "id": "shared_seo_lifecycle_buildseobriefing",
@@ -13956,6 +13944,18 @@
       "norm_label": "windowuplift()",
       "source_file": "shared/seo/seasonality.js",
       "source_location": "L46"
+    },
+    {
+      "id": "shared_seo_services_resolveservices",
+      "label": "resolveServices()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 99,
+      "community_name": "ops.js",
+      "file_type": "code",
+      "norm_label": "resolveservices()",
+      "source_file": "shared/seo/services.js",
+      "source_location": "L47"
     },
     {
       "id": "tests_seo_intelligence_test_days",
@@ -17417,6 +17417,17 @@
       "source_location": "L17"
     },
     {
+      "id": "functions_jarvis_seo_data",
+      "label": "seo-data.js",
+      "_origin": "ast",
+      "community": 125,
+      "community_name": "seo-data.js",
+      "file_type": "code",
+      "norm_label": "seo-data.js",
+      "source_file": "functions/jarvis/seo-data.js",
+      "source_location": "L1"
+    },
+    {
       "id": "functions_lib_access_auth",
       "label": "access-auth.js",
       "_origin": "ast",
@@ -17447,17 +17458,6 @@
       "file_type": "code",
       "norm_label": "store.js",
       "source_file": "functions/_lib/seo/store.js",
-      "source_location": "L1"
-    },
-    {
-      "id": "functions_seo_data",
-      "label": "seo-data.js",
-      "_origin": "ast",
-      "community": 125,
-      "community_name": "seo-data.js",
-      "file_type": "code",
-      "norm_label": "seo-data.js",
-      "source_file": "functions/seo-data.js",
       "source_location": "L1"
     },
     {
@@ -17670,17 +17670,17 @@
       "node_kind": "heading",
       "norm_label": "apple \u2014 apple business connect (research / manual)",
       "source_file": "SEO_SETUP.md",
-      "source_location": "L146"
+      "source_location": "L140"
     },
     {
-      "id": "seo_setup_auth_required_before_deploy",
-      "label": "Auth (required before deploy)",
+      "id": "seo_setup_auth_done_env_vars_set",
+      "label": "Auth (done: env vars set)",
       "_origin": "ast",
       "community": 127,
       "community_name": "SEO / Growth Mode \u2014 Setup",
       "file_type": "document",
       "node_kind": "heading",
-      "norm_label": "auth (required before deploy)",
+      "norm_label": "auth (done: env vars set)",
       "source_file": "SEO_SETUP.md",
       "source_location": "L15"
     },
@@ -17694,7 +17694,7 @@
       "node_kind": "heading",
       "norm_label": "bing \u2014 bing webmaster tools (optional)",
       "source_file": "SEO_SETUP.md",
-      "source_location": "L143"
+      "source_location": "L137"
     },
     {
       "id": "seo_setup_business_profile_google_business_profile_performance",
@@ -17706,7 +17706,7 @@
       "node_kind": "heading",
       "norm_label": "business-profile \u2014 google business profile performance",
       "source_file": "SEO_SETUP.md",
-      "source_location": "L105"
+      "source_location": "L99"
     },
     {
       "id": "seo_setup_competitors_website_monitoring",
@@ -17718,7 +17718,7 @@
       "node_kind": "heading",
       "norm_label": "competitors \u2014 website monitoring",
       "source_file": "SEO_SETUP.md",
-      "source_location": "L140"
+      "source_location": "L134"
     },
     {
       "id": "seo_setup_database_cron",
@@ -17730,7 +17730,7 @@
       "node_kind": "heading",
       "norm_label": "database + cron",
       "source_file": "SEO_SETUP.md",
-      "source_location": "L33"
+      "source_location": "L27"
     },
     {
       "id": "seo_setup_environment_variables",
@@ -17742,7 +17742,7 @@
       "node_kind": "heading",
       "norm_label": "environment variables",
       "source_file": "SEO_SETUP.md",
-      "source_location": "L70"
+      "source_location": "L64"
     },
     {
       "id": "seo_setup_ga4_google_analytics_4",
@@ -17754,7 +17754,7 @@
       "node_kind": "heading",
       "norm_label": "ga4 \u2014 google analytics 4",
       "source_file": "SEO_SETUP.md",
-      "source_location": "L115"
+      "source_location": "L109"
     },
     {
       "id": "seo_setup_google_ads_google_ads_optional",
@@ -17766,7 +17766,7 @@
       "node_kind": "heading",
       "norm_label": "google-ads \u2014 google ads (optional)",
       "source_file": "SEO_SETUP.md",
-      "source_location": "L159"
+      "source_location": "L153"
     },
     {
       "id": "seo_setup_how_it_fits_together",
@@ -17778,7 +17778,7 @@
       "node_kind": "heading",
       "norm_label": "how it fits together",
       "source_file": "SEO_SETUP.md",
-      "source_location": "L188"
+      "source_location": "L182"
     },
     {
       "id": "seo_setup_instagram_instagram_insights_optional",
@@ -17790,7 +17790,7 @@
       "node_kind": "heading",
       "norm_label": "instagram \u2014 instagram insights (optional)",
       "source_file": "SEO_SETUP.md",
-      "source_location": "L151"
+      "source_location": "L145"
     },
     {
       "id": "seo_setup_meta_ads_meta_ads_optional",
@@ -17802,7 +17802,7 @@
       "node_kind": "heading",
       "norm_label": "meta-ads \u2014 meta ads (optional)",
       "source_file": "SEO_SETUP.md",
-      "source_location": "L164"
+      "source_location": "L158"
     },
     {
       "id": "seo_setup_nau_college_town_seasonality",
@@ -17814,7 +17814,7 @@
       "node_kind": "heading",
       "norm_label": "nau / college-town seasonality",
       "source_file": "SEO_SETUP.md",
-      "source_location": "L181"
+      "source_location": "L175"
     },
     {
       "id": "seo_setup_not_deployed",
@@ -17826,7 +17826,7 @@
       "node_kind": "heading",
       "norm_label": "not deployed",
       "source_file": "SEO_SETUP.md",
-      "source_location": "L199"
+      "source_location": "L193"
     },
     {
       "id": "seo_setup_pagespeed_pagespeed_insights",
@@ -17838,7 +17838,7 @@
       "node_kind": "heading",
       "norm_label": "pagespeed \u2014 pagespeed insights",
       "source_file": "SEO_SETUP.md",
-      "source_location": "L120"
+      "source_location": "L114"
     },
     {
       "id": "seo_setup_places_reviews_competitor_discovery",
@@ -17850,7 +17850,7 @@
       "node_kind": "heading",
       "norm_label": "places \u2014 reviews + competitor discovery",
       "source_file": "SEO_SETUP.md",
-      "source_location": "L132"
+      "source_location": "L126"
     },
     {
       "id": "seo_setup_provider_statuses",
@@ -17862,7 +17862,7 @@
       "node_kind": "heading",
       "norm_label": "provider statuses",
       "source_file": "SEO_SETUP.md",
-      "source_location": "L58"
+      "source_location": "L52"
     },
     {
       "id": "seo_setup_search_console_google_search_console",
@@ -17874,7 +17874,7 @@
       "node_kind": "heading",
       "norm_label": "search-console \u2014 google search console",
       "source_file": "SEO_SETUP.md",
-      "source_location": "L97"
+      "source_location": "L91"
     },
     {
       "id": "seo_setup_seo_growth_mode_setup",
@@ -17898,7 +17898,7 @@
       "node_kind": "heading",
       "norm_label": "services gid offers (what seo may optimize)",
       "source_file": "SEO_SETUP.md",
-      "source_location": "L171"
+      "source_location": "L165"
     },
     {
       "id": "seo_setup_site_audit_own_site_technical_audit",
@@ -17910,7 +17910,7 @@
       "node_kind": "heading",
       "norm_label": "site-audit \u2014 own-site technical audit",
       "source_file": "SEO_SETUP.md",
-      "source_location": "L123"
+      "source_location": "L117"
     },
     {
       "id": "seo_setup_weather_seasonality",
@@ -17922,7 +17922,7 @@
       "node_kind": "heading",
       "norm_label": "weather \u2014 seasonality",
       "source_file": "SEO_SETUP.md",
-      "source_location": "L167"
+      "source_location": "L161"
     },
     {
       "id": "shared_seo_scoring",
@@ -17956,95 +17956,6 @@
       "norm_label": "locality_weight",
       "source_file": "shared/seo/scoring.js",
       "source_location": "L22"
-    },
-    {
-      "id": "shared_business_metrics",
-      "label": "business-metrics.js",
-      "_origin": "ast",
-      "community": 129,
-      "community_name": "business-metrics.js",
-      "file_type": "code",
-      "norm_label": "business-metrics.js",
-      "source_file": "shared/business-metrics.js",
-      "source_location": "L1"
-    },
-    {
-      "id": "shared_business_metrics_business_tz",
-      "label": "BUSINESS_TZ",
-      "_origin": "ast",
-      "community": 129,
-      "community_name": "business-metrics.js",
-      "file_type": "code",
-      "norm_label": "business_tz",
-      "source_file": "shared/business-metrics.js",
-      "source_location": "L11"
-    },
-    {
-      "id": "shared_business_metrics_phxfmt",
-      "label": "phxFmt",
-      "_origin": "ast",
-      "community": 129,
-      "community_name": "business-metrics.js",
-      "file_type": "code",
-      "norm_label": "phxfmt",
-      "source_file": "shared/business-metrics.js",
-      "source_location": "L14"
-    },
-    {
-      "id": "shared_business_rules_d",
-      "label": "business-rules.d.ts",
-      "_origin": "ast",
-      "community": 129,
-      "community_name": "business-metrics.js",
-      "file_type": "code",
-      "norm_label": "business-rules.d.ts",
-      "source_file": "shared/business-rules.d.ts",
-      "source_location": "L1"
-    },
-    {
-      "id": "tests_business_metrics_test",
-      "label": "business-metrics.test.js",
-      "_origin": "ast",
-      "community": 129,
-      "community_name": "business-metrics.js",
-      "file_type": "code",
-      "norm_label": "business-metrics.test.js",
-      "source_file": "tests/business-metrics.test.js",
-      "source_location": "L1"
-    },
-    {
-      "id": "tests_business_metrics_test_jobs",
-      "label": "JOBS",
-      "_origin": "ast",
-      "community": 129,
-      "community_name": "business-metrics.js",
-      "file_type": "code",
-      "norm_label": "jobs",
-      "source_file": "tests/business-metrics.test.js",
-      "source_location": "L11"
-    },
-    {
-      "id": "tests_business_metrics_test_now",
-      "label": "NOW",
-      "_origin": "ast",
-      "community": 129,
-      "community_name": "business-metrics.js",
-      "file_type": "code",
-      "norm_label": "now",
-      "source_file": "tests/business-metrics.test.js",
-      "source_location": "L9"
-    },
-    {
-      "id": "jarvis_consistency_audit_third_pass_2026_09_27_telegram_production_bugs",
-      "label": "Third pass (2026-09-27): Telegram production bugs",
-      "_origin": "ast",
-      "community": 129,
-      "community_name": "business-metrics.js",
-      "file_type": "document",
-      "node_kind": "heading",
-      "norm_label": "third pass (2026-09-27): telegram production bugs",
-      "source_file": "JARVIS_CONSISTENCY_AUDIT.md",
-      "source_location": "L69"
     },
     {
       "id": "src_command_center_components_attentionpanel",
@@ -18223,28 +18134,6 @@
       "source_location": "L100"
     },
     {
-      "id": "tests_jarvis_context_test",
-      "label": "jarvis-context.test.js",
-      "_origin": "ast",
-      "community": 130,
-      "community_name": "seo-sync.test.js",
-      "file_type": "code",
-      "norm_label": "jarvis-context.test.js",
-      "source_file": "tests/jarvis-context.test.js",
-      "source_location": "L1"
-    },
-    {
-      "id": "tests_jarvis_context_test_jill_ctx",
-      "label": "JILL_CTX",
-      "_origin": "ast",
-      "community": 130,
-      "community_name": "seo-sync.test.js",
-      "file_type": "code",
-      "norm_label": "jill_ctx",
-      "source_file": "tests/jarvis-context.test.js",
-      "source_location": "L10"
-    },
-    {
       "id": "tests_seo_fake_store",
       "label": "seo-fake-store.js",
       "_origin": "ast",
@@ -18287,116 +18176,6 @@
       "norm_label": "businessmetrics.tsx",
       "source_file": "src/command-center/components/BusinessMetrics.tsx",
       "source_location": "L1"
-    },
-    {
-      "id": "shared_business_rules",
-      "label": "business-rules.js",
-      "_origin": "ast",
-      "community": 133,
-      "community_name": "business-rules.js",
-      "file_type": "code",
-      "norm_label": "business-rules.js",
-      "source_file": "shared/business-rules.js",
-      "source_location": "L1"
-    },
-    {
-      "id": "shared_business_rules_closed_lead_statuses",
-      "label": "CLOSED_LEAD_STATUSES",
-      "_origin": "ast",
-      "community": 133,
-      "community_name": "business-rules.js",
-      "file_type": "code",
-      "norm_label": "closed_lead_statuses",
-      "source_file": "shared/business-rules.js",
-      "source_location": "L18"
-    },
-    {
-      "id": "shared_business_rules_contact_lead_statuses",
-      "label": "CONTACT_LEAD_STATUSES",
-      "_origin": "ast",
-      "community": 133,
-      "community_name": "business-rules.js",
-      "file_type": "code",
-      "norm_label": "contact_lead_statuses",
-      "source_file": "shared/business-rules.js",
-      "source_location": "L20"
-    },
-    {
-      "id": "shared_business_rules_health",
-      "label": "HEALTH",
-      "_origin": "ast",
-      "community": 133,
-      "community_name": "business-rules.js",
-      "file_type": "code",
-      "norm_label": "health",
-      "source_file": "shared/business-rules.js",
-      "source_location": "L215"
-    },
-    {
-      "id": "shared_business_rules_job_statuses",
-      "label": "JOB_STATUSES",
-      "_origin": "ast",
-      "community": 133,
-      "community_name": "business-rules.js",
-      "file_type": "code",
-      "norm_label": "job_statuses",
-      "source_file": "shared/business-rules.js",
-      "source_location": "L12"
-    },
-    {
-      "id": "shared_business_rules_lead_statuses",
-      "label": "LEAD_STATUSES",
-      "_origin": "ast",
-      "community": 133,
-      "community_name": "business-rules.js",
-      "file_type": "code",
-      "norm_label": "lead_statuses",
-      "source_file": "shared/business-rules.js",
-      "source_location": "L17"
-    },
-    {
-      "id": "shared_business_rules_pre_service_statuses",
-      "label": "PRE_SERVICE_STATUSES",
-      "_origin": "ast",
-      "community": 133,
-      "community_name": "business-rules.js",
-      "file_type": "code",
-      "norm_label": "pre_service_statuses",
-      "source_file": "shared/business-rules.js",
-      "source_location": "L16"
-    },
-    {
-      "id": "shared_business_rules_stale_lead_ms",
-      "label": "STALE_LEAD_MS",
-      "_origin": "ast",
-      "community": 133,
-      "community_name": "business-rules.js",
-      "file_type": "code",
-      "norm_label": "stale_lead_ms",
-      "source_file": "shared/business-rules.js",
-      "source_location": "L22"
-    },
-    {
-      "id": "tests_business_rules_test",
-      "label": "business-rules.test.js",
-      "_origin": "ast",
-      "community": 133,
-      "community_name": "business-rules.js",
-      "file_type": "code",
-      "norm_label": "business-rules.test.js",
-      "source_file": "tests/business-rules.test.js",
-      "source_location": "L1"
-    },
-    {
-      "id": "tests_business_rules_test_now",
-      "label": "NOW",
-      "_origin": "ast",
-      "community": 133,
-      "community_name": "business-rules.js",
-      "file_type": "code",
-      "norm_label": "now",
-      "source_file": "tests/business-rules.test.js",
-      "source_location": "L9"
     },
     {
       "id": "functions_admin_ai_chat",
@@ -18542,6 +18321,28 @@
       "source_location": "L44"
     },
     {
+      "id": "tests_jarvis_context_test",
+      "label": "jarvis-context.test.js",
+      "_origin": "ast",
+      "community": 135,
+      "community_name": "jarvis-intent.js",
+      "file_type": "code",
+      "norm_label": "jarvis-context.test.js",
+      "source_file": "tests/jarvis-context.test.js",
+      "source_location": "L1"
+    },
+    {
+      "id": "tests_jarvis_context_test_jill_ctx",
+      "label": "JILL_CTX",
+      "_origin": "ast",
+      "community": 135,
+      "community_name": "jarvis-intent.js",
+      "file_type": "code",
+      "norm_label": "jill_ctx",
+      "source_file": "tests/jarvis-context.test.js",
+      "source_location": "L10"
+    },
+    {
       "id": "tests_jarvis_intent_test",
       "label": "jarvis-intent.test.js",
       "_origin": "ast",
@@ -18553,61 +18354,6 @@
       "source_location": "L1"
     },
     {
-      "id": "shared_seo_kpis",
-      "label": "kpis.js",
-      "_origin": "ast",
-      "community": 136,
-      "community_name": "kpis.js",
-      "file_type": "code",
-      "norm_label": "kpis.js",
-      "source_file": "shared/seo/kpis.js",
-      "source_location": "L1"
-    },
-    {
-      "id": "shared_seo_kpis_discovery_sources",
-      "label": "DISCOVERY_SOURCES",
-      "_origin": "ast",
-      "community": 136,
-      "community_name": "kpis.js",
-      "file_type": "code",
-      "norm_label": "discovery_sources",
-      "source_file": "shared/seo/kpis.js",
-      "source_location": "L17"
-    },
-    {
-      "id": "shared_seo_kpis_gbp_actions",
-      "label": "GBP_ACTIONS",
-      "_origin": "ast",
-      "community": 136,
-      "community_name": "kpis.js",
-      "file_type": "code",
-      "norm_label": "gbp_actions",
-      "source_file": "shared/seo/kpis.js",
-      "source_location": "L13"
-    },
-    {
-      "id": "shared_seo_kpis_gbp_visibility",
-      "label": "GBP_VISIBILITY",
-      "_origin": "ast",
-      "community": 136,
-      "community_name": "kpis.js",
-      "file_type": "code",
-      "norm_label": "gbp_visibility",
-      "source_file": "shared/seo/kpis.js",
-      "source_location": "L12"
-    },
-    {
-      "id": "shared_seo_kpis_localish",
-      "label": "LOCALISH",
-      "_origin": "ast",
-      "community": 136,
-      "community_name": "kpis.js",
-      "file_type": "code",
-      "norm_label": "localish",
-      "source_file": "shared/seo/kpis.js",
-      "source_location": "L11"
-    },
-    {
       "id": "functions_jarvis_telegram",
       "label": "jarvis-telegram.js",
       "_origin": "ast",
@@ -18616,42 +18362,6 @@
       "file_type": "code",
       "norm_label": "jarvis-telegram.js",
       "source_file": "functions/jarvis-telegram.js",
-      "source_location": "L1"
-    },
-    {
-      "id": "jarvis_consistency_audit",
-      "label": "JARVIS_CONSISTENCY_AUDIT.md",
-      "_origin": "ast",
-      "community": 138,
-      "community_name": "Jarvis Consistency Audit",
-      "file_type": "document",
-      "node_kind": "page",
-      "norm_label": "jarvis_consistency_audit.md",
-      "source_file": "JARVIS_CONSISTENCY_AUDIT.md",
-      "source_location": "L1"
-    },
-    {
-      "id": "jarvis_consistency_audit_canonical_definitions",
-      "label": "Canonical definitions",
-      "_origin": "ast",
-      "community": 138,
-      "community_name": "Jarvis Consistency Audit",
-      "file_type": "document",
-      "node_kind": "heading",
-      "norm_label": "canonical definitions",
-      "source_file": "JARVIS_CONSISTENCY_AUDIT.md",
-      "source_location": "L30"
-    },
-    {
-      "id": "jarvis_consistency_audit_jarvis_consistency_audit",
-      "label": "Jarvis Consistency Audit",
-      "_origin": "ast",
-      "community": 138,
-      "community_name": "Jarvis Consistency Audit",
-      "file_type": "document",
-      "node_kind": "heading",
-      "norm_label": "jarvis consistency audit",
-      "source_file": "JARVIS_CONSISTENCY_AUDIT.md",
       "source_location": "L1"
     },
     {
@@ -19841,52 +19551,6 @@
       "norm_label": "@vitejs/plugin-react",
       "source_file": "package.json",
       "source_location": "L34"
-    },
-    {
-      "id": "functions_lib_business_data",
-      "label": "business-data.js",
-      "_origin": "ast",
-      "community": 31,
-      "community_name": "createBusinessOps",
-      "file_type": "code",
-      "norm_label": "business-data.js",
-      "source_file": "functions/_lib/business-data.js",
-      "source_location": "L1"
-    },
-    {
-      "id": "functions_lib_business_data_context_columns",
-      "label": "CONTEXT_COLUMNS",
-      "_origin": "ast",
-      "community": 31,
-      "community_name": "createBusinessOps",
-      "file_type": "code",
-      "norm_label": "context_columns",
-      "source_file": "functions/_lib/business-data.js",
-      "source_location": "L25"
-    },
-    {
-      "id": "jarvis_consistency_audit_mismatches_fixed",
-      "label": "Mismatches fixed",
-      "_origin": "ast",
-      "community": 31,
-      "community_name": "createBusinessOps",
-      "file_type": "document",
-      "node_kind": "heading",
-      "norm_label": "mismatches fixed",
-      "source_file": "JARVIS_CONSISTENCY_AUDIT.md",
-      "source_location": "L40"
-    },
-    {
-      "id": "jarvis_consistency_audit_summary_table",
-      "label": "Summary table",
-      "_origin": "ast",
-      "community": 31,
-      "community_name": "createBusinessOps",
-      "file_type": "document",
-      "node_kind": "heading",
-      "norm_label": "summary table",
-      "source_file": "JARVIS_CONSISTENCY_AUDIT.md",
-      "source_location": "L11"
     },
     {
       "id": "tsconfig_node",
@@ -23565,6 +23229,61 @@
       "source_location": "L24"
     },
     {
+      "id": "shared_seo_kpis",
+      "label": "kpis.js",
+      "_origin": "ast",
+      "community": 57,
+      "community_name": "local-intent.js",
+      "file_type": "code",
+      "norm_label": "kpis.js",
+      "source_file": "shared/seo/kpis.js",
+      "source_location": "L1"
+    },
+    {
+      "id": "shared_seo_kpis_discovery_sources",
+      "label": "DISCOVERY_SOURCES",
+      "_origin": "ast",
+      "community": 57,
+      "community_name": "local-intent.js",
+      "file_type": "code",
+      "norm_label": "discovery_sources",
+      "source_file": "shared/seo/kpis.js",
+      "source_location": "L17"
+    },
+    {
+      "id": "shared_seo_kpis_gbp_actions",
+      "label": "GBP_ACTIONS",
+      "_origin": "ast",
+      "community": 57,
+      "community_name": "local-intent.js",
+      "file_type": "code",
+      "norm_label": "gbp_actions",
+      "source_file": "shared/seo/kpis.js",
+      "source_location": "L13"
+    },
+    {
+      "id": "shared_seo_kpis_gbp_visibility",
+      "label": "GBP_VISIBILITY",
+      "_origin": "ast",
+      "community": 57,
+      "community_name": "local-intent.js",
+      "file_type": "code",
+      "norm_label": "gbp_visibility",
+      "source_file": "shared/seo/kpis.js",
+      "source_location": "L12"
+    },
+    {
+      "id": "shared_seo_kpis_localish",
+      "label": "LOCALISH",
+      "_origin": "ast",
+      "community": 57,
+      "community_name": "local-intent.js",
+      "file_type": "code",
+      "norm_label": "localish",
+      "source_file": "shared/seo/kpis.js",
+      "source_location": "L11"
+    },
+    {
       "id": "shared_seo_local_intent",
       "label": "local-intent.js",
       "_origin": "ast",
@@ -24199,11 +23918,165 @@
       "source_location": "L1"
     },
     {
+      "id": "functions_lib_business_data",
+      "label": "business-data.js",
+      "_origin": "ast",
+      "community": 64,
+      "community_name": "createBusinessOps",
+      "file_type": "code",
+      "norm_label": "business-data.js",
+      "source_file": "functions/_lib/business-data.js",
+      "source_location": "L1"
+    },
+    {
+      "id": "functions_lib_business_data_context_columns",
+      "label": "CONTEXT_COLUMNS",
+      "_origin": "ast",
+      "community": 64,
+      "community_name": "createBusinessOps",
+      "file_type": "code",
+      "norm_label": "context_columns",
+      "source_file": "functions/_lib/business-data.js",
+      "source_location": "L25"
+    },
+    {
+      "id": "shared_business_metrics",
+      "label": "business-metrics.js",
+      "_origin": "ast",
+      "community": 64,
+      "community_name": "createBusinessOps",
+      "file_type": "code",
+      "norm_label": "business-metrics.js",
+      "source_file": "shared/business-metrics.js",
+      "source_location": "L1"
+    },
+    {
+      "id": "shared_business_metrics_business_tz",
+      "label": "BUSINESS_TZ",
+      "_origin": "ast",
+      "community": 64,
+      "community_name": "createBusinessOps",
+      "file_type": "code",
+      "norm_label": "business_tz",
+      "source_file": "shared/business-metrics.js",
+      "source_location": "L11"
+    },
+    {
+      "id": "shared_business_metrics_phxfmt",
+      "label": "phxFmt",
+      "_origin": "ast",
+      "community": 64,
+      "community_name": "createBusinessOps",
+      "file_type": "code",
+      "norm_label": "phxfmt",
+      "source_file": "shared/business-metrics.js",
+      "source_location": "L14"
+    },
+    {
+      "id": "shared_business_rules",
+      "label": "business-rules.js",
+      "_origin": "ast",
+      "community": 64,
+      "community_name": "createBusinessOps",
+      "file_type": "code",
+      "norm_label": "business-rules.js",
+      "source_file": "shared/business-rules.js",
+      "source_location": "L1"
+    },
+    {
+      "id": "shared_business_rules_closed_lead_statuses",
+      "label": "CLOSED_LEAD_STATUSES",
+      "_origin": "ast",
+      "community": 64,
+      "community_name": "createBusinessOps",
+      "file_type": "code",
+      "norm_label": "closed_lead_statuses",
+      "source_file": "shared/business-rules.js",
+      "source_location": "L18"
+    },
+    {
+      "id": "shared_business_rules_contact_lead_statuses",
+      "label": "CONTACT_LEAD_STATUSES",
+      "_origin": "ast",
+      "community": 64,
+      "community_name": "createBusinessOps",
+      "file_type": "code",
+      "norm_label": "contact_lead_statuses",
+      "source_file": "shared/business-rules.js",
+      "source_location": "L20"
+    },
+    {
+      "id": "shared_business_rules_d",
+      "label": "business-rules.d.ts",
+      "_origin": "ast",
+      "community": 64,
+      "community_name": "createBusinessOps",
+      "file_type": "code",
+      "norm_label": "business-rules.d.ts",
+      "source_file": "shared/business-rules.d.ts",
+      "source_location": "L1"
+    },
+    {
+      "id": "shared_business_rules_health",
+      "label": "HEALTH",
+      "_origin": "ast",
+      "community": 64,
+      "community_name": "createBusinessOps",
+      "file_type": "code",
+      "norm_label": "health",
+      "source_file": "shared/business-rules.js",
+      "source_location": "L215"
+    },
+    {
+      "id": "shared_business_rules_job_statuses",
+      "label": "JOB_STATUSES",
+      "_origin": "ast",
+      "community": 64,
+      "community_name": "createBusinessOps",
+      "file_type": "code",
+      "norm_label": "job_statuses",
+      "source_file": "shared/business-rules.js",
+      "source_location": "L12"
+    },
+    {
+      "id": "shared_business_rules_lead_statuses",
+      "label": "LEAD_STATUSES",
+      "_origin": "ast",
+      "community": 64,
+      "community_name": "createBusinessOps",
+      "file_type": "code",
+      "norm_label": "lead_statuses",
+      "source_file": "shared/business-rules.js",
+      "source_location": "L17"
+    },
+    {
+      "id": "shared_business_rules_pre_service_statuses",
+      "label": "PRE_SERVICE_STATUSES",
+      "_origin": "ast",
+      "community": 64,
+      "community_name": "createBusinessOps",
+      "file_type": "code",
+      "norm_label": "pre_service_statuses",
+      "source_file": "shared/business-rules.js",
+      "source_location": "L16"
+    },
+    {
+      "id": "shared_business_rules_stale_lead_ms",
+      "label": "STALE_LEAD_MS",
+      "_origin": "ast",
+      "community": 64,
+      "community_name": "createBusinessOps",
+      "file_type": "code",
+      "norm_label": "stale_lead_ms",
+      "source_file": "shared/business-rules.js",
+      "source_location": "L22"
+    },
+    {
       "id": "shared_job_context",
       "label": "job-context.js",
       "_origin": "ast",
       "community": 64,
-      "community_name": "job-context.js",
+      "community_name": "createBusinessOps",
       "file_type": "code",
       "norm_label": "job-context.js",
       "source_file": "shared/job-context.js",
@@ -24214,7 +24087,7 @@
       "label": "BOOKING_NOTE_PREFIXES",
       "_origin": "ast",
       "community": 64,
-      "community_name": "job-context.js",
+      "community_name": "createBusinessOps",
       "file_type": "code",
       "norm_label": "booking_note_prefixes",
       "source_file": "shared/job-context.js",
@@ -24225,7 +24098,7 @@
       "label": "CATEGORY_WORDS",
       "_origin": "ast",
       "community": 64,
-      "community_name": "job-context.js",
+      "community_name": "createBusinessOps",
       "file_type": "code",
       "norm_label": "category_words",
       "source_file": "shared/job-context.js",
@@ -24236,7 +24109,7 @@
       "label": "SERVICE_LABELS",
       "_origin": "ast",
       "community": 64,
-      "community_name": "job-context.js",
+      "community_name": "createBusinessOps",
       "file_type": "code",
       "norm_label": "service_labels",
       "source_file": "shared/job-context.js",
@@ -24247,18 +24120,73 @@
       "label": "SPECIFIC_CATEGORIES",
       "_origin": "ast",
       "community": 64,
-      "community_name": "job-context.js",
+      "community_name": "createBusinessOps",
       "file_type": "code",
       "norm_label": "specific_categories",
       "source_file": "shared/job-context.js",
       "source_location": "L31"
     },
     {
+      "id": "tests_business_metrics_test",
+      "label": "business-metrics.test.js",
+      "_origin": "ast",
+      "community": 64,
+      "community_name": "createBusinessOps",
+      "file_type": "code",
+      "norm_label": "business-metrics.test.js",
+      "source_file": "tests/business-metrics.test.js",
+      "source_location": "L1"
+    },
+    {
+      "id": "tests_business_metrics_test_jobs",
+      "label": "JOBS",
+      "_origin": "ast",
+      "community": 64,
+      "community_name": "createBusinessOps",
+      "file_type": "code",
+      "norm_label": "jobs",
+      "source_file": "tests/business-metrics.test.js",
+      "source_location": "L11"
+    },
+    {
+      "id": "tests_business_metrics_test_now",
+      "label": "NOW",
+      "_origin": "ast",
+      "community": 64,
+      "community_name": "createBusinessOps",
+      "file_type": "code",
+      "norm_label": "now",
+      "source_file": "tests/business-metrics.test.js",
+      "source_location": "L9"
+    },
+    {
+      "id": "tests_business_rules_test",
+      "label": "business-rules.test.js",
+      "_origin": "ast",
+      "community": 64,
+      "community_name": "createBusinessOps",
+      "file_type": "code",
+      "norm_label": "business-rules.test.js",
+      "source_file": "tests/business-rules.test.js",
+      "source_location": "L1"
+    },
+    {
+      "id": "tests_business_rules_test_now",
+      "label": "NOW",
+      "_origin": "ast",
+      "community": 64,
+      "community_name": "createBusinessOps",
+      "file_type": "code",
+      "norm_label": "now",
+      "source_file": "tests/business-rules.test.js",
+      "source_location": "L9"
+    },
+    {
       "id": "tests_job_context_test",
       "label": "job-context.test.js",
       "_origin": "ast",
       "community": 64,
-      "community_name": "job-context.js",
+      "community_name": "createBusinessOps",
       "file_type": "code",
       "norm_label": "job-context.test.js",
       "source_file": "tests/job-context.test.js",
@@ -24269,7 +24197,7 @@
       "label": "CUSTOMERS",
       "_origin": "ast",
       "community": 64,
-      "community_name": "job-context.js",
+      "community_name": "createBusinessOps",
       "file_type": "code",
       "norm_label": "customers",
       "source_file": "tests/job-context.test.js",
@@ -24280,7 +24208,7 @@
       "label": "LEGACY",
       "_origin": "ast",
       "community": 64,
-      "community_name": "job-context.js",
+      "community_name": "createBusinessOps",
       "file_type": "code",
       "norm_label": "legacy",
       "source_file": "tests/job-context.test.js",
@@ -24291,18 +24219,90 @@
       "label": "NOW",
       "_origin": "ast",
       "community": 64,
-      "community_name": "job-context.js",
+      "community_name": "createBusinessOps",
       "file_type": "code",
       "norm_label": "now",
       "source_file": "tests/job-context.test.js",
       "source_location": "L6"
     },
     {
+      "id": "jarvis_consistency_audit",
+      "label": "JARVIS_CONSISTENCY_AUDIT.md",
+      "_origin": "ast",
+      "community": 64,
+      "community_name": "createBusinessOps",
+      "file_type": "document",
+      "node_kind": "page",
+      "norm_label": "jarvis_consistency_audit.md",
+      "source_file": "JARVIS_CONSISTENCY_AUDIT.md",
+      "source_location": "L1"
+    },
+    {
+      "id": "jarvis_consistency_audit_canonical_definitions",
+      "label": "Canonical definitions",
+      "_origin": "ast",
+      "community": 64,
+      "community_name": "createBusinessOps",
+      "file_type": "document",
+      "node_kind": "heading",
+      "norm_label": "canonical definitions",
+      "source_file": "JARVIS_CONSISTENCY_AUDIT.md",
+      "source_location": "L30"
+    },
+    {
+      "id": "jarvis_consistency_audit_jarvis_consistency_audit",
+      "label": "Jarvis Consistency Audit",
+      "_origin": "ast",
+      "community": 64,
+      "community_name": "createBusinessOps",
+      "file_type": "document",
+      "node_kind": "heading",
+      "norm_label": "jarvis consistency audit",
+      "source_file": "JARVIS_CONSISTENCY_AUDIT.md",
+      "source_location": "L1"
+    },
+    {
+      "id": "jarvis_consistency_audit_mismatches_fixed",
+      "label": "Mismatches fixed",
+      "_origin": "ast",
+      "community": 64,
+      "community_name": "createBusinessOps",
+      "file_type": "document",
+      "node_kind": "heading",
+      "norm_label": "mismatches fixed",
+      "source_file": "JARVIS_CONSISTENCY_AUDIT.md",
+      "source_location": "L40"
+    },
+    {
+      "id": "jarvis_consistency_audit_summary_table",
+      "label": "Summary table",
+      "_origin": "ast",
+      "community": 64,
+      "community_name": "createBusinessOps",
+      "file_type": "document",
+      "node_kind": "heading",
+      "norm_label": "summary table",
+      "source_file": "JARVIS_CONSISTENCY_AUDIT.md",
+      "source_location": "L11"
+    },
+    {
+      "id": "jarvis_consistency_audit_third_pass_2026_09_27_telegram_production_bugs",
+      "label": "Third pass (2026-09-27): Telegram production bugs",
+      "_origin": "ast",
+      "community": 64,
+      "community_name": "createBusinessOps",
+      "file_type": "document",
+      "node_kind": "heading",
+      "norm_label": "third pass (2026-09-27): telegram production bugs",
+      "source_file": "JARVIS_CONSISTENCY_AUDIT.md",
+      "source_location": "L69"
+    },
+    {
       "id": "jarvis_data_coverage_audit_3_how_deep_retrieval_works",
       "label": "3. How deep retrieval works",
       "_origin": "ast",
       "community": 64,
-      "community_name": "job-context.js",
+      "community_name": "createBusinessOps",
       "file_type": "document",
       "node_kind": "heading",
       "norm_label": "3. how deep retrieval works",
@@ -28746,14 +28746,14 @@
       "type": "external"
     },
     {
-      "id": "shared_business_metrics_metricjob",
-      "label": "shared_business_metrics_metricjob",
+      "id": "ref_node_test",
+      "label": "ref_node_test",
       "_origin": "semantic",
-      "community": 129,
-      "community_name": "business-metrics.js",
+      "community": 125,
+      "community_name": "seo-data.js",
       "external": true,
       "file_type": "concept",
-      "norm_label": "shared_business_metrics_metricjob",
+      "norm_label": "ref_node_test",
       "source_file": "",
       "type": "external"
     },
@@ -28766,18 +28766,6 @@
       "external": true,
       "file_type": "concept",
       "norm_label": "ref_node_assert",
-      "source_file": "",
-      "type": "external"
-    },
-    {
-      "id": "ref_node_test",
-      "label": "ref_node_test",
-      "_origin": "semantic",
-      "community": 130,
-      "community_name": "seo-sync.test.js",
-      "external": true,
-      "file_type": "concept",
-      "norm_label": "ref_node_test",
       "source_file": "",
       "type": "external"
     },
@@ -29042,6 +29030,18 @@
       "external": true,
       "file_type": "concept",
       "norm_label": "zoneinfo",
+      "source_file": "",
+      "type": "external"
+    },
+    {
+      "id": "shared_business_metrics_metricjob",
+      "label": "shared_business_metrics_metricjob",
+      "_origin": "semantic",
+      "community": 64,
+      "community_name": "createBusinessOps",
+      "external": true,
+      "file_type": "concept",
+      "norm_label": "shared_business_metrics_metricjob",
       "source_file": "",
       "type": "external"
     }
@@ -31733,6 +31733,126 @@
       "context": "call",
       "source_file": "functions/jarvis-proactive.js",
       "source_location": "L125",
+      "weight": 1.0
+    },
+    {
+      "source": "functions_jarvis_seo_data_handleseodata",
+      "target": "shared_seo_service_area_isinsideservicearea",
+      "relation": "calls",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "call",
+      "source_file": "functions/jarvis/seo-data.js",
+      "source_location": "L103",
+      "weight": 1.0
+    },
+    {
+      "source": "functions_jarvis_seo_data_handleseodata",
+      "target": "functions_lib_seo_ops_createseoops",
+      "relation": "calls",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "call",
+      "source_file": "functions/jarvis/seo-data.js",
+      "source_location": "L32",
+      "weight": 1.0
+    },
+    {
+      "source": "functions_jarvis_seo_data_handleseodata",
+      "target": "functions_jarvis_seo_data_json",
+      "relation": "calls",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "call",
+      "source_file": "functions/jarvis/seo-data.js",
+      "source_location": "L48",
+      "weight": 1.0
+    },
+    {
+      "source": "functions_jarvis_seo_data_handleseodata",
+      "target": "shared_seo_competitors_classifycompetitor",
+      "relation": "calls",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "call",
+      "source_file": "functions/jarvis/seo-data.js",
+      "source_location": "L61",
+      "weight": 1.0
+    },
+    {
+      "source": "functions_jarvis_seo_data_handleseodata",
+      "target": "functions_jarvis_seo_data_slug",
+      "relation": "calls",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "call",
+      "source_file": "functions/jarvis/seo-data.js",
+      "source_location": "L62",
+      "weight": 1.0
+    },
+    {
+      "source": "functions_jarvis_seo_data_handleseodata",
+      "target": "functions_jarvis_seo_data_isdate",
+      "relation": "calls",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "call",
+      "source_file": "functions/jarvis/seo-data.js",
+      "source_location": "L77",
+      "weight": 1.0
+    },
+    {
+      "source": "functions_jarvis_seo_data_onrequest",
+      "target": "functions_lib_access_auth_verifyaccess",
+      "relation": "calls",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "call",
+      "source_file": "functions/jarvis/seo-data.js",
+      "source_location": "L118",
+      "weight": 1.0
+    },
+    {
+      "source": "functions_jarvis_seo_data_onrequest",
+      "target": "functions_jarvis_seo_data_json",
+      "relation": "calls",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "call",
+      "source_file": "functions/jarvis/seo-data.js",
+      "source_location": "L119",
+      "weight": 1.0
+    },
+    {
+      "source": "functions_jarvis_seo_data_onrequest",
+      "target": "functions_jarvis_seo_data_handleseodata",
+      "relation": "calls",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "call",
+      "source_file": "functions/jarvis/seo-data.js",
+      "source_location": "L123",
+      "weight": 1.0
+    },
+    {
+      "source": "functions_jarvis_seo_data_onrequest",
+      "target": "functions_lib_seo_store_createseostore",
+      "relation": "calls",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "call",
+      "source_file": "functions/jarvis/seo-data.js",
+      "source_location": "L123",
       "weight": 1.0
     },
     {
@@ -34865,126 +34985,6 @@
       "context": "call",
       "source_file": "functions/_lib/seo/sync.js",
       "source_location": "L67",
-      "weight": 1.0
-    },
-    {
-      "source": "functions_seo_data_handleseodata",
-      "target": "shared_seo_service_area_isinsideservicearea",
-      "relation": "calls",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "context": "call",
-      "source_file": "functions/seo-data.js",
-      "source_location": "L102",
-      "weight": 1.0
-    },
-    {
-      "source": "functions_seo_data_handleseodata",
-      "target": "functions_lib_seo_ops_createseoops",
-      "relation": "calls",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "context": "call",
-      "source_file": "functions/seo-data.js",
-      "source_location": "L31",
-      "weight": 1.0
-    },
-    {
-      "source": "functions_seo_data_handleseodata",
-      "target": "functions_seo_data_json",
-      "relation": "calls",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "context": "call",
-      "source_file": "functions/seo-data.js",
-      "source_location": "L47",
-      "weight": 1.0
-    },
-    {
-      "source": "functions_seo_data_handleseodata",
-      "target": "shared_seo_competitors_classifycompetitor",
-      "relation": "calls",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "context": "call",
-      "source_file": "functions/seo-data.js",
-      "source_location": "L60",
-      "weight": 1.0
-    },
-    {
-      "source": "functions_seo_data_handleseodata",
-      "target": "functions_seo_data_slug",
-      "relation": "calls",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "context": "call",
-      "source_file": "functions/seo-data.js",
-      "source_location": "L61",
-      "weight": 1.0
-    },
-    {
-      "source": "functions_seo_data_handleseodata",
-      "target": "functions_seo_data_isdate",
-      "relation": "calls",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "context": "call",
-      "source_file": "functions/seo-data.js",
-      "source_location": "L76",
-      "weight": 1.0
-    },
-    {
-      "source": "functions_seo_data_onrequest",
-      "target": "functions_lib_access_auth_verifyaccess",
-      "relation": "calls",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "context": "call",
-      "source_file": "functions/seo-data.js",
-      "source_location": "L117",
-      "weight": 1.0
-    },
-    {
-      "source": "functions_seo_data_onrequest",
-      "target": "functions_seo_data_json",
-      "relation": "calls",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "context": "call",
-      "source_file": "functions/seo-data.js",
-      "source_location": "L118",
-      "weight": 1.0
-    },
-    {
-      "source": "functions_seo_data_onrequest",
-      "target": "functions_lib_seo_store_createseostore",
-      "relation": "calls",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "context": "call",
-      "source_file": "functions/seo-data.js",
-      "source_location": "L122",
-      "weight": 1.0
-    },
-    {
-      "source": "functions_seo_data_onrequest",
-      "target": "functions_seo_data_handleseodata",
-      "relation": "calls",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "context": "call",
-      "source_file": "functions/seo-data.js",
-      "source_location": "L122",
       "weight": 1.0
     },
     {
@@ -48552,6 +48552,90 @@
       "weight": 1.0
     },
     {
+      "source": "functions_jarvis_seo_data",
+      "target": "functions_lib_seo_store_createseostore",
+      "relation": "imports",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "import",
+      "source_file": "functions/jarvis/seo-data.js",
+      "source_location": "L16",
+      "weight": 1.0
+    },
+    {
+      "source": "functions_jarvis_seo_data",
+      "target": "functions_lib_seo_ops_createseoops",
+      "relation": "imports",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "import",
+      "source_file": "functions/jarvis/seo-data.js",
+      "source_location": "L17",
+      "weight": 1.0
+    },
+    {
+      "source": "functions_jarvis_seo_data",
+      "target": "functions_lib_seo_sync_runseosync",
+      "relation": "imports",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "import",
+      "source_file": "functions/jarvis/seo-data.js",
+      "source_location": "L18",
+      "weight": 1.0
+    },
+    {
+      "source": "functions_jarvis_seo_data",
+      "target": "functions_lib_access_auth_verifyaccess",
+      "relation": "imports",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "import",
+      "source_file": "functions/jarvis/seo-data.js",
+      "source_location": "L19",
+      "weight": 1.0
+    },
+    {
+      "source": "functions_jarvis_seo_data",
+      "target": "shared_seo_service_area_isinsideservicearea",
+      "relation": "imports",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "import",
+      "source_file": "functions/jarvis/seo-data.js",
+      "source_location": "L20",
+      "weight": 1.0
+    },
+    {
+      "source": "functions_jarvis_seo_data",
+      "target": "shared_seo_competitors_classifycompetitor",
+      "relation": "imports",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "import",
+      "source_file": "functions/jarvis/seo-data.js",
+      "source_location": "L21",
+      "weight": 1.0
+    },
+    {
+      "source": "functions_jarvis_seo_data",
+      "target": "shared_seo_services_service_catalog",
+      "relation": "imports",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "import",
+      "source_file": "functions/jarvis/seo-data.js",
+      "source_location": "L22",
+      "weight": 1.0
+    },
+    {
       "source": "functions_jarvis_telegram",
       "target": "functions_admin_ai_chat_onrequestpost",
       "relation": "imports",
@@ -49437,90 +49521,6 @@
       "context": "import",
       "source_file": "functions/_lib/seo/sync.js",
       "source_location": "L7",
-      "weight": 1.0
-    },
-    {
-      "source": "functions_seo_data",
-      "target": "functions_lib_seo_store_createseostore",
-      "relation": "imports",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "context": "import",
-      "source_file": "functions/seo-data.js",
-      "source_location": "L15",
-      "weight": 1.0
-    },
-    {
-      "source": "functions_seo_data",
-      "target": "functions_lib_seo_ops_createseoops",
-      "relation": "imports",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "context": "import",
-      "source_file": "functions/seo-data.js",
-      "source_location": "L16",
-      "weight": 1.0
-    },
-    {
-      "source": "functions_seo_data",
-      "target": "functions_lib_seo_sync_runseosync",
-      "relation": "imports",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "context": "import",
-      "source_file": "functions/seo-data.js",
-      "source_location": "L17",
-      "weight": 1.0
-    },
-    {
-      "source": "functions_seo_data",
-      "target": "functions_lib_access_auth_verifyaccess",
-      "relation": "imports",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "context": "import",
-      "source_file": "functions/seo-data.js",
-      "source_location": "L18",
-      "weight": 1.0
-    },
-    {
-      "source": "functions_seo_data",
-      "target": "shared_seo_service_area_isinsideservicearea",
-      "relation": "imports",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "context": "import",
-      "source_file": "functions/seo-data.js",
-      "source_location": "L19",
-      "weight": 1.0
-    },
-    {
-      "source": "functions_seo_data",
-      "target": "shared_seo_competitors_classifycompetitor",
-      "relation": "imports",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "context": "import",
-      "source_file": "functions/seo-data.js",
-      "source_location": "L20",
-      "weight": 1.0
-    },
-    {
-      "source": "functions_seo_data",
-      "target": "shared_seo_services_service_catalog",
-      "relation": "imports",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "context": "import",
-      "source_file": "functions/seo-data.js",
-      "source_location": "L21",
       "weight": 1.0
     },
     {
@@ -53509,7 +53509,7 @@
     },
     {
       "source": "tests_seo_auth_test",
-      "target": "functions_seo_data_handleseodata",
+      "target": "functions_jarvis_seo_data_handleseodata",
       "relation": "imports",
       "_origin": "ast",
       "confidence": "EXTRACTED",
@@ -53521,7 +53521,7 @@
     },
     {
       "source": "tests_seo_auth_test",
-      "target": "functions_seo_data_onrequest",
+      "target": "functions_jarvis_seo_data_onrequest",
       "relation": "imports",
       "_origin": "ast",
       "confidence": "EXTRACTED",
@@ -54457,7 +54457,7 @@
     },
     {
       "source": "tests_seo_sync_test",
-      "target": "functions_seo_data_handleseodata",
+      "target": "functions_jarvis_seo_data_handleseodata",
       "relation": "imports",
       "_origin": "ast",
       "confidence": "EXTRACTED",
@@ -54912,6 +54912,90 @@
       "weight": 1.0
     },
     {
+      "source": "functions_jarvis_seo_data",
+      "target": "functions_lib_seo_store",
+      "relation": "imports_from",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "import",
+      "source_file": "functions/jarvis/seo-data.js",
+      "source_location": "L16",
+      "weight": 1.0
+    },
+    {
+      "source": "functions_jarvis_seo_data",
+      "target": "functions_lib_seo_ops",
+      "relation": "imports_from",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "import",
+      "source_file": "functions/jarvis/seo-data.js",
+      "source_location": "L17",
+      "weight": 1.0
+    },
+    {
+      "source": "functions_jarvis_seo_data",
+      "target": "functions_lib_seo_sync",
+      "relation": "imports_from",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "import",
+      "source_file": "functions/jarvis/seo-data.js",
+      "source_location": "L18",
+      "weight": 1.0
+    },
+    {
+      "source": "functions_jarvis_seo_data",
+      "target": "functions_lib_access_auth",
+      "relation": "imports_from",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "import",
+      "source_file": "functions/jarvis/seo-data.js",
+      "source_location": "L19",
+      "weight": 1.0
+    },
+    {
+      "source": "functions_jarvis_seo_data",
+      "target": "shared_seo_service_area",
+      "relation": "imports_from",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "import",
+      "source_file": "functions/jarvis/seo-data.js",
+      "source_location": "L20",
+      "weight": 1.0
+    },
+    {
+      "source": "functions_jarvis_seo_data",
+      "target": "shared_seo_competitors",
+      "relation": "imports_from",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "import",
+      "source_file": "functions/jarvis/seo-data.js",
+      "source_location": "L21",
+      "weight": 1.0
+    },
+    {
+      "source": "functions_jarvis_seo_data",
+      "target": "shared_seo_services",
+      "relation": "imports_from",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "import",
+      "source_file": "functions/jarvis/seo-data.js",
+      "source_location": "L22",
+      "weight": 1.0
+    },
+    {
       "source": "functions_jarvis_telegram",
       "target": "functions_admin_ai_chat",
       "relation": "imports_from",
@@ -55185,90 +55269,6 @@
       "context": "import",
       "source_file": "functions/_lib/seo/sync.js",
       "source_location": "L7",
-      "weight": 1.0
-    },
-    {
-      "source": "functions_seo_data",
-      "target": "functions_lib_seo_store",
-      "relation": "imports_from",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "context": "import",
-      "source_file": "functions/seo-data.js",
-      "source_location": "L15",
-      "weight": 1.0
-    },
-    {
-      "source": "functions_seo_data",
-      "target": "functions_lib_seo_ops",
-      "relation": "imports_from",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "context": "import",
-      "source_file": "functions/seo-data.js",
-      "source_location": "L16",
-      "weight": 1.0
-    },
-    {
-      "source": "functions_seo_data",
-      "target": "functions_lib_seo_sync",
-      "relation": "imports_from",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "context": "import",
-      "source_file": "functions/seo-data.js",
-      "source_location": "L17",
-      "weight": 1.0
-    },
-    {
-      "source": "functions_seo_data",
-      "target": "functions_lib_access_auth",
-      "relation": "imports_from",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "context": "import",
-      "source_file": "functions/seo-data.js",
-      "source_location": "L18",
-      "weight": 1.0
-    },
-    {
-      "source": "functions_seo_data",
-      "target": "shared_seo_service_area",
-      "relation": "imports_from",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "context": "import",
-      "source_file": "functions/seo-data.js",
-      "source_location": "L19",
-      "weight": 1.0
-    },
-    {
-      "source": "functions_seo_data",
-      "target": "shared_seo_competitors",
-      "relation": "imports_from",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "context": "import",
-      "source_file": "functions/seo-data.js",
-      "source_location": "L20",
-      "weight": 1.0
-    },
-    {
-      "source": "functions_seo_data",
-      "target": "shared_seo_services",
-      "relation": "imports_from",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "context": "import",
-      "source_file": "functions/seo-data.js",
-      "source_location": "L21",
       "weight": 1.0
     },
     {
@@ -58170,7 +58170,7 @@
     },
     {
       "source": "tests_seo_auth_test",
-      "target": "functions_seo_data",
+      "target": "functions_jarvis_seo_data",
       "relation": "imports_from",
       "_origin": "ast",
       "confidence": "EXTRACTED",
@@ -58626,7 +58626,7 @@
     },
     {
       "source": "tests_seo_sync_test",
-      "target": "functions_seo_data",
+      "target": "functions_jarvis_seo_data",
       "relation": "imports_from",
       "_origin": "ast",
       "confidence": "EXTRACTED",
@@ -66949,6 +66949,72 @@
       "weight": 1.0
     },
     {
+      "source": "functions_jarvis_seo_data",
+      "target": "functions_jarvis_seo_data_onrequest",
+      "relation": "contains",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "functions/jarvis/seo-data.js",
+      "source_location": "L117",
+      "weight": 1.0
+    },
+    {
+      "source": "functions_jarvis_seo_data",
+      "target": "functions_jarvis_seo_data_json",
+      "relation": "contains",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "functions/jarvis/seo-data.js",
+      "source_location": "L24",
+      "weight": 1.0
+    },
+    {
+      "source": "functions_jarvis_seo_data",
+      "target": "functions_jarvis_seo_data_str",
+      "relation": "contains",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "functions/jarvis/seo-data.js",
+      "source_location": "L25",
+      "weight": 1.0
+    },
+    {
+      "source": "functions_jarvis_seo_data",
+      "target": "functions_jarvis_seo_data_isdate",
+      "relation": "contains",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "functions/jarvis/seo-data.js",
+      "source_location": "L26",
+      "weight": 1.0
+    },
+    {
+      "source": "functions_jarvis_seo_data",
+      "target": "functions_jarvis_seo_data_slug",
+      "relation": "contains",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "functions/jarvis/seo-data.js",
+      "source_location": "L27",
+      "weight": 1.0
+    },
+    {
+      "source": "functions_jarvis_seo_data",
+      "target": "functions_jarvis_seo_data_handleseodata",
+      "relation": "contains",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "functions/jarvis/seo-data.js",
+      "source_location": "L31",
+      "weight": 1.0
+    },
+    {
       "source": "functions_jarvis_speak",
       "target": "functions_jarvis_speak_onrequestget",
       "relation": "contains",
@@ -68654,72 +68720,6 @@
       "weight": 1.0
     },
     {
-      "source": "functions_seo_data",
-      "target": "functions_seo_data_onrequest",
-      "relation": "contains",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "source_file": "functions/seo-data.js",
-      "source_location": "L116",
-      "weight": 1.0
-    },
-    {
-      "source": "functions_seo_data",
-      "target": "functions_seo_data_json",
-      "relation": "contains",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "source_file": "functions/seo-data.js",
-      "source_location": "L23",
-      "weight": 1.0
-    },
-    {
-      "source": "functions_seo_data",
-      "target": "functions_seo_data_str",
-      "relation": "contains",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "source_file": "functions/seo-data.js",
-      "source_location": "L24",
-      "weight": 1.0
-    },
-    {
-      "source": "functions_seo_data",
-      "target": "functions_seo_data_isdate",
-      "relation": "contains",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "source_file": "functions/seo-data.js",
-      "source_location": "L25",
-      "weight": 1.0
-    },
-    {
-      "source": "functions_seo_data",
-      "target": "functions_seo_data_slug",
-      "relation": "contains",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "source_file": "functions/seo-data.js",
-      "source_location": "L26",
-      "weight": 1.0
-    },
-    {
-      "source": "functions_seo_data",
-      "target": "functions_seo_data_handleseodata",
-      "relation": "contains",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "source_file": "functions/seo-data.js",
-      "source_location": "L30",
-      "weight": 1.0
-    },
-    {
       "source": "functions_seo_sync",
       "target": "functions_seo_sync_json",
       "relation": "contains",
@@ -69546,7 +69546,7 @@
     },
     {
       "source": "seo_setup_0_one_time_auth_database_cron",
-      "target": "seo_setup_auth_required_before_deploy",
+      "target": "seo_setup_auth_done_env_vars_set",
       "relation": "contains",
       "_origin": "ast",
       "confidence": "EXTRACTED",
@@ -69563,18 +69563,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "SEO_SETUP.md",
-      "source_location": "L33",
-      "weight": 1.0
-    },
-    {
-      "source": "seo_setup_seo_growth_mode_setup",
-      "target": "seo_setup_business_profile_google_business_profile_performance",
-      "relation": "contains",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "source_file": "SEO_SETUP.md",
-      "source_location": "L105",
+      "source_location": "L27",
       "weight": 1.0
     },
     {
@@ -69585,7 +69574,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "SEO_SETUP.md",
-      "source_location": "L115",
+      "source_location": "L109",
       "weight": 1.0
     },
     {
@@ -69596,7 +69585,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "SEO_SETUP.md",
-      "source_location": "L120",
+      "source_location": "L114",
       "weight": 1.0
     },
     {
@@ -69607,7 +69596,18 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "SEO_SETUP.md",
-      "source_location": "L123",
+      "source_location": "L117",
+      "weight": 1.0
+    },
+    {
+      "source": "seo_setup_seo_growth_mode_setup",
+      "target": "seo_setup_places_reviews_competitor_discovery",
+      "relation": "contains",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "SEO_SETUP.md",
+      "source_location": "L126",
       "weight": 1.0
     },
     {
@@ -69623,24 +69623,13 @@
     },
     {
       "source": "seo_setup_seo_growth_mode_setup",
-      "target": "seo_setup_places_reviews_competitor_discovery",
-      "relation": "contains",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "source_file": "SEO_SETUP.md",
-      "source_location": "L132",
-      "weight": 1.0
-    },
-    {
-      "source": "seo_setup_seo_growth_mode_setup",
       "target": "seo_setup_competitors_website_monitoring",
       "relation": "contains",
       "_origin": "ast",
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "SEO_SETUP.md",
-      "source_location": "L140",
+      "source_location": "L134",
       "weight": 1.0
     },
     {
@@ -69651,7 +69640,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "SEO_SETUP.md",
-      "source_location": "L143",
+      "source_location": "L137",
       "weight": 1.0
     },
     {
@@ -69662,7 +69651,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "SEO_SETUP.md",
-      "source_location": "L146",
+      "source_location": "L140",
       "weight": 1.0
     },
     {
@@ -69673,7 +69662,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "SEO_SETUP.md",
-      "source_location": "L151",
+      "source_location": "L145",
       "weight": 1.0
     },
     {
@@ -69684,7 +69673,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "SEO_SETUP.md",
-      "source_location": "L159",
+      "source_location": "L153",
       "weight": 1.0
     },
     {
@@ -69695,7 +69684,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "SEO_SETUP.md",
-      "source_location": "L164",
+      "source_location": "L158",
       "weight": 1.0
     },
     {
@@ -69706,7 +69695,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "SEO_SETUP.md",
-      "source_location": "L167",
+      "source_location": "L161",
       "weight": 1.0
     },
     {
@@ -69717,7 +69706,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "SEO_SETUP.md",
-      "source_location": "L171",
+      "source_location": "L165",
       "weight": 1.0
     },
     {
@@ -69728,7 +69717,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "SEO_SETUP.md",
-      "source_location": "L181",
+      "source_location": "L175",
       "weight": 1.0
     },
     {
@@ -69739,7 +69728,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "SEO_SETUP.md",
-      "source_location": "L188",
+      "source_location": "L182",
       "weight": 1.0
     },
     {
@@ -69750,7 +69739,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "SEO_SETUP.md",
-      "source_location": "L199",
+      "source_location": "L193",
       "weight": 1.0
     },
     {
@@ -69761,7 +69750,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "SEO_SETUP.md",
-      "source_location": "L58",
+      "source_location": "L52",
       "weight": 1.0
     },
     {
@@ -69772,7 +69761,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "SEO_SETUP.md",
-      "source_location": "L70",
+      "source_location": "L64",
       "weight": 1.0
     },
     {
@@ -69783,7 +69772,18 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "SEO_SETUP.md",
-      "source_location": "L97",
+      "source_location": "L91",
+      "weight": 1.0
+    },
+    {
+      "source": "seo_setup_seo_growth_mode_setup",
+      "target": "seo_setup_business_profile_google_business_profile_performance",
+      "relation": "contains",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "SEO_SETUP.md",
+      "source_location": "L99",
       "weight": 1.0
     },
     {
@@ -81708,7 +81708,7 @@
       "confidence_score": 0.95,
       "context": "isInsideServiceArea()",
       "source_file": "SEO_SETUP.md",
-      "source_location": "L196",
+      "source_location": "L190",
       "weight": 1.0
     },
     {

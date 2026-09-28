@@ -156,7 +156,8 @@ export function createSeoOps({ store, env = {}, now = new Date() }) {
   async function connections() {
     const [stored, runs] = await Promise.all([safe(store.select('seo_provider_status', { select: '*' })), safe(store.select('seo_sync_runs', { select: '*', order: 'started_at.desc', limit: '30' }))]);
     const byId = new Map(stored.map(r => [r.provider, r]));
-    return { providers: providerStatuses(env).map(p => ({ ...p, lastSyncAt: byId.get(p.id)?.last_sync_at || null, lastError: byId.get(p.id)?.last_error || null, backfilledFrom: byId.get(p.id)?.cursor?.backfilledFrom || null })), recentRuns: runs };
+    const run = byId.get('__sync_run__');
+    return { providers: providerStatuses(env).map(p => ({ ...p, lastSyncAt: byId.get(p.id)?.last_sync_at || null, lastError: byId.get(p.id)?.last_error || null, backfilledFrom: byId.get(p.id)?.cursor?.backfilledFrom || null })), recentRuns: runs, lastRun: run ? { status: run.status, detail: run.detail, error: run.last_error, at: run.updated_at } : null };
   }
 
   async function opportunities({ status = 'open', limit = 25 } = {}) {

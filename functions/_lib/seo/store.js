@@ -1,7 +1,10 @@
 // Thin Supabase REST store for SEO tables (server-side, service key).
 // Same interface as the in-memory test store (tests/seo-fake-store.js).
 
-export function createSeoStore({ supabaseUrl, serviceKey, fetchImpl = fetch }) {
+import { boundFetch } from './http.js';
+
+export function createSeoStore({ supabaseUrl, serviceKey, fetchImpl: injected = null }) {
+  const fetchImpl = boundFetch(injected);
   const base = `${supabaseUrl}/rest/v1`;
   const headers = { apikey: serviceKey, Authorization: `Bearer ${serviceKey}`, 'Content-Type': 'application/json' };
   const check = async (res, what) => { if (!res.ok) throw new Error(`${what}: ${await res.text()}`); return res; };

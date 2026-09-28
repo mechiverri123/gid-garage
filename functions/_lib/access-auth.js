@@ -32,7 +32,7 @@ async function teamKeys(team, fetchImpl, now, forceRefresh = false) {
 }
 
 // -> { ok: true, email } | { ok: false, status: 401 | 403 | 500, error }
-export async function verifyAccess(request, env, { fetchImpl = fetch, now = Date.now() } = {}) {
+export async function verifyAccess(request, env, { fetchImpl = (...args) => globalThis.fetch(...args), now = Date.now() } = {}) {
   if (!env.CF_ACCESS_TEAM_DOMAIN || !env.CF_ACCESS_AUD) return { ok: false, status: 500, error: 'Access verification not configured (CF_ACCESS_TEAM_DOMAIN / CF_ACCESS_AUD).' };
   const token = tokenFrom(request);
   if (!token) return { ok: false, status: 401, error: 'Unauthorized' };

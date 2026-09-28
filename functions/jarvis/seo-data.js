@@ -26,8 +26,6 @@ const str = (v, n = 300) => (v == null ? null : String(v).trim().slice(0, n) || 
 const isDate = s => /^\d{4}-\d{2}-\d{2}$/.test(String(s || ''));
 const slug = s => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 60);
 
-const SYNC_COOLDOWN_MS = 5 * 60 * 1000;
-
 export async function handleSeoData({ request, env, store, now = new Date(), runSync = runSeoSync }) {
   const ops = createSeoOps({ store, env, now });
   const url = new URL(request.url);
@@ -103,11 +101,13 @@ export async function handleSeoData({ request, env, store, now = new Date(), run
       return json(isInsideServiceArea(str(body.location, 200) || ''));
     case 'sync_now': {
       // Manual sync from the authenticated UI, run server-side (the cron secret
-      // is never involved or exposed). Cooldown stops repeated triggering.
-      const last = (await store.select('seo_sync_runs', { select: 'started_at', order: 'started_at.desc', limit: '1' }).catch(() => []))[0];
-      if (last && now - new Date(last.started_at) < SYNC_COOLDOWN_MS) return json({ ok: false, error: 'A sync ran in the last 5 minutes — try again shortly.' }, 429);
+      // is never involved or exposed). The shared run gate (sync.js) blocks a
+      // concurrent run and throttles only after a *completed* sync; a failed or
+      // partial run can be retried right away.
       const mode = body.mode === 'backfill' ? 'backfill' : 'incremental';
-      return json({ ok: true, ...(await runSync({ env, store, mode, now })) });
+      const result = await runSync({ env, store, mode, now, manual: true });
+      if (result.blocked) return json({ ok: false, error: result.error, runStatus: result.runStatus }, result.status);
+      return json({ ok: true, ...result });
     }
     default:
       return json({ error: 'Unknown action' }, 400);
