@@ -3,6 +3,8 @@
 // can't wander into owner-pay math and "who needs follow-up" can't turn into a
 // briefing. Tests: tests/jarvis-intent.test.js.
 
+import { extractExplicitSubjects } from './jarvis-context.js';
+
 // Owner scratch notes ("Lisa might want an oil change next week") go straight
 // to capture_business_note so broad tools can't hijack them.
 export function isLikelyNaturalBusinessNote(text) {
@@ -36,7 +38,39 @@ const CUSTOMER_HISTORY = new RegExp([
   "\\bwhat was [\\w' .-]+ about\\b", "\\bactually about\\b",
 ].join('|'), 'i');
 
-// "What jobs make the difference between last 30 days and this month?"
+// SEO / local growth questions. Checked early: phrases like "what changed
+// this week" must reach SEO tools, not money. Job-level "recommendations"
+// (technician recommendations) stay with customer history.
+export const SEO_PATTERN = /\b(seo|search console|google business profile|business profile|gbp|google maps|maps (listing|visibility|ranking)|local (search|visibility|pack|seo|rank\w*|demand|competitors?)|rankings?|ranked|organic|impressions|keywords?|search (traffic|terms|demand|visibility|results)|competitors?|competition|backlinks?|citations?|pagespeed|page speed|core web vitals|site speed|website speed|review (velocity|count)|instagram|followers|apple (maps|business)|bing|where do (my )?customers come from|customers? come from|service area|seasonal\w*|seasonality|nau (move|semester|season|students?)|cold snap|google ads|meta ads|ad spend|seo (opportunit|recommend|idea)\w*|growth (mode|opportunit)\w*|visibility|traffic|visitors|outside (the|my|our) (service )?area|nonlocal|non-local)\b/i;
+// Genuine SEO follow-ups ("why?", "show me the last 90 days", "apply that
+// recommendation", "reject the second one").
+// A bare "why?" is a follow-up; "why does each one need follow-up?" has its own subject.
+const SEO_FOLLOWUP = /^\s*(why|how come|why is that|why not|explain( that| it)?|more detail|tell me more|what does that mean)\s*[?.!]*\s*$|\b(last|past) \d+ days\b|\b(reject|dismiss|accept|snooze|reopen|apply|applied)\b|\bmark (it|that|this) (as )?(applied|done)\b|\bthe (first|second|third|fourth|fifth|top|last|\d+(st|nd|rd|th)) one\b|\b(number|#) ?\d+\b|\bthat (recommendation|one|opportunity|idea)\b/i;
+
+// Explicit business commands and business entities keep their normal routing
+// no matter what SEO words appear ("Remind me to check competitors", "Log a
+// call — they asked about rankings", "Send Jill the Google Maps link").
+export const OPERATIONAL_COMMAND = /^\s*(?:(?:please|pls|can you|could you|go ahead and|jarvis,?|hey jarvis,?|ok(?:ay)?,?)\s+)*(remind|log|record|send|email|e-mail|text|call|book|schedule|reschedule|cancel|reopen|mark|update|set|create|add|note|save|capture|charge|bill|invoice|move|assign|delete|remove|follow[- ]?up|message|draft|confirm)\b/i;
+export const BUSINESS_ENTITY = /\b(lead form|lead|leads|estimate|estimates|invoice|invoices|payment|payments|paid|reminder|reminders|appointment|appointments|booking|bookings|job|jobs|contacted|called|texted)\b|\b\w+'s (car|truck|vehicle|job|estimate|invoice|lead|appointment|acura|ranger|ram)\b|\b(his|her|their) (car|truck|vehicle|job|estimate|invoice|lead|appointment|form)\b/i;
+
+// Business follow-up vocabulary: these refer to leads/customers/jobs, never to an SEO item.
+const BUSINESS_FOLLOWUP = /\b(follow[- ]?ups?|each one|all of them|contact(ed)?|call(ed)?|owe[sd]?|booked|customer|customers)\b/i;
+
+export function isExplicitBusinessAction(text) {
+  const t = String(text || '');
+  return OPERATIONAL_COMMAND.test(t) || BUSINESS_ENTITY.test(t) || BUSINESS_FOLLOWUP.test(t) || extractExplicitSubjects(t).names.length > 0;
+}
+
+// Context-aware wrapper. A follow-up only stays SEO when the previous turn left
+// an ACTIVE SEO entity (view/recommendations) in structured context AND the
+// message isn't an explicit business action about someone/something else.
+export function classifyWithContext(text, ctx) {
+  const t = String(text || '');
+  if (ctx?.activeSeo && SEO_FOLLOWUP.test(t) && !isExplicitBusinessAction(t)) return 'seo';
+  return classifyFocusedIntent(t);
+}
+
+// "What jobs make the difference between last 30 days and this month?\"
 const MONEY_COMPARE = /\b(difference|differ|gap|account for|caused|come from|what made|what changed|why is (it|revenue|this month|that) (lower|higher|less|more|different))\b/i;
 const MONEY_WORDS = /\b(revenue|profit|collected|money|sales|month|30 days|days|week|year|period)\b|\$\s?\d/i;
 
@@ -48,6 +82,7 @@ export function classifyFocusedIntent(text) {
   if (/\b(clear|clean|cleanup|remove|finish|complete|close)\b.*\btest reminders?\b/i.test(raw) ||
       /\btest reminders?\b.*\b(clear|clean|cleanup|remove|finish|complete|close)\b/i.test(raw)) return 'test_reminder_cleanup';
   if (/\b(brief me|owner brief|morning brief|what(?:'s| is) going on today|how(?:'s| is) the business today|what does tomorrow look like|what's tomorrow look like)\b/i.test(lower)) return 'briefing';
+  if (SEO_PATTERN.test(lower) && !/\b(unresolved|technician|diagnos\w*) recommendations?\b/i.test(lower) && !OPERATIONAL_COMMAND.test(raw) && !BUSINESS_ENTITY.test(raw)) return 'seo';
   if (MONEY_COMPARE.test(lower) && MONEY_WORDS.test(lower)) return 'money_compare';
   if (/\bwhat did i (last |just |most recently )?(say|write|note|jot|mention) (about|on|regarding)\b|\b(my )?(last|latest) note (on|about|for)\b/i.test(lower)) return 'notes';
   if (/\b(anything|something|what) (do |else )?i (need|have|should|got) (to )?(follow[- ]?up|do|handle|check|get back) (with|on|about|for|to)\b|\bfollow[- ]?up with (?!leads?\b)[a-z]+/i.test(lower)) return 'person_followup';
@@ -80,6 +115,7 @@ export const INTENT_TOOL_NAMES = {
   money: ['get_revenue_summary', 'get_owner_pay_summary', 'list_marketing_spend'],
   money_compare: ['compare_revenue_periods', 'get_revenue_summary'],
   take_home: ['get_owner_pay_summary'],
+  seo: ['get_seo_overview', 'get_seo_opportunities', 'get_local_search_demand', 'get_seo_competitors', 'get_seo_seasonality', 'get_customer_geography', 'get_local_authority', 'get_seo_connections', 'check_service_area', 'update_seo_recommendation'],
   person_followup: ['get_customer_context', 'list_business_notes', 'list_reminders', 'list_lead_followups'],
   notes: ['list_business_notes', 'resolve_business_note', 'capture_business_note'],
   customer_history: ['get_customer_context', 'get_job_detail', 'get_vehicle_jobs', 'list_business_notes'],
@@ -98,6 +134,7 @@ const ROUTING_TEXT = {
   unpaid: 'This turn is specifically about unpaid balances. Use get_unpaid_jobs and stay on it; do not append unrelated business status.',
   money: 'This turn is specifically about money. If the user says revenue/gross/sales/collected, use get_revenue_summary. If they say net profit, use get_revenue_summary. Only use get_owner_pay_summary for take-home/owner pay/after-fees-and-reserve. Preserve the requested period exactly: this month is not last 30 days. Do not append unrelated reminders, leads, jobs, or notes.',
   notes: 'This turn is specifically about captured owner notes. Search the notes (list_business_notes with the person\'s name as query, scope all). A person in a note does NOT need a customer record — never say they are "not a customer" or ask for their phone when a note exists. For "what did I last say", give the most recent note. Stay on notes only.',
+  seo: 'This is an SEO / local-growth question. Use the SEO tools only. Lead with LOCAL business impact (local visibility, GBP actions, local leads, bookings), never raw traffic. Use the locality labels exactly as returned (likely_local is not confirmed). Anything outside the 30-mile service area is an expansion decision, not a recommendation. If a data source is not connected, say so plainly instead of guessing.',
   take_home: 'The owner asked only for take-home. Call get_owner_pay_summary for exactly the requested period and answer with that period\'s take-home (and its breakdown if useful). Do not lead with or add revenue or net profit for any other period.',
   money_compare: 'The owner wants to know exactly which jobs make the difference between two periods. Call compare_revenue_periods with both periods (e.g. last_30_days vs this_month) and list the jobs in `differences` with their amounts and dates. Never say "likely" or ask the owner to remember; the rows are authoritative.',
   person_followup: 'The owner asks what is outstanding with one person. Use get_customer_context with their name (it covers customers, bookings, leads AND owner notes/reminders — a customers row is not required) and answer only from its openItems, owner notes and reminders. If nothing is open, say so.',

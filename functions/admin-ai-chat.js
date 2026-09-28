@@ -28,7 +28,10 @@
 
 import { createBusinessOps, cleanSearchText, writeResult } from './_lib/business-data.js';
 import { planTurn, updateContext, guardFinalText, projectForFacet } from './_lib/jarvis-context.js';
-import { isLikelyNaturalBusinessNote, classifyFocusedIntent, focusedRoutingInstruction, INTENT_TOOL_NAMES } from './_lib/jarvis-intent.js';
+import { isLikelyNaturalBusinessNote, classifyWithContext, focusedRoutingInstruction, INTENT_TOOL_NAMES } from './_lib/jarvis-intent.js';
+import { createSeoStore } from './_lib/seo/store.js';
+import { createSeoOps } from './_lib/seo/ops.js';
+import { isInsideServiceArea } from '../shared/seo/service-area.js';
 import { ownerPaySettings } from '../shared/business-metrics.js';
 import { SETTABLE_JOB_STATUSES, PAYMENT_METHODS, leadStatusUpdate, leadFollowUpReason, isValidYmd, isValidApptTime } from '../shared/business-rules.js';
 import { jobEvidence } from '../shared/job-context.js';
@@ -188,6 +191,7 @@ function ndjsonFinal(text, dataPayload = null) {
   const encoder = new TextEncoder();
   let body = '';
   if (dataPayload) body += JSON.stringify({ type: 'data', tool: 'analyze_lead', payload: dataPayload }) + '\n';
+  body += JSON.stringify({ type: 'ui_mode', mode: 'ops' }) + '\n';
   body += JSON.stringify({ type: 'final', text }) + '\n';
   return new Response(encoder.encode(body), {
     headers: { 'Content-Type': 'application/x-ndjson; charset=utf-8', 'Cache-Control': 'no-cache' },
@@ -238,6 +242,14 @@ FACTS ONLY FROM THIS TURN'S RECORDS:
 - [CONTEXT] notes in the user's message come from the server: they say which record "that", "her", "each one", or "yes" refers to, and usually include a fresh lookup of it. A name or vehicle in the current message always replaces the earlier subject.
 - If you can't tell which record the owner means, ask one short question. Never guess.
 
+SEO / LOCAL GROWTH (local-first — GID can only serve ~30 miles around Flagstaff):
+- The goal is qualified LOCAL discovery -> local leads -> booked jobs -> profitable local revenue. Raw traffic is tertiary: never headline "traffic is up"; say what happened to local visibility, GBP actions, local leads and bookings.
+- Use locality labels exactly as tools return them. Search Console never proves where a searcher is — "likely local" is not "confirmed local". Don't infer a city or ZIP the data doesn't have.
+- Places or demand beyond the 30-mile radius are expansion decisions for the owner, never recommendations. Use check_service_area; never decide geography yourself.
+- Never suggest copy implying NAU affiliation/endorsement/on-campus operation, and never storefront language ("visit our shop") — GID is mobile.
+- Mobile mechanics are the primary competitors; Reddit/YouTube/RepairPal etc. only compete for search results.
+- If a data source isn't connected, say which one and what it would add — don't estimate its numbers.
+
 WRITES — NEVER CLAIM WHAT DIDN'T HAPPEN:
 - Only say done/saved/updated/cancelled/recorded/sent/changed after a write tool in THIS turn returned ok:true (verified:true). Report its "changed" values.
 - If a write returned an error, or needs_confirmation, say exactly that — nothing was changed yet. The server replaces any unsupported success claim.
@@ -279,6 +291,13 @@ OWNER ASSISTANT BEHAVIOR:
 - CRITICAL: For relative reminders like 'in 2 minutes', 'in 3 hours', or 'in 2 days', NEVER calculate a clock time yourself. Use create_reminder with due_in_minutes (2 minutes = 2, 3 hours = 180, 2 days = 2880). Use due_at_local only when Michael gives a calendar/clock time like 'tomorrow at 9 AM' or 'Friday at 3'.
 
 Today's date context is provided in each request — use it for "today", "this week", "next Tuesday" type questions.`;
+
+// SEO tool -> SEO Mode panel the Command Center should bring to the center.
+const SEO_FOCUS = {
+  get_seo_overview: 'overview', get_seo_opportunities: 'opportunities', update_seo_recommendation: 'opportunities',
+  get_local_search_demand: 'demand', get_seo_competitors: 'competitors', get_seo_seasonality: 'seasonality',
+  get_customer_geography: 'map', check_service_area: 'map', get_local_authority: 'authority', get_seo_connections: 'connections',
+};
 
 const TOOLS = [
   {
@@ -690,6 +709,60 @@ const TOOLS = [
     },
   },
   {
+    name: 'get_seo_overview',
+    description: "Local-first SEO/growth overview for a period: local search visibility, local organic clicks, GBP actions, local leads/bookings/conversion (primary); nonbranded vs branded local, local CTR/position (secondary); total/nonlocal traffic (tertiary); locality breakdown (confirmed/likely/unknown/nonlocal); which data sources are connected.",
+    input_schema: { type: 'object', properties: { days: { type: 'number', description: 'Window length, default 28.' } } },
+  },
+  {
+    name: 'get_seo_opportunities',
+    description: 'Ranked SEO recommendations from deterministic detectors (CTR, striking distance, local demand gaps, GBP drops, review velocity, speed, technical, competitor moves, citations, ads outside the area, seasonal prep, expansion decisions). Each has an id for update_seo_recommendation.',
+    input_schema: { type: 'object', properties: { status: { type: 'string', description: 'open (default), accepted, applied, measured, rejected, all' } } },
+  },
+  {
+    name: 'get_local_search_demand',
+    description: 'Local search demand by service (clusters), local demand gaps GID offers but is underrepresented in, demand for services GID refers out, and demand from places outside the service area.',
+    input_schema: { type: 'object', properties: { days: { type: 'number' } } },
+  },
+  {
+    name: 'get_seo_competitors',
+    description: 'Local competitor landscape weighted by customer competition (mobile mechanics first), review velocity vs GID, services they promote that GID offers, and recent website changes.',
+    input_schema: { type: 'object', properties: {} },
+  },
+  {
+    name: 'get_seo_seasonality',
+    description: "Measured seasonal patterns (NAU calendar periods, cold snaps) in local searches and leads — only patterns the data supports — plus any upcoming forecast cold snap.",
+    input_schema: { type: 'object', properties: {} },
+  },
+  {
+    name: 'get_customer_geography',
+    description: 'Where customers come from: booked jobs by service-area community (aggregated, no addresses), plus how many were outside the area or unknown.',
+    input_schema: { type: 'object', properties: {} },
+  },
+  {
+    name: 'get_local_authority',
+    description: 'Local authority/citation opportunities (listings, chamber, local orgs) scored for local value, and listing consistency issues (name/phone/website, service-area address rules).',
+    input_schema: { type: 'object', properties: {} },
+  },
+  {
+    name: 'get_seo_connections',
+    description: 'Status of every SEO data source (connected, not_configured, needs_authorization, pending_approval, manual_only) and recent sync runs.',
+    input_schema: { type: 'object', properties: {} },
+  },
+  {
+    name: 'check_service_area',
+    description: 'Deterministic 30-mile service-area check for a place, address or ZIP. Returns inside true/false/null and distance. Use this instead of judging geography yourself.',
+    input_schema: { type: 'object', properties: { location: { type: 'string' } }, required: ['location'] },
+  },
+  {
+    name: 'update_seo_recommendation',
+    description: 'Change an SEO recommendation\'s state: accept, reject (remembered so it is not re-suggested; "never" mutes that type), dismiss (snooze 30 days), mark_applied (starts before/after monitoring), reopen. Low-risk and reversible; confirm what changed afterward.',
+    input_schema: {
+      type: 'object',
+      properties: { id: { type: 'string' }, action: { type: 'string', description: 'accept, reject, dismiss, mark_applied, or reopen' }, reason: { type: 'string' }, note: { type: 'string' } },
+      required: ['id', 'action'],
+    },
+  },
+  {
     name: 'send_customer_email',
     description: "Send an email to a customer. This goes out for real and can't be unsent, so it requires confirmation: call this WITHOUT confirmed=true first to preview the recipient/subject/body, describe that to the person and ask them to confirm, then call again WITH confirmed=true only after they say yes.",
     input_schema: {
@@ -755,7 +828,8 @@ export async function onRequestPost({ request, env }) {
   const latestUserMessage = [...incomingMessages].reverse().find(m => m?.role === 'user');
   const latestUserText = typeof latestUserMessage?.content === 'string' ? latestUserMessage.content : '';
   const forceNaturalNoteCapture = isLikelyNaturalBusinessNote(latestUserText);
-  const focusedIntent = forceNaturalNoteCapture ? null : classifyFocusedIntent(latestUserText);
+  const priorContext = payload.context && typeof payload.context === 'object' ? payload.context : null;
+  const focusedIntent = forceNaturalNoteCapture ? null : classifyWithContext(latestUserText, priorContext);
   if (isPastedLeadForm(latestUserText)) {
     const fields = parseRawLeadForm(latestUserText);
     const analysis = analyzeLeadFields({
@@ -800,6 +874,9 @@ export async function onRequestPost({ request, env }) {
 
   // Deterministic business operations (shared with the voice endpoint).
   const ops = createBusinessOps({ sbGet, sbPatch, sbInsert });
+  // SEO/growth operations (functions/_lib/seo/ops.js), created on first use.
+  let seoOps = null;
+  const seo = () => (seoOps ||= createSeoOps({ store: createSeoStore({ supabaseUrl, serviceKey }), env }));
 
   function phoenixParts(date = new Date()) {
     const parts = new Intl.DateTimeFormat('en-CA', {
@@ -1231,6 +1308,27 @@ export async function onRequestPost({ request, env }) {
       case 'get_owner_pay_summary':
         return await ops.ownerPaySummary({ period: input.period, periodDays: input.periodDays });
 
+      case 'get_seo_overview':
+        return await seo().overview({ days: Math.min(Math.max(Number(input.days || 28), 7), 180) });
+      case 'get_seo_opportunities':
+        return await seo().opportunities({ status: String(input.status || 'open'), limit: 15 });
+      case 'get_local_search_demand':
+        return await seo().localDemand({ days: Math.min(Math.max(Number(input.days || 28), 7), 180) });
+      case 'get_seo_competitors':
+        return await seo().competitors();
+      case 'get_seo_seasonality':
+        return await seo().seasonality();
+      case 'get_customer_geography':
+        return await seo().customerGeography({});
+      case 'get_local_authority':
+        return await seo().authority();
+      case 'get_seo_connections':
+        return await seo().connections();
+      case 'check_service_area':
+        return { location: input.location, ...isInsideServiceArea(String(input.location || '')) };
+      case 'update_seo_recommendation':
+        return await seo().updateRecommendation({ id: String(input.id || ''), action: String(input.action || ''), reason: String(input.reason || ''), note: String(input.note || '') });
+
       case 'send_customer_email': {
         if (!input.confirmed) {
           return {
@@ -1259,7 +1357,6 @@ export async function onRequestPost({ request, env }) {
   // Conversation state from the previous turn (record ids, pending
   // confirmation) — see _lib/jarvis-context.js. Web sends it back in the body;
   // Telegram stores it per chat.
-  const priorContext = payload.context && typeof payload.context === 'object' ? payload.context : null;
   const plan = forceNaturalNoteCapture ? { mode: 'note', keepHistory: true, instruction: '' } : planTurn(latestUserText, priorContext, focusedIntent);
   // Self-contained questions (revenue, briefing…) get only the current message,
   // so an earlier subject can't leak into the answer.
@@ -1300,6 +1397,7 @@ export async function onRequestPost({ request, env }) {
       const result = await runTool(name, input);
       turnCalls.push({ name, input, ok: true, result });
       await send({ type: 'tool_result', tool: name, ok: true });
+      if (SEO_FOCUS[name]) await send({ type: 'ui_focus', mode: 'seo', target: SEO_FOCUS[name], tool: name });
       if (PRESENTABLE_TOOLS.has(name) && result && !result.needs_confirmation) {
         await send({ type: 'data', tool: name, payload: result });
       }
@@ -1317,6 +1415,10 @@ export async function onRequestPost({ request, env }) {
     const guarded = guardFinalText(text, turnCalls);
     const nextContext = updateContext(priorContext, turnCalls, { intent: focusedIntent, plan });
     await send({ type: 'context', context: nextContext });
+    // Trusted UI mode for this turn: SEO only when the turn was about SEO;
+    // anything else returns the Command Center to operations.
+    const seoTurn = focusedIntent === 'seo' || turnCalls.some(c => c.ok && SEO_FOCUS[c.name]);
+    await send({ type: 'ui_mode', mode: seoTurn ? 'seo' : 'ops' });
     await send({ type: 'final', text: guarded.text, ...(guarded.overridden ? { guarded: true } : {}) });
   }
 

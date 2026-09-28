@@ -1,15 +1,18 @@
-import { Radar, Briefcase, Users, TrendingUp, Settings, Lock } from 'lucide-react';
+import { Radar, Briefcase, Users, TrendingUp, Settings, Lock, MapPin } from 'lucide-react';
 import { COLORS } from '../tokens';
 
+const SEO_GREEN = '#3DFFA0';
+
 const NAV_ITEMS = [
-  { icon: Radar, label: 'Command', active: true, href: undefined },
+  { icon: Radar, label: 'Command', active: true, href: undefined, mode: 'ops' as const },
+  { icon: MapPin, label: 'SEO', active: false, href: undefined, mode: 'seo' as const },
   { icon: Briefcase, label: 'Jobs', href: '/admin' },
   { icon: Users, label: 'Customers', href: '/admin' },
   { icon: TrendingUp, label: 'Marketing', href: '#marketing' },
   { icon: Settings, label: 'Hub', href: '/admin' },
 ];
 
-export function Sidebar({ onLock }: { onLock: () => void }) {
+export function Sidebar({ onLock, mode = 'ops', onMode }: { onLock: () => void; mode?: 'ops' | 'seo'; onMode?: (m: 'ops' | 'seo') => void }) {
   return (
     <div
       className="hidden lg:flex flex-col items-center w-[68px] shrink-0 py-4 gap-1 border-r"
@@ -18,17 +21,20 @@ export function Sidebar({ onLock }: { onLock: () => void }) {
       <div className="w-8 h-8 rounded-full mb-4 flex items-center justify-center" style={{ border: `1px solid ${COLORS.accent}`, boxShadow: `0 0 12px ${COLORS.accent}55` }}>
         <span className="text-[10px] font-bold" style={{ color: COLORS.accent }}>G</span>
       </div>
-      {NAV_ITEMS.map(item => {
+      {NAV_ITEMS.map(raw => {
+        const item = raw.mode ? { ...raw, active: raw.mode === mode } : raw;
+        const tint = item.mode === 'seo' ? SEO_GREEN : COLORS.accent;
         const Icon = item.icon;
         const body = (
           <div
             className={`w-11 h-11 flex flex-col items-center justify-center gap-0.5 rounded-lg transition-colors ${item.active ? 'bg-[rgba(79,232,255,0.1)]' : 'hover:bg-white/5'}`}
-            style={item.active ? { border: `1px solid ${COLORS.border}`, boxShadow: `0 0 12px rgba(79,232,255,0.15)` } : undefined}
+            style={item.active ? { border: `1px solid ${tint}55`, boxShadow: `0 0 12px ${tint}26` } : undefined}
           >
-            <Icon size={16} color={item.active ? COLORS.accent : COLORS.textMuted} />
-            <span className="text-[7px] uppercase tracking-wide" style={{ color: item.active ? COLORS.accent : COLORS.textFaint }}>{item.label}</span>
+            <Icon size={16} color={item.active ? tint : COLORS.textMuted} />
+            <span className="text-[7px] uppercase tracking-wide" style={{ color: item.active ? tint : COLORS.textFaint }}>{item.label}</span>
           </div>
         );
+        if (item.mode) return <button key={item.label} title={item.label} onClick={() => onMode?.(item.mode!)}>{body}</button>;
         return item.href ? (
           <a key={item.label} href={item.href} title={item.label}>{body}</a>
         ) : (

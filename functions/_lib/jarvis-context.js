@@ -47,10 +47,12 @@ const NEGATIVE = /^\s*(no|nope|nah|don'?t|never ?mind|stop|hold off|wait|not yet
 // an old subject (e.g. "Lisa") can't leak into a revenue answer.
 export const SELF_CONTAINED_INTENTS = new Set(['money', 'take_home', 'briefing', 'action_center', 'waiting_on', 'data_health', 'unpaid', 'test_reminder_cleanup']);
 
+export const SEO_TOOLS = new Set(['get_seo_overview', 'get_seo_opportunities', 'get_local_search_demand', 'get_seo_competitors', 'get_seo_seasonality', 'get_customer_geography', 'get_local_authority', 'get_seo_connections', 'check_service_area', 'update_seo_recommendation']);
+
 export const WRITE_TOOLS = new Set([
   'create_reminder', 'complete_reminder', 'cleanup_test_reminders', 'update_lead_status', 'set_lead_followup',
   'log_lead_contact', 'capture_business_note', 'resolve_business_note', 'reschedule_job', 'add_marketing_spend',
-  'log_call', 'update_job_status', 'mark_job_paid', 'cancel_job', 'reopen_job', 'send_customer_email',
+  'log_call', 'update_job_status', 'mark_job_paid', 'cancel_job', 'reopen_job', 'send_customer_email', 'update_seo_recommendation',
 ]);
 
 // Names and vehicles the CURRENT message mentions explicitly.
@@ -162,6 +164,17 @@ export function projectForFacet(tool, result, facet) {
 // { mode, prefetch?, instruction, keepHistory }.
 export function planTurn(text, ctx, intent) {
   const c = ctx || {};
+  // SEO turns: no chat history (no customer context leaks in), but the
+  // recommendations shown last are listed by id so "reject the second one" works.
+  if (intent === 'seo') {
+    const recs = c.seoResultSet?.items || [];
+    return {
+      mode: 'seo', keepHistory: false,
+      instruction: recs.length
+        ? `SEO recommendations shown in the previous answer, in order: ${recs.map((r, i) => `${i + 1}) ${r.label} [id ${r.id}]`).join('; ')}. Use these ids for update_seo_recommendation; ask if it's unclear which one is meant.`
+        : 'Answer ONLY the current SEO question.',
+    };
+  }
   if (SELF_CONTAINED_INTENTS.has(intent)) {
     return { mode: 'self_contained', keepHistory: false, instruction: 'Answer ONLY the current message. Do not mention anything from earlier conversation.' };
   }
@@ -251,6 +264,11 @@ const personLabel = r => `${r?.fname || ''} ${r?.lname || ''}`.trim() || r?.cust
 export function updateContext(prev, calls, { intent = null, plan = null, now = new Date() } = {}) {
   const ctx = { ...(prev || {}), domain: intent || prev?.domain || null, updatedAt: now.toISOString() };
   delete ctx.pendingAction;
+  // Active SEO entity: set by a successful SEO tool call this turn, cleared by
+  // any non-SEO turn, so stale SEO context can't capture later business follow-ups.
+  const seoCall = calls.filter(c => okResult(c) && SEO_TOOLS.has(c.name)).pop();
+  if (seoCall) ctx.activeSeo = { tool: seoCall.name, at: now.toISOString() };
+  else if (intent !== 'seo') { delete ctx.activeSeo; delete ctx.seoResultSet; }
   if (plan?.clearEntities) { ctx.customer = null; ctx.activeBookingId = null; ctx.vehicle = null; ctx.resultSet = null; }
 
   for (const call of calls) {
@@ -302,6 +320,9 @@ export function updateContext(prev, calls, { intent = null, plan = null, now = n
         break;
       case 'get_revenue_summary':
         ctx.periods = [...(ctx.periods || []), r.periodKey].filter(Boolean).slice(-2);
+        break;
+      case 'get_seo_opportunities':
+        if (Array.isArray(r)) ctx.seoResultSet = { type: 'seo_recommendations', items: cap(r.map(x => ({ id: x.id, label: x.title }))) };
         break;
       case 'compare_revenue_periods':
         ctx.resultSet = { type: 'jobs', items: cap((r.differences || []).map(d => ({ id: d.bookingId, label: `${d.customer || ''} ${d.vehicle || ''}`.trim() }))) };

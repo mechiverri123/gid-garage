@@ -40,7 +40,8 @@ export type GidUiEvent =
   | { type: 'data.updated'; tool: string; payload: any }
   | { type: 'ai.responding'; text: string }
   | { type: 'ai.complete' }
-  | { type: 'ai.error'; message: string };
+  | { type: 'ai.error'; message: string }
+  | { type: 'ui.focus'; mode: 'seo'; target: string };
 
 // Converts one raw NDJSON line from admin-ai-chat.js into the semantic
 // event above. Pure function, no side effects — safe for anything to call.
@@ -53,6 +54,7 @@ export function normalizeStreamEvent(raw: any): GidUiEvent | null {
     case 'data': return { type: 'data.updated', tool: raw.tool, payload: raw.payload };
     case 'final': return { type: 'ai.complete' };
     case 'error': return { type: 'ai.error', message: raw.message || 'unknown error' };
+    case 'ui_focus': return { type: 'ui.focus', mode: 'seo', target: raw.target };
     default: return null;
   }
 }

@@ -58,6 +58,16 @@ export const TOOL_LABELS: Record<string, string> = {
   mark_job_paid: 'Recording payment',
   get_owner_pay_summary: 'Calculating take-home pay',
   send_customer_email: 'Sending email',
+  get_seo_overview: 'Reading local search performance',
+  get_seo_opportunities: 'Ranking local SEO opportunities',
+  get_local_search_demand: 'Analyzing local search demand',
+  get_seo_competitors: 'Checking local competitors',
+  get_seo_seasonality: 'Checking local seasonality',
+  get_customer_geography: 'Mapping where customers come from',
+  get_local_authority: 'Checking local listings & authority',
+  get_seo_connections: 'Checking SEO data connections',
+  check_service_area: 'Checking the 30-mile service area',
+  update_seo_recommendation: 'Updating SEO recommendation',
 };
 export function toolLabel(tool: string): string {
   return TOOL_LABELS[tool] || tool.replace(/_/g, ' ');

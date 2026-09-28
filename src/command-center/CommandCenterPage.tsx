@@ -13,7 +13,7 @@
 //   admin-ai-chat.js   — streamed NDJSON agent (tool_call/tool_result/data/final)
 // ─────────────────────────────────────────────────────────────────────────
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { motion } from 'motion/react';
 import type { Lead } from './types';
 import { useBusinessSummary } from './hooks/useBusinessSummary';
@@ -36,6 +36,9 @@ import { MarketingPanel } from './components/MarketingPanel';
 import { CommandPalette, useCommandPalette } from './components/CommandPalette';
 import { CommandInput } from './components/CommandInput';
 import { PANEL, PANEL_PADDING, COLORS } from './tokens';
+import { SeoMode } from './seo/SeoMode';
+import type { SeoView } from './seo/seoTypes';
+import { applyUiEvent, INITIAL_UI_MODE, type UiModeEvent } from './seo/uiMode';
 
 const fadeRise = {
   hidden: { opacity: 0, y: 20, scale: 0.98 },
@@ -51,12 +54,20 @@ export function CommandCenterPage({ onLock }: { onLock: () => void }) {
 
   const voice = useLiveKitJarvis();
 
+  // Ops (default) vs green SEO Mode. SEO answers from Jarvis switch modes and
+  // bring the relevant panel to the center (structured ui_focus events).
+  const [ui, setUi] = useState(INITIAL_UI_MODE);
+  const onUiEvent = useCallback((e: UiModeEvent) => setUi(s => applyUiEvent(s, e)), []);
+  const setMode = useCallback((m: 'ops' | 'seo') => setUi(s => applyUiEvent(s, { type: 'manual', mode: m })), []);
+  const setSeoFocus = useCallback((v: SeoView) => setUi(s => applyUiEvent(s, { type: 'ui_focus', mode: 'seo', target: v })), []);
+  const { mode, seoFocus } = ui;
+
   const { chatMessages, asking, liveActivity, jarvisState, ask, clear } = useAdminAI(() => {
     loadSummary();
     loadLeads(leadStatusFilter || undefined);
   }, async (text) => {
     if (voice.connected) await voice.speakText(text);
-  });
+  }, onUiEvent);
 
   // Voice actions can change the same business records as the typed agent.
   // While the realtime session is open, refresh the dashboard quietly so a
@@ -91,6 +102,8 @@ export function CommandCenterPage({ onLock }: { onLock: () => void }) {
     { id: 'followup', label: 'Who needs follow-up', run: () => ask('who needs follow-up') },
     { id: 'unpaid', label: 'Unpaid invoices', run: () => ask("what's unpaid") },
     { id: 'takehome', label: 'Take-home this week', run: () => ask('what did I actually take home this week') },
+    { id: 'seo', label: 'SEO Mode (local search)', run: () => setMode('seo') },
+    { id: 'seo-brief', label: 'How is local search doing?', run: () => ask('How is my local SEO doing this month?') },
     { id: 'refresh', label: 'Refresh dashboard', run: () => loadSummary() },
   ]);
 
@@ -122,13 +135,16 @@ export function CommandCenterPage({ onLock }: { onLock: () => void }) {
       <JobDetailPanel jobId={selectedJobId} onClose={() => setSelectedJobId(null)} />
       <LeadDetailPanel lead={selectedLead} onClose={() => setSelectedLead(null)} />
 
-      <Sidebar onLock={onLock} />
+      <Sidebar onLock={onLock} mode={mode} onMode={setMode} />
 
       <div className="flex-1 flex flex-col min-w-0">
         <TopStatusBar onSearch={() => palette.setOpen(true)} onRefresh={loadSummary} streamOk={!error} />
 
         {/* ── Scrollable middle region ─────────────────────────────────── */}
         <div className="flex-1 overflow-y-auto px-4 sm:px-6 lg:px-8 py-4 space-y-4">
+          {mode === 'seo' ? (
+            <SeoMode focus={seoFocus} onFocus={setSeoFocus} coreState={coreState} liveActivity={liveActivity} />
+          ) : (<>
           {/* ── Three-zone hero: status | AI CORE (dominant) | attention ──
               items-start is the key fix here: grid items default to
               stretching to match their tallest neighbor, which was
@@ -182,6 +198,7 @@ export function CommandCenterPage({ onLock }: { onLock: () => void }) {
               <MarketingPanel marketingFunnel={summary.marketingFunnel} onAddSpend={submitSpend} />
             </div>
           </motion.div>
+          </>)}
         </div>
 
         {/* ── Persistent bottom Ask GID bar ────────────────────────────── */}

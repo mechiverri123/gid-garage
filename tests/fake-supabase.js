@@ -76,6 +76,8 @@ export function fakeFetch(db, claudeScript) {
         if (existing) Object.assign(existing, row); else db.tables.jarvis_proactive_state.push(row);
         return new Response(null, { status: 201 });
       }
+      // PostgREST accepts one object or an array of rows.
+      if (Array.isArray(row)) return json(await Promise.all(row.map(r => db.sbInsert(t, r))), 201);
       return json([await db.sbInsert(t, row)], 201);
     }
     return json({ error: 'unsupported' }, 400);

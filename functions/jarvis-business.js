@@ -9,6 +9,21 @@
 // Body: { action: string, args?: object }  ->  { ok: true, result } | { ok: false, error }
 
 import { createBusinessOps } from './_lib/business-data.js';
+import { createSeoStore } from './_lib/seo/store.js';
+import { createSeoOps } from './_lib/seo/ops.js';
+import { isInsideServiceArea } from '../shared/seo/service-area.js';
+
+// Local SEO (read-only for voice; recommendation state changes stay in text/web).
+const SEO_ACTIONS = {
+  get_seo_overview: (seo, a) => seo.overview({ days: Number(a.days) || 28 }),
+  get_seo_opportunities: seo => seo.opportunities({ status: 'open', limit: 10 }),
+  get_local_search_demand: seo => seo.localDemand({}),
+  get_seo_competitors: seo => seo.competitors(),
+  get_seo_seasonality: seo => seo.seasonality(),
+  get_customer_geography: seo => seo.customerGeography({}),
+  get_seo_connections: seo => seo.connections(),
+  check_service_area: (seo, a) => isInsideServiceArea(String(a.location || '')),
+};
 
 const ACTIONS = {
   get_revenue_summary: (ops, a) => ops.revenueSummary({ period: a.period, include_contributions: a.include_contributions === true }),
@@ -48,7 +63,8 @@ export async function onRequestPost({ request, env }) {
   let body;
   try { body = await request.json(); } catch { return json({ ok: false, error: 'Invalid JSON' }, 400); }
   const run = ACTIONS[body?.action];
-  if (!run) return json({ ok: false, error: `Unsupported action. Use one of: ${Object.keys(ACTIONS).join(', ')}` }, 400);
+  const seoRun = SEO_ACTIONS[body?.action];
+  if (!run && !seoRun) return json({ ok: false, error: `Unsupported action. Use one of: ${[...Object.keys(ACTIONS), ...Object.keys(SEO_ACTIONS)].join(', ')}` }, 400);
 
   const base = `${supabaseUrl}/rest/v1`;
   const headers = { apikey: serviceKey, Authorization: `Bearer ${serviceKey}`, 'Content-Type': 'application/json' };
@@ -72,7 +88,10 @@ export async function onRequestPost({ request, env }) {
   };
 
   try {
-    const result = await run(createBusinessOps({ sbGet, sbPatch, sbInsert }), body.args && typeof body.args === 'object' ? body.args : {});
+    const args = body.args && typeof body.args === 'object' ? body.args : {};
+    const result = seoRun
+      ? await seoRun(createSeoOps({ store: createSeoStore({ supabaseUrl, serviceKey }), env }), args)
+      : await run(createBusinessOps({ sbGet, sbPatch, sbInsert }), args);
     return json({ ok: true, result });
   } catch (e) {
     return json({ ok: false, error: e?.message || String(e) }, 200);

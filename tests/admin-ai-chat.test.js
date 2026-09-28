@@ -274,3 +274,51 @@ test('P5: a take-home question gets only take-home — no this-month net profit'
   assert.doesNotMatch(allText(req), /net profit this month|\$250\.00/i);
   assert.deepEqual(r.calls, ['get_owner_pay_summary']);
 });
+
+// ---- SEO / local growth through Jarvis -------------------------------------------------
+
+test('SEO: a local-search question gets only SEO tools, no chat history, and moves the UI to the matching panel', async () => {
+  const db = fakeSupabase({ ...seed(), seo_recommendations: [], seo_provider_status: [] });
+  const r = await chat({
+    db,
+    messages: [
+      { role: 'user', content: 'What notes do I have about Lisa?' },
+      { role: 'assistant', content: 'One open note on Lisa.' },
+      { role: 'user', content: 'Who is my biggest local competitor?' },
+    ],
+    script: [claudeTool('get_seo_competitors', {}), claudeText('No local competitors are tracked yet.')],
+  });
+  const req = r.claudeRequests[0];
+  assert.equal(req.messages.length, 1);
+  assert.doesNotMatch(JSON.stringify(req.messages), /Lisa/);
+  assert.ok(req.tools.every(t => /seo|service_area|customer_geography|local_/.test(t.name)), req.tools.map(t => t.name).join(','));
+  assert.deepEqual(r.events.filter(e => e.type === 'ui_focus').map(e => [e.mode, e.target]), [['seo', 'competitors']]);
+});
+
+test('SEO: "reject the second one" uses the ids from the recommendations just shown and is verified', async () => {
+  const recs = [
+    { id: 'ctr_opportunity:mobile-mechanic-flagstaff', type: 'ctr_opportunity', title: 'Win more clicks for "mobile mechanic flagstaff"', status: 'open', score: 80 },
+    { id: 'demand_gap:battery', type: 'demand_gap', title: 'Local demand for battery / no-start', status: 'open', score: 70 },
+  ];
+  const db = fakeSupabase({ ...seed(), seo_recommendations: recs, seo_preferences: [] });
+  const shown = await chat({ db, messages: [{ role: 'user', content: 'What SEO opportunities do I have?' }], script: [claudeTool('get_seo_opportunities', {}), claudeText('1) CTR… 2) battery gap')] });
+  assert.equal(shown.context.domain, 'seo');
+  assert.ok(shown.context.activeSeo);
+  // SEO recommendations get their own slot; the business result set is untouched.
+  assert.deepEqual(shown.context.seoResultSet.items.map(i => i.id), recs.map(x => x.id));
+  assert.equal(shown.context.resultSet, undefined);
+
+  const rej = await chat({ db, context: shown.context, messages: [{ role: 'user', content: 'reject the second one' }],
+    script: [claudeTool('update_seo_recommendation', { id: 'demand_gap:battery', action: 'reject', reason: 'not now' }), claudeText("Rejected — I won't suggest the battery gap again for 90 days.")] });
+  assert.match(JSON.stringify(rej.claudeRequests[0].messages), /2\) Local demand for battery \/ no-start \[id demand_gap:battery\]/);
+  assert.equal(rej.guarded, false);
+  assert.equal(db.tables.seo_recommendations.find(x => x.id === 'demand_gap:battery').status, 'rejected');
+  assert.equal(db.tables.seo_preferences[0].key, 'demand_gap:battery');
+});
+
+test('SEO: service-area eligibility is decided by code, not the model', async () => {
+  const r = await chat({ messages: [{ role: 'user', content: 'Is Williams in my service area?' }], script: [claudeTool('check_service_area', { location: 'Williams, AZ' }), claudeText('No — about 31 miles out.')] });
+  const result = JSON.parse(r.claudeRequests[1].messages.at(-1).content[0].content);
+  assert.deepEqual([result.inside, result.requiresExpansionDecision], [false, true]);
+  assert.deepEqual(r.events.filter(e => e.type === 'ui_focus').map(e => e.target), ['map']);
+});

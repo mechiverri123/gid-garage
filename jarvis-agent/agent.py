@@ -106,6 +106,9 @@ BACKEND_ACTIONS = {
     "get_customer_context", "get_job_detail", "get_action_center", "get_unpaid_jobs",
     "get_data_health", "mark_job_paid", "compare_revenue_periods", "get_vehicle_jobs",
     "find_people", "cancel_job", "reopen_job",
+    # Local SEO (read-only by voice)
+    "get_seo_overview", "get_seo_opportunities", "get_local_search_demand", "get_seo_competitors",
+    "get_seo_seasonality", "get_customer_geography", "get_seo_connections", "check_service_area",
 }
 
 

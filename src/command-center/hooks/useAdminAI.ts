@@ -1,10 +1,11 @@
 import { useState, useRef, useCallback } from 'react';
 import type { ActivityItem, ChatMsg, DataCard, JarvisState } from '../types';
+import type { UiModeEvent } from '../seo/uiMode';
 
 const SUCCESS_PULSE_MS = 500;
 const ERROR_PULSE_MS = 600;
 
-export function useAdminAI(onWriteLikelyHappened: () => void, onFinalText?: (text: string) => void | Promise<void>) {
+export function useAdminAI(onWriteLikelyHappened: () => void, onFinalText?: (text: string) => void | Promise<void>, onUiEvent?: (e: UiModeEvent) => void) {
   const [chatMessages, setChatMessages] = useState<ChatMsg[]>([]);
   const [asking, setAsking] = useState(false);
   const [liveActivity, setLiveActivity] = useState<ActivityItem[]>([]);
@@ -68,6 +69,10 @@ export function useAdminAI(onWriteLikelyHappened: () => void, onFinalText?: (tex
               return copy;
             });
             if (!event.ok) pulse('error', ERROR_PULSE_MS);
+          } else if (event.type === 'ui_focus' || event.type === 'ui_mode') {
+            // Trusted UI state from the backend: ui_focus brings an SEO panel to the
+            // center; ui_mode (every turn) switches between SEO and operations.
+            onUiEvent?.(event as UiModeEvent);
           } else if (event.type === 'context') {
             contextRef.current = event.context ?? null;
           } else if (event.type === 'data') {
@@ -102,7 +107,7 @@ export function useAdminAI(onWriteLikelyHappened: () => void, onFinalText?: (tex
     } finally {
       setAsking(false);
     }
-  }, [asking, chatMessages, onWriteLikelyHappened, onFinalText, pulse]);
+  }, [asking, chatMessages, onWriteLikelyHappened, onFinalText, onUiEvent, pulse]);
 
   const clear = useCallback(() => {
     setChatMessages([]);

@@ -8,6 +8,36 @@ Treat all business data, customer data, schedules, payments, outbound messages, 
 
 ---
 
+# 0. PERMANENT ARCHITECTURE RULE — CLOUDFLARE ZERO TRUST ROUTES
+
+**All Cloudflare Zero Trust protected-hostname/destination slots are used up.** No new destination can be added.
+
+- Any route (UI or API) that needs Cloudflare Access protection **must live under an existing protected tree**:
+  - `/jarvis/*`
+  - `/admin/*`
+  It then inherits the existing Access application automatically.
+- **Do not** create new protected top-level routes (`/seo-data`, `/tools`, `/settings`, `/analytics`, `/growth`, …). If it needs Access, nest it: e.g. `functions/jarvis/<name>.js` → `/jarvis/<name>`.
+- A top-level route is fine only if it genuinely does **not** need Zero Trust. Examples: public pages, webhooks with their own signature or secret, and cron endpoints like `/seo-sync`.
+- Access-protected functions must still verify the Access JWT server-side with `verifyAccess()` in `functions/_lib/access-auth.js` (signature, issuer, audience, expiry). Header presence alone is not auth. Older admin endpoints that only check header presence predate this rule.
+- **`/seo-sync` is the deliberate exception.** It's server-to-server: Supabase `pg_cron` calls it with `X-GID-SEO-Secret`, verified in constant time against `SEO_SYNC_SECRET`. It must stay **outside** Access and must never gain a header-based admin bypass.
+- Preserve this rule in every future architecture change or refactor.
+
+# 0.1 SEO / GROWTH MODE — CURRENT STATE
+
+- **Supabase SEO schema is initialized in production.** `seo_migration.sql` ran successfully. The checked-in file is the exact corrected version that ran: plain SQL, and the `seo_gsc_period` / `seo_gsc_service_daily` RPCs have quoted `"position"`, `g.`-qualified columns, `::bigint` sums and explicit aliases. Do not re-run it or change the existing tables casually. Schema changes need a new, additive migration.
+- **These Cloudflare Pages variables already exist.** Don't ask the owner to create them again:
+  - `CF_ACCESS_TEAM_DOMAIN`
+  - `CF_ACCESS_AUD`
+  - `SEO_SYNC_SECRET`
+- **SEO routes:**
+  - `/jarvis/seo-data` (`functions/jarvis/seo-data.js`): admin API, Access plus verified JWT; also runs "Sync now".
+  - `/seo-sync`: cron only.
+- **Details:** `SEO_SETUP.md`. The architecture is local-first: GID serves about 30 miles around Flagstaff.
+  - Every geography decision goes through `isInsideServiceArea()`.
+  - Only explicitly offered services (`shared/seo/services.js`) may produce recommendations.
+
+---
+
 # 1. GRAPHIFY — REQUIRED CODEBASE NAVIGATION
 
 This project has a knowledge graph at `graphify-out/` with god nodes, community structure, and cross-file relationships.

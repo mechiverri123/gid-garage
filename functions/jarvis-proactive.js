@@ -25,6 +25,8 @@
 
 import { resolvePeriodWindow, collectedRevenue, jobFromRow } from '../shared/business-metrics.js';
 import { leadFollowUpReason, unpaidJobs, isCancelled } from '../shared/business-rules.js';
+import { createSeoStore } from './_lib/seo/store.js';
+import { createSeoOps } from './_lib/seo/ops.js';
 
 const TZ = 'America/Phoenix';
 const HISTORY_TEXT_LIMIT = 12000;
@@ -399,6 +401,29 @@ async function deliverDueReminders(env, botToken, chatId, now, actions) {
   actions.push(`reminders:${rows.length}`);
 }
 
+// Weekly local-SEO briefing: Mondays at JARVIS_SEO_BRIEF_HOUR (default 9),
+// once per week, only when there is real local data to report.
+async function maybeSeoWeeklyBrief(env, botToken, chatId, parts, snapshot, actions, now) {
+  const weekday = new Intl.DateTimeFormat('en-US', { timeZone: TZ, weekday: 'short' }).format(now);
+  if (weekday !== 'Mon' || Number(parts.hour) !== configuredHour(env.JARVIS_SEO_BRIEF_HOUR, 9) || Number(parts.minute) > 29) return;
+  const stateKey = `seo_weekly:${snapshot.today}`;
+  if (await getState(env, stateKey)) return;
+  const { url, key } = supabaseConfig(env);
+  const { text } = await createSeoOps({ store: createSeoStore({ supabaseUrl: url, serviceKey: key }), env, now }).briefing();
+  if (!text) {
+    await setState(env, stateKey, { skipped: true, reason: 'no_local_seo_data', checked_at: new Date().toISOString() });
+    actions.push('seo_weekly:quiet');
+    return;
+  }
+  const message = `Local SEO — last 7 days
+
+${text}`;
+  await sendTelegramText(botToken, chatId, message);
+  await saveAssistantHistory(env, chatId, message);
+  await setState(env, stateKey, { sent_at: new Date().toISOString() });
+  actions.push('seo_weekly:sent');
+}
+
 async function maybeMorningBrief(env, botToken, chatId, parts, snapshot, actions) {
   const hour = Number(parts.hour);
   const minute = Number(parts.minute);
@@ -556,6 +581,7 @@ export async function onRequestPost({ request, env }) {
       () => maybeLeadAlert(env, botToken, chatId, parts, snapshot, actions),
       () => maybeUnpaidAlert(env, botToken, chatId, parts, snapshot, actions),
       () => maybeEveningPreview(env, botToken, chatId, parts, snapshot, actions),
+      () => maybeSeoWeeklyBrief(env, botToken, chatId, parts, snapshot, actions, now),
     ]) {
       try {
         await task();
