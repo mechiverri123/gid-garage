@@ -163,6 +163,27 @@ export function collectedRevenue(jobs, inWindow) {
   return { total, jobCount };
 }
 
+// Collected revenue per day in one pass (for trend charts). Same two paths as
+// jobContribution, so each day's value equals collectedRevenue(jobs, <that
+// single day>). dayOf(iso) -> 'YYYY-MM-DD' in the business timezone.
+// Multi-day totals must still use collectedRevenue (the invoice fallback
+// replaces a window's payments, so summing days can differ slightly).
+export function collectedByDay(jobs, dayOf) {
+  const out = new Map();
+  const add = (day, amount) => { if (day) out.set(day, (out.get(day) || 0) + amount); };
+  for (const j of jobs) {
+    const payments = parsePayments(j.payments);
+    const loggedTotal = payments.reduce((s, p) => s + num(p?.amount), 0);
+    const fallbackDay = j.jobStatus === 'PAID' && j.paidAt && loggedTotal < invoiceTotal(j) - 0.01 ? dayOf(j.paidAt) : null;
+    for (const p of payments) {
+      const day = p?.at ? dayOf(p.at) : null;
+      if (day && day !== fallbackDay) add(day, num(p.amount));
+    }
+    if (fallbackDay) add(fallbackDay, invoiceTotal(j));
+  }
+  return out;
+}
+
 // Dashboard net profit: for PAID jobs closed (paidAt) in-window,
 // amount paid − sales tax collected − parts cost.
 export function netProfit(jobs, inWindow) {

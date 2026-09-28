@@ -1,49 +1,62 @@
-// ── GID GARAGE — JARVIS COMMAND CENTER ───────────────────────────────────
-// App-shell layout: left nav rail + top status bar + scrollable middle +
-// persistent bottom Ask GID bar — a real operating-system composition
-// (sidebar, header, content, footer all fixed in their own flex regions)
-// rather than a single scrolling page of cards. Built with a flex-column
-// h-screen shell + overflow-y-auto on the middle region only, which keeps
-// the header/footer always visible without needing position:fixed (safer:
-// no z-index/overlap juggling, no content-hidden-behind-fixed-bar risk).
+// ── GID GARAGE — COMMAND CENTER ───────────────────────────────────────────
+// App shell (sidebar + command bar + page) with two modes that share one
+// design system (./ui): the ops dashboard and SEO Mode.
 //
-// Talks to the same backends as before:
-//   admin-api-data.js  — get-command-center-summary, list-leads, patch-lead,
-//                         add-marketing-spend
+// Backends (unchanged contracts):
+//   admin-api-data.js  — get-command-center-summary (+ redesign extras),
+//                         list-leads, patch-lead, upsert-lead, add-marketing-spend
 //   admin-ai-chat.js   — streamed NDJSON agent (tool_call/tool_result/data/final)
+//   jarvis-livekit-token.js — realtime voice
 // ─────────────────────────────────────────────────────────────────────────
 
-import { useCallback, useEffect, useState } from 'react';
-import { motion } from 'motion/react';
-import type { Lead } from './types';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import type { Lead, NeedsAttentionItem, JarvisState } from './types';
 import { useBusinessSummary } from './hooks/useBusinessSummary';
 import { useAdminAI } from './hooks/useAdminAI';
-import { useLiveKitJarvis } from './hooks/useLiveKitJarvis';
-import { Sidebar } from './components/Sidebar';
-import { TopStatusBar } from './components/TopStatusBar';
-import { JarvisStatus } from './components/JarvisStatus';
+import { useLiveKitJarvis, type RealtimeVoiceState } from './hooks/useLiveKitJarvis';
 import { RealtimeVoiceControl } from './components/RealtimeVoiceControl';
-import { BusinessMetrics } from './components/BusinessMetrics';
-import { AttentionPanel } from './components/AttentionPanel';
-import { WeekSummary } from './components/WeekSummary';
-import { QuickCommands } from './components/QuickCommands';
-import { UpcomingJobsList } from './components/UpcomingJobsList';
-import { LiveFeed } from './components/LiveFeed';
 import { JobDetailPanel } from './components/JobDetailPanel';
 import { LeadDetailPanel } from './components/LeadDetailPanel';
 import { LeadPipeline } from './components/LeadPipeline';
 import { MarketingPanel } from './components/MarketingPanel';
 import { CommandPalette, useCommandPalette } from './components/CommandPalette';
 import { CommandInput } from './components/CommandInput';
-import { PANEL, PANEL_PADDING, COLORS } from './tokens';
 import { SeoMode } from './seo/SeoMode';
 import type { SeoView } from './seo/seoTypes';
 import { applyUiEvent, INITIAL_UI_MODE, type UiModeEvent } from './seo/uiMode';
+import { AppSidebar, type NavTarget } from './shell/AppSidebar';
+import { CommandTopBar } from './shell/CommandTopBar';
+import { KpiStrip, TodaysJobs, AttentionCard } from './dashboard/TodaySections';
+import { TodayRoute } from './dashboard/TodayRoute';
+import { JarvisPanel } from './dashboard/JarvisPanel';
+import { QuickActionHero, ThisMonth, LeadsBySource, RecentActivity, UpcomingJobsTable, RevenueTrend, QuickCommandTiles } from './dashboard/BusinessSections';
+import { Skeleton, ErrorState } from './ui/primitives';
+import type { OrbState } from './ui/JarvisOrb';
+import { C } from './ui/theme';
+import './ui/command-center.css';
 
-const fadeRise = {
-  hidden: { opacity: 0, y: 20, scale: 0.98 },
-  show: (delay: number) => ({ opacity: 1, y: 0, scale: 1, transition: { duration: 0.6, delay, ease: 'easeOut' as const } }),
-};
+// Real state only: the typed agent's stream wins while it's working,
+// otherwise the realtime voice session's state.
+export function orbStateFor(asking: boolean, jarvisState: JarvisState, voice: RealtimeVoiceState): OrbState {
+  const fromAgent: Record<JarvisState, OrbState> = { idle: 'idle', processing: 'thinking', tool: 'working', success: 'complete', error: 'error' };
+  if (asking) return fromAgent[jarvisState];
+  if (voice === 'connecting') return 'thinking';
+  if (voice === 'listening') return 'listening';
+  if (voice === 'speaking') return 'working';
+  if (voice === 'error') return 'error';
+  return fromAgent[jarvisState];
+}
+const VOICE_LABEL: Record<RealtimeVoiceState, string> = { off: 'off', connecting: 'connecting…', listening: 'listening', speaking: 'speaking', error: 'error' };
+
+function DashboardSkeleton() {
+  return (
+    <div className="flex flex-col gap-4" aria-busy="true" aria-label="Loading the command center">
+      <div className="grid gap-4 grid-cols-2 md:grid-cols-3 2xl:grid-cols-6">{Array.from({ length: 6 }, (_, i) => <Skeleton key={i} className="h-[148px]" />)}</div>
+      <div className="grid gap-4 xl:grid-cols-12"><Skeleton className="h-[420px] xl:col-span-4" /><Skeleton className="h-[420px] xl:col-span-8" /></div>
+      <div className="grid gap-4 xl:grid-cols-12"><Skeleton className="h-[320px] xl:col-span-8" /><Skeleton className="h-[320px] xl:col-span-4" /></div>
+    </div>
+  );
+}
 
 export function CommandCenterPage({ onLock }: { onLock: () => void }) {
   const {
@@ -54,8 +67,8 @@ export function CommandCenterPage({ onLock }: { onLock: () => void }) {
 
   const voice = useLiveKitJarvis();
 
-  // Ops (default) vs green SEO Mode. SEO answers from Jarvis switch modes and
-  // bring the relevant panel to the center (structured ui_focus events).
+  // Ops (default) vs SEO Mode. SEO answers from Jarvis switch modes and bring
+  // the relevant panel into focus (structured ui_focus events).
   const [ui, setUi] = useState(INITIAL_UI_MODE);
   const onUiEvent = useCallback((e: UiModeEvent) => setUi(s => applyUiEvent(s, e)), []);
   const setMode = useCallback((m: 'ops' | 'seo') => setUi(s => applyUiEvent(s, { type: 'manual', mode: m })), []);
@@ -69,142 +82,126 @@ export function CommandCenterPage({ onLock }: { onLock: () => void }) {
     if (voice.connected) await voice.speakText(text);
   }, onUiEvent);
 
-  // Voice actions can change the same business records as the typed agent.
-  // While the realtime session is open, refresh the dashboard quietly so a
-  // reschedule/status change spoken to JARVIS appears without a manual reload.
+  // Voice actions change the same records as the typed agent: refresh quietly
+  // while a realtime session is open.
   useEffect(() => {
     if (!voice.connected) return;
-    const timer = window.setInterval(() => {
-      loadSummary();
-      loadLeads(leadStatusFilter || undefined);
-    }, 15000);
+    const timer = window.setInterval(() => { loadSummary(); loadLeads(leadStatusFilter || undefined); }, 15000);
     return () => window.clearInterval(timer);
   }, [voice.connected, loadSummary, loadLeads, leadStatusFilter]);
 
-  const coreState = asking
-    ? jarvisState
-    : voice.state === 'connecting'
-      ? 'processing'
-      : voice.state === 'speaking'
-        ? 'success'
-        : voice.state === 'error'
-          ? 'error'
-          : jarvisState;
+  const orb = orbStateFor(asking, jarvisState, voice.state);
 
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
+  const [drawer, setDrawer] = useState(false);
+  const jarvisInput = useRef<HTMLInputElement>(null);
+  const main = useRef<HTMLDivElement>(null);
+
+  const scrollTo = (id: string) => window.setTimeout(() => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 60);
+  const askAndShow = useCallback((q: string) => {
+    ask(q);
+    if (mode === 'ops') scrollTo('cc-jarvis');
+  }, [ask, mode]);
+
+  const onGo = (t: NavTarget) => {
+    if (t.kind === 'mode') { setMode(t.mode); main.current?.scrollTo({ top: 0, behavior: 'smooth' }); return; }
+    if (t.kind === 'section') {
+      if (mode !== 'ops') setMode('ops');
+      scrollTo(t.id);
+      if (t.id === 'cc-jarvis') window.setTimeout(() => jarvisInput.current?.focus(), 400);
+    }
+  };
+  const openAttention = (a: NeedsAttentionItem) => {
+    if (a.bookingId) { setSelectedJobId(a.bookingId); return; }
+    const lead = a.leadId ? leads.find(l => l.id === a.leadId) : null;
+    if (lead) { setSelectedLead(lead); return; }
+    askAndShow(a.type === 'missed_call' ? `Who called from ${a.label} and did we call them back?` : `Tell me about ${a.label}`);
+  };
 
   const palette = useCommandPalette([
-    { id: 'today', label: "Today's jobs", run: () => ask("what's scheduled today") },
-    { id: 'attention', label: 'Needs attention', run: () => ask('what needs my attention') },
-    { id: 'revenue', label: 'Revenue today', run: () => ask("how much revenue have we made today") },
-    { id: 'leads', label: 'Show leads', run: () => ask('show me recent leads') },
-    { id: 'followup', label: 'Who needs follow-up', run: () => ask('who needs follow-up') },
-    { id: 'unpaid', label: 'Unpaid invoices', run: () => ask("what's unpaid") },
-    { id: 'takehome', label: 'Take-home this week', run: () => ask('what did I actually take home this week') },
+    { id: 'today', label: "Today's jobs", run: () => askAndShow("what's scheduled today") },
+    { id: 'attention', label: 'Needs attention', run: () => askAndShow('what needs my attention') },
+    { id: 'revenue', label: 'Revenue today', run: () => askAndShow('how much revenue have we made today') },
+    { id: 'leads', label: 'Show leads', run: () => askAndShow('show me recent leads') },
+    { id: 'followup', label: 'Who needs follow-up', run: () => askAndShow('who needs follow-up') },
+    { id: 'unpaid', label: 'Unpaid invoices', run: () => askAndShow("what's unpaid") },
+    { id: 'takehome', label: 'Take-home this week', run: () => askAndShow('what did I actually take home this week') },
     { id: 'seo', label: 'SEO Mode (local search)', run: () => setMode('seo') },
     { id: 'seo-brief', label: 'How is local search doing?', run: () => ask('How is my local SEO doing this month?') },
     { id: 'refresh', label: 'Refresh dashboard', run: () => loadSummary() },
   ]);
 
-  if (loading && !summary) {
-    return (
-      <div className="w-full h-screen flex items-center justify-center">
-        <div className="text-[#52616D] text-sm animate-pulse">Loading command center…</div>
-      </div>
-    );
-  }
-  if (error && !summary) {
-    return (
-      <div className="w-full h-screen flex items-center justify-center text-center px-4">
-        <div>
-          <p className="text-[#FF5353] text-sm mb-3">Failed to load: {error}</p>
-          <p className="text-[#52616D] text-xs mb-4">
-            If this is the first time loading this tab, make sure you've run <code className="text-[#8899A6]">gid_command_center_migration.sql</code> in the Supabase SQL editor.
-          </p>
-          <button onClick={loadSummary} className="border border-white/10 text-[#8899A6] hover:border-[#4FE8FF] hover:text-[#4FE8FF] text-xs font-semibold uppercase tracking-wide px-4 py-2 rounded">Retry</button>
-        </div>
-      </div>
-    );
-  }
-  if (!summary) return null;
+  const voiceControl = <RealtimeVoiceControl state={voice.state} error={voice.error} diagnostics={voice.diagnostics} onToggle={voice.toggle} onTestVoice={voice.testVoice} />;
+  const title = mode === 'seo' ? 'Local Search Command Center' : 'Command Center';
 
   return (
-    <div className="flex h-screen overflow-hidden">
+    <div className="cc-root cc-grid-bg flex h-screen overflow-hidden">
       <CommandPalette open={palette.open} onClose={() => palette.setOpen(false)} commands={palette.commands} />
       <JobDetailPanel jobId={selectedJobId} onClose={() => setSelectedJobId(null)} />
       <LeadDetailPanel lead={selectedLead} onClose={() => setSelectedLead(null)} />
 
-      <Sidebar onLock={onLock} mode={mode} onMode={setMode} />
+      <AppSidebar active={mode === 'seo' ? 'seo' : 'dashboard'} onGo={onGo} onLock={onLock} systemOk={!error} voiceLabel={VOICE_LABEL[voice.state]} drawerOpen={drawer} onCloseDrawer={() => setDrawer(false)} />
 
       <div className="flex-1 flex flex-col min-w-0">
-        <TopStatusBar onSearch={() => palette.setOpen(true)} onRefresh={loadSummary} streamOk={!error} />
+        <CommandTopBar title={title} attention={summary?.needsAttention ?? []} onSearch={q => askAndShow(`Find jobs, customers or vehicles matching "${q}"`)}
+          onOpenMenu={() => setDrawer(true)} onRefresh={loadSummary} onLock={onLock} onAttention={openAttention} refreshing={loading} />
 
-        {/* ── Scrollable middle region ─────────────────────────────────── */}
-        <div className="flex-1 overflow-y-auto px-4 sm:px-6 lg:px-8 py-4 space-y-4">
-          {mode === 'seo' ? (
-            <SeoMode focus={seoFocus} onFocus={setSeoFocus} coreState={coreState} liveActivity={liveActivity} />
-          ) : (<>
-          {/* ── Three-zone hero: status | AI CORE (dominant) | attention ──
-              items-start is the key fix here: grid items default to
-              stretching to match their tallest neighbor, which was
-              forcing Today's 5 lines and Attention's 2 lines into the
-              same tall box as the orb panel — that's what caused the
-              "giant empty panel" look. items-start lets each column size
-              to its own content, and each side column now stacks two
-              real modules instead of one, so the height that's freed up
-              gets used, not left blank. ── */}
-          <motion.div initial="hidden" animate="show" custom={0.05} variants={fadeRise} className="grid grid-cols-1 lg:grid-cols-12 gap-3 items-start">
-            <div className="lg:col-span-3 flex flex-col gap-3">
-              <BusinessMetrics today={summary.today} />
-              <WeekSummary leadsSummary={summary.leadsSummary} marketingFunnel={summary.marketingFunnel} />
-            </div>
-            <div className={`lg:col-span-6 ${PANEL} ${PANEL_PADDING} flex flex-col items-center justify-center py-2 relative overflow-hidden`}>
-              <div className="text-[10px] font-semibold uppercase tracking-[0.3em] relative" style={{ color: COLORS.accent }}>GID GARAGE</div>
-              <div className="text-[9px] uppercase tracking-[0.2em] mb-1 relative" style={{ color: COLORS.textFaint }}>AI Core</div>
-              <JarvisStatus state={coreState} liveActivity={liveActivity} size={360} />
-              <RealtimeVoiceControl state={voice.state} error={voice.error} diagnostics={voice.diagnostics} onToggle={voice.toggle} onTestVoice={voice.testVoice} />
-            </div>
-            <div className="lg:col-span-3 flex flex-col gap-3">
-              <AttentionPanel items={summary.needsAttention} />
-              <QuickCommands onRun={ask} />
-            </div>
-          </motion.div>
+        <main ref={main} className="flex-1 overflow-y-auto overflow-x-hidden">
+          <div className="max-w-[1920px] mx-auto px-4 sm:px-6 xl:px-8 py-5 flex flex-col gap-4 sm:gap-5">
+            {error && !summary && <ErrorState message={`Couldn't load the dashboard: ${error}`} onRetry={loadSummary} />}
+            {mode === 'seo' ? (
+              <SeoMode focus={seoFocus} onFocus={setSeoFocus} orb={orb} />
+            ) : !summary ? (
+              loading ? <DashboardSkeleton /> : null
+            ) : (<>
+              {error && <ErrorState message={`Showing the last loaded data — refresh failed: ${error}`} onRetry={loadSummary} />}
+              <KpiStrip summary={summary} />
 
-          {/* ── Upcoming jobs timeline + Live Business Feed ───────────── */}
-          <motion.div initial="hidden" animate="show" custom={0.15} variants={fadeRise} className="grid grid-cols-1 lg:grid-cols-12 gap-3 items-start">
-            <div className="lg:col-span-7">
-              <UpcomingJobsList jobs={summary.upcomingJobs} onSelect={setSelectedJobId} />
-            </div>
-            <div className="lg:col-span-5">
-              <LiveFeed leads={leads} />
-            </div>
-          </motion.div>
+              <div className="grid gap-4 sm:gap-5 xl:grid-cols-12 items-stretch">
+                <div className="xl:col-span-4 2xl:col-span-3 flex flex-col gap-4 sm:gap-5 min-w-0">
+                  <TodaysJobs summary={summary} onSelectJob={setSelectedJobId} />
+                  <AttentionCard items={summary.needsAttention} onOpen={openAttention} />
+                </div>
+                <div className="xl:col-span-8 2xl:col-span-5 min-w-0"><TodayRoute summary={summary} onSelectJob={setSelectedJobId} /></div>
+                <div className="xl:col-span-12 2xl:col-span-4 min-w-0">
+                  <JarvisPanel summary={summary} state={orb} asking={asking} liveActivity={liveActivity} messages={chatMessages} onAsk={ask} onClear={clear} voiceControl={voiceControl} inputRef={jarvisInput} />
+                </div>
+              </div>
 
-          {/* ── Leads + Marketing ──────────────────────────────────────── */}
-          <motion.div id="marketing" initial="hidden" animate="show" custom={0.25} variants={fadeRise} className="grid grid-cols-1 lg:grid-cols-12 gap-3 items-start">
-            <div className="lg:col-span-7">
-              <LeadPipeline
-                leadsSummary={summary.leadsSummary}
-                leads={leads}
-                leadsLoading={leadsLoading}
-                leadStatusFilter={leadStatusFilter}
-                onFilterChange={s => { setLeadStatusFilter(s); loadLeads(s || undefined); }}
-                onStatusChange={updateLeadStatus}
-                onSelect={setSelectedLead}
-              />
-            </div>
-            <div className="lg:col-span-5">
-              <MarketingPanel marketingFunnel={summary.marketingFunnel} onAddSpend={submitSpend} />
-            </div>
-          </motion.div>
-          </>)}
-        </div>
+              <div className="grid gap-4 sm:gap-5 lg:grid-cols-2 xl:grid-cols-12">
+                <div className="xl:col-span-4 min-w-0"><QuickActionHero onLeadSaved={() => { loadSummary(); loadLeads(leadStatusFilter || undefined); }} /></div>
+                <div className="xl:col-span-5 min-w-0"><ThisMonth summary={summary} /></div>
+                <div className="lg:col-span-2 xl:col-span-3 min-w-0"><LeadsBySource summary={summary} /></div>
+              </div>
 
-        {/* ── Persistent bottom Ask GID bar ────────────────────────────── */}
-        <div className="border-t px-4 sm:px-6 lg:px-8 py-3" style={{ borderColor: COLORS.border, background: 'rgba(5,11,20,0.9)', backdropFilter: 'blur(16px)' }}>
-          <CommandInput chatMessages={chatMessages} asking={asking} liveActivity={liveActivity} onAsk={ask} onClear={clear} />
-        </div>
+              <div className="grid gap-4 sm:gap-5 xl:grid-cols-12 items-start">
+                <div className="xl:col-span-8 min-w-0"><UpcomingJobsTable jobs={summary.upcomingJobs} onSelect={setSelectedJobId} /></div>
+                <div className="xl:col-span-4 min-w-0"><RecentActivity summary={summary} /></div>
+              </div>
+
+              <div className="grid gap-4 sm:gap-5 xl:grid-cols-12">
+                <div className="xl:col-span-8 min-w-0"><RevenueTrend summary={summary} /></div>
+                <div className="xl:col-span-4 min-w-0"><QuickCommandTiles onAsk={askAndShow} /></div>
+              </div>
+
+              <div id="cc-marketing" className="grid gap-4 sm:gap-5 xl:grid-cols-12 scroll-mt-4">
+                <div className="xl:col-span-7 min-w-0">
+                  <LeadPipeline leadsSummary={summary.leadsSummary} leads={leads} leadsLoading={leadsLoading} leadStatusFilter={leadStatusFilter}
+                    onFilterChange={s => { setLeadStatusFilter(s); loadLeads(s || undefined); }} onStatusChange={updateLeadStatus} onSelect={setSelectedLead} />
+                </div>
+                <div className="xl:col-span-5 min-w-0"><MarketingPanel marketingFunnel={summary.marketingFunnel} onAddSpend={submitSpend} /></div>
+              </div>
+            </>)}
+          </div>
+        </main>
+
+        {/* SEO Mode keeps Jarvis one keystroke away at the bottom; the dashboard has its own Jarvis panel. */}
+        {mode === 'seo' && (
+          <div className="border-t px-4 sm:px-6 lg:px-8 py-3" style={{ borderColor: C.border, background: 'rgba(5,13,21,0.9)', backdropFilter: 'blur(16px)' }}>
+            <CommandInput chatMessages={chatMessages} asking={asking} liveActivity={liveActivity} onAsk={ask} onClear={clear} />
+          </div>
+        )}
       </div>
     </div>
   );

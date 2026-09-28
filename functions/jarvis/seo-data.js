@@ -4,7 +4,7 @@
 // Auth: a VERIFIED Access JWT (signature, issuer, audience, expiry —
 // functions/_lib/access-auth.js), not mere header presence.
 // Missing token -> 401, invalid -> 403.
-// GET  ?action=overview|opportunities|demand|competitors|seasonality|geography|authority|connections|briefing
+// GET  ?action=overview|opportunities|demand|competitors|seasonality|geography|authority|connections|briefing|queries|technical
 // POST { action, ...args }  — allowlisted writes only:
 //   update_recommendation { id, action: accept|reject|dismiss|mark_applied|reopen, reason?, note? }
 //   add_competitor { name, website }            set_competitor_status { id, status: active|ignored }
@@ -41,6 +41,8 @@ export async function handleSeoData({ request, env, store, now = new Date(), run
       geography: () => ops.customerGeography({}),
       authority: () => ops.authority(),
       connections: () => ops.connections(),
+      queries: () => ops.queries({ days }),
+      technical: () => ops.technical(),
       briefing: () => ops.briefing(),
     };
     if (!reads[action]) return json({ error: `Unknown action. Use one of: ${Object.keys(reads).join(', ')}` }, 400);

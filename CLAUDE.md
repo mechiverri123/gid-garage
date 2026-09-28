@@ -28,6 +28,13 @@ Treat all business data, customer data, schedules, payments, outbound messages, 
   Never point a webhook, cron job or agent at a `/jarvis*` path.
 - Preserve this rule in every future architecture change or refactor.
 
+# 0.3 COMMAND CENTER UI (redesign, 2026-09-28)
+
+- Design system: `src/command-center/ui/` (`theme.ts` palette, `primitives.tsx`, `charts.tsx` custom SVG, `JarvisOrb.tsx`, `useMapLibre.ts`, `command-center.css` scoped to `.cc-root`). Shell in `shell/`, dashboard sections in `dashboard/`, SEO in `seo/`.
+- Dashboard extras come from `get-command-center-summary` (`trend`, `activity`, `todayRoute`, `weather`, `monthStats`, `collectedTotals`), built in `functions/_lib/command-center-extras.js`. Headline money totals must use `collectedRevenue`; `collectedByDay` is only for per-day bars (summing days double-counts invoice fallbacks).
+- SEO page reads `/jarvis/seo-data?action=queries|technical` plus `overview.series`. Show only measured values; no fabricated ranking grids.
+- Rules: no text under 11px, no horizontal scroll. Fix the layout rather than hiding overflow.
+
 # 0.2 OWNER NOTES ↔ CUSTOMER LINKS
 
 - `jarvis_note_links_migration.sql` adds nullable `customer_id` and `booking_id` to `jarvis_business_notes`. It's additive, and the owner runs it.

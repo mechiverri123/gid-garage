@@ -1947,7 +1947,11 @@ function BlackoutDatesModal({ onClose }: { onClose: () => void }) {
 export function AdminSchedule() {
   const [unlocked, setUnlocked] = useState(() => sessionStorage.getItem('gg_admin_auth') === '1');
   const [bookings, setBookings] = useState<Booking[]>([]);
-  const [adminTab, setAdminTab] = useState<'jobs' | 'schedule' | 'customers' | 'mileage' | 'hub' | 'pay'>('jobs');
+  // ?tab= deep links from the Command Center sidebar (/admin?tab=customers …).
+  const [adminTab, setAdminTab] = useState<'jobs' | 'schedule' | 'customers' | 'mileage' | 'hub' | 'pay'>(() => {
+    const t = new URLSearchParams(window.location.search).get('tab');
+    return t === 'schedule' || t === 'customers' || t === 'mileage' || t === 'hub' || t === 'pay' ? t : 'jobs';
+  });
   const [filter, setFilter] = useState<'all' | 'confirmed' | 'completed' | 'cancelled'>('all');
   const [view, setView] = useState<'list' | 'month' | 'week' | 'day'>('month');
   const [calDate, setCalDate] = useState(new Date());

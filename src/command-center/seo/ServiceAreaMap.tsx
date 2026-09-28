@@ -119,21 +119,21 @@ export function ServiceAreaMap({ geo }: { geo?: SeoGeography }) {
     );
   }
 
-  const btn = 'w-8 h-8 flex items-center justify-center rounded-md border backdrop-blur bg-[rgba(6,24,16,0.85)] border-[rgba(61,255,160,0.3)] hover:bg-[rgba(61,255,160,0.12)]';
+  const btn = 'w-9 h-9 flex items-center justify-center rounded-md border backdrop-blur bg-[rgba(5,13,21,0.85)] border-[rgba(54,211,255,0.3)] hover:bg-[rgba(52,214,255,0.12)]';
   return (
     <div className="grid gap-4 lg:grid-cols-[minmax(0,7fr)_minmax(240px,3fr)]">
       <div className="relative rounded-xl overflow-hidden border" style={{ borderColor: SEO.border }}>
         <div ref={el} className="gid-map h-[360px] sm:h-[460px] lg:h-[560px] w-full" style={{ background: '#0b0f0d' }} role="region" aria-label="Service area map" />
         <div className="absolute top-3 right-3 z-10 flex flex-col gap-1.5">
-          <button type="button" className={btn} onClick={() => map.current?.zoomIn()} aria-label="Zoom in" title="Zoom in"><Plus size={15} color={SEO.accent} /></button>
-          <button type="button" className={btn} onClick={() => map.current?.zoomOut()} aria-label="Zoom out" title="Zoom out"><Minus size={15} color={SEO.accent} /></button>
-          <button type="button" className={btn} onClick={recenter} aria-label="Recenter on service area" title="Recenter on service area"><Crosshair size={15} color={SEO.accent} /></button>
+          <button type="button" className={btn} onClick={() => map.current?.zoomIn()} aria-label="Zoom in" title="Zoom in"><Plus size={15} color={SEO.accentDim} /></button>
+          <button type="button" className={btn} onClick={() => map.current?.zoomOut()} aria-label="Zoom out" title="Zoom out"><Minus size={15} color={SEO.accentDim} /></button>
+          <button type="button" className={btn} onClick={recenter} aria-label="Recenter on service area" title="Recenter on service area"><Crosshair size={15} color={SEO.accentDim} /></button>
         </div>
-        {status === 'loading' && <div className="absolute inset-0 flex items-center justify-center text-xs" style={{ color: SEO.muted }}>Loading map…</div>}
+        {status === 'loading' && <div className="absolute inset-0 flex items-center justify-center text-[13px]" style={{ color: SEO.muted }}>Loading map…</div>}
         {basemapFailed && <div className="absolute bottom-3 left-3 z-10 text-[11px] px-2 py-1 rounded" style={{ color: SEO.warn, background: 'rgba(0,0,0,0.6)' }}>Some basemap tiles didn't load — overlays still shown.</div>}
       </div>
       <aside className="space-y-3">
-        <div className="text-[10px] uppercase tracking-[0.2em]" style={{ color: SEO.muted }}>{geo.radiusMiles}-mile service area</div>
+        <div className="text-[12px] uppercase tracking-[0.2em]" style={{ color: SEO.muted }}>{geo.radiusMiles}-mile service area</div>
         <ul className="space-y-2.5">
           {mapStats(geo).map(s => (
             <li key={s.key} className="flex items-baseline gap-2.5 text-[12.5px]">
@@ -143,7 +143,7 @@ export function ServiceAreaMap({ geo }: { geo?: SeoGeography }) {
             </li>
           ))}
         </ul>
-        <p className="text-[10.5px] leading-relaxed pt-2 border-t" style={{ color: SEO.faint, borderColor: SEO.border }}>
+        <p className="text-[12.5px] leading-relaxed pt-2 border-t" style={{ color: SEO.faint, borderColor: SEO.border }}>
           {geo.privacy} Numbers on green markers are booked jobs per community; blue rings are leads. Competitor diamonds use public Google Places locations.
         </p>
       </aside>

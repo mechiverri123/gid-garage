@@ -33,7 +33,7 @@ export function CommandInput({
         <div className="mb-3 max-h-64 overflow-y-auto space-y-2.5 px-2">
           <div className="flex justify-end mb-1">
             {chatMessages.length > 0 && (
-              <button onClick={onClear} className="text-[10px] uppercase tracking-wide" style={{ color: COLORS.textFaint }}>Clear</button>
+              <button onClick={onClear} className="text-[12px] uppercase tracking-wide" style={{ color: COLORS.textFaint }}>Clear</button>
             )}
           </div>
           <Workspace messages={chatMessages} />
@@ -61,18 +61,18 @@ export function CommandInput({
             boxShadow: focused ? `0 0 24px rgba(79,232,255,0.25)` : 'none',
           }}
         >
-          <span className="text-[10px] font-bold uppercase tracking-widest mr-3 shrink-0" style={{ color: COLORS.accent }}>Ask GID</span>
+          <span className="text-[12px] font-bold uppercase tracking-widest mr-3 shrink-0" style={{ color: COLORS.accent }}>Ask GID</span>
           <input
             type="text"
             value={query}
             onChange={e => setQuery(e.target.value)}
             onFocus={() => setFocused(true)}
             onBlur={() => setFocused(false)}
-            placeholder="Who needs follow-up? Move John's brakes to Thursday. How are my ads doing?"
-            className="flex-1 bg-transparent text-[#F5F8FA] placeholder-[#52616D] text-sm outline-none"
+            placeholder="Ask about rankings, leads, jobs…"
+            className="flex-1 bg-transparent text-[#F5F8FA] placeholder-[#657686] text-[15px] outline-none min-w-0"
           />
           <button type="submit" disabled={asking}
-            className="shrink-0 rounded-full px-4 py-1.5 text-xs font-bold uppercase tracking-wide transition-all hover:-translate-y-px active:scale-[0.98] disabled:opacity-40"
+            className="shrink-0 rounded-full px-4 py-2 text-[13px] font-bold uppercase tracking-wide transition-all hover:-translate-y-px active:scale-[0.98] disabled:opacity-40"
             style={{ background: COLORS.accent, color: COLORS.bg0 }}>
             {asking ? '…' : 'Send'}
           </button>

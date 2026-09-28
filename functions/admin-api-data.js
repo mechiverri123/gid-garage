@@ -49,6 +49,7 @@
 
 import { runBackup, readBackupStatus, listBackups, restoreBackup, inspectBackupBookings } from './_lib/backup.js';
 import { reportError } from './_lib/sentry.js';
+import { trendSeries, activityFeed, todayRoute, weatherToday, monthStats, collectedTotals } from './_lib/command-center-extras.js';
 
 const GBP_REVIEW_URL = 'https://g.page/r/CdERSypGqVdlEBM/review';
 
@@ -1438,6 +1439,18 @@ export async function onRequestPost({ request, env }) {
         const calls = await callsRes.json();
         const spend = await spendRes.json();
 
+        // Extras for the redesigned dashboard (additive fields; a failure here
+        // never breaks the core summary above — each falls back to empty).
+        const since90 = new Date(now.getTime() - 91 * 86400000).toISOString();
+        const since14 = new Date(now.getTime() - 14 * 86400000).toISOString();
+        const getRows = url => fetch(url, { headers }).then(r => (r.ok ? r.json() : [])).catch(() => []);
+        const [allJobs, leads90, recentCustomers, forecast] = await Promise.all([
+          getRows(`${base}/bookings?select=id,fname,lname,vehicle,service,date,time,job_status,status,service_address,notes,invoice_amount,tax_amount,amount_paid,paid_at,payments,created_at&order=date.desc&limit=2000`),
+          getRows(`${base}/leads?select=id,created_at,status,source,fname,lname,phone,requested_service&created_at=gte.${since90}`),
+          getRows(`${base}/customers?select=id,fname,lname,created_at&created_at=gte.${since14}`),
+          getRows(`${base}/seo_weather_forecast?select=date,tmin_f,tmax_f,short_forecast&date=gte.${phoenixToday}&order=date.asc&limit=5`),
+        ]);
+
         // ---- Today ----
         const todaysJobs = bookings.filter(b => b.date === phoenixToday && b.status !== 'cancelled');
         // Prefer what was actually collected (amount_paid) once paid — that's
@@ -1565,6 +1578,12 @@ export async function onRequestPost({ request, env }) {
           },
           needsAttention,
           upcomingJobs,
+          trend: trendSeries({ leads: leads90, jobs: allJobs }, now, 90),
+          activity: activityFeed({ leads: leads90, jobs: allJobs, calls, customers: recentCustomers }, now),
+          todayRoute: todayRoute(allJobs, now),
+          weather: weatherToday(forecast, now),
+          monthStats: monthStats({ leads: leads90, jobs: allJobs }, now),
+          collectedTotals: collectedTotals(allJobs, now),
           leadsSummary: {
             windowDays,
             total: leads.length,

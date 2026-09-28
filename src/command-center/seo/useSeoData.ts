@@ -15,8 +15,8 @@ export function useSeoData(view: SeoView, days: number) {
   const [error, setError] = useState<string | null>(null);
   const [version, setVersion] = useState(0);
 
-  const load = useCallback(async (v: SeoView) => {
-    const action = ACTION_FOR[v];
+  const load = useCallback(async (v: SeoView | 'queries' | 'technical') => {
+    const action = v === 'queries' || v === 'technical' ? v : ACTION_FOR[v];
     setLoading(true);
     setError(null);
     try {
@@ -31,9 +31,10 @@ export function useSeoData(view: SeoView, days: number) {
     }
   }, [days]);
 
-  // Overview + the current view; the opportunities rail is always visible.
-  useEffect(() => { void load('overview'); void load('opportunities'); }, [load, version]);
-  useEffect(() => { if (view !== 'overview' && view !== 'opportunities') void load(view); }, [view, load, version]);
+  // Always: overview + opportunities rail + source health for the header, plus
+  // query movement and technical health for the overview page. Then the current view.
+  useEffect(() => { void load('overview'); void load('opportunities'); void load('connections'); void load('queries'); void load('technical'); }, [load, version]);
+  useEffect(() => { if (!['overview', 'opportunities', 'connections'].includes(view)) void load(view); }, [view, load, version]);
 
   const post = useCallback(async (body: Record<string, unknown>) => {
     const res = await fetch('/jarvis/seo-data', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
@@ -73,5 +74,5 @@ export function useSeoData(view: SeoView, days: number) {
     return { ...out, pulled: [...pulled], skipped, errors, runs: runs + (runs < maxRuns ? 1 : 0), historyIncomplete: mode === 'backfill' && runs >= maxRuns };
   }, []);
 
-  return { get: <T,>(v: SeoView) => data[ACTION_FOR[v]] as T | undefined, loading, error, post, syncNow, reload: () => setVersion(v => v + 1) };
+  return { get: <T,>(v: SeoView) => data[ACTION_FOR[v]] as T | undefined, getAction: <T,>(a: 'queries' | 'technical') => data[a] as T | undefined, loading, error, post, syncNow, reload: () => setVersion(v => v + 1) };
 }

@@ -86,7 +86,20 @@ export interface CommandCenterSummary {
   leadsSummary: { windowDays: number; total: number; contacted: number; booked: number; conversionRatePct: number };
   marketingFunnel: { channel: string; spend: number; calls: number; leads: number; bookings: number; revenue: number; costPerBooking: number | null; costPerLead: number | null }[];
   scheduleBar: { date: string; jobCount: number; revenue: number }[];
+  // Redesign extras (functions/_lib/command-center-extras.js). Optional so an
+  // older deployment's response still renders.
+  trend?: { date: string; leads: number; booked: number; collected: number }[];
+  activity?: FeedEvent[];
+  todayRoute?: { start: { name: string; lat: number; lng: number }; stops: RouteStop[] };
+  weather?: { today: WeatherDay | null; next: WeatherDay[] } | null;
+  monthStats?: { current: MonthPeriod; previous: MonthPeriod };
+  collectedTotals?: { d7: number; d30: number; d90: number };
 }
+
+export interface FeedEvent { type: 'lead' | 'booking' | 'payment' | 'missed_call' | 'customer'; at: string; title: string; detail: string | null; leadId?: string; jobId?: string; callId?: string; amount?: number }
+export interface RouteStop { id: string; time: string | null; customer: string | null; vehicle: string | null; service: string | null; status: string | null; address: string | null; lat: number | null; lng: number | null; place: string | null; precision: 'community' | 'unknown' }
+export interface WeatherDay { date: string; highF: number | null; lowF: number | null; summary: string | null }
+export interface MonthPeriod { from: string; to: string; leads: number; booked: number; conversionPct: number | null; collected: number }
 
 export interface Lead {
   id: string;

@@ -1,7 +1,11 @@
 import { useState } from 'react';
-import { PANEL, PANEL_PADDING, LABEL } from '../tokens';
+import { Megaphone, Plus } from 'lucide-react';
 import { money, fmtSource } from '../utils/formatters';
 import type { CommandCenterSummary } from '../types';
+import { C } from '../ui/theme';
+import { CommandCard, SectionHeader, DataTable, EmptyState, ActionButton, ErrorState, type Column } from '../ui/primitives';
+
+type Row = CommandCenterSummary['marketingFunnel'][number];
 
 export function MarketingPanel({
   marketingFunnel, onAddSpend,
@@ -9,87 +13,64 @@ export function MarketingPanel({
   marketingFunnel: CommandCenterSummary['marketingFunnel'];
   onAddSpend: (row: { date: string; channel: string; amount: number }) => Promise<void>;
 }) {
-  const [spendDate, setSpendDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [spendDate, setSpendDate] = useState(() => new Date().toLocaleDateString('en-CA', { timeZone: 'America/Phoenix' }));
   const [spendChannel, setSpendChannel] = useState('google_ads');
   const [spendAmount, setSpendAmount] = useState('');
   const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const [saved, setSaved] = useState(false);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     const amt = Number(spendAmount);
-    if (!spendDate || !spendChannel || !amt) return;
-    setSaving(true);
+    if (!spendDate || !spendChannel || !amt) { setErr('Enter a date, channel and amount.'); return; }
+    setSaving(true); setErr(null); setSaved(false);
     try {
       await onAddSpend({ date: spendDate, channel: spendChannel, amount: amt });
-      setSpendAmount('');
-    } catch (err: any) {
-      alert('Failed to save spend: ' + err.message);
+      setSpendAmount(''); setSaved(true); setTimeout(() => setSaved(false), 2000);
+    } catch (x) {
+      setErr(`Couldn't save spend: ${x instanceof Error ? x.message : String(x)}`);
     } finally {
       setSaving(false);
     }
   }
 
+  const cols: Column<Row>[] = [
+    { key: 'ch', header: 'Channel', render: r => <span className="font-semibold">{fmtSource(r.channel)}</span> },
+    { key: 'spend', header: 'Spend', width: '13%', align: 'right', render: r => <span className="tabular-nums" style={{ color: C.text2 }}>{money(r.spend)}</span> },
+    { key: 'leads', header: 'Leads', width: '11%', align: 'right', render: r => <span className="tabular-nums">{r.leads}</span> },
+    { key: 'booked', header: 'Booked', width: '12%', align: 'right', render: r => <span className="tabular-nums">{r.bookings}</span> },
+    { key: 'cpb', header: 'Per booking', width: '16%', align: 'right', hideBelow: '2xl', render: r => <span className="tabular-nums" style={{ color: C.text2 }}>{money(r.costPerBooking)}</span> },
+    { key: 'rev', header: 'Revenue', width: '14%', align: 'right', render: r => <span className="tabular-nums font-semibold" style={{ color: r.revenue > 0 ? C.green : C.text2 }}>{money(r.revenue)}</span> },
+  ];
+  const field = 'rounded-lg px-3 h-10 text-[14px] outline-none w-full';
+  const fieldStyle = { background: 'rgba(3,10,17,0.9)', border: `1px solid ${C.borderStrong}`, color: C.text, colorScheme: 'dark' as const };
+
   return (
-    <div className={`${PANEL} ${PANEL_PADDING}`}>
-      <div className={LABEL + ' mb-3'}>Marketing (last 30 days)</div>
-      {marketingFunnel.length === 0 ? (
-        <div className="text-xs text-[#52616D] py-2 mb-3">No spend or leads logged yet.</div>
-      ) : (
-        <div className="overflow-x-auto mb-4">
-          <table className="w-full text-xs">
-            <thead>
-              <tr className="text-[#52616D] border-b border-white/5">
-                <th className="text-left py-2 pr-3 font-normal">Channel</th>
-                <th className="text-right py-2 pr-3 font-normal">Spend</th>
-                <th className="text-right py-2 pr-3 font-normal">Leads</th>
-                <th className="text-right py-2 pr-3 font-normal">Booked</th>
-                <th className="text-right py-2 pr-3 font-normal">Cost/Booking</th>
-                <th className="text-right py-2 font-normal">Revenue</th>
-              </tr>
-            </thead>
-            <tbody>
-              {marketingFunnel.map(row => (
-                <tr key={row.channel} className="border-b border-white/5">
-                  <td className="py-2 pr-3 text-[#F5F8FA]">{fmtSource(row.channel)}</td>
-                  <td className="py-2 pr-3 text-right text-[#8899A6]">{money(row.spend)}</td>
-                  <td className="py-2 pr-3 text-right text-[#8899A6]">{row.leads}</td>
-                  <td className="py-2 pr-3 text-right text-[#8899A6]">{row.bookings}</td>
-                  <td className="py-2 pr-3 text-right text-[#8899A6]">{money(row.costPerBooking)}</td>
-                  <td className="py-2 text-right text-[#42D392]">{money(row.revenue)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+    <CommandCard className="p-5 h-full">
+      <SectionHeader icon={Megaphone} tone="amber" title="Marketing" subtitle="Last 30 days · spend vs leads, bookings and revenue" />
+      <div className="mb-5">
+        <DataTable columns={cols} rows={marketingFunnel} rowKey={r => r.channel} empty={<EmptyState icon={Megaphone} title="No spend or leads yet">Log ad spend below to see cost per booking.</EmptyState>} />
+      </div>
+      <form onSubmit={submit} className="pt-4 border-t" style={{ borderColor: C.border }}>
+        <div className="text-[14px] font-semibold mb-2" style={{ color: C.text }}>Log ad spend</div>
+        <div className="grid grid-cols-2 gap-2.5 items-end">
+          <label className="text-[13px]" style={{ color: C.text2 }}>Date<input type="date" value={spendDate} onChange={e => setSpendDate(e.target.value)} className={`${field} mt-1`} style={fieldStyle} /></label>
+          <label className="text-[13px]" style={{ color: C.text2 }}>Channel
+            <select value={spendChannel} onChange={e => setSpendChannel(e.target.value)} className={`${field} mt-1`} style={fieldStyle}>
+              <option value="google_ads">Google Ads</option>
+              <option value="meta_ads">Meta Ads</option>
+              <option value="gbp">Google Business Profile</option>
+              <option value="referral">Referral</option>
+              <option value="organic">Organic</option>
+              <option value="other">Other</option>
+            </select>
+          </label>
+          <label className="text-[13px]" style={{ color: C.text2 }}>Amount ($)<input type="number" step="0.01" min="0" value={spendAmount} onChange={e => setSpendAmount(e.target.value)} placeholder="0.00" className={`${field} mt-1`} style={fieldStyle} /></label>
+          <div className="flex"><ActionButton type="submit" variant="primary" icon={Plus} disabled={saving}>{saving ? 'Saving…' : saved ? 'Saved' : 'Add spend'}</ActionButton></div>
         </div>
-      )}
-      <form onSubmit={submit} className="flex flex-wrap gap-2 items-end border-t border-white/5 pt-3">
-        <div>
-          <div className="text-[10px] text-[#52616D] mb-1">Date</div>
-          <input type="date" value={spendDate} onChange={e => setSpendDate(e.target.value)}
-            className="bg-black/30 border border-white/10 text-[#8899A6] text-xs px-2 py-1.5 rounded outline-none" />
-        </div>
-        <div>
-          <div className="text-[10px] text-[#52616D] mb-1">Channel</div>
-          <select value={spendChannel} onChange={e => setSpendChannel(e.target.value)}
-            className="bg-black/30 border border-white/10 text-[#8899A6] text-xs px-2 py-1.5 rounded outline-none">
-            <option value="google_ads">Google Ads</option>
-            <option value="meta_ads">Meta Ads</option>
-            <option value="gbp">Google Business Profile</option>
-            <option value="referral">Referral</option>
-            <option value="organic">Organic</option>
-            <option value="other">Other</option>
-          </select>
-        </div>
-        <div>
-          <div className="text-[10px] text-[#52616D] mb-1">Amount ($)</div>
-          <input type="number" step="0.01" value={spendAmount} onChange={e => setSpendAmount(e.target.value)}
-            placeholder="0.00" className="w-24 bg-black/30 border border-white/10 text-[#8899A6] text-xs px-2 py-1.5 rounded outline-none" />
-        </div>
-        <button type="submit" disabled={saving}
-          className="border border-white/10 text-[#8899A6] hover:border-[#32D9FF] hover:text-[#32D9FF] disabled:opacity-50 text-xs font-semibold uppercase tracking-wide px-4 py-1.5 rounded transition-all hover:-translate-y-px active:scale-[0.98]">
-          {saving ? 'Saving…' : '+ Add Spend'}
-        </button>
+        {err && <div className="mt-3"><ErrorState message={err} /></div>}
       </form>
-    </div>
+    </CommandCard>
   );
 }

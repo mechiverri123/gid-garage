@@ -3,7 +3,7 @@
 // the sync job. Numbers come from here + shared/seo, never from the model.
 // Tests: tests/seo-sync.test.js
 
-import { computeOverview, annotateGsc, customerGeography as geoAggregate } from '../../../shared/seo/kpis.js';
+import { computeOverview, annotateGsc, customerGeography as geoAggregate, localDailySeries } from '../../../shared/seo/kpis.js';
 import { serviceClusters, demandGaps, unconfirmedServiceDemand, nonOpportunities, AUTHORITY_STARTERS, authorityScore, citationIssues } from '../../../shared/seo/demand.js';
 import { competitorLandscape, reviewVelocity, detectChanges } from '../../../shared/seo/competitors.js';
 import { seasonalFindings, eventsForYear, forecastColdSnap } from '../../../shared/seo/seasonality.js';
@@ -92,6 +92,8 @@ export function createSeoOps({ store, env = {}, now = new Date() }) {
       } : null,
       dataSources: { connected: statuses.filter(s => ['connected', 'ready_limited'].includes(s.status)).map(s => s.id), notConnected: statuses.filter(s => !['connected', 'ready_limited'].includes(s.status)).map(s => ({ id: s.id, status: s.status })) },
       hasSearchData: gscCur.length > 0 || gbpCur.length > 0,
+      // Daily local impressions/clicks + local discovery leads/bookings for the chart and sparklines.
+      series: localDailySeries({ serviceDaily: await safe(store.rpc('seo_gsc_service_daily', { p_from: w.cur.from, p_to: w.cur.to })), leads: fc.leads, bookingsById: fc.bookingsById, from: w.cur.from, to: w.cur.to }),
     };
   }
 
@@ -304,7 +306,61 @@ export function createSeoOps({ store, env = {}, now = new Date() }) {
     return { text: buildSeoBriefing({ overview: o, recommendations: recs.map(fromRow), competitorChanges: changes }), period: o.period };
   }
 
-  return { overview, opportunities, localDemand, competitors: competitorsView, seasonality, customerGeography, authority, connections, analyze, updateRecommendation, briefing };
+  // Query movement: this window vs the previous one, per query (all Search
+  // Console queries, each labeled with its locality/intent from sync time).
+  async function queries({ days = 28, limit = 40 } = {}) {
+    const w = windows(now, days);
+    const [cur, prev] = await Promise.all([gscPeriod(w.cur), gscPeriod(w.prev)]);
+    const agg = rows => {
+      const m = new Map();
+      for (const r of rows) {
+        const q = m.get(r.query) || { query: r.query, impressions: 0, clicks: 0, posWeight: 0, locality: r.locality, intent: r.intent_class };
+        q.impressions += r.impressions; q.clicks += r.clicks; q.posWeight += (r.position || 0) * r.impressions;
+        m.set(r.query, q);
+      }
+      return m;
+    };
+    const c = agg(cur); const p = agg(prev);
+    const rows = [...c.values()].map(q => {
+      const before = p.get(q.query);
+      const position = q.impressions ? Math.round((q.posWeight / q.impressions) * 10) / 10 : null;
+      const previousPosition = before?.impressions ? Math.round((before.posWeight / before.impressions) * 10) / 10 : null;
+      return {
+        query: q.query, locality: q.locality, intent: q.intent, impressions: q.impressions, clicks: q.clicks,
+        ctrPct: q.impressions ? Math.round((q.clicks / q.impressions) * 1000) / 10 : 0,
+        position, previousPosition, movement: position != null && previousPosition != null ? Math.round((previousPosition - position) * 10) / 10 : null,
+      };
+    }).sort((a, b) => b.impressions - a.impressions).slice(0, limit);
+    return { period: w.cur, comparedTo: w.prev, rows, note: 'Movement = positions gained (+) or lost (−) vs the previous period; lower position is better.' };
+  }
+
+  // Technical health from what was actually measured (PageSpeed + page audits).
+  async function technical() {
+    const [runs, audits] = await Promise.all([
+      safe(store.select('seo_pagespeed_runs', { select: '*', order: 'fetched_at.desc', limit: '20' })),
+      safe(store.select('seo_page_audits', { select: '*', order: 'fetched_at.desc', limit: '20' })),
+    ]);
+    const latest = (rows, key) => [...new Map(rows.slice().reverse().map(r => [key(r), r])).values()];
+    const pagespeed = latest(runs, r => `${r.url}|${r.strategy}`);
+    const pages = latest(audits, r => r.url);
+    const issues = pages.flatMap(a => (a.issues || []).map(i => ({ ...i, url: a.url })));
+    const has = codes => issues.filter(i => codes.includes(i.code));
+    const check = (key, label, codes, measured) => ({ key, label, measured, issues: measured ? has(codes) : [] });
+    return {
+      measuredAt: runs[0]?.fetched_at || audits[0]?.fetched_at || null,
+      pagesAudited: pages.length,
+      pagespeed: pagespeed.map(r => ({ url: r.url, strategy: r.strategy, perfScore: r.perf_score, seoScore: r.seo_score, lcpMs: r.lcp_ms, cls: r.cls, inpMs: r.inp_ms, fieldData: r.field_data, fetchedAt: r.fetched_at })),
+      checks: [
+        check('indexability', 'Indexability', ['noindex', 'http_error'], pages.length > 0),
+        check('metadata', 'Titles & descriptions', ['missing_title', 'title_no_location', 'missing_description', 'no_canonical'], pages.length > 0),
+        check('structured_data', 'Structured data', ['no_local_schema', 'no_area_served'], pages.length > 0),
+        check('mobile', 'Mobile setup', ['no_viewport'], pages.length > 0),
+        check('content', 'Copy & service area', ['guard'], pages.length > 0),
+      ],
+    };
+  }
+
+  return { overview, opportunities, localDemand, queries, technical, competitors: competitorsView, seasonality, customerGeography, authority, connections, analyze, updateRecommendation, briefing };
 }
 
 function groupChanges(changes) {

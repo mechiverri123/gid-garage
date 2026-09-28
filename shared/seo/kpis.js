@@ -70,7 +70,9 @@ function gbpSide(daily) {
 }
 
 // Leads from discovery sources; "local" unless their booking is outside the area.
-export function discoveryFunnel(leads, bookingsById = new Map()) {
+// Search-discovered leads that aren't outside the service area, and whether each booked.
+// One rule for both the funnel KPIs and the daily chart series.
+export function localDiscoveryLeads(leads, bookingsById = new Map()) {
   const rows = leads.filter(l => DISCOVERY_SOURCES.includes(String(l.source || '').toLowerCase()));
   let outside = 0; let confirmed = 0;
   const local = rows.filter(l => {
@@ -80,7 +82,32 @@ export function discoveryFunnel(leads, bookingsById = new Map()) {
     if (v.inside === true) confirmed += 1;
     return true;
   });
-  const booked = local.filter(l => l.booking_id || String(l.status).toLowerCase() === 'booked');
+  const isBooked = l => !!l.booking_id || String(l.status).toLowerCase() === 'booked';
+  return { local, outside, confirmed, isBooked };
+}
+
+// Daily local search + discovery series for the SEO chart and sparklines.
+// serviceDaily: seo_gsc_service_daily rows (date, service, locality, clicks, impressions).
+export function localDailySeries({ serviceDaily = [], leads = [], bookingsById = new Map(), from, to }) {
+  const days = [];
+  for (let d = from; d <= to; d = new Date(new Date(`${d}T12:00:00Z`).getTime() + 86400000).toISOString().slice(0, 10)) days.push(d);
+  const by = new Map(days.map(d => [d, { date: d, impressions: 0, clicks: 0, leads: 0, bookings: 0 }]));
+  for (const r of serviceDaily) {
+    if (!['likely_local', 'confirmed_local'].includes(r.locality)) continue;
+    const row = by.get(String(r.date).slice(0, 10)); if (!row) continue;
+    row.impressions += Number(r.impressions || 0); row.clicks += Number(r.clicks || 0);
+  }
+  const { local, isBooked } = localDiscoveryLeads(leads, bookingsById);
+  for (const l of local) {
+    const row = by.get(String(l.created_at).slice(0, 10)); if (!row) continue;
+    row.leads += 1; if (isBooked(l)) row.bookings += 1;
+  }
+  return days.map(d => by.get(d));
+}
+
+export function discoveryFunnel(leads, bookingsById = new Map()) {
+  const { local, outside, confirmed, isBooked } = localDiscoveryLeads(leads, bookingsById);
+  const booked = local.filter(isBooked);
   const collected = sum(booked, l => Number(bookingsById.get(l.booking_id)?.amount_paid || 0));
   return {
     leads: local.length,
