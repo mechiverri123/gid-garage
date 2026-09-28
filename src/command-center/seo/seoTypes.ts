@@ -40,7 +40,8 @@ export interface SeoRecommendation {
 }
 
 export interface GeoArea { slug: string; name: string; lat: number; lng: number; count: number; zone: string | null }
-export interface SeoGeography { areas: GeoArea[]; otherInArea: number; outsideServiceArea: number; unknownLocation: number; total: number; center: { lat: number; lng: number }; radiusMiles: number; privacy: string }
+export interface GeoAggregate { areas: GeoArea[]; otherInArea: number; outsideServiceArea: number; unknownLocation: number; total: number }
+export interface SeoGeography extends GeoAggregate { leads?: GeoAggregate; competitors?: { name: string; lat: number; lng: number; tier: string | null }[]; center: { lat: number; lng: number }; radiusMiles: number; privacy: string }
 
 export interface ProviderStatus { id: string; label: string; category: string; status: string; missing: string[]; note: string; lastSyncAt: string | null; lastError: string | null; backfilledFrom: string | null }
 

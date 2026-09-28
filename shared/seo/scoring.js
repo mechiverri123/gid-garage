@@ -35,9 +35,10 @@ export function visibilityHeadroom(position) {
 
 export const volumeFactor = impressions => clamp01(Math.log10(1 + Math.max(0, impressions || 0)) / 3); // 1000 → 1.0, 40 → 0.54
 
-// Evidence that this demand turns into business (leads/bookings/revenue).
-export function conversionFactor({ leads = 0, bookings = 0, revenue = 0 } = {}) {
-  return clamp01(0.15 * leads + 0.35 * bookings + revenue / 2000);
+// Evidence that this demand turns into business, per month: leads, booked
+// jobs, and money — net profit when known (a profitable job beats a busy one).
+export function conversionFactor({ leads = 0, bookings = 0, revenue = 0, profit = null } = {}) {
+  return clamp01(0.15 * leads + 0.35 * bookings + (profit ?? revenue) / 2000);
 }
 
 export function localOpportunityScore(o) {

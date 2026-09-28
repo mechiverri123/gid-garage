@@ -69,7 +69,11 @@ export function LocalityBar({ breakdown, metric = 'clicks' }: { breakdown: SeoOv
   );
 }
 
-// Internal decision-support map: 30-mile radius + aggregated job counts. No addresses.
+// Internal decision-support map: 30-mile radius, aggregated booked jobs and leads,
+// public competitor locations. No customer addresses.
+const LEAD_COLOR = '#7FB8FF';
+const COMPETITOR_COLOR = '#FFB454';
+
 export function ServiceAreaMap({ geo }: { geo?: SeoGeography }) {
   if (!geo) return <Empty>Loading service area…</Empty>;
   const size = 360; const pad = 20; const r = size / 2 - pad;
@@ -78,26 +82,39 @@ export function ServiceAreaMap({ geo }: { geo?: SeoGeography }) {
     x: size / 2 + ((a.lng - geo.center.lng) * milesPerDegLng / geo.radiusMiles) * r,
     y: size / 2 - ((a.lat - geo.center.lat) * milesPerDegLat / geo.radiusMiles) * r,
   });
-  const max = Math.max(1, ...geo.areas.map(a => a.count));
+  const leadAreas = geo.leads?.areas ?? [];
+  const competitors = geo.competitors ?? [];
+  const max = Math.max(1, ...geo.areas.map(a => a.count), ...leadAreas.map(a => a.count));
+  const radius = (n: number) => 5 + 14 * Math.sqrt(n / max);
   return (
     <div className="flex flex-col lg:flex-row gap-4 items-center">
       <svg viewBox={`0 0 ${size} ${size}`} className="w-full max-w-[360px]" role="img" aria-label="Service area map">
         <circle cx={size / 2} cy={size / 2} r={r} fill="rgba(61,255,160,0.05)" stroke={SEO.accent} strokeDasharray="4 4" />
         <circle cx={size / 2} cy={size / 2} r={r / 2} fill="none" stroke={SEO.border} />
         <text x={size / 2} y={pad - 6} textAnchor="middle" fontSize="10" fill={SEO.faint}>{geo.radiusMiles} mi</text>
+        {leadAreas.map((a: GeoArea) => {
+          const p = project(a);
+          return <circle key={`lead-${a.slug}`} cx={p.x} cy={p.y} r={radius(a.count) + 3} fill="none" stroke={LEAD_COLOR} strokeWidth={1.5}><title>{a.name}: {a.count} leads</title></circle>;
+        })}
         {geo.areas.map((a: GeoArea) => {
           const p = project(a);
           return (
             <g key={a.slug}>
-              <circle cx={p.x} cy={p.y} r={5 + 14 * Math.sqrt(a.count / max)} fill="rgba(61,255,160,0.35)" stroke={SEO.accent} />
+              <circle cx={p.x} cy={p.y} r={radius(a.count)} fill="rgba(61,255,160,0.35)" stroke={SEO.accent}><title>{a.name}: {a.count} booked jobs</title></circle>
               <text x={p.x} y={p.y - 10 - 14 * Math.sqrt(a.count / max)} textAnchor="middle" fontSize="10" fill={SEO.text}>{a.name} · {a.count}</text>
             </g>
           );
         })}
+        {competitors.map(c => {
+          const p = project(c);
+          return <rect key={`comp-${c.name}-${c.lat}`} x={p.x - 3.5} y={p.y - 3.5} width={7} height={7} transform={`rotate(45 ${p.x} ${p.y})`} fill={COMPETITOR_COLOR} opacity={c.tier === 'primary' ? 0.95 : 0.55}><title>{c.name}{c.tier === 'primary' ? ' (mobile)' : ''}</title></rect>;
+        })}
         <circle cx={size / 2} cy={size / 2} r={3} fill={SEO.accent} />
       </svg>
       <div className="text-[12px] space-y-1" style={{ color: SEO.muted }}>
-        <div><span style={{ color: SEO.text }}>{geo.total}</span> booked jobs in the last year</div>
+        <div><span style={{ color: SEO.accent }}>●</span> <span style={{ color: SEO.text }}>{geo.total}</span> booked jobs in the last year</div>
+        {geo.leads && <div><span style={{ color: LEAD_COLOR }}>○</span> <span style={{ color: SEO.text }}>{geo.leads.total}</span> leads ({geo.leads.unknownLocation} with no location on file)</div>}
+        {competitors.length > 0 && <div><span style={{ color: COMPETITOR_COLOR }}>◆</span> {competitors.length} local competitors (public Places locations; bright = mobile)</div>}
         {geo.otherInArea > 0 && <div>{geo.otherInArea} in smaller in-area communities (grouped)</div>}
         <div>{geo.outsideServiceArea} outside the service area</div>
         <div>{geo.unknownLocation} without a usable address</div>

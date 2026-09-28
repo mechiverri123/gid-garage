@@ -12,6 +12,7 @@ import { transition, mergeDetected, evaluateApplied, buildSeoBriefing, ACTIONS }
 import { detectService } from '../../../shared/seo/local-intent.js';
 import { resolveServices } from '../../../shared/seo/services.js';
 import { SERVICE_AREA } from '../../../shared/seo/service-area.js';
+import { serviceEvidence, capacityFactor } from '../../../shared/seo/evidence.js';
 import { providerStatuses } from './providers.js';
 
 const DAY = 86400000;
@@ -35,6 +36,16 @@ export function createSeoOps({ store, env = {}, now = new Date() }) {
   const settings = async () => (await safe(store.select('seo_settings', { id: 'eq.default', limit: '1' })))[0] || {};
   // Canonical catalog + the owner's confirmations (seo_settings.services).
   const servicesNow = async () => resolveServices((await settings()).services);
+
+  // What each service actually produced (12 months) + schedule room, for scoring.
+  async function businessInputs() {
+    const since = shift(now, -365);
+    const [leads, bookings] = await Promise.all([
+      safe(store.selectAll('leads', { select: 'created_at,requested_service', created_at: `gte.${since}` })),
+      safe(store.selectAll('bookings', { select: 'id,date,date_tbd,service,job_status,status,paid_at,amount_paid,invoice_amount,tax_amount,parts_cost,payments', date: `gte.${since}` })),
+    ]);
+    return { serviceEvidence: serviceEvidence({ leads, bookings }, now), capacity: capacityFactor(bookings, now) };
+  }
 
   async function funnelInputs(w) {
     const leads = await safe(store.selectAll('leads', { select: 'id,created_at,source,status,booking_id', created_at: `gte.${w.from}`, and: `(created_at.lte.${w.to}T23:59:59)` }));
@@ -108,11 +119,11 @@ export function createSeoOps({ store, env = {}, now = new Date() }) {
 
   async function localDemand({ days = 28 } = {}) {
     const w = windows(now, days);
-    const [rows, kws, cv, services] = await Promise.all([gscPeriod(w.cur), safe(store.select('seo_gbp_keywords', { select: 'keyword,impressions,threshold,month', order: 'month.desc', limit: '200' })), competitorsView(), servicesNow()]);
+    const [rows, kws, cv, services, biz] = await Promise.all([gscPeriod(w.cur), safe(store.select('seo_gbp_keywords', { select: 'keyword,impressions,threshold,month', order: 'month.desc', limit: '200' })), competitorsView(), servicesNow(), businessInputs()]);
     const latestMonth = kws[0]?.month;
     const gbpKeywords = kws.filter(k => k.month === latestMonth).map(k => ({ keyword: k.keyword, impressions: k.impressions ?? 0 }));
     const clusters = serviceClusters(rows, gbpKeywords, services);
-    return { period: w.cur, clusters, gaps: demandGaps(clusters, { competitors: cv.landscape, services }), unconfirmedServiceDemand: unconfirmedServiceDemand(clusters, services), ...nonOpportunities(rows), gbpKeywordsMonth: latestMonth || null, hasData: rows.length > 0 || gbpKeywords.length > 0 };
+    return { period: w.cur, clusters, gaps: demandGaps(clusters, { competitors: cv.landscape, services, evidence: biz.serviceEvidence, capacity: biz.capacity }), capacity: biz.capacity, unconfirmedServiceDemand: unconfirmedServiceDemand(clusters, services), ...nonOpportunities(rows), gbpKeywordsMonth: latestMonth || null, hasData: rows.length > 0 || gbpKeywords.length > 0 };
   }
 
   async function seasonality() {
@@ -140,9 +151,26 @@ export function createSeoOps({ store, env = {}, now = new Date() }) {
   }
 
   async function customerGeography({ days = 365 } = {}) {
-    const bookings = await safe(store.selectAll('bookings', { select: 'service_address,notes,job_status,status', date: `gte.${shift(now, -days)}` }));
+    const since = shift(now, -days);
+    const [bookings, leads, comps] = await Promise.all([
+      safe(store.selectAll('bookings', { select: 'id,service_address,notes,job_status,status', date: `gte.${since}` })),
+      safe(store.selectAll('leads', { select: 'booking_id,notes', created_at: `gte.${since}` })),
+      safe(store.select('seo_competitors', { select: 'name,lat,lng,tier,inside_service_area', status: 'eq.active', kind: 'eq.business' })),
+    ]);
+    const addressOf = b => b.service_address || (String(b.notes || '').match(/Address:\s*([^|]+)/)?.[1] ?? '');
     const active = bookings.filter(b => b.job_status !== 'CANCELLED' && String(b.status || '').toLowerCase() !== 'cancelled');
-    return { ...geoAggregate(active.map(b => ({ address: b.service_address || (String(b.notes || '').match(/Address:\s*([^|]+)/)?.[1] ?? '') }))), center: SERVICE_AREA.center, radiusMiles: SERVICE_AREA.radiusMiles, periodDays: days, privacy: 'Counts by community only; groups under 3 jobs are merged so no customer can be singled out.' };
+    const byId = new Map(bookings.map(b => [b.id, b]));
+    // A lead's area: its job's service address once booked, else a place named in its notes.
+    const leadGeo = geoAggregate(leads.map(l => ({ address: byId.has(l.booking_id) ? addressOf(byId.get(l.booking_id)) : (l.notes || '') })));
+    return {
+      ...geoAggregate(active.map(b => ({ address: addressOf(b) }))),
+      leads: leadGeo,
+      // Public Places locations of local competitors inside the radius (mobile ones often hide theirs).
+      competitors: comps.filter(c => c.inside_service_area === true && Number.isFinite(Number(c.lat)) && Number.isFinite(Number(c.lng)) && c.lat != null && c.lng != null)
+        .map(c => ({ name: c.name, lat: Number(c.lat), lng: Number(c.lng), tier: c.tier })),
+      center: SERVICE_AREA.center, radiusMiles: SERVICE_AREA.radiusMiles, periodDays: days,
+      privacy: 'Counts by community only; groups under 3 jobs or leads are merged so no customer can be singled out.',
+    };
   }
 
   async function authority() {
@@ -187,6 +215,7 @@ export function createSeoOps({ store, env = {}, now = new Date() }) {
       safe(store.select('seo_ads_location_daily', { select: '*', date: `gte.${w.cur.from}` })),
       competitorsView(), settings(),
     ]);
+    const biz = await businessInputs();
     const latest = (rows, key) => [...new Map(rows.map(r => [key(r), r])).values()];
     const pagespeed = latest(ps.slice().reverse(), r => `${r.url}|${r.strategy}`);
     const latestAudits = latest(audits.slice().reverse(), r => r.url);
@@ -195,7 +224,7 @@ export function createSeoOps({ store, env = {}, now = new Date() }) {
     const annotated = annotateGsc(gsc);
     const sumActions = rows => rows.filter(r => ['CALL_CLICKS', 'WEBSITE_CLICKS', 'BUSINESS_DIRECTION_REQUESTS', 'BUSINESS_CONVERSATIONS', 'BUSINESS_BOOKINGS'].includes(r.metric)).reduce((a, r) => a + Number(r.value || 0), 0);
     const overviewLike = computeOverview({ gscCur: gsc, gscPrev });
-    return { w, gsc, clusters, services, annotated, pagespeed, audits: latestAudits, citations, ads, cv, s, gbpActions: sumActions(gbpCur), gbpActionsPrev: gbpPrev.length ? sumActions(gbpPrev) : null, overviewLike };
+    return { w, gsc, clusters, services, annotated, pagespeed, audits: latestAudits, citations, ads, cv, s, gbpActions: sumActions(gbpCur), gbpActionsPrev: gbpPrev.length ? sumActions(gbpPrev) : null, overviewLike, biz };
   }
 
   // Record competitor page changes (latest vs previous snapshot, once).
@@ -221,7 +250,8 @@ export function createSeoOps({ store, env = {}, now = new Date() }) {
     const [prefs, existing, season] = await Promise.all([safe(store.select('seo_preferences', { select: '*' })), safe(store.selectAll('seo_recommendations', { select: '*' })), seasonality()]);
     const s = c.s;
     const detected = runDetectors({
-      annotatedGsc: c.annotated, clusters: c.clusters, gaps: demandGaps(c.clusters, { competitors: c.cv.landscape, services: c.services }),
+      annotatedGsc: c.annotated, clusters: c.clusters, gaps: demandGaps(c.clusters, { competitors: c.cv.landscape, services: c.services, evidence: c.biz.serviceEvidence, capacity: c.biz.capacity }),
+      serviceEvidence: c.biz.serviceEvidence, capacity: c.biz.capacity,
       localityBreakdown: c.overviewLike.localityBreakdown, localityBreakdownPrev: c.overviewLike.localityBreakdownPrev,
       gbpActions: c.gbpActions, gbpActionsPrev: c.gbpActionsPrev,
       ourReviewVelocity: c.cv.ourReviewVelocity, competitors: c.cv.landscape,

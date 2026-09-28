@@ -52,7 +52,7 @@ export function serviceClusters(rows, gbpKeywords = [], services = SERVICE_CATAL
 
 // A gap only counts when: nearby people search for it, GID offers it, intent
 // is meaningful, and GID is underrepresented. Competitor coverage adds weight.
-export function demandGaps(clusters, { competitors = [], minLocalDemand = 10, weakPosition = 10, services = SERVICE_CATALOG } = {}) {
+export function demandGaps(clusters, { competitors = [], minLocalDemand = 10, weakPosition = 10, services = SERVICE_CATALOG, evidence = {}, capacity = null } = {}) {
   const gaps = [];
   for (const c of clusters) {
     const demand = c.localImpressions + c.gbpImpressions;
@@ -62,10 +62,11 @@ export function demandGaps(clusters, { competitors = [], minLocalDemand = 10, we
     if (!underrepresented) continue;
     const covering = competitors.filter(x => x.kind === 'business' && x.weight > 0 && (x.services || []).includes(c.service));
     const pressure = Math.min(1, covering.reduce((s, x) => s + x.weight, 0) / 2);
-    const scored = localOpportunityScore({ intentClass: 'high_local_commercial', locality: 'likely_local', serviceOffered: c.offered, position: c.avgLocalPosition, impressions: demand, competitorPressure: 0, confidence: c.offered === true ? 0.8 : 0.5 });
+    const scored = localOpportunityScore({ intentClass: 'high_local_commercial', locality: 'likely_local', serviceOffered: c.offered, position: c.avgLocalPosition, impressions: demand, competitorPressure: 0, confidence: c.offered === true ? 0.8 : 0.5, conversion: evidence[c.service]?.conversion, capacity });
     gaps.push({
       service: c.service, label: c.label, localDemand: demand, avgLocalPosition: c.avgLocalPosition, pages: c.pages,
       competitorsCovering: covering.map(x => x.name), competitorPressure: Math.round(pressure * 100) / 100,
+      ...(evidence[c.service] ? { last12Months: { leads: evidence[c.service].leads, bookedJobs: evidence[c.service].bookings, netProfit: evidence[c.service].profit } } : {}),
       score: Math.min(100, scored.score + Math.round(10 * pressure)), // competitor coverage raises urgency for a gap
       why: !c.pages.length ? 'No page of ours shows up for local searches about this service.' : `Our best local visibility averages position ${c.avgLocalPosition}.`,
     });

@@ -7,6 +7,10 @@ import { detectChanges } from './competitors.js';
 import { contentGuard, citationIssues } from './demand.js';
 import { isInsideServiceArea } from './service-area.js';
 import { serviceEligibility, SERVICE_CATALOG } from './services.js';
+import { evidenceFor } from './evidence.js';
+
+// What this service actually produced in the last 12 months (shown with the recommendation).
+const businessEvidence = (evidence, service) => (evidence?.[service] ? { last12Months: { leads: evidence[service].leads, bookedJobs: evidence[service].bookings, netProfit: evidence[service].profit } } : {});
 
 // Rough organic CTR-by-position benchmark (industry-average shape; a
 // comparison aid, not a promise).
@@ -17,7 +21,7 @@ const slug = s => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').repl
 const rec = (type, key, fields) => ({ id: `${type}:${slug(key)}`, type, status: 'open', ...fields });
 
 // annotated: GSC rows already run through annotateGsc (query, page, clicks, impressions, position, intentClass, locality, service)
-export function detectCtrOpportunities(annotated, { minImpressions = 20, services = SERVICE_CATALOG } = {}) {
+export function detectCtrOpportunities(annotated, { minImpressions = 20, services = SERVICE_CATALOG, evidence = {}, capacity = null } = {}) {
   const out = [];
   for (const r of annotated) {
     if (r.intentClass !== 'high_local_commercial' || !['likely_local', 'confirmed_local'].includes(r.locality)) continue;
@@ -26,26 +30,26 @@ export function detectCtrOpportunities(annotated, { minImpressions = 20, service
     const ctr = (r.clicks || 0) / r.impressions;
     const exp = expectedCtr(r.position);
     if (ctr >= exp * 0.6) continue;
-    const s = localOpportunityScore({ intentClass: r.intentClass, locality: r.locality, serviceOffered: serviceEligibility(r.service, services).eligible, position: r.position, impressions: r.impressions });
+    const s = localOpportunityScore({ intentClass: r.intentClass, locality: r.locality, serviceOffered: serviceEligibility(r.service, services).eligible, position: r.position, impressions: r.impressions, conversion: evidenceFor(evidence, r.service), capacity });
     out.push(rec('ctr_opportunity', `${r.query}|${r.page}`, {
       title: `Win more clicks for "${r.query}"`,
       detail: `Position ${r.position.toFixed(1)} but ${(ctr * 100).toFixed(1)}% CTR (typical ~${Math.round(exp * 100)}%). Rewrite the title/description of ${r.page} around the local service and mobile convenience.`,
-      evidence: { query: r.query, page: r.page, impressions: r.impressions, clicks: r.clicks, position: r.position, ctr: Math.round(ctr * 1000) / 10, expectedCtrPct: Math.round(exp * 100) },
+      evidence: { query: r.query, page: r.page, impressions: r.impressions, clicks: r.clicks, position: r.position, ctr: Math.round(ctr * 1000) / 10, expectedCtrPct: Math.round(exp * 100), ...businessEvidence(evidence, r.service) },
       service: r.service, score: s.score, confidence: 'medium', metric: { kind: 'gsc_query_page_clicks', query: r.query, page: r.page },
     }));
   }
   return out;
 }
 
-export function detectStrikingDistance(annotated, { minImpressions = 15, services = SERVICE_CATALOG } = {}) {
+export function detectStrikingDistance(annotated, { minImpressions = 15, services = SERVICE_CATALOG, evidence = {}, capacity = null } = {}) {
   return annotated
     .filter(r => r.intentClass === 'high_local_commercial' && ['likely_local', 'confirmed_local'].includes(r.locality) && r.position > 8 && r.position <= 20 && (r.impressions || 0) >= minImpressions)
     .filter(r => serviceEligibility(r.service, services).eligible)
     .map(r => rec('striking_distance', `${r.query}`, {
       title: `"${r.query}" is close to page one`,
       detail: `Average position ${r.position.toFixed(1)} with ${r.impressions} local impressions. Strengthen ${r.page || 'the matching service page'} with local, service-specific content and internal links.`,
-      evidence: { query: r.query, page: r.page, impressions: r.impressions, position: r.position },
-      service: r.service, score: localOpportunityScore({ intentClass: r.intentClass, locality: r.locality, serviceOffered: serviceEligibility(r.service, services).eligible, position: r.position, impressions: r.impressions }).score,
+      evidence: { query: r.query, page: r.page, impressions: r.impressions, position: r.position, ...businessEvidence(evidence, r.service) },
+      service: r.service, score: localOpportunityScore({ intentClass: r.intentClass, locality: r.locality, serviceOffered: serviceEligibility(r.service, services).eligible, position: r.position, impressions: r.impressions, conversion: evidenceFor(evidence, r.service), capacity }).score,
       confidence: 'medium', metric: { kind: 'gsc_query_position', query: r.query },
     }));
 }
@@ -216,8 +220,8 @@ export function guardRecommendations(recs) {
 export function runDetectors(s, { prefs = [], now = new Date(), services = SERVICE_CATALOG } = {}) {
   const offeredIds = services.filter(x => x.offered === true).map(x => x.id);
   const all = [
-    ...detectCtrOpportunities(s.annotatedGsc || [], { services }),
-    ...detectStrikingDistance(s.annotatedGsc || [], { services }),
+    ...detectCtrOpportunities(s.annotatedGsc || [], { services, evidence: s.serviceEvidence, capacity: s.capacity }),
+    ...detectStrikingDistance(s.annotatedGsc || [], { services, evidence: s.serviceEvidence, capacity: s.capacity }),
     ...detectDemandGaps(s.gaps || []),
     ...detectNonlocalGrowth(s.localityBreakdown || { clicks: {} }, s.localityBreakdownPrev),
     ...detectGbpDrop(s.gbpActions ?? 0, s.gbpActionsPrev),
