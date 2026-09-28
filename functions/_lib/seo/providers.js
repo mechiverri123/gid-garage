@@ -141,12 +141,23 @@ export const ga4 = {
 // ---- PageSpeed Insights + own-page technical audit ----------------------------------------------
 const pageUrls = ctx => (Array.isArray(ctx.settings?.key_pages) && ctx.settings.key_pages.length ? ctx.settings.key_pages : ['https://gidgarage.com/']);
 
+// Resumable batches: sync.js passes ctx.batch = { offset, limit } sized to the
+// invocation's subrequest budget; `next` is where the following call resumes
+// (null = finished). Without ctx.batch the whole list runs.
+function batchOf(ctx, items) {
+  const offset = ctx.batch?.offset ?? 0;
+  const slice = items.slice(offset, offset + (ctx.batch?.limit ?? items.length));
+  const end = offset + slice.length;
+  return { slice, offset, total: items.length, next: end < items.length ? end : null, label: end < items.length || offset ? ` (${offset + 1}-${end} of ${items.length})` : '' };
+}
+
 export const pageSpeed = {
   id: 'pagespeed', label: 'PageSpeed Insights', category: 'technical', env: [], optionalEnv: ['PAGESPEED_API_KEY'], docs: 'pagespeed', snapshot: true,
   status(env) { return env.PAGESPEED_API_KEY ? { status: 'connected', missing: [], note: '' } : { status: 'ready_limited', missing: ['PAGESPEED_API_KEY (optional, raises quota)'], note: 'Works without a key at a low quota.' }; },
   async sync(ctx) {
     const rows = [];
-    for (const url of pageUrls(ctx)) {
+    const b = batchOf(ctx, pageUrls(ctx));
+    for (const url of b.slice) {
       for (const strategy of ['mobile', 'desktop']) {
         const qs = new URLSearchParams({ url, strategy });
         qs.append('category', 'performance'); qs.append('category', 'seo');
@@ -157,7 +168,7 @@ export const pageSpeed = {
       }
     }
     await ctx.store.insert('seo_pagespeed_runs', rows);
-    return { rows: rows.length, detail: `${rows.length} PageSpeed runs` };
+    return { rows: rows.length, detail: `${rows.length} PageSpeed runs${b.label}`, next: b.next };
   },
 };
 
@@ -180,12 +191,13 @@ export const siteAudit = {
   status() { return { status: 'connected', missing: [], note: 'Reads the public HTML of your key pages (JS-rendered content is not executed).' }; },
   async sync(ctx) {
     const rows = [];
-    for (const url of pageUrls(ctx)) {
+    const b = batchOf(ctx, pageUrls(ctx));
+    for (const url of b.slice) {
       const res = await ctx.fetch(url, { headers: { 'User-Agent': 'GID-Garage-SEO-Audit/1.0' } });
       rows.push(auditPage(url, res.ok ? await res.text() : '', res.status));
     }
     await ctx.store.insert('seo_page_audits', rows);
-    return { rows: rows.length, detail: `${rows.length} pages audited` };
+    return { rows: rows.length, detail: `${rows.length} pages audited${b.label}`, next: b.next };
   },
 };
 
@@ -249,16 +261,18 @@ export const competitorPages = {
   id: 'competitor_pages', label: 'Competitor website monitoring', category: 'competitors', env: [], docs: 'competitors', snapshot: true,
   status() { return { status: 'connected', missing: [], note: 'Fetches each competitor homepage/service page (public HTML only) to detect changes.' }; },
   async sync(ctx) {
-    const comps = await ctx.store.select('seo_competitors', { select: 'id,name,website,tier', status: 'eq.active', kind: 'eq.business', website: 'not.is.null' });
+    // Capped at 15 per weekly pass; stable order so batches resume deterministically.
+    const comps = await ctx.store.select('seo_competitors', { select: 'id,name,website,tier', status: 'eq.active', kind: 'eq.business', website: 'not.is.null', order: 'id.asc', limit: '15' });
     const rows = [];
-    for (const c of comps.slice(0, 15)) {
+    const b = batchOf(ctx, comps.slice(0, 15));
+    for (const c of b.slice) {
       const res = await ctx.fetch(c.website, { headers: { 'User-Agent': 'GID-Garage-SEO-Monitor/1.0' } }).catch(() => null);
       if (!res?.ok) continue;
       const p = parsePublicPage(await res.text());
       rows.push({ competitor_id: c.id, url: c.website, title: p.title, meta_description: p.description, h1s: p.h1s, services: p.services, content_hash: p.contentHash });
     }
     if (rows.length) await ctx.store.insert('seo_competitor_snapshots', rows);
-    return { rows: rows.length, detail: `${rows.length} competitor pages captured` };
+    return { rows: rows.length, detail: `${rows.length} competitor pages captured${b.label}`, next: b.next };
   },
 };
 

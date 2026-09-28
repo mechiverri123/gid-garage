@@ -20,6 +20,12 @@ Treat all business data, customer data, schedules, payments, outbound messages, 
 - A top-level route is fine only if it genuinely does **not** need Zero Trust. Examples: public pages, webhooks with their own signature or secret, and cron endpoints like `/seo-sync`.
 - Access-protected functions must still verify the Access JWT server-side with `verifyAccess()` in `functions/_lib/access-auth.js` (signature, issuer, audience, expiry). Header presence alone is not auth. Older admin endpoints that only check header presence predate this rule.
 - **`/seo-sync` is the deliberate exception.** It's server-to-server: Supabase `pg_cron` calls it with `X-GID-SEO-Secret`, verified in constant time against `SEO_SYNC_SECRET`. It must stay **outside** Access and must never gain a header-based admin bypass.
+- **The Access app matches every path that *starts with* `jarvis`,** not only `/jarvis/*`. So `/jarvis-telegram`, `/jarvis-proactive` and `/jarvis-business` get a 302 to the Access login page. That caused the Telegram, reminder and voice-tool outage found on 2026-09-28.
+- **Server-to-server hooks live under `/hooks/*`** (outside Access). Each is a one-line re-export of its handler, and its own shared secret is its auth:
+  - `/hooks/telegram`: the Telegram webhook URL.
+  - `/hooks/proactive`: the `pg_cron` target.
+  - `/hooks/business`: the voice agent's business tools.
+  Never point a webhook, cron job or agent at a `/jarvis*` path.
 - Preserve this rule in every future architecture change or refactor.
 
 # 0.1 SEO / GROWTH MODE — CURRENT STATE
@@ -313,7 +319,7 @@ Confirmed working after a configuration mistake was corrected.
 
 Current Supabase cron behavior:
 - job runs every minute
-- calls `https://gidgarage.com/jarvis-proactive`
+- calls `https://gidgarage.com/hooks/proactive` (was `/jarvis-proactive`, which Access now intercepts; see §0)
 - authenticates with `X-GID-Proactive-Secret`
 
 During setup, cron job 1 was created with a literal placeholder secret.

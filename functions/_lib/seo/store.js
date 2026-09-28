@@ -9,6 +9,9 @@ export function createSeoStore({ supabaseUrl, serviceKey, fetchImpl: injected = 
   const headers = { apikey: serviceKey, Authorization: `Bearer ${serviceKey}`, 'Content-Type': 'application/json' };
   const check = async (res, what) => { if (!res.ok) throw new Error(`${what}: ${await res.text()}`); return res; };
   return {
+    // Same store with every request passed through wrap(fetch) — sync.js uses
+    // it to count Supabase calls against the invocation's subrequest budget.
+    withFetch: wrap => createSeoStore({ supabaseUrl, serviceKey, fetchImpl: wrap(fetchImpl) }),
     async select(table, params = {}) {
       const res = await check(await fetchImpl(`${base}/${table}?${new URLSearchParams(params)}`, { headers }), `select ${table}`);
       return res.json();

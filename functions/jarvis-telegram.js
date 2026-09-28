@@ -25,6 +25,12 @@ function json(body, status = 200) {
   });
 }
 
+// One JSON line per boundary so Cloudflare logs show where a message stopped.
+// Never pass tokens, secrets, chat ids or message text in here.
+function trace(step, extra = {}) {
+  console.log(JSON.stringify({ telegram: step, ...extra }));
+}
+
 function normalizeId(value) {
   return String(value ?? '').trim();
 }
@@ -191,23 +197,30 @@ export async function onRequestPost({ request, env }) {
   const webhookSecret = env.TELEGRAM_WEBHOOK_SECRET;
   const ownerChatId = normalizeId(env.TELEGRAM_OWNER_CHAT_ID);
 
+  trace('telegram_received');
   if (!botToken || !webhookSecret || !ownerChatId) {
+    trace('telegram_rejected', { reason: 'env_incomplete', missing: ['TELEGRAM_BOT_TOKEN', 'TELEGRAM_WEBHOOK_SECRET', 'TELEGRAM_OWNER_CHAT_ID'].filter(k => !env[k]) });
     return json({ ok: false, error: 'Telegram environment variables are incomplete.' }, 500);
   }
 
   const suppliedSecret = request.headers.get('X-Telegram-Bot-Api-Secret-Token') || '';
-  if (suppliedSecret !== webhookSecret) return json({ ok: false }, 403);
+  if (suppliedSecret !== webhookSecret) {
+    trace('telegram_rejected', { reason: suppliedSecret ? 'secret_mismatch' : 'secret_missing' });
+    return json({ ok: false }, 403);
+  }
+  trace('telegram_authenticated');
 
   const update = await request.json().catch(() => null);
   const message = update?.message;
-  if (!message) return json({ ok: true });
+  if (!message) { trace('telegram_ignored', { reason: 'no_message' }); return json({ ok: true }); }
 
   const chatId = normalizeId(message.chat?.id);
   const messageId = message.message_id;
   const text = String(message.text || '').trim();
 
   // Completely ignore every Telegram chat except the configured owner chat.
-  if (!chatId || chatId !== ownerChatId) return json({ ok: true });
+  if (!chatId || chatId !== ownerChatId) { trace('telegram_ignored', { reason: 'not_owner_chat' }); return json({ ok: true }); }
+  trace('owner_authorized');
   if (!text) {
     await sendTelegramText(botToken, chatId, 'Text messages only for now.', messageId);
     return json({ ok: true });
@@ -224,6 +237,7 @@ export async function onRequestPost({ request, env }) {
     return json({ ok: true });
   }
 
+  let step = 'send_typing';
   try {
     await telegramRequest(botToken, 'sendChatAction', { chat_id: chatId, action: 'typing' });
 
@@ -240,8 +254,12 @@ export async function onRequestPost({ request, env }) {
       },
       body: JSON.stringify({ messages, context: priorContext }),
     });
+    step = 'jarvis_called';
+    trace(step, { historyMessages: history.length, hasContext: !!priorContext });
     const aiResponse = await runAdminAI({ request: internalRequest, env });
+    step = 'jarvis_response';
     const { finalText, context } = await extractFinalText(aiResponse);
+    trace('jarvis_response_received', { status: aiResponse.status, chars: finalText.length });
 
     await Promise.all([
       saveMessage(env, chatId, 'user', text, messageId),
@@ -249,12 +267,15 @@ export async function onRequestPost({ request, env }) {
       saveContext(env, chatId, context),
     ]);
 
+    step = 'telegram_send';
+    trace('telegram_send_started');
     await sendTelegramText(botToken, chatId, finalText, messageId);
+    trace('telegram_send_success');
     return json({ ok: true });
   } catch (error) {
+    trace('telegram_failed', { step, error: String(error?.message || error).replace(/bot\d+:[\w-]+/g, 'bot<redacted>').slice(0, 300) });
     const publicMessage = 'Jarvis hit an error processing that message. Nothing was changed unless I explicitly confirmed it.';
-    await sendTelegramText(botToken, chatId, publicMessage, messageId).catch(() => {});
-    console.error('jarvis-telegram error:', error);
+    await sendTelegramText(botToken, chatId, publicMessage, messageId).catch(e => trace('telegram_failed', { step: 'error_notice_send', error: String(e?.message || e).slice(0, 300) }));
     return json({ ok: true }); // Return 200 so Telegram does not retry the same update repeatedly.
   }
 }

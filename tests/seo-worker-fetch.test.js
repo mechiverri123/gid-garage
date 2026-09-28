@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 import { runSeoSync, syncGate, SYNC_RUN_KEY } from '../functions/_lib/seo/sync.js';
 import { createSeoStore } from '../functions/_lib/seo/store.js';
 import { verifyAccess, _clearAccessCertCache } from '../functions/_lib/access-auth.js';
-import { fakeSeoStore } from './seo-fake-store.js';
+import { fakeSeoStore, syncToEnd } from './seo-fake-store.js';
 
 const NOW = new Date('2026-09-28T19:00:00Z');
 const realFetch = globalThis.fetch;
@@ -52,7 +52,7 @@ test('every network-using SEO provider syncs through the production fetch path w
     NOAA_CDO_TOKEN: 't', INSTAGRAM_ACCESS_TOKEN: 't', INSTAGRAM_BUSINESS_ACCOUNT_ID: '1', META_GRAPH_VERSION: 'vX',
     META_ADS_ACCESS_TOKEN: 't', META_AD_ACCOUNT_ID: '9',
   };
-  const out = await runSeoSync({ env, store, now: NOW, mode: 'force' }); // no fetch injected = production path
+  const out = await syncToEnd(runSeoSync, { env, store, now: NOW, mode: 'force' }); // no fetch injected = production path
   const byId = Object.fromEntries(out.results.map(r => [r.provider, r]));
   for (const id of ['places', 'pagespeed', 'site_audit', 'weather_forecast', 'competitor_pages', 'bing', 'instagram', 'weather_history', 'meta_ads']) {
     assert.equal(byId[id].error, undefined, `${id}: ${byId[id].error}`);
@@ -82,7 +82,7 @@ ${btoa(String.fromCharCode(...der))}
     GBP_OAUTH_CLIENT_ID: 'c', GBP_OAUTH_CLIENT_SECRET: 's', GBP_OAUTH_REFRESH_TOKEN: 'r', GBP_LOCATION_NAME: 'locations/1', GBP_API_APPROVED: 'true',
     GOOGLE_ADS_DEVELOPER_TOKEN: 'd', GOOGLE_ADS_CUSTOMER_ID: '1', GOOGLE_ADS_OAUTH_CLIENT_ID: 'c', GOOGLE_ADS_OAUTH_CLIENT_SECRET: 's', GOOGLE_ADS_OAUTH_REFRESH_TOKEN: 'r', GOOGLE_ADS_API_VERSION: 'vX',
   };
-  const out = await runSeoSync({ env, store: fakeSeoStore(), now: NOW, only: ['search_console', 'ga4', 'business_profile', 'google_ads'] });
+  const out = await syncToEnd(runSeoSync, { env, store: fakeSeoStore(), now: NOW, only: ['search_console', 'ga4', 'business_profile', 'google_ads'] });
   for (const r of out.results) assert.equal(r.error, undefined, `${r.provider}: ${r.error}`);
   assert.equal(out.results.length, 4);
 });
@@ -114,13 +114,13 @@ test('a partial run is recorded as partial and can be retried manually right awa
   globalThis.fetch = workersFetch(url => (url.includes('place/details') ? json({ status: 'REQUEST_DENIED', error_message: 'bad key' }) : ROUTES(url)));
   const store = fakeSeoStore();
   const env = { GOOGLE_PLACES_API_KEY: 'k', GOOGLE_PLACE_ID: 'own' };
-  const first = await runSeoSync({ env, store, now: NOW, mode: 'force', manual: true, only: ['places', 'pagespeed'] });
+  const first = await syncToEnd(runSeoSync, { env, store, now: NOW, mode: 'force', manual: true, only: ['places', 'pagespeed'] });
   assert.equal(first.runStatus, 'partial');
   const run = store.tables.seo_provider_status.find(r => r.provider === SYNC_RUN_KEY);
   assert.equal(run.status, 'partial');
   assert.match(run.last_error, /places: .*REQUEST_DENIED/);
-  const retry = await runSeoSync({ env, store, now: NOW, mode: 'force', manual: true, only: ['pagespeed'] });
-  assert.equal(retry.blocked, undefined);
+  const retry = await syncToEnd(runSeoSync, { env, store, now: NOW, mode: 'force', manual: true, only: ['pagespeed'] });
+  assert.equal(retry.last.blocked, undefined);
   assert.equal(retry.runStatus, 'completed');
   const blocked = await runSeoSync({ env, store, now: NOW, mode: 'force', manual: true, only: ['pagespeed'] });
   assert.deepEqual([blocked.blocked, blocked.status], [true, 429]);

@@ -22,7 +22,11 @@ Everything below is optional and incremental. With no credentials at all, SEO Mo
 
 `CF_ACCESS_TEAM_DOMAIN`, `CF_ACCESS_AUD` and `SEO_SYNC_SECRET` are already set in Cloudflare Pages. If either Access variable were missing, `/jarvis/seo-data` would fail closed (500).
 
-**Sync now** calls `/jarvis/seo-data` (`action: sync_now`). It runs the sync server-side for the verified admin, at most once every 5 minutes. The cron secret never reaches the browser.
+**Sync now** calls `/jarvis/seo-data` (`action: sync_now`). It runs the sync server-side for the verified admin, and the cron secret never reaches the browser.
+- **Bounded calls.** Cloudflare fails a request after 50 subrequests, and Supabase calls count too. So each call makes at most 20 external fetches and 45 subrequests in total.
+- **A sync is a run of several calls.** PageSpeed pages, site-audit pages and the competitor crawl (capped at 15) resume from a cursor, and analysis gets its own call. The button keeps calling until the run finishes.
+- **What gets re-pulled.** Manual sync re-pulls any provider last pulled more than an hour ago.
+- **The result line lists** what was pulled, what was skipped and why, and what failed.
 
 ### Database + cron
 
@@ -30,9 +34,12 @@ Everything below is optional and incremental. With no credentials at all, SEO Mo
    - It's additive only: it creates new `seo_*` tables and two read-only aggregation functions, and it doesn't touch any existing table.
    - RLS is on and there are no public policies, so only the server-side service key can read or write these tables.
 2. **Sync secret — done.** `SEO_SYNC_SECRET` is already set in Cloudflare Pages. It's used only by the cron job; paste the same value into the cron SQL below (never commit it).
-3. **Schedule the daily sync.** Use Supabase `pg_cron` (the same mechanism as `jarvis-proactive`), replacing `<SEO_SYNC_SECRET>` in the SQL editor. Don't commit the value anywhere:
+3. **Schedule the sync.** Use Supabase `pg_cron` (the same mechanism as the proactive worker), replacing `<SEO_SYNC_SECRET>` in the SQL editor. Don't commit the value anywhere.
+   - It runs every 15 minutes because each call is one bounded slice.
+   - A call continues an unfinished run, or starts a new run about once a day. Otherwise it's a one-read no-op.
+   - Weekly providers keep their weekly cadence.
    ```sql
-   select cron.schedule('gid-seo-sync-daily', '15 13 * * *',  -- 06:15 Arizona
+   select cron.schedule('gid-seo-sync', '*/15 * * * *',
      $$ select net.http_post(
           url := 'https://gidgarage.com/seo-sync',
           headers := jsonb_build_object('Content-Type','application/json','X-GID-SEO-Secret','<SEO_SYNC_SECRET>'),

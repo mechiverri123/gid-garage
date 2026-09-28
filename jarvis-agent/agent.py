@@ -84,14 +84,14 @@ BACKEND_URL = os.getenv("GID_BACKEND_URL", "https://gidgarage.com").rstrip("/")
 
 async def backend_business(action: str, args: dict[str, Any]) -> Any:
     """Run one deterministic business operation on the website backend
-    (/jarvis-business). Same code path as web and Telegram Jarvis, so revenue,
+    (/hooks/business -> jarvis-business.js). Same code path as web and Telegram Jarvis, so revenue,
     take-home, unpaid, customer history and payments match everywhere."""
     secret = os.getenv("GID_INTERNAL_JARVIS_SECRET")
     if not secret:
         raise RuntimeError("GID_INTERNAL_JARVIS_SECRET is not configured, so this business lookup is unavailable in voice right now")
     async with httpx.AsyncClient(timeout=20) as client:
         response = await client.post(
-            f"{BACKEND_URL}/jarvis-business",
+            f"{BACKEND_URL}/hooks/business",  # /jarvis-* is behind Cloudflare Access
             headers={"X-GID-Internal-Jarvis": secret, "Content-Type": "application/json"},
             json={"action": action, "args": args},
         )

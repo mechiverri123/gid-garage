@@ -10,7 +10,7 @@
 //   add_competitor { name, website }            set_competitor_status { id, status: active|ignored }
 //   add_citation { platform, url, observed_* }   add_calendar_event { kind, label, start_date, end_date }
 //   add_authority { name, url, kind, local }     update_settings { key_pages?, canonical_*?, services?: [{id, offered}] }
-//   sync_now { mode?: incremental|backfill }      server-side sync for the "Sync now" button (5-minute cooldown)
+//   sync_now { mode?: incremental|backfill }      one budget-bounded sync call; the UI repeats while `more` (sync.js)
 // Nothing here publishes anything outside GID's own database.
 
 import { createSeoStore } from '../_lib/seo/store.js';

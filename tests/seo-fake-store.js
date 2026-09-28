@@ -88,3 +88,17 @@ export function fakeSeoStore(seed = {}) {
     },
   };
 }
+
+// Drives one sync run to the end the way Sync now / the cron do: call again
+// while the invocation reports more work. Returns every invocation's output
+// plus the merged provider results and the final run status.
+export async function syncToEnd(runSeoSync, opts, max = 12) {
+  const calls = [];
+  for (let i = 0; i < max; i += 1) {
+    const out = await runSeoSync(opts);
+    calls.push(out);
+    if (!out.more) break;
+  }
+  const last = calls.at(-1);
+  return { calls, results: calls.flatMap(c => c.results), runStatus: last.runStatus, analysis: calls.find(c => c.analysis)?.analysis, last };
+}

@@ -66,3 +66,21 @@ test('non-owner chat is ignored silently', async () => {
   assert.deepEqual(r.sent, []);
   assert.equal(r.claudeRequests.length, 0);
 });
+
+test('/hooks/* are the same handlers (outside the Access "jarvis*" match)', async () => {
+  const [hookT, hookP, hookB, t, p, b] = await Promise.all(['../functions/hooks/telegram.js', '../functions/hooks/proactive.js', '../functions/hooks/business.js', '../functions/jarvis-telegram.js', '../functions/jarvis-proactive.js', '../functions/jarvis-business.js'].map(m => import(m)));
+  assert.equal(hookT.onRequestPost, t.onRequestPost);
+  assert.equal(hookP.onRequestPost, p.onRequestPost);
+  assert.equal(hookB.onRequestPost, b.onRequestPost);
+});
+
+test('the hook route runs the full chain: /hooks/telegram -> Jarvis -> sendMessage', async () => {
+  const { onRequestPost: hook } = await import('../functions/hooks/telegram.js');
+  const db = fakeSupabase({ ...seed(), jarvis_text_messages: [] });
+  const { fetchImpl } = fakeFetch(db, [claudeText('Hello.')]);
+  const sent = [];
+  globalThis.fetch = async (url, init = {}) => (new URL(url).hostname === 'api.telegram.org' ? (sent.push(JSON.parse(init.body)), new Response(JSON.stringify({ ok: true, result: {} }))) : fetchImpl(url, init));
+  const res = await hook({ request: new Request('https://gidgarage.com/hooks/telegram', { method: 'POST', headers: { 'X-Telegram-Bot-Api-Secret-Token': 'hook-secret' }, body: JSON.stringify({ message: { message_id: 1, chat: { id: 4242 }, text: 'hello' } }) }), env: ENV });
+  assert.equal(res.status, 200);
+  assert.deepEqual(sent.filter(s => s.text).map(s => s.text), ['Hello.']);
+});

@@ -26,7 +26,13 @@ export function SeoMode({ focus, onFocus, coreState, liveActivity }: { focus: Se
   const sync = async (mode: 'incremental' | 'backfill') => {
     setNotice('Syncing…');
     const out = await seo.syncNow(mode);
-    setNotice(out?.ok ? `Sync finished: ${(out.results || []).filter((r: { rows?: number }) => r.rows != null).length} sources pulled.` : `Sync failed: ${out?.error || 'unknown error'}`);
+    if (!out?.ok) { setNotice(`Sync failed: ${out?.error || 'unknown error'}`); return; }
+    const skipped = Object.entries(out.skipped).map(([why, n]) => `${n} ${why}`).join(', ');
+    const parts = [`${out.pulled.length} source${out.pulled.length === 1 ? '' : 's'} pulled${out.pulled.length ? ` (${out.pulled.join(', ')})` : ''}`];
+    if (skipped) parts.push(`skipped: ${skipped}`);
+    if (out.errors.length) parts.push(`${out.errors.length} failed: ${out.errors.join('; ')}`);
+    if (out.more) parts.push('more remaining — press Sync now again');
+    setNotice(`Sync ${out.errors.length ? 'finished with errors' : 'finished'}: ${parts.join(' — ')}.`);
   };
 
   const center = () => {

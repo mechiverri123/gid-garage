@@ -10,6 +10,8 @@
 // secret never reaches the browser.
 //   missing header -> 401, wrong secret -> 403, secret not configured -> 503
 // Body (optional): { mode: 'incremental' | 'backfill' | 'force', only: ['search_console', ...] }
+// Each call is one budget-bounded slice of a run (sync.js); schedule it every
+// 15 minutes — it continues an unfinished run or starts a new one about daily.
 
 import { createSeoStore } from './_lib/seo/store.js';
 import { runSeoSync } from './_lib/seo/sync.js';

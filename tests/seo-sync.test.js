@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { runSeoSync } from '../functions/_lib/seo/sync.js';
 import { createSeoOps, windows } from '../functions/_lib/seo/ops.js';
 import { handleSeoData } from '../functions/jarvis/seo-data.js';
-import { fakeSeoStore } from './seo-fake-store.js';
+import { fakeSeoStore, syncToEnd } from './seo-fake-store.js';
 import { classifyQuery, gscLocality } from '../shared/seo/local-intent.js';
 
 const NOW = new Date('2026-09-28T19:00:00Z');
@@ -56,13 +56,13 @@ test('backfill walks backwards in 30-day chunks and resumes from the cursor; inc
   const env = { BING_WEBMASTER_API_KEY: 'k', BING_SITE_URL: 'x', NOAA_CDO_TOKEN: 't' };
   const ranges = [];
   const fetchImpl = async url => { const m = String(url).match(/startdate=([\d-]+)&enddate=([\d-]+)/); if (m) ranges.push([m[1], m[2]]); return json({ results: [] }); };
-  await runSeoSync({ env, store, fetch: fetchImpl, now: NOW, mode: 'backfill', only: ['weather_history'] });
-  await runSeoSync({ env, store, fetch: fetchImpl, now: NOW, mode: 'backfill', only: ['weather_history'] });
+  await syncToEnd(runSeoSync, { env, store, fetch: fetchImpl, now: NOW, mode: 'backfill', only: ['weather_history'] });
+  await syncToEnd(runSeoSync, { env, store, fetch: fetchImpl, now: NOW, mode: 'backfill', only: ['weather_history'] });
   // NOAA lags 5 days: backfill starts the day before today−5 and chunks are contiguous.
   assert.deepEqual(ranges, [['2026-08-24', '2026-09-22'], ['2026-07-25', '2026-08-23']]);
   assert.equal(store.tables.seo_provider_status.find(r => r.provider === 'weather_history').cursor.backfilledFrom, '2026-07-25');
   ranges.length = 0;
-  await runSeoSync({ env, store, fetch: fetchImpl, now: NOW, mode: 'incremental', only: ['weather_history'] });
+  await syncToEnd(runSeoSync, { env, store, fetch: fetchImpl, now: new Date(NOW.getTime() + 6 * 60000), mode: 'incremental', manual: true, only: ['weather_history'] });
   assert.deepEqual(ranges, [['2026-09-19', '2026-09-27']]);
   assert.equal(store.tables.seo_sync_runs.length, 3);
 });
