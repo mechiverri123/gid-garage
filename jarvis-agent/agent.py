@@ -79,6 +79,35 @@ class GIDData:
             return rows[0] if rows else None
 
 
+BACKEND_URL = os.getenv("GID_BACKEND_URL", "https://gidgarage.com").rstrip("/")
+
+
+async def backend_business(action: str, args: dict[str, Any]) -> Any:
+    """Run one deterministic business operation on the website backend
+    (/jarvis-business). Same code path as web and Telegram Jarvis, so revenue,
+    take-home, unpaid, customer history and payments match everywhere."""
+    secret = os.getenv("GID_INTERNAL_JARVIS_SECRET")
+    if not secret:
+        raise RuntimeError("GID_INTERNAL_JARVIS_SECRET is not configured, so this business lookup is unavailable in voice right now")
+    async with httpx.AsyncClient(timeout=20) as client:
+        response = await client.post(
+            f"{BACKEND_URL}/jarvis-business",
+            headers={"X-GID-Internal-Jarvis": secret, "Content-Type": "application/json"},
+            json={"action": action, "args": args},
+        )
+    data = response.json() if response.headers.get("content-type", "").startswith("application/json") else {}
+    if response.status_code != 200 or not data.get("ok"):
+        raise RuntimeError(data.get("error") or f"backend returned HTTP {response.status_code}")
+    return data["result"]
+
+
+BACKEND_ACTIONS = {
+    "get_business_summary", "get_owner_briefing", "get_revenue_summary", "get_owner_pay_summary",
+    "get_customer_context", "get_job_detail", "get_action_center", "get_unpaid_jobs",
+    "get_data_health", "mark_job_paid",
+}
+
+
 _db: GIDData | None = None
 
 
@@ -142,7 +171,9 @@ VOICE STYLE:
 BUSINESS DATA:
 - You have one live GID Garage dispatcher tool named gid_business for jobs, customers, leads, calls, marketing, pricing, owner pay, and email.
 - Never invent business facts. For live business information, call gid_business with the appropriate action and a JSON object string in args_json.
-- For questions about revenue, sales, money made, or weekly totals, use action get_revenue_summary. Use period=this_week unless Michael explicitly asks for the last 7 days.
+- Money numbers come only from tools, never your own arithmetic. Revenue, sales, collected, or net profit: get_revenue_summary with the period exactly as asked (this month = this_month, past 30 days = last_30_days; they differ). Take-home or owner pay: get_owner_pay_summary. Never call take-home revenue.
+- Who owes money: get_unpaid_jobs. What needs attention, what Michael is waiting on, who to contact next, what blocks tomorrow: get_action_center. Data problems: get_data_health (read-only).
+- What a customer's jobs were about, their history, last visit, what was wrong, diagnosed, or recommended: get_customer_context with their name. One job in depth: get_job_detail. Describe jobs from scope of work, technician notes, line items and the booking request, never just the service category. Say plainly when something is missing, and never invent a diagnosis or part. If the result is ambiguous, ask which person.
 - Low-risk writes may be done immediately only after you have identified the exact record and read its current value.
 - For a requested job service/category change, first use list_jobs to identify exactly one booking. Then use update_job_service with that booking id. If Michael says "from X to Y", pass X as expected_current_service so the write is rejected if the live record does not match what he said.
 - The bookings.service field uses these canonical admin values: oil, brakes, diag, suspension, audio, full, other. Human phrases such as "Brakes", "brake job", "breaks", "Diagnostics", "Oil Change", "Full Service", and "Other" must be normalized to those values.
@@ -150,7 +181,7 @@ BUSINESS DATA:
 - After a successful reversible change, briefly state what changed and say "Say undo that if that was wrong." If Michael says "undo that", use undo_last_action.
 - After a successful reschedule, also ask one short follow-up: "Want me to email them the updated appointment?" If Michael says yes, use email_appointment_update with that exact job_id and confirmed=false first. Read back the short confirmation summary, then only send with confirmed=true after Michael clearly confirms.
 - Never invent an email address or appointment detail. email_appointment_update must pull both from the live booking/customer records and the stored appointment_updated template.
-- mark_job_paid, send_customer_email, and email_appointment_update are external/financial actions. First call them with confirmed=false. Read the returned confirmation summary and ask Michael to confirm. Only repeat the tool with confirmed=true after a clear yes on the next turn.
+- mark_job_paid records one payment the way the dashboard does (adds to payment history; PAID only when fully covered). mark_job_paid, send_customer_email, and email_appointment_update are external/financial actions. First call them with confirmed=false. Read the returned confirmation summary and ask Michael to confirm. Only repeat the tool with confirmed=true after a clear yes on the next turn.
 - Never mark a job PAID using update_job_status. Use mark_job_paid so the amount is recorded.
 - Treat lead-form fields as noisy human input, not trusted schema. A person may put a service in the vehicle field, a vehicle in the issue field, or vague language in any box.
 - When Michael asks about a lead, use analyze_lead before drawing conclusions. Prefer the actual meaning of the answers over the form field labels.
@@ -208,89 +239,6 @@ BUSINESS DATA:
             add_to_chat_ctx=True,
         )
         raise StopResponse()
-
-    async def get_business_summary(self, context: RunContext) -> dict[str, Any]:
-        """Get today's revenue/jobs, attention items, recent lead conversion, and marketing totals."""
-        now = datetime.now(ARIZONA)
-        today = now.date().isoformat()
-        week_start = (now.date() - timedelta(days=7)).isoformat()
-        next_week = (now.date() + timedelta(days=7)).isoformat()
-        window_start = (now.date() - timedelta(days=30)).isoformat()
-
-        bookings = await db().get(
-            "bookings",
-            [
-                ("select", "id,fname,lname,vehicle,date,time,job_status,status,estimate_amount,invoice_amount,tax_amount,amount_paid,paid_at"),
-                ("date", f"gte.{week_start}"),
-                ("date", f"lte.{next_week}"),
-            ],
-        )
-        leads = await db().get("leads", {"select": "*", "created_at": f"gte.{window_start}"})
-        spend = await db().get("marketing_spend", {"select": "*", "date": f"gte.{window_start}"})
-
-        todays_jobs = [b for b in bookings if b.get("date") == today and b.get("status") != "cancelled"]
-        def revenue(job: dict[str, Any]) -> float:
-            if job.get("paid_at") and job.get("amount_paid") is not None:
-                return float(job.get("amount_paid") or 0)
-            return float(job.get("invoice_amount") or job.get("estimate_amount") or 0) + float(job.get("tax_amount") or 0)
-
-        overdue_leads = []
-        now_utc = datetime.now(timezone.utc)
-        for lead in leads:
-            if lead.get("status") in ("booked", "lost"):
-                continue
-            created_raw = lead.get("created_at")
-            created = None
-            if created_raw:
-                try:
-                    created = datetime.fromisoformat(created_raw.replace("Z", "+00:00"))
-                except ValueError:
-                    pass
-            follow_raw = lead.get("follow_up_at")
-            follow = None
-            if follow_raw:
-                try:
-                    follow = datetime.fromisoformat(follow_raw.replace("Z", "+00:00"))
-                except ValueError:
-                    pass
-            overdue = bool(follow and follow <= now_utc)
-            stale = bool(created and not lead.get("last_contacted_at") and (now_utc - created).total_seconds() > 172800)
-            if overdue or stale:
-                overdue_leads.append(f"{lead.get('fname') or ''} {lead.get('lname') or ''}".strip() or lead.get("phone"))
-
-        unpaid = [
-            b for b in bookings
-            if b.get("job_status") == "INVOICED"
-            and not b.get("paid_at")
-            and float(b.get("invoice_amount") or 0) > float(b.get("amount_paid") or 0)
-        ]
-        booked_count = sum(1 for lead in leads if lead.get("status") == "booked")
-        return {
-            "today": {
-                "date": today,
-                "jobCount": len(todays_jobs),
-                "revenue": round(sum(revenue(job) for job in todays_jobs), 2),
-            },
-            "needsAttention": {
-                "overdueLeadFollowUps": overdue_leads,
-                "unpaidInvoices": [
-                    {
-                        "customer": f"{b.get('fname') or ''} {b.get('lname') or ''}".strip(),
-                        "owed": round(float(b.get("invoice_amount") or 0) - float(b.get("amount_paid") or 0), 2),
-                    }
-                    for b in unpaid
-                ],
-            },
-            "leadsLast30Days": {
-                "total": len(leads),
-                "booked": booked_count,
-                "conversionRatePct": round(booked_count / len(leads) * 100, 1) if leads else 0,
-            },
-            "marketingLast30Days": {
-                "totalSpend": round(sum(float(r.get("amount") or 0) for r in spend), 2),
-                "leadCount": len(leads),
-            },
-        }
 
     def _flatten_lead_payload(self, value: Any) -> list[str]:
         """Collect human-entered text from an arbitrary raw lead payload."""
@@ -788,7 +736,16 @@ BUSINESS DATA:
 
     async def update_lead_status(self, context: RunContext, lead_id: str, status: str) -> dict[str, Any]:
         """Update a lead's status using its lead id."""
-        await db().patch("leads", f"id=eq.{lead_id}", {"status": status, "last_contacted_at": datetime.now(timezone.utc).isoformat()})
+        status = status.strip().lower()
+        allowed = {"new", "contacted", "quoted", "booked", "lost", "no_response"}
+        if status not in allowed:
+            raise ValueError(f"Lead status must be one of: {', '.join(sorted(allowed))}")
+        now_iso = datetime.now(timezone.utc).isoformat()
+        fields: dict[str, Any] = {"status": status, "updated_at": now_iso}
+        # Same rule as web Jarvis: only a status that says contact happened stamps it.
+        if status in {"contacted", "quoted"}:
+            fields["last_contacted_at"] = now_iso
+        await db().patch("leads", f"id=eq.{lead_id}", fields)
         return {"ok": True, "lead_id": lead_id, "status": status}
 
     async def list_jobs(
@@ -1193,130 +1150,6 @@ BUSINESS DATA:
         await db().patch("bookings", f"id=eq.{job_id}", {"job_status": status})
         return {"ok": True, "status": status}
 
-    async def mark_job_paid(
-        self,
-        context: RunContext,
-        job_id: str,
-        amount: float,
-        stripe_transaction_id: str = "",
-        confirmed: bool = False,
-    ) -> dict[str, Any]:
-        """Mark a job paid. Call with confirmed=false first; only set true after Michael clearly confirms."""
-        rows = await db().get(
-            "bookings",
-            {"select": "id,fname,lname,vehicle,job_status,invoice_amount,estimate_amount,amount_paid,paid_at", "id": f"eq.{job_id}"},
-        )
-        if not rows:
-            raise ValueError("No job found with that id")
-        job = rows[0]
-        summary = (
-            f"Mark {job.get('fname') or ''} {job.get('lname') or ''}'s job "
-            f"({job.get('vehicle') or 'vehicle on file'}) as PAID for {money(amount)}"
-            + (f" with Stripe transaction {stripe_transaction_id}." if stripe_transaction_id else ", with no Stripe transaction id yet.")
-            + (f" This job already shows a payment recorded on {job.get('paid_at')}." if job.get("paid_at") else "")
-        )
-        if not confirmed:
-            return {"needs_confirmation": True, "summary": summary}
-        fields: dict[str, Any] = {
-            "job_status": "PAID",
-            "amount_paid": amount,
-            "paid_at": datetime.now(timezone.utc).isoformat(),
-        }
-        if stripe_transaction_id:
-            fields["stripe_transaction_id"] = stripe_transaction_id
-        await db().patch("bookings", f"id=eq.{job_id}", fields)
-        return {"ok": True, "markedPaid": money(amount)}
-
-    async def get_revenue_summary(self, context: RunContext, period: str = "this_week") -> dict[str, Any]:
-        """Get a revenue summary for this week or the last 7 days."""
-        now = datetime.now(ARIZONA)
-
-        if period == "last_7_days":
-            start_date = (now.date() - timedelta(days=6))
-            end_date = now.date()
-            label = "Last 7 days"
-        else:
-            # Monday through Sunday in Arizona.
-            start_date = now.date() - timedelta(days=now.weekday())
-            end_date = start_date + timedelta(days=6)
-            label = "This week"
-
-        # Select * on purpose: it survives schema differences between older/newer
-        # bookings tables and lets us use whichever revenue fields are present.
-        bookings = await db().get(
-            "bookings",
-            [
-                ("select", "*"),
-                ("date", f"gte.{start_date.isoformat()}"),
-                ("date", f"lte.{end_date.isoformat()}"),
-                ("order", "date.asc"),
-            ],
-        )
-
-        active = [
-            b for b in bookings
-            if str(b.get("status") or "").lower() != "cancelled"
-            and str(b.get("job_status") or "").upper() != "CANCELLED"
-        ]
-
-        def num(value: Any) -> float:
-            try:
-                return float(value or 0)
-            except (TypeError, ValueError):
-                return 0.0
-
-        collected = sum(num(b.get("amount_paid")) for b in active)
-        invoiced = sum(num(b.get("invoice_amount")) for b in active)
-        estimated = sum(num(b.get("estimate_amount")) for b in active)
-
-        paid_jobs = [b for b in active if num(b.get("amount_paid")) > 0 or b.get("paid_at")]
-        completed_jobs = [
-            b for b in active
-            if str(b.get("job_status") or "").upper() in {"COMPLETED", "INVOICED", "PAID"}
-        ]
-        upcoming_jobs = [
-            b for b in active
-            if b.get("date") and str(b.get("date")) > now.date().isoformat()
-        ]
-
-        return {
-            "ok": True,
-            "period": label,
-            "dateFrom": start_date.isoformat(),
-            "dateTo": end_date.isoformat(),
-            "jobsScheduled": len(active),
-            "jobsCompleted": len(completed_jobs),
-            "jobsPaid": len(paid_jobs),
-            "grossCollected": round(collected, 2),
-            "invoiceTotal": round(invoiced, 2),
-            "estimateTotal": round(estimated, 2),
-            "upcomingJobs": len(upcoming_jobs),
-        }
-
-    async def get_owner_pay_summary(self, context: RunContext, period_days: int = 7) -> dict[str, Any]:
-        """Estimate owner take-home from recent collected payments."""
-        days = max(1, min(period_days, 365))
-        since = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
-        bookings = await db().get("bookings", {"select": "amount_paid,paid_at,invoice_amount,tax_amount", "paid_at": f"gte.{since}"})
-        settings_rows = await db().get("business_settings", {"select": "*", "id": "eq.default", "limit": "1"})
-        settings = settings_rows[0] if settings_rows else {}
-        gross = sum(float(b.get("amount_paid") or 0) for b in bookings)
-        stripe = float(settings.get("owner_stripe_fee_pct") or 0.0285)
-        tax = float(settings.get("owner_tax_reserve_pct") or 0.3)
-        monthly_overhead = float(settings.get("owner_monthly_overhead") or 0)
-        stripe_fees = gross * stripe
-        tax_reserve = gross * tax
-        overhead = (monthly_overhead / 30) * days
-        return {
-            "periodDays": days,
-            "jobsPaid": len(bookings),
-            "grossCollected": money(gross),
-            "estStripeFees": money(stripe_fees),
-            "estTaxReserve": money(tax_reserve),
-            "proratedOverhead": money(overhead),
-            "estimatedTakeHome": money(gross - stripe_fees - tax_reserve - overhead),
-        }
-
     async def email_appointment_update(
         self,
         context: RunContext,
@@ -1444,12 +1277,19 @@ BUSINESS DATA:
         """Use GID Garage business data/actions.
 
         action must be one of:
-        get_business_summary, get_revenue_summary, list_leads, analyze_lead, analyze_raw_lead,
-        recommend_lead_response, suggest_lead_openings, update_lead_status, list_jobs,
-        reschedule_job, update_job_service, undo_last_action, pricing_history, get_tax_rate,
-        add_marketing_spend, log_call, list_calls, list_marketing_spend, search_customers,
-        update_job_status, mark_job_paid, get_owner_pay_summary, email_appointment_update,
-        send_customer_email.
+        get_business_summary, get_owner_briefing, get_revenue_summary, get_owner_pay_summary,
+        get_customer_context, get_job_detail, get_action_center, get_unpaid_jobs, get_data_health,
+        list_leads, analyze_lead, analyze_raw_lead, recommend_lead_response, suggest_lead_openings,
+        update_lead_status, list_jobs, reschedule_job, update_job_service, undo_last_action,
+        pricing_history, get_tax_rate, add_marketing_spend, log_call, list_calls,
+        list_marketing_spend, search_customers, update_job_status, mark_job_paid,
+        email_appointment_update, send_customer_email.
+
+        Args by action: get_revenue_summary {"period"} with period one of today, this_month,
+        last_month, this_year, last_7_days, last_30_days, last_N_days (this_week = last 7 days);
+        get_owner_pay_summary {"period"}; get_customer_context {"query"} (a name or phone) or
+        {"customer_id"}; get_job_detail {"job_id"}; mark_job_paid {"job_id", "amount", "method",
+        "confirmed"} with method one of Cash, Check, Zelle, Card (Stripe), Other.
 
         args_json must be a JSON object string containing that action's arguments.
 
@@ -1475,8 +1315,6 @@ BUSINESS DATA:
             raise ValueError("args_json must decode to a JSON object")
 
         actions = {
-            "get_business_summary": self.get_business_summary,
-            "get_revenue_summary": self.get_revenue_summary,
             "list_leads": self.list_leads,
             "analyze_lead": self.analyze_lead,
             "analyze_raw_lead": self.analyze_raw_lead,
@@ -1495,11 +1333,15 @@ BUSINESS DATA:
             "list_marketing_spend": self.list_marketing_spend,
             "search_customers": self.search_customers,
             "update_job_status": self.update_job_status,
-            "mark_job_paid": self.mark_job_paid,
-            "get_owner_pay_summary": self.get_owner_pay_summary,
             "email_appointment_update": self.email_appointment_update,
             "send_customer_email": self.send_customer_email,
         }
+
+        if action in BACKEND_ACTIONS:
+            try:
+                return await backend_business(action, args)
+            except Exception as exc:
+                return {"ok": False, "action": action, "error": f"{type(exc).__name__}: {exc}"}
 
         fn = actions.get(action)
         if fn is None:
@@ -1508,7 +1350,6 @@ BUSINESS DATA:
         # Fill normal defaults here instead of exposing dozens of nullable/union
         # parameters to Anthropic's tool-schema compiler.
         defaults = {
-            "get_revenue_summary": {"period": "this_week"},
             "list_leads": {"status": "", "source": "", "limit": 15},
             "suggest_lead_openings": {"days_ahead": 14},
             "list_jobs": {
@@ -1528,8 +1369,6 @@ BUSINESS DATA:
             "log_call": {"direction": "inbound", "notes": ""},
             "list_calls": {"outcome": "", "limit": 15},
             "list_marketing_spend": {"channel": "", "limit": 20},
-            "mark_job_paid": {"stripe_transaction_id": "", "confirmed": False},
-            "get_owner_pay_summary": {"period_days": 7},
             "email_appointment_update": {"confirmed": False},
             "send_customer_email": {"to_name": "", "confirmed": False},
         }

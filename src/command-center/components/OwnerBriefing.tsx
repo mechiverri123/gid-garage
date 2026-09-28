@@ -93,7 +93,7 @@ export function OwnerBriefing({ summary }: { summary: CommandCenterSummary }) {
   const businessLine = useMemo(() => {
     const bits = [
       `${summary.today.jobCount} job${summary.today.jobCount === 1 ? '' : 's'} today`,
-      `${money(summary.today.revenue)} revenue`,
+      `${money(summary.today.revenue)} booked`,
       `${summary.today.newLeads} new lead${summary.today.newLeads === 1 ? '' : 's'}`,
     ];
     if (summary.needsAttention.length) bits.push(`${summary.needsAttention.length} need attention`);
@@ -117,7 +117,7 @@ export function OwnerBriefing({ summary }: { summary: CommandCenterSummary }) {
             </div>
             <div className="grid grid-cols-2 gap-2 mt-4">
               <div className="rounded-xl border px-3 py-2.5" style={{ borderColor: 'rgba(255,255,255,0.06)', background: 'rgba(255,255,255,0.02)' }}>
-                <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.16em]" style={{ color: COLORS.textFaint }}><TrendingUp size={11}/>Revenue</div>
+                <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.16em]" style={{ color: COLORS.textFaint }}><TrendingUp size={11}/>Booked today</div>
                 <div className="text-lg font-semibold mt-1" style={{ color: COLORS.success }}>{money(summary.today.revenue)}</div>
               </div>
               <div className="rounded-xl border px-3 py-2.5" style={{ borderColor: 'rgba(255,255,255,0.06)', background: 'rgba(255,255,255,0.02)' }}>

@@ -1,59 +1,67 @@
 # Jarvis Consistency Audit
 
-Traced from source on 2026-09-27. Status per row: **FIXED** (shared code + tests),
-**MISMATCH** (still disagrees, not fixed yet), **OK** (same rule everywhere).
+Traced from source and updated on 2026-09-27, after the second pass. Status per row: **FIXED** (shared code + tests), **OK** (one rule everywhere), **OPEN**.
 
-Canonical money code: `shared/business-metrics.js` (tests: `tests/business-metrics.test.js`, `npm test`).
-It lives outside `functions/` so Pages doesn't route it; the dashboard and the functions both import it.
+Canonical code (pure, tested with `npm test`):
+- `shared/business-metrics.js`: periods (Arizona), revenue, net profit, card revenue, owner take-home, owner-pay settings.
+- `shared/business-rules.js`: statuses, cancelled, balance, unpaid, lead follow-up, lead status writes, the payment-write plan, data health, the action queue.
+- `shared/job-context.js`: job evidence, entity resolution, customer history.
+- `functions/_lib/business-data.js`: the Supabase operations built on the above. Web and Telegram chat (`admin-ai-chat.js`) and voice (`jarvis-business.js`) both call it.
 
 ## Summary table
 
-| Concept | Dashboard (`src/JobOps.tsx`) | admin-ai-chat (web + Telegram) | jarvis-proactive | LiveKit voice (`agent.py`) | Status |
+| Concept | Dashboard (`JobOps.tsx`) | admin-ai-chat (web + Telegram) | jarvis-proactive | LiveKit voice | Status |
 |---|---|---|---|---|---|
-| Revenue | shared `collectedRevenue` | `get_revenue_summary` → shared | 7-day brief total → shared | own formula (see V1) | FIXED except voice |
-| Net profit | shared `netProfit` | `get_revenue_summary` → shared | not shown | not implemented | FIXED |
-| Owner take-home | Owner Pay panel → shared `ownerTakeHome` | `get_owner_pay_summary` → shared | not shown | own formula (see V2) | FIXED except voice |
-| Unpaid | count of COMPLETED + INVOICED | INVOICED, no paid_at, invoice > amount_paid | same as chat | same as chat | MISMATCH (U1, U2) |
-| Jobs today | n/a | `date == AZ today`, `status != 'cancelled'` | same | same | OK-ish (J1) |
-| Jobs this month | PAID jobs with paidAt in AZ month | not exposed | n/a | n/a | OK |
-| Lead follow-up | n/a | action center: stale > **1 day**; business summary: stale > **2 days** | stale > 1 day | stale > **2 days** | MISMATCH (L1) |
-| Tomorrow schedule | n/a | `addPhoenixDays(today, 1)` | `addDate(today, 1)` | own | OK (Telegram = chat) |
-| Customer lookup | n/a | tools in chat | n/a | own Supabase queries | not audited in depth |
-| Reminder timing | n/a | server computes relative time | due_at ≤ now, sent once | n/a | OK (fixed earlier) |
+| Revenue | shared `collectedRevenue` | `get_revenue_summary` → ops | 7-day total → shared | `/jarvis-business` → ops | **FIXED** |
+| Net profit | shared `netProfit` | `get_revenue_summary` → ops | — | `/jarvis-business` | **FIXED** |
+| Owner take-home | Owner Pay panel → shared `ownerTakeHome` | `get_owner_pay_summary` → ops | — | `/jarvis-business` | **FIXED** |
+| Unpaid | `isAwaitingPayment` (Unpaid / Due count) | `get_unpaid_jobs`, action center, briefing, summary → `unpaidJobs` | alerts + briefs → `unpaidJobs` | `/jarvis-business` | **FIXED** |
+| Jobs today / tomorrow | — | `jobsOnDate` (cancelled by `status` **or** `job_status`) | `isCancelled` | via briefing | **FIXED** |
+| Jobs this month | PAID with paidAt in the Arizona month | — | — | — | OK |
+| Lead follow-up | — | `leadFollowUpReason` (list, action center, summary) | `leadFollowUpReason` | via action center | **FIXED** |
+| Lead status write | — | `leadStatusUpdate` | — | same rule in Python | **FIXED** |
+| Payment write | Record a Payment | `mark_job_paid` → `planPayment` | — | `/jarvis-business` → `planPayment` | **FIXED** |
+| Customer / job context | job detail view | `get_customer_context`, `get_job_detail` | — | `/jarvis-business` | **FIXED** (new) |
+| "Booked today" value | Command Center (`admin-api-data` `jobRevenue`) | `get_business_summary.today.bookedValue` → `bookedValue` | — | via summary | **FIXED** (labels) |
+| Reminder timing | — | server-computed `due_in_minutes` | due ≤ now, sent once | — | OK |
 
-Telegram is a transport layer only (`jarvis-telegram.js` → `admin-ai-chat.onRequestPost`), so it always matches the web chat.
+Telegram is transport only (`jarvis-telegram.js` → `admin-ai-chat.onRequestPost`), so it always matches web.
 
-## Money definitions (canonical, `shared/business-metrics.js`)
+## Canonical definitions
 
-- **Revenue / collected**: every `payments[]` entry whose `at` is in the window. For a `PAID` job whose `paid_at` is in the window **and** whose payment log totals less than `invoice_amount + tax_amount`, the job counts as `invoice + tax` (this replaces its logged entries and is not added on top). Cancelled jobs are **not** excluded: a kept deposit is still collected money. This matches the dashboard.
-- **Net profit**: `PAID` jobs with `paid_at` in the window: `(amount_paid ?? invoice + tax) − tax_amount − parts_cost`.
-- **Owner take-home** (the Hub Owner Pay panel): net profit − Stripe fee % × card (`'Card (Stripe)'`) payments − monthly overhead × days / 30, then the tax reserve % comes out of what's left. A deficit gives $0 take-home. Settings come from `business_settings` `owner_tax_reserve_pct` (default 0.3), `owner_stripe_fee_pct` (default 0.02928), and `owner_overhead_items` (summed).
-- **Periods** (`resolvePeriodWindow`), all on the America/Phoenix calendar: `today`, `this_month`, `last_month`, `this_year`, and rolling windows `last_N_days` (`this_week` = last 7 days). Anything unrecognized is labeled "the last 30 days", so an answer never claims a period it didn't compute.
+- **Revenue / collected**: `payments[]` entries dated in the window. A PAID job closed in the window whose payment log doesn't cover invoice + tax counts as invoice + tax, replacing its logged entries rather than adding to them. Cancelled jobs' collected money still counts.
+- **Net profit**: PAID jobs closed in the window: `(amount_paid ?? invoice + tax) − tax − parts_cost`.
+- **Owner take-home**: net profit − Stripe fee % × card payments − monthly overhead × days/30, then the tax reserve % comes out of what's left. A deficit gives $0.
+- **Periods**: Arizona calendar `today`, `this_month`, `last_month`, `this_year`; rolling `last_N_days` (`this_week` = last 7 days). Unknown periods are labeled "the last 30 days".
+- **Unpaid**: COMPLETED or INVOICED, not cancelled, with balance = (invoice, or estimate if not invoiced) + tax − amount paid > $0.01. The dashboard count still shows every COMPLETED + INVOICED job. Jarvis lists only those with a balance, and `get_data_health` flags the difference as `fully_paid_not_marked_paid`.
+- **Lead needs follow-up**: not booked or lost, and either `follow_up_at` ≤ now, or never contacted and more than 24h old.
+- **Cancelled**: `status = 'cancelled'` **or** `job_status = 'CANCELLED'`.
 
-## Mismatches fixed in this pass
+## Mismatches fixed
 
-- **F1. Jarvis take-home ignored overhead entirely.** It read `business_settings.owner_monthly_overhead`, but the dashboard saves overhead in `owner_overhead_items`, so overhead was always $0.
-- **F2. Jarvis take-home used a different formula from the Owner Pay panel.** It worked off gross (sales tax and parts cost included), charged the Stripe fee on all revenue instead of card payments only, took the reserve from gross, and used a 2.85% default fee instead of 2.928%. Now it's the same function the panel uses. The default period changed from 7 to 30 days, which is what the panel shows.
-- **F3. Revenue excluded cancelled jobs in Jarvis but not on the dashboard.** Both now include them (a kept deposit is collected money).
-- **F4. The dashboard used the browser's timezone for "this month" and "this year".** Both now use Arizona. The numbers only change if the admin browser is outside Arizona.
-- **F5. Jarvis fetched bookings with no order or limit** (Supabase's default row cap, arbitrary rows). It now uses the same query as the dashboard: newest 2000 by date.
-- **F6. "Collected last 7 days"** (action center and the morning brief) summed `amount_paid` for jobs whose `paid_at` fell in the last 7 days. That missed partial payments and counted the whole job total on the day it closed. It now uses the shared revenue calculation.
-- **F7. A failed load read as $0.** Revenue and take-home tools returned $0 when Supabase errored (`.catch(() => [])`). They now return an error, and the 7-day total says "unknown".
+First pass:
+- **F1.** Take-home ignored overhead: it read a column that doesn't exist.
+- **F2.** Take-home used a different formula from the Owner Pay panel.
+- **F3.** Cancelled jobs were treated differently in revenue.
+- **F4.** The dashboard's months used the browser timezone.
+- **F5.** Jarvis fetched bookings with no order or limit.
+- **F6.** "Collected last 7 days" ignored partial payments.
+- **F7.** A failed load read as $0.
 
-## Open mismatches (not fixed yet)
+Second pass:
+- **V1/V2. Voice money was a different metric** (appointment-date based) and had its own take-home. The Python revenue, take-home, business-summary and mark-paid code is deleted. Voice calls `/jarvis-business`, which runs the same operations as web.
+- **U1. Unpaid** differed (dashboard COMPLETED + INVOICED; Jarvis, proactive and voice INVOICED only). There's now one `unpaidJobs` rule everywhere.
+- **U2. Amount owed ignored tax** (`invoice − amount_paid`). Balance now includes tax, and a partially paid taxed job no longer drops off the list.
+- **L1. The stale-lead threshold** was 1 day in some places and 2 in others. It's 24h everywhere now (`leadFollowUpReason`).
+- **J1.** "Jobs today" ignored `job_status = CANCELLED`. `jobsOnDate` / `isCancelled` now check both columns.
+- **R1. "Revenue today"** was the booked value of today's jobs, estimates included. The chat tool now returns `bookedValue` and `collected` separately, and the Command Center labels read "Booked".
+- **Q1. Action center and briefing fetched the *oldest* 100–150 bookings** (`order=date.asc&limit=…`), so as history grew, today's and tomorrow's jobs and unpaid jobs would silently drop out. They now query open (non-PAID, non-cancelled) jobs and today/tomorrow by date.
+- **W1. `mark_job_paid` overwrote `amount_paid`**, skipped `payments[]`, and always set PAID, on both web and voice. It now uses `planPayment`, the dashboard's Record a Payment rule, with duplicate, over-balance and mismatch guards.
+- **W2. `update_lead_status` stamped `last_contacted_at` on every change**, which broke the follow-up rule. Only `contacted`/`quoted` stamp it now.
 
-- **V1. Voice revenue is a different metric.** `agent.py get_revenue_summary` filters bookings by **appointment date** (Monday to Sunday for `this_week`) and sums `amount_paid`. That's "paid-to-date on this week's appointments", not money collected this week. It has no `this_month` and no net profit.
-- **V2. Voice take-home is also different:** `amount_paid` by `paid_at`, rolling days, and it doesn't match the panel.
-  - **Fix direction:** voice shouldn't carry its own money math. Add a backend endpoint that runs the shared functions and have `agent.py` call it, or port the math to Python with the same fixtures. Needs a voice deploy and a live test.
-- **R1. `get_business_summary` labels today's booked value as `today.revenue`.** It's `amount_paid` if paid, otherwise invoice or **estimate** + tax, for jobs *scheduled* today. That's booked value, not revenue. Four UI components read `today.revenue` (BusinessMetrics, BusinessSummaryCard, OwnerBriefing ×2), so the rename needs a coordinated UI change.
-- **U1. Unpaid means different things on different surfaces.** The dashboard counts COMPLETED + INVOICED jobs. Jarvis, proactive and voice only count INVOICED jobs with no `paid_at` and invoice > amount paid. A COMPLETED job that was never invoiced shows as unpaid on the dashboard and not in Jarvis.
-- **U2. Amount owed ignores tax.** It's calculated as `invoice_amount − amount_paid`, but `amount_paid` includes tax, so a partly paid taxed job under-reports what's owed by the tax amount. A job with `amount_paid ≥ invoice_amount` but less than invoice + tax disappears from the unpaid list.
-- **L1. The stale-lead threshold differs:** 1 day in the action center and proactive, 2 days in `get_business_summary` and voice. "Who needs follow-up?" and "Brief me" can disagree for leads that are 1–2 days old.
-- **J1. "Jobs today" filters out cancelled jobs by the `status` column only.** Jobs cancelled only through `job_status = CANCELLED` still count.
+## Still open
 
-## Next steps (in order)
-
-1. Deploy, then check "revenue this month" and "net profit this month" in Jarvis against the Schedule dashboard (manual).
-2. Unpaid and lead follow-up: add shared rules (`computeUnpaid`, `leadNeedsFollowUp`) plus tests, and settle U1, U2 and L1 with the owner, since each one changes numbers someone may rely on.
-3. Voice: route money questions through the backend (V1, V2).
-4. R1: rename `today.revenue` to `today.bookedValue` across the chat tool and UI.
+- **Dashboard vs Jarvis unpaid count:** the dashboard's "Unpaid / Due" counts COMPLETED + INVOICED jobs even when the balance is $0, and Jarvis lists only jobs with a balance. Both come from the same `isAwaitingPayment`, and the zero-balance ones show up in data health. If the owner wants the dashboard count to exclude $0 balances too, it's a one-line change in `JobOps.tsx`.
+- **Command Center's `today.revenue` key** still carries booked value (relabeled "Booked" in the UI). Renaming the key in `admin-api-data.js` and the four readers is cosmetic.
+- **Voice non-money tools** (`list_jobs`, `search_customers`, lead analysis, reschedule/undo, email) are still Python.
+- **Proactive's first run after deploy** will send one new unpaid alert, because the fingerprint format changed and COMPLETED jobs with balances now count.

@@ -5,11 +5,12 @@
 // 'ask-gid' action with an actual conversational agent that can chain
 // multiple lookups and hold a conversation.
 //
-// SAFETY: Every tool below only reads or makes small, explicit writes
-// (updating a lead's status, logging a call, adding a spend entry, or
-// updating a booking's date/time). Nothing deletes data. Nothing touches
-// payments, customer identity fields, or signed jobs. If you add tools
-// later, keep that boundary.
+// SAFETY: Tools only read or make small, explicit, allowlisted writes (lead
+// status, call/spend logs, reminders, notes, reschedule, pipeline status).
+// Nothing deletes data. Payments (mark_job_paid) and customer email are
+// confirmation-gated; the payment write uses the same append-and-reconcile
+// rule as the dashboard (shared/business-rules.js planPayment). Numbers and
+// customer/job context come from _lib/business-data.js, never model math.
 //
 // Requires env var ANTHROPIC_API_KEY (console.anthropic.com). Costs are
 // small — Haiku is roughly $1/million input tokens; a typical exchange
@@ -25,7 +26,11 @@
 //   { type: 'error', message: string }
 // A conversation with no tool calls just streams a single 'final' line.
 
-import { resolvePeriodWindow, collectedRevenue, netProfit, jobFromRow, ownerPaySettings, ownerTakeHome } from '../shared/business-metrics.js';
+import { createBusinessOps, cleanSearchText } from './_lib/business-data.js';
+import { isLikelyNaturalBusinessNote, classifyFocusedIntent, focusedRoutingInstruction, INTENT_TOOL_NAMES } from './_lib/jarvis-intent.js';
+import { ownerPaySettings } from '../shared/business-metrics.js';
+import { SETTABLE_JOB_STATUSES, PAYMENT_METHODS, leadStatusUpdate, leadFollowUpReason, isValidYmd, isValidApptTime } from '../shared/business-rules.js';
+import { jobEvidence } from '../shared/job-context.js';
 
 const CLAUDE_MODEL = 'claude-haiku-4-5-20251001';
 const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
@@ -206,81 +211,13 @@ function json(body, status = 200) {
   });
 }
 
-// Deterministic guard for owner scratch notes. Claude is excellent at extracting
-// the details, but broad business tools can sometimes distract it from saving a
-// plain statement such as "Lisa might want an oil change next week." When a
-// message clearly looks like an operational note (not a question/command), only
-// expose the note-capture tool for that turn. This prevents action-center/briefing
-// cross-talk while leaving every normal Jarvis request unchanged.
-function isLikelyNaturalBusinessNote(text) {
-  const raw = String(text || '').trim();
-  if (!raw || raw.length < 8 || raw.length > 2000) return false;
-  const lower = raw.toLowerCase();
-
-  // Questions and explicit Jarvis commands are not passive notes.
-  if (raw.includes('?')) return false;
-  if (/^(brief|show|list|find|search|what|who|when|where|why|how|remind|mark|move|reschedule|email|send|call|text|update|change|set|book|schedule|cancel|delete|undo|check)\b/i.test(raw)) return false;
-
-  const hasPersonishStart = /^[A-Z][a-z]+(?:\s+[A-Z][a-z]+)?\b/.test(raw);
-  const hasOperationalVerb = /\b(called|texted|messaged|said|asked|wants?|wanted|needs?|needed|might want|may want|interested|quoted|quote(?:d)?|coming|available|prefers?|mentioned|reported|has|having)\b/i.test(raw);
-  const hasBusinessDetail = /\b(oil change|brakes?|rotors?|pads?|diagnostic|diag|suspension|battery|starter|alternator|water pump|coolant|leak|grind(?:ing)?|noise|repair|service|appointment|estimate|quote|\$?\d{2,5}|today|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday|next week|this week|whenever|morning|afternoon|evening)\b/i.test(raw);
-  const hasVehicleish = /\b(19|20)\d{2}\b|\b(f-?150|silverado|ranger|rav4|camry|corolla|accord|civic|tacoma|4runner|wrangler|explorer|edge)\b/i.test(raw);
-
-  return hasPersonishStart && hasOperationalVerb && (hasBusinessDetail || hasVehicleish);
-}
-
-function classifyFocusedIntent(text) {
-  const raw = String(text || '').trim();
-  const lower = raw.toLowerCase();
-  if (!raw) return null;
-
-  if (/\b(clear|clean|cleanup|remove|finish|complete|close)\b.*\btest reminders?\b/i.test(raw) ||
-      /\btest reminders?\b.*\b(clear|clean|cleanup|remove|finish|complete|close)\b/i.test(raw)) return 'test_reminder_cleanup';
-  if (/\b(brief me|owner brief|morning brief|what(?:'s| is) going on today|how(?:'s| is) the business today|what does tomorrow look like|what's tomorrow look like)\b/i.test(lower)) return 'briefing';
-  if (/\b(what needs my attention|what should i handle next|action center|what do i need to handle)\b/i.test(lower)) return 'action_center';
-  if (/\b(remind me|reminder|reminders|what reminders|mark .*reminder|complete .*reminder)\b/i.test(lower)) return 'reminders';
-  if (/\b(lead follow[- ]?up|lead followups|who needs.*follow|which leads.*follow|uncontacted leads?|open leads?|new leads?|lead status)\b/i.test(lower)) return 'leads';
-  if (/\b(unpaid|invoice|invoices|balance owed|outstanding balance)\b/i.test(lower)) return 'unpaid';
-  if (/\b(revenue|take home|take-home|made this week|made today|made this month|owner pay|profit)\b/i.test(lower)) return 'money';
-  if (/\b(what notes|notes do i have|show .*notes|mark .*note resolved|resolve .*note)\b/i.test(lower)) return 'notes';
-  if (/\b(find|search|look up|lookup)\b/i.test(lower)) return 'customer_lookup';
-  if (/\b(job|jobs|appointment|appointments|schedule|scheduled)\b/i.test(lower) && !/\bremind/.test(lower)) return 'jobs';
-  return null;
-}
-
+// Intent routing lives in _lib/jarvis-intent.js (tested). A focused intent only
+// exposes its own tools for the turn.
 function toolsForFocusedIntent(intent) {
-  const names = {
-    test_reminder_cleanup: ['cleanup_test_reminders'],
-    briefing: ['get_owner_briefing'],
-    action_center: ['get_action_center'],
-    reminders: ['create_reminder','list_reminders','complete_reminder','cleanup_test_reminders'],
-    leads: ['list_lead_followups','list_leads','analyze_lead','set_lead_followup','log_lead_contact','update_lead_status','create_reminder'],
-    unpaid: ['list_jobs','search_customers'],
-    money: ['get_revenue_summary','get_owner_pay_summary','get_business_summary','list_marketing_spend'],
-    notes: ['list_business_notes','resolve_business_note','capture_business_note'],
-    customer_lookup: ['search_customers','list_jobs','pricing_history','list_calls','list_business_notes'],
-    jobs: ['list_jobs','search_customers','reschedule_job','update_job_status','mark_job_paid','send_customer_email'],
-  }[intent];
+  const names = INTENT_TOOL_NAMES[intent];
   if (!names) return null;
   const allowed = new Set(names);
   return TOOLS.filter(t => allowed.has(t.name));
-}
-
-function focusedRoutingInstruction(intent) {
-  if (!intent) return '';
-  const labels = {
-    test_reminder_cleanup: 'The user explicitly wants old test reminders cleaned up. Use cleanup_test_reminders once and report only how many test reminders were closed.',
-    briefing: 'This is a broad owner briefing request. Use get_owner_briefing and summarize the briefing only.',
-    action_center: 'This is a broad prioritization request. Use get_action_center and summarize the most important actions only.',
-    reminders: 'This turn is specifically about owner reminders. Use only reminder tools. Do not mention leads, jobs, revenue, invoices, or notes unless the reminder itself directly references one.',
-    leads: 'This turn is specifically about leads/follow-ups. Stay on leads. Do not mention unrelated reminders, jobs, revenue, invoices, or owner notes.',
-    unpaid: 'This turn is specifically about unpaid invoices/balances. Stay on payment/job balance information and do not append unrelated business status.',
-    money: 'This turn is specifically about money. If the user says revenue/gross/sales/collected, use get_revenue_summary. If they say net profit, use get_revenue_summary. Only use get_owner_pay_summary for take-home/owner pay/after-fees-and-reserve. Preserve the requested period exactly: this month is not last 30 days. Do not append unrelated reminders, leads, jobs, or notes.',
-    notes: 'This turn is specifically about captured business notes. Stay on notes only; do not append unrelated reminders, jobs, leads, or revenue.',
-    customer_lookup: 'This turn is a lookup. Answer only with directly relevant customer/job/history context. Do not append a business-wide status summary.',
-    jobs: 'This turn is specifically about jobs/appointments/schedule. Stay on jobs and scheduling. Do not append unrelated reminders, lead queues, notes, or revenue.',
-  };
-  return `\n\n[FOCUSED ROUTING: ${labels[intent]}]`;
 }
 
 const SYSTEM_PROMPT = `You are GID, the business assistant embedded in GID Garage's admin dashboard (a mobile mechanic business in Flagstaff, AZ). You have tools to look up and update real business data: customers, leads, jobs/bookings, marketing spend, calls, and business settings.
@@ -291,10 +228,20 @@ RESPONSE STYLE — this is a small chat panel, not a report:
 - FOCUS RULE: A specific request gets a specific answer. Never add a mini-briefing, reminder recap, lead recap, job recap, or other unrelated status to a focused request. Only broad requests such as 'brief me' or 'what needs my attention?' should combine multiple business areas.
 - FINANCIAL DEFINITIONS: Revenue/gross/sales/collected means actual customer money collected and MUST use get_revenue_summary. Net profit means collected revenue minus sales tax collected minus parts cost and MUST use get_revenue_summary. Take-home/owner pay means net profit minus card fees minus prorated overhead minus the tax reserve (the Hub Owner Pay panel) and MUST use get_owner_pay_summary. Never call owner take-home "revenue" or "net profit". If the owner asks something ambiguous like "what did I actually make", call both tools for the same period and give both: dashboard net profit, and estimated take-home after fees/overhead/reserve.
 - PERIOD DEFINITIONS: "this month" means the current Arizona calendar month. "past/last 30 days" means a rolling 30-day window. Do not treat those as the same period.
+- NUMBERS COME FROM TOOLS: Never compute revenue, profit, balances, totals, counts, or dates yourself from raw rows. Quote the number a tool returned. If no tool returned it, say you don't have it.
 
-CONFIRMING BEFORE ACTING — mark_job_paid and send_customer_email are real financial/external actions and are built to require confirmation:
+JOBS & CUSTOMERS — ANSWER FROM THE EVIDENCE, NOT THE CATEGORY:
+- The service field is only a category (often "other"). What a job was actually about lives in its evidence: scopeOfWork (the "Scope of Work" on the estimate/invoice), technicianNotes, lineItems, bookingRequest (booking-form selections + the customer's own words), inspection (trouble codes with the tech's plan, tire readings), preExistingDamage, priceAdjustment.
+- For "what were X's jobs about", "what did we do", "last visit", "what was wrong", "what did we diagnose", "recommendations", "what did I tell X", or "summarize X's history", call get_customer_context. For one specific job, call get_job_detail. Never describe a job as just its category when evidence exists.
+- FACT vs INFERENCE: state stored facts plainly. When you interpret (e.g. calling a job "primarily a front-brake job" from its line items), make the basis clear in natural words ("based on the scope of work…"). Never invent a diagnosis, part, recommendation, vehicle, or outcome that isn't in the evidence.
+- GAPS & CONFLICTS: if a job's gaps say evidence is missing, say what's missing rather than filling it in. If sources disagree (see hints), say what each source says; don't silently pick one.
+- WHO: if get_customer_context returns status "ambiguous", ask one short question naming the candidates (e.g. "Jill Castle or Jill Moreno?"). If "not_found", say so. Use the conversation only to work out who/which job "her", "that job", or "the Ranger" means; the facts always come from a fresh tool call, never from earlier chat.
+- Owner notes carry a match field: full_name/phone are solid; first_name_only means it may be a different person — say so if it matters.
+- Customer history answers: say how many jobs, then what each (or the relevant one) was actually about in plain words, oldest to newest or newest first as fits the question, plus anything still open (balance, estimate awaiting approval, open note/reminder). Keep it to a few sentences unless asked for detail. Mention money only if asked.
+
+CONFIRMING BEFORE ACTING — mark_job_paid (records a payment) and send_customer_email are real financial/external actions and are built to require confirmation:
 - Call the tool WITHOUT confirmed=true first. It returns a summary instead of executing.
-- State that summary to the person in plain language and ask them to confirm (e.g. "Mark Jill's job as paid in full for $762.46, no Stripe id yet — sound right?").
+- State that summary to the person in plain language and ask them to confirm (e.g. "Record $762.46 cash on Jill's job — that pays it off and marks it PAID. Sound right?"). If the tool refuses (duplicate, over the balance, no invoice yet, history mismatch), tell the owner why; do not try to work around it.
 - Only call the tool again WITH confirmed=true after they clearly say yes in their next message. If they correct a detail instead, use the corrected value.
 - Every other write tool (reschedule, status changes other than paid, lead status, logging a call, adding spend) is low-risk and easily fixed if wrong — just do it and confirm what you did afterward in one short sentence, no need to ask first.
 
@@ -306,7 +253,8 @@ LEAD INTELLIGENCE:
 
 OWNER ASSISTANT BEHAVIOR:
 - For "brief me", "what's going on today", or "what does tomorrow look like", use get_owner_briefing.
-- For "what needs my attention", "what should I handle next", "action center", or similar prioritization requests, use get_action_center. It returns a deterministic ranked queue from real reminders, lead follow-ups, unpaid invoices, jobs, and captured owner notes.
+- For "what needs my attention", "what should I handle next", "action center", or similar prioritization requests, use get_action_center. It returns a deterministic ranked queue from real reminders, lead follow-ups, unpaid balances, jobs, stale job statuses, and captured owner notes, plus waiting_on (estimates awaiting approval, balances owed, quoted leads, tentative owner notes) and tomorrow_blockers (tomorrow's jobs missing time/vehicle/phone/address or with an unapproved estimate). Report its order; don't invent priorities.
+- For "what am I waiting on" use waiting_on; for "who should I contact next" use the queue order of lead follow-ups and people owing money; for "what's blocking tomorrow" use tomorrow_blockers. For "next action for <person>", use get_customer_context and its openItems.
 - When Michael asks a specific question about one area (for example lead follow-ups, reminders, jobs, customers, or revenue), stay on that area. Do not prepend unrelated reminders, briefing items, or other business status unless they are directly necessary to answer the question.
 - NATURAL NOTE CAPTURE: When Michael gives an operational note such as "Jake called, 2013 F150, grinding front brakes, maybe Friday, quoted 350", use capture_business_note. Save only facts explicitly stated. Never invent a last name, phone, email, engine, exact appointment, or diagnostic conclusion. A note is NOT a customer, lead, booking, quote, or completed contact record unless a separate tool confirms/creates that record.
 - If a note clearly contains a future owner action (for example "call him Friday"), capture the note and create a reminder only when Michael explicitly asks to be reminded or clearly states that he needs to do that action at a specific time. Do not turn vague timing like "maybe Friday" into a reminder or appointment.
@@ -322,7 +270,7 @@ Today's date context is provided in each request — use it for "today", "this w
 const TOOLS = [
   {
     name: 'get_business_summary',
-    description: "Get today's stats, what needs attention (overdue follow-ups, unpaid invoices), lead conversion, marketing funnel by channel, and the next 7 days of schedule. Use this for broad questions like 'how are we doing' or 'what needs attention'.",
+    description: "Broad 'how are we doing' snapshot: today's job count, today's booked value (NOT revenue) and money actually collected today, lead follow-ups, unpaid balances, 30-day lead conversion and marketing spend. For revenue use get_revenue_summary; for attention/prioritizing use get_action_center.",
     input_schema: { type: 'object', properties: {}, required: [] },
   },
   {
@@ -360,7 +308,7 @@ const TOOLS = [
   },
   {
     name: 'get_owner_briefing',
-    description: "Get a compact owner briefing for today: today's jobs, tomorrow's jobs, reminders due/overdue, leads needing follow-up, unpaid invoices, and a 7-day collected-revenue snapshot. Use for 'brief me', 'what's going on today', 'what needs attention', and similar broad owner questions.",
+    description: "Compact owner briefing: today's and tomorrow's jobs, reminders due, leads needing follow-up, unpaid balances, tomorrow's blockers, and money collected in the last 7 days. Use for 'brief me', 'what's going on today', 'what does tomorrow look like'.",
     input_schema: { type: 'object', properties: {}, required: [] },
   },
   {
@@ -442,7 +390,37 @@ const TOOLS = [
   },
   {
     name: 'get_action_center',
-    description: "Get a ranked owner action queue from real business data: overdue/due reminders, lead follow-ups, unpaid invoices, today's jobs, and open Jarvis business notes. Use for 'what needs my attention', 'what should I handle next', or 'action center'.",
+    description: "Deterministic ranked owner queue from real data: due reminders, lead follow-ups, unpaid balances, today's unfinished jobs, past appointments still in a pre-service status, and owner notes with actions. Also returns waiting_on (estimates awaiting approval, balances owed, quoted leads, tentative owner notes) and tomorrow_blockers. Use for 'what needs my attention', 'what am I waiting on', 'who should I contact next', 'what's blocking tomorrow'.",
+    input_schema: { type: 'object', properties: {}, required: [] },
+  },
+  {
+    name: 'get_customer_context',
+    description: "Full history for ONE customer: resolves who they are (by name, phone, or customer_id), then returns every job as labeled evidence (scope of work, technician notes, line items, booking request, inspection codes, money, gaps), plus their leads, calls, owner notes, open reminders, open items (balances, estimates awaiting approval) and last interaction. Use for what someone's jobs were about, service history, last visit, what was wrong/diagnosed/recommended, what the owner told them, or next action for them. Returns status 'ambiguous' with candidates when more than one person matches.",
+    input_schema: {
+      type: 'object',
+      properties: {
+        query: { type: 'string', description: "Customer name (e.g. 'Jill Castle') or phone number." },
+        customer_id: { type: 'string', description: 'Use when you already have it from an earlier result.' },
+      },
+    },
+  },
+  {
+    name: 'get_job_detail',
+    description: "Everything stored on ONE job: scope of work, technician notes, line items, booking request, inspection (trouble codes + plan, tires), pre-existing damage, price adjustment, photo notes, parts receipts, payment history, money and gaps. Use for 'what did we do on that job', 'what parts', 'why was the quote so high', 'what was wrong'.",
+    input_schema: {
+      type: 'object',
+      properties: { job_id: { type: 'string' } },
+      required: ['job_id'],
+    },
+  },
+  {
+    name: 'get_unpaid_jobs',
+    description: "Canonical unpaid list: COMPLETED or INVOICED jobs (not PAID, not cancelled) with a balance, balance = invoice (or estimate if not invoiced yet) + tax − amount paid. Same set as the dashboard's Unpaid / Due. Use for 'who owes me', 'unpaid invoices', 'outstanding balances'.",
+    input_schema: { type: 'object', properties: {}, required: [] },
+  },
+  {
+    name: 'get_data_health',
+    description: "Read-only data consistency check: PAID jobs with no paid date or amount, payment history that disagrees with amount paid, overpaid jobs, fully-paid jobs not marked PAID, PAID jobs with a balance, past appointments still BOOKED/ESTIMATE_SENT/SIGNED, booked leads with no booking, reminders never delivered, duplicate customer phones. Changes nothing.",
     input_schema: { type: 'object', properties: {}, required: [] },
   },
   {
@@ -489,7 +467,7 @@ const TOOLS = [
   },
   {
     name: 'list_jobs',
-    description: 'List jobs/bookings, optionally filtered by customer, date range (YYYY-MM-DD), status, vehicle, or service keyword. To find a specific customer\'s jobs, use search_customers first to get their id, then pass it as customer_id here (more reliable than customer_name for anyone with a common name).',
+    description: 'List jobs/bookings, optionally filtered by customer, date range (YYYY-MM-DD), status, vehicle, or service keyword. Each job includes a short `about` line built from its scope of work / line items / notes. For what a customer\'s jobs were actually about or their history, use get_customer_context; for one job in depth, get_job_detail.',
     input_schema: {
       type: 'object',
       properties: {
@@ -606,12 +584,14 @@ const TOOLS = [
   },
   {
     name: 'mark_job_paid',
-    description: "Mark a job as paid in full, recording the actual amount collected (and a Stripe transaction id if you have one — optional, can be added later). This is a real financial record, not just a status label, so it requires confirmation: call this WITHOUT confirmed=true first to get a summary of what would happen, describe that summary to the person in plain language and ask them to confirm, then call again WITH confirmed=true only after they say yes.",
+    description: "Record a payment the customer actually made, exactly like the dashboard's Record a Payment: it's added to the job's payment history and amount paid, and the job becomes PAID only when invoice + tax is fully covered (otherwise it shows the remaining balance). Refuses duplicates, amounts over the balance, jobs with no invoice yet, and jobs whose payment history disagrees with amount paid. Sends no email. Requires confirmation: call WITHOUT confirmed=true first, relay the summary, and call again WITH confirmed=true only after the owner says yes.",
     input_schema: {
       type: 'object',
       properties: {
         job_id: { type: 'string' },
-        amount: { type: 'number', description: 'The amount actually collected.' },
+        amount: { type: 'number', description: 'The amount actually collected in this payment.' },
+        method: { type: 'string', description: `One of: ${PAYMENT_METHODS.join(', ')}. Defaults to Other.` },
+        note: { type: 'string', description: 'Optional short note, e.g. "paid at pickup".' },
         stripe_transaction_id: { type: 'string', description: 'Optional — can be left out and added later.' },
         confirmed: { type: 'boolean', description: 'Must be true to actually execute the write. Omit or set false to get a confirmation summary first.' },
       },
@@ -748,15 +728,8 @@ export async function onRequestPost({ request, env }) {
 
   function money(n) { return n == null ? 'unknown' : `$${Number(n).toFixed(2)}`; }
 
-  // Same rows the Schedule dashboard loads (list-bookings: all statuses,
-  // newest 2000). Errors propagate — a failed load must not read as $0.
-  function loadMetricJobs() {
-    return sbGet('bookings', {
-      select: 'id,job_status,status,paid_at,amount_paid,invoice_amount,tax_amount,parts_cost,payments',
-      order: 'date.desc,time.desc',
-      limit: '2000',
-    });
-  }
+  // Deterministic business operations (shared with the voice endpoint).
+  const ops = createBusinessOps({ sbGet, sbPatch });
 
   function phoenixParts(date = new Date()) {
     const parts = new Intl.DateTimeFormat('en-CA', {
@@ -796,42 +769,8 @@ export async function onRequestPost({ request, env }) {
 
   async function runTool(name, input) {
     switch (name) {
-      case 'get_business_summary': {
-        const now = new Date();
-        const phoenixToday = now.toLocaleDateString('en-CA', { timeZone: 'America/Phoenix' });
-        const weekStart = new Date(now.getTime() - 7 * 86400000).toISOString().slice(0, 10);
-        const nextWeekEnd = new Date(now.getTime() + 7 * 86400000).toISOString().slice(0, 10);
-        const windowStart = new Date(now.getTime() - 30 * 86400000).toISOString().slice(0, 10);
-
-        const [bookings, leads, spend] = await Promise.all([
-          sbGet('bookings', { select: 'id,fname,lname,vehicle,date,time,job_status,status,estimate_amount,invoice_amount,tax_amount,amount_paid,paid_at', date: `gte.${weekStart}`, 'date.2': `lte.${nextWeekEnd}` }).catch(() => []),
-          sbGet('leads', { select: '*', created_at: `gte.${windowStart}` }).catch(() => []),
-          sbGet('marketing_spend', { select: '*', date: `gte.${windowStart}` }).catch(() => []),
-        ]);
-        const todaysJobs = bookings.filter(b => b.date === phoenixToday && b.status !== 'cancelled');
-        const jobRev = b => (b.paid_at && b.amount_paid != null) ? Number(b.amount_paid) : Number(b.invoice_amount ?? b.estimate_amount ?? 0) + Number(b.tax_amount ?? 0);
-        const todaysRevenue = todaysJobs.reduce((s, b) => s + jobRev(b), 0);
-        const overdueLeads = leads.filter(l => {
-          if (l.status === 'booked' || l.status === 'lost') return false;
-          const ageMs = now.getTime() - new Date(l.created_at).getTime();
-          const overdue = l.follow_up_at && new Date(l.follow_up_at).getTime() <= now.getTime();
-          const stale = !l.last_contacted_at && ageMs > 2 * 86400000;
-          return overdue || stale;
-        });
-        const unpaid = bookings.filter(b => b.job_status === 'INVOICED' && !b.paid_at && Number(b.invoice_amount || 0) > Number(b.amount_paid || 0));
-        const totalSpend = spend.reduce((s, r) => s + Number(r.amount || 0), 0);
-        const booked = leads.filter(l => l.status === 'booked').length;
-
-        return {
-          today: { date: phoenixToday, jobCount: todaysJobs.length, revenue: todaysRevenue },
-          needsAttention: {
-            overdueLeadFollowUps: overdueLeads.map(l => `${l.fname || ''} ${l.lname || ''}`.trim() || l.phone),
-            unpaidInvoices: unpaid.map(b => ({ customer: `${b.fname || ''} ${b.lname || ''}`.trim(), owed: Number(b.invoice_amount || 0) - Number(b.amount_paid || 0) })),
-          },
-          leadsLast30Days: { total: leads.length, booked, conversionRatePct: leads.length ? Math.round((booked / leads.length) * 1000) / 10 : 0 },
-          marketingLast30Days: { totalSpend, leadCount: leads.length },
-        };
-      }
+      case 'get_business_summary':
+        return await ops.businessSummary();
 
       case 'list_leads': {
         const params = { select: '*', order: 'created_at.desc', limit: String(input.limit || 15) };
@@ -868,52 +807,14 @@ export async function onRequestPost({ request, env }) {
       }
 
       case 'update_lead_status': {
-        await sbPatch('leads', `id=eq.${encodeURIComponent(input.lead_id)}`, { status: input.status, last_contacted_at: new Date().toISOString() });
+        // Only 'contacted'/'quoted' stamp last_contacted_at — marking a lead
+        // lost or booked is not a contact.
+        await sbPatch('leads', `id=eq.${encodeURIComponent(input.lead_id)}`, leadStatusUpdate(input.status));
         return { ok: true };
       }
 
-      case 'get_owner_briefing': {
-        const now = new Date();
-        const today = phoenixDateString(now);
-        const tomorrow = addPhoenixDays(today, 1);
-
-        const [jobs, leads, reminders, paidJobs] = await Promise.all([
-          sbGet('bookings', { select: 'id,fname,lname,vehicle,service,date,time,job_status,status,estimate_amount,invoice_amount,amount_paid,paid_at', order: 'date.asc', limit: '100' }).catch(() => []),
-          sbGet('leads', { select: 'id,created_at,fname,lname,phone,email,vehicle,requested_service,status,follow_up_at,last_contacted_at,notes', order: 'created_at.desc', limit: '100' }).catch(() => []),
-          sbGet('jarvis_reminders', { select: 'id,title,notes,due_at,status,completed_at,related_lead_id', status: 'eq.open', order: 'due_at.asc', limit: '100' }).catch(() => []),
-          loadMetricJobs().catch(() => null),
-        ]);
-
-        const activeJob = j => String(j.status || '').toLowerCase() !== 'cancelled';
-        const todaysJobs = jobs.filter(j => j.date === today && activeJob(j));
-        const tomorrowsJobs = jobs.filter(j => j.date === tomorrow && activeJob(j));
-        const nowMs = now.getTime();
-        const todayBounds = localDayBoundsIso(today);
-        const reminderAttention = reminders.filter(r => new Date(r.due_at).getTime() < new Date(todayBounds.end).getTime());
-        const openLeads = leads.filter(l => !['booked','lost'].includes(String(l.status || '').toLowerCase()));
-        const leadAttention = openLeads.filter(l => {
-          const follow = l.follow_up_at ? new Date(l.follow_up_at).getTime() : null;
-          const created = new Date(l.created_at).getTime();
-          const staleUncontacted = !l.last_contacted_at && Number.isFinite(created) && nowMs - created > 86400000;
-          return (follow != null && follow <= nowMs) || staleUncontacted;
-        });
-        const unpaid = jobs.filter(j => String(j.job_status || '').toUpperCase() === 'INVOICED' && !j.paid_at && Number(j.invoice_amount || 0) > Number(j.amount_paid || 0));
-        const collected7d = paidJobs ? collectedRevenue(paidJobs.map(jobFromRow), resolvePeriodWindow('last_7_days', now).inWindow).total : null;
-
-        const slimJob = j => ({ id: j.id, customer: `${j.fname || ''} ${j.lname || ''}`.trim(), vehicle: j.vehicle, service: j.service, date: j.date, time: j.time, status: j.job_status });
-        const slimLead = l => ({ id: l.id, customer: `${l.fname || ''} ${l.lname || ''}`.trim(), phone: l.phone, vehicle: l.vehicle, service: l.requested_service, status: l.status, follow_up_at: l.follow_up_at, last_contacted_at: l.last_contacted_at });
-
-        return {
-          date: today,
-          todayJobs: todaysJobs.map(slimJob),
-          tomorrowJobs: tomorrowsJobs.map(slimJob),
-          remindersNeedingAttention: reminderAttention.slice(0, 10),
-          leadsNeedingAttention: leadAttention.slice(0, 10).map(slimLead),
-          unpaidInvoices: unpaid.slice(0, 10).map(j => ({ id: j.id, customer: `${j.fname || ''} ${j.lname || ''}`.trim(), owed: Number(j.invoice_amount || 0) - Number(j.amount_paid || 0) })),
-          collectedLast7Days: money(collected7d),
-          counts: { todayJobs: todaysJobs.length, tomorrowJobs: tomorrowsJobs.length, remindersNeedingAttention: reminderAttention.length, leadsNeedingAttention: leadAttention.length, unpaidInvoices: unpaid.length },
-        };
-      }
+      case 'get_owner_briefing':
+        return await ops.ownerBriefing();
 
       case 'create_reminder': {
         const title = String(input.title || '').trim();
@@ -995,22 +896,18 @@ export async function onRequestPost({ request, env }) {
       case 'list_lead_followups': {
         const scope = String(input.scope || 'needs_attention').toLowerCase();
         const limit = Math.min(Math.max(Number(input.limit || 20), 1), 100);
-        const rows = await sbGet('leads', { select: 'id,created_at,fname,lname,phone,email,vehicle,requested_service,status,follow_up_at,last_contacted_at,notes', order: 'created_at.desc', limit: '200' });
+        const active = await sbGet('leads', { select: 'id,created_at,fname,lname,phone,email,vehicle,requested_service,status,follow_up_at,last_contacted_at,notes', status: 'not.in.(booked,lost)', order: 'created_at.desc', limit: '500' });
         const now = new Date();
         const nowMs = now.getTime();
-        const today = phoenixDateString(now);
-        const bounds = localDayBoundsIso(today);
-        const active = rows.filter(l => !['booked','lost'].includes(String(l.status || '').toLowerCase()));
+        const bounds = localDayBoundsIso(phoenixDateString(now));
+        // needs_attention uses the one shared follow-up rule (shared/business-rules.js).
         const filtered = active.filter(l => {
           const followMs = l.follow_up_at ? new Date(l.follow_up_at).getTime() : null;
-          const createdMs = new Date(l.created_at).getTime();
-          const uncontacted = !l.last_contacted_at;
-          const staleUncontacted = uncontacted && Number.isFinite(createdMs) && nowMs - createdMs > 86400000;
           if (scope === 'overdue') return followMs != null && followMs < nowMs;
           if (scope === 'due_today') return l.follow_up_at && l.follow_up_at >= bounds.start && l.follow_up_at < bounds.end;
-          if (scope === 'uncontacted') return uncontacted;
+          if (scope === 'uncontacted') return !l.last_contacted_at;
           if (scope === 'upcoming') return followMs != null && followMs >= nowMs;
-          return (followMs != null && followMs <= nowMs) || staleUncontacted;
+          return Boolean(leadFollowUpReason(l, now));
         });
         return filtered
           .sort((a, b) => {
@@ -1046,82 +943,20 @@ export async function onRequestPost({ request, env }) {
       }
 
 
-      case 'get_action_center': {
-        const now = new Date();
-        const today = phoenixDateString(now);
-        const tomorrow = addPhoenixDays(today, 1);
-        const nowMs = now.getTime();
-        const next24h = new Date(nowMs + 24 * 60 * 60 * 1000).toISOString();
+      case 'get_action_center':
+        return await ops.actionCenter();
 
-        const [jobs, leads, reminders, notes] = await Promise.all([
-          sbGet('bookings', { select: 'id,fname,lname,vehicle,service,date,time,job_status,status,invoice_amount,amount_paid,paid_at', order: 'date.asc', limit: '150' }).catch(() => []),
-          sbGet('leads', { select: 'id,created_at,fname,lname,phone,vehicle,requested_service,status,follow_up_at,last_contacted_at', order: 'created_at.desc', limit: '150' }).catch(() => []),
-          sbGet('jarvis_reminders', { select: 'id,title,notes,due_at,status,notified_at,related_lead_id', status: 'eq.open', order: 'due_at.asc', limit: '100' }).catch(() => []),
-          sbGet('jarvis_business_notes', { select: 'id,created_at,summary,contact_name,vehicle,service,quoted_amount,preferred_timing,action_needed,due_at,status', status: 'eq.open', order: 'created_at.asc', limit: '100' }).catch(() => []),
-        ]);
+      case 'get_customer_context':
+        return await ops.customerContext({ query: input.query, customer_id: input.customer_id });
 
-        const actions = [];
-        const push = (priority, type, id, title, detail, due_at = null) => actions.push({ priority, type, id, title, detail, due_at });
+      case 'get_job_detail':
+        return await ops.jobDetail({ job_id: input.job_id });
 
-        for (const r of reminders) {
-          const deliveredTestReminder = Boolean(r.notified_at) && /\b(test proactive reminders?|test automatic(?: delivery| reminders?)?|test jarvis(?: again)?|test reminders?|confirm automatic reminders? work|confirm automatic reminders?)\b/i.test(String(r.title || ''));
-          if (deliveredTestReminder) continue;
-          const due = r.due_at ? new Date(r.due_at).getTime() : NaN;
-          if (!Number.isFinite(due) || due > new Date(next24h).getTime()) continue;
-          const overdue = due <= nowMs;
-          push(overdue ? 1 : 2, 'reminder', r.id, r.title, overdue ? 'Owner reminder is due/overdue.' : 'Owner reminder is due within 24 hours.', r.due_at);
-        }
+      case 'get_unpaid_jobs':
+        return await ops.unpaidSummary();
 
-        for (const l of leads) {
-          if (['booked','lost'].includes(String(l.status || '').toLowerCase())) continue;
-          const follow = l.follow_up_at ? new Date(l.follow_up_at).getTime() : null;
-          const created = new Date(l.created_at).getTime();
-          const overdueFollow = follow != null && follow <= nowMs;
-          const staleUncontacted = !l.last_contacted_at && Number.isFinite(created) && nowMs - created > 24 * 60 * 60 * 1000;
-          if (!overdueFollow && !staleUncontacted) continue;
-          const customer = `${l.fname || ''} ${l.lname || ''}`.trim() || l.phone || 'Lead';
-          push(1, 'lead_followup', l.id, customer, overdueFollow ? 'Lead follow-up is due/overdue.' : 'Lead has been uncontacted for more than 24 hours.', l.follow_up_at || null);
-        }
-
-        for (const j of jobs) {
-          const owed = Number(j.invoice_amount || 0) - Number(j.amount_paid || 0);
-          if (String(j.job_status || '').toUpperCase() === 'INVOICED' && !j.paid_at && owed > 0.009) {
-            const customer = `${j.fname || ''} ${j.lname || ''}`.trim() || 'Customer';
-            push(1, 'unpaid_invoice', j.id, customer, `Unpaid balance ${money(owed)}.`, null);
-          }
-        }
-
-        for (const n of notes) {
-          const due = n.due_at ? new Date(n.due_at).getTime() : null;
-          const hasAction = Boolean(String(n.action_needed || '').trim());
-          if (!hasAction && due == null) continue;
-          let priority = 3;
-          if (due != null && due <= nowMs) priority = 1;
-          else if (due != null && due <= new Date(next24h).getTime()) priority = 2;
-          const who = n.contact_name ? ` — ${n.contact_name}` : '';
-          push(priority, 'business_note', n.id, `${n.action_needed || n.summary}${who}`, n.summary, n.due_at || null);
-        }
-
-        const todaysJobs = jobs.filter(j => j.date === today && String(j.status || '').toLowerCase() !== 'cancelled');
-        for (const j of todaysJobs) {
-          if (['PAID','COMPLETED'].includes(String(j.job_status || '').toUpperCase())) continue;
-          const customer = `${j.fname || ''} ${j.lname || ''}`.trim() || 'Customer';
-          push(2, 'today_job', j.id, `${j.time || ''} ${customer}`.trim(), `${j.vehicle || 'Vehicle'} — ${j.service || 'service'} (${j.job_status || 'scheduled'})`, j.date ? `${j.date}T${j.time || '00:00'}` : null);
-        }
-
-        const order = { 1: 1, 2: 2, 3: 3 };
-        actions.sort((a, b) => (order[a.priority] - order[b.priority]) || String(a.due_at || '').localeCompare(String(b.due_at || '')) || a.title.localeCompare(b.title));
-        return {
-          generated_at: now.toISOString(),
-          today,
-          tomorrow,
-          total: actions.length,
-          urgent: actions.filter(a => a.priority === 1),
-          soon: actions.filter(a => a.priority === 2),
-          later: actions.filter(a => a.priority === 3),
-          top_actions: actions.slice(0, 12),
-        };
-      }
+      case 'get_data_health':
+        return await ops.dataHealth();
 
       case 'capture_business_note': {
         const rawText = String(input.raw_text || '').trim();
@@ -1173,59 +1008,92 @@ export async function onRequestPost({ request, env }) {
       }
 
       case 'list_jobs': {
-        const params = { select: 'id,fname,lname,vehicle,service,date,time,job_status,estimate_amount,invoice_amount', order: 'date.desc', limit: String(input.limit || 15) };
+        const params = { select: 'id,fname,lname,vehicle,service,date,time,job_status,status,estimate_amount,invoice_amount,tax_amount,amount_paid,notes,estimate_notes,garage_notes,line_items', order: 'date.desc', limit: String(Math.min(Number(input.limit || 15), 50)) };
         if (input.customer_id) params.customer_id = `eq.${input.customer_id}`;
-        if (input.customer_name) {
-          const words = input.customer_name.trim().split(/\s+/).filter(Boolean);
-          if (words.length >= 2) {
-            const first = words[0];
-            const rest = words.slice(1).join(' ');
-            params.and = `(fname.ilike.*${first}*,lname.ilike.*${rest}*)`;
-          } else {
-            params.or = `(fname.ilike.*${input.customer_name}*,lname.ilike.*${input.customer_name}*)`;
-          }
+        const name = cleanSearchText(input.customer_name);
+        if (name) {
+          const words = name.split(' ');
+          params.or = words.length >= 2
+            ? `(and(fname.ilike."*${words[0]}*",lname.ilike."*${words.slice(1).join(' ')}*"))`
+            : `(fname.ilike."*${name}*",lname.ilike."*${name}*")`;
         }
         if (input.date_from) params.date = `gte.${input.date_from}`;
         if (input.date_to) params['date.2'] = `lte.${input.date_to}`;
-        if (input.job_status) params.job_status = `eq.${input.job_status.toUpperCase()}`;
-        if (input.vehicle) params.vehicle = `ilike.*${input.vehicle}*`;
-        if (input.service_keyword) params.service = `ilike.*${input.service_keyword}*`;
-        return await sbGet('bookings', params);
+        if (input.job_status) params.job_status = `eq.${String(input.job_status).toUpperCase()}`;
+        if (input.vehicle) params.vehicle = `ilike.*${cleanSearchText(input.vehicle)}*`;
+        if (input.service_keyword) params.service = `ilike.*${cleanSearchText(input.service_keyword)}*`;
+        const rows = await sbGet('bookings', params);
+        // Keep the card's fields, add a one-line `about` from the real evidence.
+        return rows.map(r => {
+          const ev = jobEvidence(r);
+          const about = ev.scopeOfWork || ev.lineItems.map(li => li.label).join(', ') || ev.bookingRequest.text || ev.bookingRequest.selections.join('; ') || null;
+          return {
+            id: r.id, fname: r.fname, lname: r.lname, vehicle: r.vehicle, service: r.service, date: r.date, time: r.time,
+            job_status: r.job_status, estimate_amount: r.estimate_amount, invoice_amount: r.invoice_amount,
+            about: about ? about.slice(0, 240) : null,
+          };
+        });
       }
 
       case 'reschedule_job': {
+        // Dates are Arizona calendar dates (YYYY-MM-DD); times are stored as
+        // shown ("11:00 AM", "13:00" or "TBD"). A real date clears date_tbd,
+        // same as saving the job with a date in the dashboard.
         const fields = {};
-        if (input.date) fields.date = input.date;
-        if (input.time) fields.time = input.time;
+        if (input.date) {
+          if (!isValidYmd(input.date)) throw new Error('Date must be a real YYYY-MM-DD date.');
+          fields.date = input.date;
+          fields.date_tbd = false;
+        }
+        if (input.time) {
+          if (!isValidApptTime(input.time)) throw new Error('Time must look like "11:00 AM", "13:00", or "TBD".');
+          fields.time = String(input.time).trim();
+        }
         if (!Object.keys(fields).length) throw new Error('Need a date or time to reschedule to.');
+        const rows = await sbGet('bookings', { select: 'id,fname,lname,date,time,job_status,status', id: `eq.${input.job_id}`, limit: '1' });
+        const job = rows[0];
+        if (!job) throw new Error('No job found with that id.');
+        if (['PAID', 'CANCELLED'].includes(job.job_status) || String(job.status || '').toLowerCase() === 'cancelled') {
+          throw new Error(`This job is ${job.job_status || job.status}; rescheduling it would rewrite history. Change it in the dashboard if that's really intended.`);
+        }
         await sbPatch('bookings', `id=eq.${encodeURIComponent(input.job_id)}`, fields);
-        return { ok: true };
+        return { ok: true, customer: `${job.fname || ''} ${job.lname || ''}`.trim(), from: { date: job.date, time: job.time }, to: { date: fields.date || job.date, time: fields.time || job.time } };
       }
 
       case 'pricing_history': {
-        const params = { select: 'vehicle,estimate_amount,invoice_amount,job_status', service: `ilike.*${input.service_keyword}*`, order: 'created_at.desc', limit: '20' };
-        if (input.vehicle) params.vehicle = `ilike.*${input.vehicle}*`;
+        // Match the keyword against the category AND the scope of work, since
+        // many real jobs are filed under "other".
+        const kw = cleanSearchText(input.service_keyword);
+        if (!kw) throw new Error('service_keyword is required.');
+        const params = { select: 'vehicle,service,estimate_amount,invoice_amount,job_status,estimate_notes', or: `(service.ilike."*${kw}*",estimate_notes.ilike."*${kw}*")`, job_status: 'neq.CANCELLED', order: 'created_at.desc', limit: '20' };
+        if (input.vehicle) params.vehicle = `ilike.*${cleanSearchText(input.vehicle)}*`;
         const jobs = await sbGet('bookings', params);
         const amounts = jobs.map(j => Number(j.invoice_amount ?? j.estimate_amount ?? 0)).filter(n => n > 0);
         return {
           count: jobs.length,
           priceRange: amounts.length ? { min: money(Math.min(...amounts)), max: money(Math.max(...amounts)), avg: money(amounts.reduce((a, b) => a + b, 0) / amounts.length) } : null,
-          samples: jobs.slice(0, 5).map(j => ({ vehicle: j.vehicle, price: money(j.invoice_amount ?? j.estimate_amount) })),
+          samples: jobs.slice(0, 5).map(j => ({ vehicle: j.vehicle, price: money(j.invoice_amount ?? j.estimate_amount), scope: j.estimate_notes ? String(j.estimate_notes).slice(0, 160) : null })),
+          note: 'Prices are pre-tax invoice amounts (estimate if never invoiced).',
         };
       }
 
       case 'get_tax_rate': {
         const rows = await sbGet('business_settings', { select: '*', id: 'eq.default', limit: '1' });
         const s = rows[0] || {};
-        return { taxRatePct: s.tax_rate != null ? Number(s.tax_rate) * 100 : null, monthlyOverhead: s.owner_monthly_overhead, stripeFeePct: s.owner_stripe_fee_pct != null ? Number(s.owner_stripe_fee_pct) * 100 : null };
+        const pay = ownerPaySettings(s);
+        return { taxRatePct: s.tax_rate != null ? Number(s.tax_rate) * 100 : null, monthlyOverhead: money(pay.monthlyOverhead), stripeFeePct: pay.stripeFeePct * 100, ownerTaxReservePct: pay.taxReservePct * 100 };
       }
 
       case 'add_marketing_spend': {
-        return await sbInsert('marketing_spend', { date: input.date, channel: input.channel, amount: input.amount });
+        const amount = Number(input.amount);
+        if (!isValidYmd(input.date)) throw new Error('Date must be YYYY-MM-DD.');
+        if (!Number.isFinite(amount) || amount < 0) throw new Error('Amount must be a non-negative number.');
+        return await sbInsert('marketing_spend', { date: input.date, channel: String(input.channel || 'other').toLowerCase(), amount });
       }
 
       case 'log_call': {
-        return await sbInsert('calls', { phone: input.phone, direction: input.direction || 'inbound', outcome: input.outcome, notes: input.notes || null });
+        const direction = ['inbound', 'outbound'].includes(input.direction) ? input.direction : 'inbound';
+        return await sbInsert('calls', { phone: String(input.phone || '').slice(0, 40), direction, outcome: String(input.outcome || 'other').slice(0, 40), notes: input.notes ? String(input.notes).slice(0, 4000) : null });
       }
 
       case 'list_calls': {
@@ -1241,91 +1109,38 @@ export async function onRequestPost({ request, env }) {
       }
 
       case 'search_customers': {
-        const q = (input.query || '').trim();
-        const words = q.split(/\s+/).filter(Boolean);
+        const q = cleanSearchText(input.query);
+        if (!q) throw new Error('query is required.');
+        const words = q.split(' ');
         const orParts = [];
-        if (words.length >= 2) {
-          const first = words[0];
-          const rest = words.slice(1).join(' ');
-          orParts.push(`and(fname.ilike.*${first}*,lname.ilike.*${rest}*)`);
-        }
-        orParts.push(`fname.ilike.*${q}*`);
-        orParts.push(`lname.ilike.*${q}*`);
-        orParts.push(`phone.ilike.*${q}*`);
-        orParts.push(`vin.ilike.*${q}*`);
-        const params = { select: 'id,fname,lname,phone,email,vehicle,vin,notes', or: `(${orParts.join(',')})`, limit: '10' };
-        return await sbGet('customers', params);
+        if (words.length >= 2) orParts.push(`and(fname.ilike."*${words[0]}*",lname.ilike."*${words.slice(1).join(' ')}*")`);
+        orParts.push(`fname.ilike."*${q}*"`, `lname.ilike."*${q}*"`, `phone.ilike."*${q}*"`, `vin.ilike."*${q}*"`);
+        return await sbGet('customers', { select: 'id,fname,lname,phone,email,vehicle,vin,notes', or: `(${orParts.join(',')})`, limit: '10' });
       }
 
       case 'update_job_status': {
         const status = String(input.job_status || '').toUpperCase();
-        if (status === 'PAID') throw new Error("Don't use update_job_status for PAID — use mark_job_paid so the actual payment amount gets recorded, not just the label.");
+        if (status === 'PAID') throw new Error("Don't use update_job_status for PAID — use mark_job_paid so the actual payment gets recorded, not just the label.");
+        if (!SETTABLE_JOB_STATUSES.includes(status)) throw new Error(`Job status must be one of: ${SETTABLE_JOB_STATUSES.join(', ')}.`);
+        const rows = await sbGet('bookings', { select: 'id,job_status', id: `eq.${input.job_id}`, limit: '1' });
+        if (!rows[0]) throw new Error('No job found with that id.');
+        if (rows[0].job_status === 'PAID') throw new Error('This job is PAID; changing its status would pull it out of revenue. Do that in the dashboard if intended.');
         await sbPatch('bookings', `id=eq.${encodeURIComponent(input.job_id)}`, { job_status: status });
-        return { ok: true };
+        return { ok: true, from: rows[0].job_status, to: status };
       }
 
-      case 'mark_job_paid': {
-        const jobRows = await sbGet('bookings', { select: 'id,fname,lname,vehicle,job_status,invoice_amount,estimate_amount,amount_paid,paid_at', id: `eq.${input.job_id}` });
-        const job = jobRows[0];
-        if (!job) throw new Error('No job found with that id.');
-
-        if (!input.confirmed) {
-          return {
-            needs_confirmation: true,
-            summary: `Mark ${job.fname || ''} ${job.lname || ''}'s job (${job.vehicle || 'vehicle on file'}) as PAID for ${money(input.amount)}` +
-              (input.stripe_transaction_id ? ` with Stripe transaction ${input.stripe_transaction_id} on file.` : ', with no Stripe transaction id yet — can be added later.') +
-              (job.paid_at ? ` Note: this job already shows a payment recorded on ${job.paid_at}.` : ''),
-          };
-        }
-
-        await sbPatch('bookings', `id=eq.${encodeURIComponent(input.job_id)}`, {
-          job_status: 'PAID',
-          amount_paid: input.amount,
-          paid_at: new Date().toISOString(),
-          ...(input.stripe_transaction_id ? { stripe_transaction_id: input.stripe_transaction_id } : {}),
+      case 'mark_job_paid':
+        // Same append-and-reconcile rule as the dashboard (shared/business-rules.js planPayment).
+        return await ops.recordPayment({
+          job_id: input.job_id, amount: input.amount, method: input.method || 'Other',
+          stripe_transaction_id: input.stripe_transaction_id || '', note: input.note || '', confirmed: input.confirmed === true,
         });
-        return { ok: true, markedPaid: money(input.amount) };
-      }
 
-      case 'get_revenue_summary': {
-        // Canonical math shared with the Schedule dashboard: shared/business-metrics.js.
-        const win = resolvePeriodWindow(input.period || 'this_month');
-        const jobs = (await loadMetricJobs()).map(jobFromRow);
-        const revenue = collectedRevenue(jobs, win.inWindow);
-        return {
-          period: win.label,
-          periodKey: win.key,
-          jobsContributing: revenue.jobCount,
-          grossCollected: money(revenue.total),
-          netProfit: money(netProfit(jobs, win.inWindow)),
-          definition: 'Same numbers as the Schedule dashboard. Revenue = customer money collected in the period. Net profit = amount paid minus sales tax minus parts cost, for jobs closed out in the period.',
-        };
-      }
+      case 'get_revenue_summary':
+        return await ops.revenueSummary({ period: input.period });
 
-      case 'get_owner_pay_summary': {
-        // Same formula as the Hub Owner Pay panel (shared/business-metrics.js).
-        const period = input.period || (input.periodDays ? `last_${Math.round(Number(input.periodDays))}_days` : 'last_30_days');
-        const win = resolvePeriodWindow(period);
-        const [rows, settingsRows] = await Promise.all([
-          loadMetricJobs(),
-          sbGet('business_settings', { select: 'owner_tax_reserve_pct,owner_stripe_fee_pct,owner_overhead_items', id: 'eq.default', limit: '1' }).catch(() => []),
-        ]);
-        const settings = ownerPaySettings(settingsRows[0] || {});
-        const t = ownerTakeHome(rows.map(jobFromRow), win, settings);
-        return {
-          period: win.label,
-          periodKey: win.key,
-          jobMargin: money(t.jobMargin),
-          estStripeFees: money(t.stripeFees),
-          overhead: money(t.overhead),
-          businessNetAfterOverhead: money(t.businessNet),
-          inDeficit: t.inDeficit,
-          estTaxReserve: money(t.taxReserve),
-          estimatedTakeHome: money(t.takeHome),
-          settingsUsed: { taxReservePct: settings.taxReservePct, stripeFeePct: settings.stripeFeePct, monthlyOverhead: money(settings.monthlyOverhead) },
-          definition: 'Owner take-home, same as the Hub Owner Pay panel: net profit minus card fees minus overhead (prorated to the period), minus the tax reserve. Not revenue, not dashboard net profit.',
-        };
-      }
+      case 'get_owner_pay_summary':
+        return await ops.ownerPaySummary({ period: input.period, periodDays: input.periodDays });
 
       case 'send_customer_email': {
         if (!input.confirmed) {

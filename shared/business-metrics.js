@@ -33,8 +33,25 @@ export function parsePayments(value) {
   return [];
 }
 
+// Supabase bookings row -> the dashboard's camelCase Job shape (the fields the
+// shared rules use). Only keys present in the row are meaningful.
 export function jobFromRow(r) {
   return {
+    id: r.id ?? null,
+    date: r.date ?? null,
+    time: r.time ?? null,
+    dateTbd: !!r.date_tbd,
+    fname: r.fname ?? '',
+    lname: r.lname ?? '',
+    phone: r.phone ?? '',
+    email: r.email ?? '',
+    vehicle: r.vehicle ?? '',
+    service: r.service ?? '',
+    customerId: r.customer_id ?? null,
+    serviceAddress: r.service_address ?? '',
+    createdAt: r.created_at ?? null,
+    estimateAmount: r.estimate_amount ?? null,
+    stripeTransactionId: r.stripe_transaction_id ?? '',
     jobStatus: r.job_status ?? null,
     status: r.status ?? null,
     paidAt: r.paid_at || null,

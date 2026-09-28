@@ -11,7 +11,8 @@ export function BusinessSummaryCard({ payload }: { payload: any }) {
       <div className="bg-black/20 border border-white/5 rounded-lg p-3">
         <div className="text-[10px] uppercase tracking-wide text-[#52616D] mb-1">Today</div>
         <FieldRow label="Jobs" value={String(t.jobCount ?? '—')} />
-        <FieldRow label="Revenue" value={t.revenue != null ? `$${Number(t.revenue).toFixed(2)}` : '—'} />
+        <FieldRow label="Booked value" value={t.bookedValue != null ? `$${Number(t.bookedValue).toFixed(2)}` : '—'} />
+        <FieldRow label="Collected" value={t.collected != null ? `$${Number(t.collected).toFixed(2)}` : '—'} />
       </div>
       <div className="bg-black/20 border border-white/5 rounded-lg p-3">
         <div className="text-[10px] uppercase tracking-wide text-[#52616D] mb-1">Needs Attention</div>

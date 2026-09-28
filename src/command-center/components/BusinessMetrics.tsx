@@ -47,7 +47,8 @@ export function BusinessMetrics({ today }: { today: CommandCenterSummary['today'
     <div className={`${PANEL} ${PANEL_PADDING} h-full flex flex-col`}>
       <div className={LABEL + ' mb-1'}>Today</div>
       <StatRow label="Jobs" target={today.jobCount} formatter={n => String(Math.round(n))} />
-      <StatRow label="Revenue" target={today.revenue} formatter={money} />
+      {/* today.revenue is the booked value of today's jobs (admin-api-data jobRevenue), not money collected. */}
+      <StatRow label="Booked" target={today.revenue} formatter={money} />
       <StatRow label="New Leads" target={today.newLeads} formatter={n => String(Math.round(n))} />
       <StatRow label="Missed Calls" target={today.missedCalls} formatter={n => String(Math.round(n))} warn={today.missedCalls > 0} divider={!!today.nextOpenDay} />
       {today.nextOpenDay && (

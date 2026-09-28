@@ -6,6 +6,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { decodeVin, cleanVin, vinCheckDigitOk } from './vinDecode';
 import { resolvePeriodWindow, collectedRevenue, netProfit, cardRevenue, ownerTakeHome } from '../shared/business-metrics.js';
+import { isAwaitingPayment } from '../shared/business-rules.js';
 
 // Emails now sent server-side — BREVO_API_KEY removed from client bundle
 const STRIPE_PK = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY as string;
@@ -6830,7 +6831,8 @@ export function JobsTab() {
   const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Phoenix' });
 
   // Stats
-  const unpaid = jobs.filter(j => j.jobStatus === 'COMPLETED' || j.jobStatus === 'INVOICED').length;
+  // Same "awaiting payment" rule Jarvis and the proactive alerts use.
+  const unpaid = jobs.filter(isAwaitingPayment).length;
   const awaitingSign = jobs.filter(j => j.jobStatus === 'ESTIMATE_SENT').length;
   const now = new Date();
   // Arizona calendar month/year, not the browser's timezone. Revenue and net

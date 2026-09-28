@@ -24,6 +24,7 @@
 // - Proactive business alerts are quiet overnight.
 
 import { resolvePeriodWindow, collectedRevenue, jobFromRow } from '../shared/business-metrics.js';
+import { leadFollowUpReason, unpaidJobs, isCancelled } from '../shared/business-rules.js';
 
 const TZ = 'America/Phoenix';
 const HISTORY_TEXT_LIMIT = 12000;
@@ -210,16 +211,11 @@ async function saveAssistantHistory(env, chatId, content) {
   }).catch(() => {});
 }
 
+// Same follow-up rule as Jarvis chat and the action center (shared/business-rules.js).
 function leadAttentionRows(rows, now) {
-  const nowMs = now.getTime();
   return rows
-    .filter(l => !['booked', 'lost'].includes(String(l.status || '').toLowerCase()))
-    .filter(l => {
-      const followMs = l.follow_up_at ? new Date(l.follow_up_at).getTime() : null;
-      const createdMs = new Date(l.created_at).getTime();
-      const staleUncontacted = !l.last_contacted_at && Number.isFinite(createdMs) && nowMs - createdMs > 86400000;
-      return (followMs != null && followMs <= nowMs) || staleUncontacted;
-    })
+    .map(l => ({ ...l, followUpReason: leadFollowUpReason(l, now) }))
+    .filter(l => l.followUpReason)
     .sort((a, b) => {
       const av = a.follow_up_at ? new Date(a.follow_up_at).getTime() : new Date(a.created_at).getTime();
       const bv = b.follow_up_at ? new Date(b.follow_up_at).getTime() : new Date(b.created_at).getTime();
@@ -236,7 +232,7 @@ function leadFingerprint(rows) {
 
 function unpaidFingerprint(rows) {
   return rows
-    .map(j => `${j.id}|${Number(j.invoice_amount || 0) - Number(j.amount_paid || 0)}|${j.paid_at || ''}`)
+    .map(j => `${j.id}|${j.balance}|${j.job_status || ''}`)
     .sort()
     .join('||');
 }
@@ -269,9 +265,10 @@ async function loadSnapshot(env, now) {
       order: 'due_at.asc',
       limit: '100',
     }),
+    // Unpaid = COMPLETED or INVOICED with a balance incl. tax (shared/business-rules.js).
     sbGet(env, 'bookings', {
-      select: 'id,fname,lname,vehicle,service,job_status,invoice_amount,amount_paid,paid_at,date,time',
-      job_status: 'eq.INVOICED',
+      select: 'id,fname,lname,vehicle,service,job_status,status,estimate_amount,invoice_amount,tax_amount,amount_paid,paid_at,date,time',
+      job_status: 'in.(COMPLETED,INVOICED)',
       order: 'date.desc',
       limit: '100',
     }),
@@ -284,17 +281,18 @@ async function loadSnapshot(env, now) {
     }),
   ]);
 
-  const activeJob = job => String(job.status || '').toLowerCase() !== 'cancelled';
+  const activeJob = job => !isCancelled(jobFromRow(job)); // status OR job_status cancelled
   const todayJobs = todayJobsRaw.filter(activeJob);
   const tomorrowJobs = tomorrowJobsRaw.filter(activeJob);
   const leadAttention = leadAttentionRows(leads, now);
-  const unpaid = invoicedJobs.filter(j => !j.paid_at && Number(j.invoice_amount || 0) > Number(j.amount_paid || 0));
+  const unpaidById = new Map(unpaidJobs(invoicedJobs.map(jobFromRow)).map(u => [u.job.id, u.balance]));
+  const unpaid = invoicedJobs.filter(j => unpaidById.has(j.id)).map(j => ({ ...j, balance: unpaidById.get(j.id) }));
   const todayEnd = new Date(localDayEndIso(today)).getTime();
   const tomorrowEnd = new Date(localDayEndIso(tomorrow)).getTime();
   const remindersToday = reminders.filter(r => new Date(r.due_at).getTime() <= todayEnd);
   const remindersByTomorrow = reminders.filter(r => new Date(r.due_at).getTime() <= tomorrowEnd);
   const collected7d = collectedRevenue(paidJobs.map(jobFromRow), resolvePeriodWindow('last_7_days', now).inWindow).total;
-  const unpaidTotal = unpaid.reduce((sum, j) => sum + Math.max(0, Number(j.invoice_amount || 0) - Number(j.amount_paid || 0)), 0);
+  const unpaidTotal = unpaid.reduce((sum, j) => sum + j.balance, 0);
 
   return {
     today,
@@ -313,7 +311,7 @@ async function loadSnapshot(env, now) {
 function formatLeadAlert(rows) {
   if (rows.length === 1) {
     const l = rows[0];
-    const reason = l.follow_up_at ? 'follow-up is due' : 'has not been contacted in over 24 hours';
+    const reason = l.followUpReason === 'follow_up_due' ? 'follow-up is due' : 'has not been contacted in over 24 hours';
     const service = l.requested_service ? ` (${l.requested_service})` : '';
     return `Lead follow-up: ${personName(l)}${service} — ${reason}.`;
   }
@@ -323,18 +321,11 @@ function formatLeadAlert(rows) {
 }
 
 function formatUnpaidAlert(rows) {
-  const total = rows.reduce((sum, j) => sum + Math.max(0, Number(j.invoice_amount || 0) - Number(j.amount_paid || 0)), 0);
-  if (rows.length === 1) {
-    const j = rows[0];
-    const owed = Math.max(0, Number(j.invoice_amount || 0) - Number(j.amount_paid || 0));
-    return `Payment outstanding: ${personName(j)} — ${money(owed)}.`;
-  }
-  const shown = rows.slice(0, 5).map(j => {
-    const owed = Math.max(0, Number(j.invoice_amount || 0) - Number(j.amount_paid || 0));
-    return `• ${personName(j)} — ${money(owed)}`;
-  });
+  const total = rows.reduce((sum, j) => sum + j.balance, 0);
+  if (rows.length === 1) return `Payment outstanding: ${personName(rows[0])} — ${money(rows[0].balance)}.`;
+  const shown = rows.slice(0, 5).map(j => `• ${personName(j)} — ${money(j.balance)}`);
   const extra = rows.length > 5 ? `\n+${rows.length - 5} more` : '';
-  return `Outstanding invoices: ${rows.length} totaling ${money(total)}\n${shown.join('\n')}${extra}`;
+  return `Outstanding balances: ${rows.length} totaling ${money(total)}\n${shown.join('\n')}${extra}`;
 }
 
 function formatMorningBrief(snapshot) {
@@ -349,7 +340,7 @@ function formatMorningBrief(snapshot) {
   const attention = [];
   if (snapshot.leadAttention.length) attention.push(`${snapshot.leadAttention.length} lead follow-up${snapshot.leadAttention.length === 1 ? '' : 's'}`);
   if (snapshot.remindersToday.length) attention.push(`${snapshot.remindersToday.length} reminder${snapshot.remindersToday.length === 1 ? '' : 's'} due/overdue`);
-  if (snapshot.unpaid.length) attention.push(`${snapshot.unpaid.length} unpaid invoice${snapshot.unpaid.length === 1 ? '' : 's'} (${money(snapshot.unpaidTotal)})`);
+  if (snapshot.unpaid.length) attention.push(`${snapshot.unpaid.length} unpaid (${money(snapshot.unpaidTotal)})`);
   if (attention.length) lines.push('', `Needs attention — ${attention.join(' · ')}`);
 
   if (snapshot.tomorrowJobs.length) {
@@ -374,7 +365,7 @@ function formatEveningPreview(snapshot) {
   const actionItems = [];
   if (snapshot.leadAttention.length) actionItems.push(`${snapshot.leadAttention.length} lead follow-up${snapshot.leadAttention.length === 1 ? '' : 's'}`);
   if (snapshot.remindersByTomorrow.length) actionItems.push(`${snapshot.remindersByTomorrow.length} open reminder${snapshot.remindersByTomorrow.length === 1 ? '' : 's'} due by tomorrow`);
-  if (snapshot.unpaid.length) actionItems.push(`${snapshot.unpaid.length} unpaid invoice${snapshot.unpaid.length === 1 ? '' : 's'}`);
+  if (snapshot.unpaid.length) actionItems.push(`${snapshot.unpaid.length} unpaid`);
   if (actionItems.length) lines.push('', `Still open — ${actionItems.join(' · ')}`);
 
   return lines.join('\n');
