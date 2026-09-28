@@ -114,7 +114,11 @@
   <body>
     <div id="root" role="application">
       <nav style="background:#0f0f0f;padding:0;">
-        <img src="/banner.PNG" alt="GID Garage" style="width:100%;height:auto;display:block;" />
+        <!-- Loading placeholder until React mounts. WebP copies of banner.PNG (1.6 MB → 46–106 KB);
+             banner.PNG itself stays for emails, invoices and link previews. -->
+        <img src="/banner-1774.webp" srcset="/banner-900.webp 900w, /banner-1774.webp 1774w" sizes="100vw"
+             width="1774" height="887" fetchpriority="high" decoding="async"
+             alt="GID Garage" style="width:100%;height:auto;display:block;" />
       </nav>
     </div>
     <script type="module" src="/src/main.tsx"></script>
