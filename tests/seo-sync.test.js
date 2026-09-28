@@ -164,3 +164,18 @@ test('manual backfill chains runs back-to-back (no cooldown) until the full hist
   assert.equal(last.results.find(r => r.provider === 'weather_history').reason, 'backfill complete');
   assert.equal(store.tables.seo_provider_status.find(r => r.provider === 'weather_history').cursor.backfilledFrom, '2024-09-28'); // exactly 730 days back
 });
+
+// Production: after "Accept" the card vanished (the panel listed only open
+// recommendations), so "Mark applied" was unreachable.
+test('the panel list keeps accepted/applied recommendations visible, in-progress first', async () => {
+  const recs = [
+    { id: 'a', status: 'open', score: 90, title: 'open high' },
+    { id: 'b', status: 'accepted', score: 40, title: 'accepted' },
+    { id: 'c', status: 'applied', score: 55, title: 'applied' },
+    { id: 'd', status: 'rejected', score: 99, title: 'rejected' },
+    { id: 'e', status: 'open', score: 10, title: 'open low' },
+  ];
+  const ops = createSeoOps({ store: fakeSeoStore({ seo_recommendations: recs }), env: {}, now: NOW });
+  assert.deepEqual((await ops.opportunities({ status: 'active' })).map(r => r.id), ['b', 'c', 'a', 'e']); // rejected hidden
+  assert.deepEqual((await ops.opportunities()).map(r => r.id).sort(), ['a', 'e']); // Jarvis default unchanged: open only
+});

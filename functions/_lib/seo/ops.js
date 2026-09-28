@@ -188,10 +188,16 @@ export function createSeoOps({ store, env = {}, now = new Date() }) {
     return { providers: providerStatuses(env).map(p => ({ ...p, lastSyncAt: byId.get(p.id)?.last_sync_at || null, lastError: byId.get(p.id)?.last_error || null, backfilledFrom: byId.get(p.id)?.cursor?.backfilledFrom || null })), recentRuns: runs, lastRun: run ? { status: run.status, detail: run.detail, error: run.last_error, at: run.updated_at } : null };
   }
 
+  // status: one status, 'all', or 'active' = everything still in play (open,
+  // accepted, applied/being measured, measured) with in-progress ones first,
+  // so an accepted item never drops out of view before it's marked applied.
+  const IN_PROGRESS_FIRST = { accepted: 0, applied: 1, measured: 2, open: 3 };
   async function opportunities({ status = 'open', limit = 25 } = {}) {
     const params = { select: '*', order: 'score.desc', limit: String(limit) };
-    if (status !== 'all') params.status = `eq.${status}`;
-    return safe(store.select('seo_recommendations', params));
+    if (status === 'active') params.status = 'in.(open,accepted,applied,measured)';
+    else if (status !== 'all') params.status = `eq.${status}`;
+    const rows = await safe(store.select('seo_recommendations', params));
+    return status === 'active' ? rows.sort((a, b) => (IN_PROGRESS_FIRST[a.status] ?? 9) - (IN_PROGRESS_FIRST[b.status] ?? 9) || b.score - a.score) : rows;
   }
 
   // Current value of the metric a recommendation is tracked by.

@@ -132,6 +132,15 @@ const STATUS_ACTIONS: Record<string, { action: string; label: string }[]> = {
   dismissed: [{ action: 'reopen', label: 'Reopen' }],
 };
 
+const shortDate = (iso?: string | null) => (iso ? new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '');
+// Where an in-progress recommendation stands, and what the owner does next.
+function statusLine(r: SeoRecommendation) {
+  if (r.status === 'accepted') return 'Accepted — press "Mark applied" as soon as the change is live.';
+  if (r.status === 'applied') return `Applied ${shortDate(r.applied_at)} · measuring the result until ${shortDate(r.monitor_until)}.`;
+  if (r.status === 'measured') return 'Measured — result below.';
+  return r.status;
+}
+
 export function OpportunityList({ recs, onAction, compact }: { recs?: SeoRecommendation[]; onAction: (id: string, action: string) => void; compact?: boolean }) {
   if (!recs) return <Empty>Loading opportunities…</Empty>;
   if (!recs.length) return <Empty>No open opportunities. They appear after the first data sync.</Empty>;
@@ -143,6 +152,7 @@ export function OpportunityList({ recs, onAction, compact }: { recs?: SeoRecomme
             <div className="text-[13px] font-semibold" style={{ color: SEO.text }}>{r.title}</div>
             <div className="text-[11px] font-bold tabular-nums shrink-0" style={{ color: r.requires_decision ? SEO.warn : SEO.accent }}>{r.requires_decision ? 'DECIDE' : r.score}</div>
           </div>
+          {r.status !== 'open' && <div className="text-[11px] mt-1 font-medium" style={{ color: r.status === 'measured' ? SEO.accent : SEO.warn }}>{statusLine(r)}</div>}
           {!compact && r.detail && <div className="text-[12px] mt-1 leading-relaxed" style={{ color: SEO.muted }}>{r.detail}</div>}
           {r.outcome && <div className="text-[11px] mt-1" style={{ color: SEO.accent }}>Result: {r.outcome.result.replace(/_/g, ' ')} ({fmt(r.outcome.baseline)} → {fmt(r.outcome.current)})</div>}
           <div className="flex flex-wrap gap-1.5 mt-2">
