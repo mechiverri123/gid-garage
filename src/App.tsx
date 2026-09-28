@@ -38,6 +38,10 @@ const EMAIL = 'info@gidgarage.com';
 // R2 public image URL — falls back to local /public in dev
 const R2 = (import.meta.env.VITE_R2_PUBLIC_URL as string | undefined)?.replace(/\/$/, '') ?? '';
 function img(filename: string) { return R2 ? `${R2}/${filename}` : `/${filename}`; }
+// Size-optimized WebP copies served from the site itself (public/opt). The
+// originals on R2 were 1.5 MB (logo, shown ≤64 px tall) and ~300 KB per photo,
+// which held back the mobile PageSpeed load time. Emails/admin keep the originals.
+const OPT_LOGO = '/opt/website_logo-192.webp';
 
 const services = [
   {
@@ -187,7 +191,7 @@ function MissionStatement() {
           <div className="grid grid-cols-2 gap-4 md:gap-6 pl-5 pr-5 md:pl-0 md:pr-0">
             <div className="relative aspect-[3/5] overflow-hidden bg-white/5">
               <img
-                src={img('rotor-new-install.jpeg')}
+                src="/opt/rotor-new-install-640.webp"
                 alt="New rotor and hub installed on a mobile brake job"
                 className="absolute inset-0 w-full h-full object-cover"
                 loading="lazy"
@@ -197,7 +201,7 @@ function MissionStatement() {
             </div>
             <div className="relative aspect-[3/5] overflow-hidden bg-white/5">
               <img
-                src={img('caliper-new-pads.jpeg')}
+                src="/opt/caliper-new-pads-640.webp"
                 alt="Caliper with fresh brake pads reinstalled"
                 className="absolute inset-0 w-full h-full object-cover"
                 loading="lazy"
@@ -234,7 +238,7 @@ function Nav({ openBooking }: { openBooking: () => void }) {
     <header className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${scrolled ? 'bg-[#0f0f0f] shadow-lg shadow-black/50' : 'bg-transparent'}`}>
       <div className="max-w-7xl mx-auto px-5 md:px-8 flex items-center justify-between h-16 md:h-20">
         <a href="#hero" className="flex-shrink-0">
-          <img src={img('website_logo.png')} alt="GID Garage" className="h-12 md:h-14 w-auto" />
+          <img src={OPT_LOGO} width={192} height={192} alt="GID Garage" className="h-12 md:h-14 w-auto" />
         </a>
         <nav className="hidden md:flex items-center gap-8">
           {links.map((l) => (
@@ -1036,7 +1040,7 @@ function Footer() {
       <div className="max-w-7xl mx-auto px-5 md:px-8">
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-8 mb-8">
           <div>
-            <img src={img('website_logo.png')} alt="GID Garage" className="h-16 w-auto mb-4" />
+            <img src={OPT_LOGO} width={192} height={192} alt="GID Garage" className="h-16 w-auto mb-4" />
             <p className="text-white/70 text-sm max-w-xs leading-relaxed">Mobile automotive repair and car audio in Flagstaff, AZ. Honest work. Fair prices. We come to you.</p>
             <p className="text-white/50 text-xs mt-2 leading-relaxed">Based in Flagstaff, AZ · Serving Sedona, Munds Park, Parks, Bellemont, Kachina Village, Fort Valley, Doney Park, Winona, Mountainaire &amp; Winslow</p>
           </div>
@@ -1231,7 +1235,7 @@ function CancelPage({ bookingId, token }: { bookingId: string; token: string }) 
     <div className="min-h-screen bg-dark flex items-center justify-center px-4">
       <div className="w-full max-w-md text-center">
         <a href="/" className="flex justify-center mb-8">
-          <img src={img('website_logo.png')} alt="GID Garage" className="h-14 w-auto" />
+          <img src={OPT_LOGO} width={192} height={192} alt="GID Garage" className="h-14 w-auto" />
         </a>
 
         {state === 'verifying' && (
