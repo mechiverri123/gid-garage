@@ -146,3 +146,19 @@ test('overview adds GA4 (likely-local sessions, AI referrals) and Instagram loca
   assert.deepEqual(o.website, { sessionsByLocality: { likely_local: 30, nonlocal: 10 }, localKeyEvents: 4, aiAssistantSessions: { chatgpt: 10 } });
   assert.deepEqual([o.instagram.followers, o.instagram.localFollowerSharePct], [500, 60]);
 });
+
+test('manual backfill chains runs back-to-back (no cooldown) until the full history is loaded, then pulls nothing', async () => {
+  const store = fakeSeoStore();
+  const env = { NOAA_CDO_TOKEN: 't' };
+  const fetchImpl = async () => json({ results: [] });
+  let runs = 0; let last;
+  for (; runs < 40; runs += 1) {
+    last = await syncToEnd(runSeoSync, { env, store, fetch: fetchImpl, now: NOW, mode: 'backfill', manual: true, only: ['weather_history'] });
+    assert.equal(last.last.blocked, undefined, `run ${runs} was blocked`);
+    if (!last.results.some(r => r.rows != null)) break;
+  }
+  // NOAA keeps 730 days, 30 per run: 25 runs pull, the 26th finds nothing left.
+  assert.equal(runs, 25);
+  assert.equal(last.results.find(r => r.provider === 'weather_history').reason, 'backfill complete');
+  assert.equal(store.tables.seo_provider_status.find(r => r.provider === 'weather_history').cursor.backfilledFrom, '2024-09-28'); // exactly 730 days back
+});

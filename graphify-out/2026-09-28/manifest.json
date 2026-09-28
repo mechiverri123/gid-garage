@@ -1326,9 +1326,9 @@
     "semantic_hash": ""
   },
   "functions/_lib/seo/providers.js": {
-    "mtime": 1790587744.3330472,
-    "seen": 1790588110.9311945,
-    "ast_hash": "08fd70aa349a720cdd06ed9a47b88e99",
+    "mtime": 1790617027.6129246,
+    "seen": 1790617063.772222,
+    "ast_hash": "1e6d7a12b70d7986311f94e32db9454f",
     "semantic_hash": ""
   },
   "functions/_lib/seo/store.js": {
@@ -1446,9 +1446,9 @@
     "semantic_hash": ""
   },
   "tests/seo-providers.test.js": {
-    "mtime": 1790582016.7205567,
-    "seen": 1790582568.21753,
-    "ast_hash": "cf0f642cb609653b82fe970a699d72e1",
+    "mtime": 1790617039.7483518,
+    "seen": 1790617063.7822084,
+    "ast_hash": "3003033324e2df3d07e5a14ea991b66d",
     "semantic_hash": ""
   },
   "tests/seo-sync.test.js": {
@@ -1458,9 +1458,9 @@
     "semantic_hash": ""
   },
   "SEO_SETUP.md": {
-    "mtime": 1790614763.0515356,
-    "seen": 1790614811.81,
-    "ast_hash": "73dc9203374dfb3904cea1a1bb5c0dcf",
+    "mtime": 1790617048.405506,
+    "seen": 1790617063.7876668,
+    "ast_hash": "824a1f55010cd4489290f73ec9c2e22d",
     "semantic_hash": ""
   },
   "functions/_lib/access-auth.js": {

@@ -32,7 +32,8 @@ const dbCost = id => DB_COST[id] ?? 4;
 // Run state lives in one seo_provider_status row (no schema change):
 //   running   -> nobody may start another call (cron or manual); >10 min = abandoned
 //   pending   -> a run is part-way through; the next call continues it
-//   completed -> manual "Sync now" waits 5 minutes (cron is not throttled)
+//   completed -> manual "Sync now" waits 5 minutes (cron and backfill are not
+//                throttled: a backfill is a chain of runs, each pulling the next 30 days)
 //   partial / failed -> an immediate manual retry is allowed
 export const SYNC_RUN_KEY = '__sync_run__';
 const RUN_STALE_MS = 10 * 60 * 1000;
@@ -40,10 +41,10 @@ const PENDING_STALE_MS = 60 * 60 * 1000; // an unfinished run older than this st
 const MANUAL_COOLDOWN_MS = 5 * 60 * 1000;
 const CRON_RUN_SPACING_MS = 20 * 60 * 60 * 1000; // cron starts a new incremental run at most ~daily
 
-export function syncGate(runRow, now, { manual = false } = {}) {
+export function syncGate(runRow, now, { manual = false, mode = 'incremental' } = {}) {
   const age = runRow?.updated_at ? now - new Date(runRow.updated_at) : Infinity;
   if (runRow?.status === 'running' && age < RUN_STALE_MS) return { ok: false, status: 409, error: 'A sync is already running — wait for it to finish.' };
-  if (manual && runRow?.status === 'completed' && age < MANUAL_COOLDOWN_MS) return { ok: false, status: 429, error: 'A sync completed in the last 5 minutes — try again shortly.' };
+  if (manual && mode !== 'backfill' && runRow?.status === 'completed' && age < MANUAL_COOLDOWN_MS) return { ok: false, status: 429, error: 'A sync completed in the last 5 minutes — try again shortly.' };
   return { ok: true };
 }
 
@@ -53,7 +54,7 @@ export async function runSeoSync({ env, store: baseStore, fetch: injectedFetch =
   const fetchImpl = budget.wrap(boundFetch(injectedFetch), true);
 
   const runRow = (await store.select('seo_provider_status', { provider: `eq.${SYNC_RUN_KEY}`, limit: '1' }).catch(() => []))[0];
-  const gate = syncGate(runRow, now, { manual });
+  const gate = syncGate(runRow, now, { manual, mode });
   if (!gate.ok) return { blocked: true, status: gate.status, error: gate.error, mode, results: [], runStatus: runRow?.status || null };
 
   const age = runRow?.updated_at ? now - new Date(runRow.updated_at) : Infinity;

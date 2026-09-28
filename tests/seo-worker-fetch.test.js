@@ -104,6 +104,8 @@ test('run gate: running blocks everyone; completed throttles only manual; failed
   assert.equal(syncGate(at('running', 11), NOW, { manual: true }).ok, true); // abandoned run
   assert.equal(syncGate(at('completed', 2), NOW, { manual: true }).status, 429);
   assert.equal(syncGate(at('completed', 2), NOW, { manual: false }).ok, true);
+  assert.equal(syncGate(at('completed', 2), NOW, { manual: true, mode: 'backfill' }).ok, true); // backfill chains runs
+  assert.equal(syncGate(at('running', 1), NOW, { manual: true, mode: 'backfill' }).status, 409); // but never overlaps
   assert.equal(syncGate(at('completed', 6), NOW, { manual: true }).ok, true);
   assert.equal(syncGate(at('failed', 1), NOW, { manual: true }).ok, true);
   assert.equal(syncGate(at('partial', 1), NOW, { manual: true }).ok, true);

@@ -7,7 +7,7 @@ const ACTION_FOR: Record<SeoView, string> = {
   competitors: 'competitors', seasonality: 'seasonality', authority: 'authority', connections: 'connections',
 };
 
-type SyncCall = { ok: boolean; error?: string; more?: boolean; runStatus?: string; results?: { provider: string; rows?: number; partial?: boolean; skipped?: boolean; reason?: string }[]; summary?: { errors?: string[] } };
+type SyncCall = { ok: boolean; error?: string; more?: boolean; runStatus?: string; results?: { provider: string; rows?: number; partial?: boolean; skipped?: boolean; reason?: string }[]; summary?: { errors?: string[] }; runs?: number; historyIncomplete?: boolean };
 
 export function useSeoData(view: SeoView, days: number) {
   const [data, setData] = useState<Record<string, unknown>>({});
@@ -50,19 +50,27 @@ export function useSeoData(view: SeoView, days: number) {
     const skipReason = new Map<string, string>();
     const errors: string[] = [];
     let out: SyncCall = { ok: false };
-    for (let i = 0; i < 15; i += 1) {
-      const res = await fetch('/jarvis/seo-data', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'sync_now', mode: mode === 'force' ? 'incremental' : mode }) });
-      out = await res.json().catch(() => ({ ok: false, error: `HTTP ${res.status}` }));
-      if (!out.ok) break;
-      for (const r of out.results || []) if (r.rows != null && !r.partial) pulled.add(r.provider);
-      for (const r of out.results || []) if (r.skipped && r.reason) skipReason.set(r.provider, r.reason);
-      errors.push(...(out.summary?.errors || []));
-      if (!out.more) break;
+    // A backfill is a chain of runs (each pulls the next 30 days of history):
+    // keep starting runs while the last one still pulled something.
+    const maxRuns = mode === 'backfill' ? 20 : 1;
+    let runs = 0;
+    for (; runs < maxRuns; runs += 1) {
+      let pulledThisRun = 0;
+      for (let i = 0; i < 15; i += 1) {
+        const res = await fetch('/jarvis/seo-data', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'sync_now', mode: mode === 'force' ? 'incremental' : mode }) });
+        out = await res.json().catch(() => ({ ok: false, error: `HTTP ${res.status}` }));
+        if (!out.ok) break;
+        for (const r of out.results || []) if (r.rows != null && !r.partial) { pulled.add(r.provider); pulledThisRun += 1; }
+        for (const r of out.results || []) if (r.skipped && r.reason) skipReason.set(r.provider, r.reason);
+        errors.push(...(out.summary?.errors || []));
+        if (!out.more) break;
+      }
+      if (!out.ok || !pulledThisRun) break;
     }
     setVersion(v => v + 1);
     const skipped: Record<string, number> = {};
     for (const [provider, why] of skipReason) if (!pulled.has(provider)) skipped[why] = (skipped[why] || 0) + 1;
-    return { ...out, pulled: [...pulled], skipped, errors };
+    return { ...out, pulled: [...pulled], skipped, errors, runs: runs + (runs < maxRuns ? 1 : 0), historyIncomplete: mode === 'backfill' && runs >= maxRuns };
   }, []);
 
   return { get: <T,>(v: SeoView) => data[ACTION_FOR[v]] as T | undefined, loading, error, post, syncNow, reload: () => setVersion(v => v + 1) };

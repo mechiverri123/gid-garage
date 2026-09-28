@@ -3363,7 +3363,7 @@
       "file_type": "code",
       "norm_label": "runseosync()",
       "source_file": "functions/_lib/seo/sync.js",
-      "source_location": "L50"
+      "source_location": "L51"
     },
     {
       "id": "functions_seo_sync_json",
@@ -5403,7 +5403,7 @@
       "file_type": "code",
       "norm_label": "syncgate()",
       "source_file": "functions/_lib/seo/sync.js",
-      "source_location": "L43"
+      "source_location": "L44"
     },
     {
       "id": "shared_seo_local_intent_gsclocality",
@@ -11727,7 +11727,7 @@
       "file_type": "code",
       "norm_label": "runslice()",
       "source_file": "functions/_lib/seo/sync.js",
-      "source_location": "L84"
+      "source_location": "L85"
     },
     {
       "id": "shared_seo_competitors_classifycompetitor",
@@ -19359,7 +19359,7 @@
       "file_type": "code",
       "norm_label": "sync_run_key",
       "source_file": "functions/_lib/seo/sync.js",
-      "source_location": "L37"
+      "source_location": "L38"
     },
     {
       "id": "tests_seo_fake_store",
@@ -36247,7 +36247,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "functions/_lib/seo/sync.js",
-      "source_location": "L53",
+      "source_location": "L54",
       "weight": 1.0
     },
     {
@@ -36259,7 +36259,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "functions/_lib/seo/sync.js",
-      "source_location": "L56",
+      "source_location": "L57",
       "weight": 1.0
     },
     {
@@ -36271,7 +36271,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "functions/_lib/seo/sync.js",
-      "source_location": "L72",
+      "source_location": "L73",
       "weight": 1.0
     },
     {
@@ -36283,7 +36283,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "functions/_lib/seo/sync.js",
-      "source_location": "L128",
+      "source_location": "L129",
       "weight": 1.0
     },
     {
@@ -36295,7 +36295,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "functions/_lib/seo/sync.js",
-      "source_location": "L141",
+      "source_location": "L142",
       "weight": 1.0
     },
     {
@@ -36307,7 +36307,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "functions/_lib/seo/sync.js",
-      "source_location": "L91",
+      "source_location": "L92",
       "weight": 1.0
     },
     {
@@ -36319,7 +36319,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "functions/_lib/seo/sync.js",
-      "source_location": "L97",
+      "source_location": "L98",
       "weight": 1.0
     },
     {
@@ -41983,7 +41983,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/command-center/seo/SeoMode.tsx",
-      "source_location": "L43",
+      "source_location": "L44",
       "weight": 1.0
     },
     {
@@ -41995,7 +41995,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/command-center/seo/SeoMode.tsx",
-      "source_location": "L45",
+      "source_location": "L46",
       "weight": 1.0
     },
     {
@@ -42007,7 +42007,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/command-center/seo/SeoMode.tsx",
-      "source_location": "L72",
+      "source_location": "L73",
       "weight": 1.0
     },
     {
@@ -42019,7 +42019,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/command-center/seo/SeoMode.tsx",
-      "source_location": "L73",
+      "source_location": "L74",
       "weight": 1.0
     },
     {
@@ -42031,7 +42031,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/command-center/seo/SeoMode.tsx",
-      "source_location": "L74",
+      "source_location": "L75",
       "weight": 1.0
     },
     {
@@ -42043,7 +42043,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/command-center/seo/SeoMode.tsx",
-      "source_location": "L75",
+      "source_location": "L76",
       "weight": 1.0
     },
     {
@@ -42055,7 +42055,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/command-center/seo/SeoMode.tsx",
-      "source_location": "L76",
+      "source_location": "L77",
       "weight": 1.0
     },
     {
@@ -42067,7 +42067,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/command-center/seo/SeoMode.tsx",
-      "source_location": "L77",
+      "source_location": "L78",
       "weight": 1.0
     },
     {
@@ -42079,7 +42079,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/command-center/seo/SeoMode.tsx",
-      "source_location": "L78",
+      "source_location": "L79",
       "weight": 1.0
     },
     {
@@ -42091,7 +42091,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/command-center/seo/SeoMode.tsx",
-      "source_location": "L79",
+      "source_location": "L80",
       "weight": 1.0
     },
     {
@@ -42103,7 +42103,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/command-center/seo/SeoMode.tsx",
-      "source_location": "L87",
+      "source_location": "L88",
       "weight": 1.0
     },
     {
@@ -72464,7 +72464,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "functions/_lib/seo/sync.js",
-      "source_location": "L37",
+      "source_location": "L38",
       "weight": 1.0
     },
     {
@@ -72475,7 +72475,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "functions/_lib/seo/sync.js",
-      "source_location": "L43",
+      "source_location": "L44",
       "weight": 1.0
     },
     {
@@ -72486,7 +72486,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "functions/_lib/seo/sync.js",
-      "source_location": "L50",
+      "source_location": "L51",
       "weight": 1.0
     },
     {
@@ -72497,7 +72497,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "functions/_lib/seo/sync.js",
-      "source_location": "L84",
+      "source_location": "L85",
       "weight": 1.0
     },
     {
@@ -87506,5 +87506,5 @@
       "source_file": "public/website_logo.png"
     }
   ],
-  "built_at_commit": "ddca5cd299cc69a576a92dfad3ca4eb2e4d86ae3"
+  "built_at_commit": "ed0af96ca8e1180bf540e008742c2d1dfb3234d2"
 }

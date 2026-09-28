@@ -25,7 +25,7 @@ export function SeoMode({ focus, onFocus, coreState, liveActivity }: { focus: Se
     catch (e) { setNotice(`Not changed: ${e instanceof Error ? e.message : String(e)}`); }
   };
   const sync = async (mode: 'incremental' | 'backfill') => {
-    setNotice('Syncing…');
+    setNotice(mode === 'backfill' ? 'Loading search history… this can take a minute or two.' : 'Syncing…');
     const out = await seo.syncNow(mode);
     if (!out?.ok) { setNotice(`Sync failed: ${out?.error || 'unknown error'}`); return; }
     const skipped = Object.entries(out.skipped).map(([why, n]) => `${n} ${why}`).join(', ');
@@ -33,6 +33,7 @@ export function SeoMode({ focus, onFocus, coreState, liveActivity }: { focus: Se
     if (skipped) parts.push(`skipped: ${skipped}`);
     if (out.errors.length) parts.push(`${out.errors.length} failed: ${out.errors.join('; ')}`);
     if (out.more) parts.push('more remaining — press Sync now again');
+    if (mode === 'backfill') parts.push(out.historyIncomplete ? `${out.runs} runs done, more history left — press Backfill again` : `history loaded (${out.runs} run${out.runs === 1 ? '' : 's'})`);
     setNotice(`Sync ${out.errors.length ? 'finished with errors' : 'finished'}: ${parts.join(' — ')}.`);
   };
 
