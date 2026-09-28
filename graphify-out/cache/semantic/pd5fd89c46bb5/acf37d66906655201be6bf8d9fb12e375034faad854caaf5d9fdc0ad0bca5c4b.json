@@ -1,0 +1,1 @@
+{"nodes": [{"id": "voice_service_render_gid_jarvis_voice", "label": "gid-jarvis-voice Render service (Piper jarvis-medium model)", "file_type": "code", "source_file": "voice-service/render.yaml", "source_location": null, "source_url": null, "captured_at": null, "author": null, "contributor": null}], "edges": [], "hyperedges": []}
