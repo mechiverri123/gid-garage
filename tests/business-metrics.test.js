@@ -130,3 +130,22 @@ test('parity with the pre-extraction dashboard formulas', () => {
     assert.equal(netProfit(JOBS, inWindow), oldNetProfitFor(JOBS, inWindow), `net profit ${p}`);
   }
 });
+
+// ---- Bug 1: contribution-level evidence and exact period comparison ----
+
+import { revenueContributions, compareRevenuePeriods } from '../shared/business-metrics.js';
+
+test('1: contributions add up to the totals, and the period comparison is exact', () => {
+  const month = w('this_month');
+  const last30 = w('last_30_days');
+  const contribs = revenueContributions(JOBS, month.inWindow);
+  assert.equal(cents(contribs.reduce((s, x) => s + x.c.collected, 0)), cents(collectedRevenue(JOBS, month.inWindow).total));
+  assert.equal(cents(contribs.reduce((s, x) => s + x.c.netProfit, 0)), cents(netProfit(JOBS, month.inWindow)));
+  assert.equal(contribs.find(x => x.job.id === 'D').c.basis, 'paid_invoice_fallback');
+
+  const cmp = compareRevenuePeriods(JOBS, month, last30);
+  assert.equal(cmp.collectedDifference, 100); // 1390 − 1290
+  assert.equal(cmp.netProfitDifference, 100); // 920 − 820
+  assert.deepEqual(cmp.differences.map(d => [d.job.id, d.where, d.collectedDifference]), [['F', 'only_in_b', 100]]);
+  assert.equal(cents(cmp.differences.reduce((s, d) => s + d.collectedDifference, 0)), cmp.collectedDifference);
+});

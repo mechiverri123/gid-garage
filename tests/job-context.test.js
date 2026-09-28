@@ -19,7 +19,7 @@ test('generic "other" job is described from its scope of work, line items and bo
   assert.deepEqual(ev.lineItems.map(li => li.label), ['Front brake labor', 'Front pads + rotors']);
   assert.equal(ev.bookingRequest.text, 'Grinding noise when stopping');
   assert.deepEqual(ev.evidenceFields, ['scopeOfWork', 'bookingText', 'bookingSelections', 'lineItems']);
-  assert.ok(ev.hints.some(h => h.includes('describe the job from scopeOfWork')));
+  assert.ok(ev.hints.some(h => h.includes('Describe the job from scopeOfWork') && h.includes('never as "Other / Custom"')));
   assert.deepEqual(ev.gaps, ['no technician notes']);
 });
 
@@ -27,7 +27,7 @@ test('diagnostic job exposes technician notes and trouble codes; tire blanks are
   const ev = jobEvidence(JILL_JOBS[2]);
   assert.match(ev.technicianNotes, /recommend alternator replacement/);
   assert.deepEqual(ev.inspection, { tirePressure: null, tireTread: null, dtcCodes: [{ code: 'P0562', plan: 'System voltage low — check charging system' }] });
-  assert.equal(ev.money.balance, 120); // completed, not invoiced: estimate + tax
+  assert.equal(ev.money.balanceDue, 120); // completed, not invoiced: estimate + tax
 });
 
 test('a job with no descriptive fields says so instead of implying detail', () => {
@@ -53,7 +53,7 @@ test('detail view adds photo notes, receipts and payments, and skips photo blobs
 // ---- entity resolution -----------------------------------------------------------
 
 const CUSTOMERS = [
-  { id: 'c-jill', fname: 'Jill', lname: 'Castle', phone: '(928) 555-0100', vehicle: '2015 Honda CR-V' },
+  { id: 'c-jill', fname: 'Jill', lname: 'Castle', phone: '(928) 555-0100', vehicle: '2017 Acura RDX' },
   { id: 'c-jm', fname: 'Jill', lname: 'Moreno', phone: '928-555-0177' },
 ];
 const LEGACY = [{ id: 'L1', customer_id: null, fname: 'Jill', lname: 'Castle', phone: '9285550100', vehicle: '2009 Ford F-150', date: '2025-11-01' }];
@@ -63,7 +63,7 @@ test('full name resolves to one person and merges legacy bookings by phone', () 
   assert.equal(r.status, 'resolved');
   assert.equal(r.person.customerId, 'c-jill');
   assert.equal(r.person.jobCount, 5);
-  assert.deepEqual(r.person.vehicles.sort(), ['2009 Ford F-150', '2015 Honda CR-V']);
+  assert.deepEqual(r.person.vehicles.sort(), ['2009 Ford F-150', '2017 Acura RDX']);
 });
 
 test('first name alone with two matches is ambiguous; unknown is not_found; phone resolves', () => {
@@ -97,9 +97,40 @@ test('customer history: chronological, last/next visit, open items, cancelled co
   assert.equal(h.cancelledJobCount, 1);
   assert.equal(h.lastVisitJobId, 'J2');
   assert.equal(h.nextVisitJobId, 'J3');
-  assert.deepEqual(h.vehicles, ['2015 Honda CR-V']);
+  assert.deepEqual(h.vehicleRecords.map(v => v.vehicle), ['2017 Acura RDX']);
   assert.deepEqual(h.openItems.map(o => o.type), ['balance_owed', 'owner_note_action']);
   assert.equal(h.openItems[0].jobId, 'J2');
   assert.equal(h.lastInteraction.kind, 'call');
   assert.match(h.lastInteraction.detail, /alternator quote/);
+});
+
+// ---- Bug 3: VIN reconciliation across bookings ----
+
+import { vehicleRecords } from '../shared/job-context.js';
+
+test('3: customer VIN blank + bookings carry the VIN -> booking VIN; conflicts are reported, not chosen', () => {
+  const recs = vehicleRecords(JILL_JOBS, { vin: '', vehicle: '2017 Acura RDX' });
+  assert.equal(recs[0].vin, JILL_JOBS[1].vin);
+  assert.equal(recs[0].vinStatus, 'consistent');
+  assert.deepEqual(recs[0].mileageReadings.map(m => m.mileage), ['81,200', '84,950']);
+  const conflict = vehicleRecords([{ id: 'x1', vehicle: '2017 Acura RDX', vin: '5J8TB4H59HL000123' }, { id: 'x2', vehicle: '2017 Acura RDX', vin: '5J8TB4H59HL000999' }]);
+  assert.equal(conflict[0].vinStatus, 'conflicting');
+  assert.equal(conflict[0].vin, null);
+  assert.equal(conflict[0].vins.length, 2);
+});
+
+test('4: a first-name note subject never hides a real customer, but resolves when nothing else matches', () => {
+  const notes = [{ contact_name: 'Jill' }, { contact_name: 'Lisa' }];
+  assert.equal(resolvePerson('Jill Castle', CUSTOMERS, JILL_JOBS, { notes }).person.customerId, 'c-jill');
+  assert.equal(resolvePerson('Jill', CUSTOMERS, JILL_JOBS, { notes }).status, 'ambiguous');
+  const lisa = resolvePerson('Lisa', CUSTOMERS, JILL_JOBS, { notes });
+  assert.deepEqual([lisa.status, lisa.person.name, lisa.person.sources], ['resolved', 'Lisa', ['note']]);
+});
+
+test('6/14: booking-only name resolves; "General Inquiry" counts as generic', () => {
+  const red = resolvePerson('Red', [], [{ id: 'RD1', fname: 'Red', lname: '', phone: '7857068653', vehicle: '2021 Chevrolet Blazer' }]);
+  assert.deepEqual([red.status, red.person.sources], ['resolved', ['booking']]);
+  const ev = jobEvidence({ id: 'G', service: 'General Inquiry', garage_notes: 'Checked grounds' });
+  assert.equal(ev.serviceCategory.generic, true);
+  assert.ok(ev.hints[0].includes('never as "General Inquiry"'));
 });

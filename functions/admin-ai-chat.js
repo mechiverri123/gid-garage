@@ -26,7 +26,8 @@
 //   { type: 'error', message: string }
 // A conversation with no tool calls just streams a single 'final' line.
 
-import { createBusinessOps, cleanSearchText } from './_lib/business-data.js';
+import { createBusinessOps, cleanSearchText, writeResult } from './_lib/business-data.js';
+import { planTurn, updateContext, guardFinalText } from './_lib/jarvis-context.js';
 import { isLikelyNaturalBusinessNote, classifyFocusedIntent, focusedRoutingInstruction, INTENT_TOOL_NAMES } from './_lib/jarvis-intent.js';
 import { ownerPaySettings } from '../shared/business-metrics.js';
 import { SETTABLE_JOB_STATUSES, PAYMENT_METHODS, leadStatusUpdate, leadFollowUpReason, isValidYmd, isValidApptTime } from '../shared/business-rules.js';
@@ -229,6 +230,18 @@ RESPONSE STYLE — this is a small chat panel, not a report:
 - FINANCIAL DEFINITIONS: Revenue/gross/sales/collected means actual customer money collected and MUST use get_revenue_summary. Net profit means collected revenue minus sales tax collected minus parts cost and MUST use get_revenue_summary. Take-home/owner pay means net profit minus card fees minus prorated overhead minus the tax reserve (the Hub Owner Pay panel) and MUST use get_owner_pay_summary. Never call owner take-home "revenue" or "net profit". If the owner asks something ambiguous like "what did I actually make", call both tools for the same period and give both: dashboard net profit, and estimated take-home after fees/overhead/reserve.
 - PERIOD DEFINITIONS: "this month" means the current Arizona calendar month. "past/last 30 days" means a rolling 30-day window. Do not treat those as the same period.
 - NUMBERS COME FROM TOOLS: Never compute revenue, profit, balances, totals, counts, or dates yourself from raw rows. Quote the number a tool returned. If no tool returned it, say you don't have it.
+- ESTIMATE/INVOICE AMOUNTS: *_total fields are customer-facing and include tax — quote those by default ("Richard's estimate is $409.11"). *_subtotal is pre-tax: only when the owner asks for the subtotal or the amount before tax.
+- PERIOD DIFFERENCES: "which jobs make the difference", "where did that $X come from", "why is this month lower" → compare_revenue_periods and name the exact jobs, amounts and dates. Never say "likely", never estimate, never ask the owner to remember.
+
+FACTS ONLY FROM THIS TURN'S RECORDS:
+- Never state a customer, vehicle, VIN, mileage, appointment date/time, payment, diagnosis, scope, or outcome unless it appears in a tool result from THIS turn. Earlier chat messages are not evidence — if a fact isn't in a result above, look it up or say it isn't on file.
+- [CONTEXT] notes in the user's message come from the server: they say which record "that", "her", "each one", or "yes" refers to, and usually include a fresh lookup of it. A name or vehicle in the current message always replaces the earlier subject.
+- If you can't tell which record the owner means, ask one short question. Never guess.
+
+WRITES — NEVER CLAIM WHAT DIDN'T HAPPEN:
+- Only say done/saved/updated/cancelled/recorded/sent/changed after a write tool in THIS turn returned ok:true (verified:true). Report its "changed" values.
+- If a write returned an error, or needs_confirmation, say exactly that — nothing was changed yet. The server replaces any unsupported success claim.
+- To cancel a job use cancel_job (same as the admin "Mark as Cancelled"); it needs the owner's confirmation. Never "just note" a cancellation as if the job were cancelled.
 
 JOBS & CUSTOMERS — ANSWER FROM THE EVIDENCE, NOT THE CATEGORY:
 - The service field is only a category (often "other"). What a job was actually about lives in its evidence: scopeOfWork (the "Scope of Work" on the estimate/invoice), technicianNotes, lineItems, bookingRequest (booking-form selections + the customer's own words), inspection (trouble codes with the tech's plan, tire readings), preExistingDamage, priceAdjustment.
@@ -414,6 +427,46 @@ const TOOLS = [
     },
   },
   {
+    name: 'get_vehicle_jobs',
+    description: "Jobs on a vehicle, newest first, with full evidence (who, date, VIN, mileage, scope, technician/photo notes). Use for 'the last Ranger job', 'the Blazer', 'the 2011 F-150'. Optional customer narrows it.",
+    input_schema: {
+      type: 'object',
+      properties: { vehicle: { type: 'string' }, customer: { type: 'string' } },
+      required: ['vehicle'],
+    },
+  },
+  {
+    name: 'get_result_set_details',
+    description: "Re-read the records from the previous answer's list (leads, jobs, or notes) by id — for 'each one', 'those', 'all of them'. Leads include their follow-up reason.",
+    input_schema: {
+      type: 'object',
+      properties: { type: { type: 'string', description: 'leads, jobs, or notes' }, ids: { type: 'array', items: { type: 'string' } } },
+      required: ['type', 'ids'],
+    },
+  },
+  {
+    name: 'cancel_job',
+    description: "Cancel a job exactly like the admin 'Mark as Cancelled' button (job_status CANCELLED + status cancelled; nothing deleted). Optional reason is saved as a Jarvis note on the job. Requires confirmation: call WITHOUT confirmed=true first, relay the summary, then call WITH confirmed=true only after the owner says yes. Refuses PAID or already-cancelled jobs.",
+    input_schema: {
+      type: 'object',
+      properties: {
+        job_id: { type: 'string' },
+        reason: { type: 'string', description: 'e.g. "customer cancelled"' },
+        confirmed: { type: 'boolean' },
+      },
+      required: ['job_id'],
+    },
+  },
+  {
+    name: 'reopen_job',
+    description: "Reopen a cancelled job back to BOOKED, exactly like the admin 'Reopen Job' button. Requires confirmation like cancel_job.",
+    input_schema: {
+      type: 'object',
+      properties: { job_id: { type: 'string' }, confirmed: { type: 'boolean' } },
+      required: ['job_id'],
+    },
+  },
+  {
     name: 'get_unpaid_jobs',
     description: "Canonical unpaid list: COMPLETED or INVOICED jobs (not PAID, not cancelled) with a balance, balance = invoice (or estimate if not invoiced yet) + tax − amount paid. Same set as the dashboard's Unpaid / Due. Use for 'who owes me', 'unpaid invoices', 'outstanding balances'.",
     input_schema: { type: 'object', properties: {}, required: [] },
@@ -563,7 +616,7 @@ const TOOLS = [
   },
   {
     name: 'search_customers',
-    description: "Find a customer by name, phone, or VIN — returns their contact info and vehicle on file. For their job history, follow up with list_jobs.",
+    description: "Find people by name or phone across customers, bookings, leads and owner notes (a customers row is not required — e.g. a job booked under just 'Red'). Returns who matched and where. For what their jobs were about, VINs, mileage etc. use get_customer_context.",
     input_schema: {
       type: 'object',
       properties: { query: { type: 'string' } },
@@ -607,9 +660,22 @@ const TOOLS = [
         period: {
           type: 'string',
           description: "One of: today, this_month, last_month, this_year, last_7_days, last_30_days, or last_N_days (e.g. last_90_days). this_week means the last 7 days. Use last_30_days for 'past 30 days' and this_month for 'this month' — they are different periods."
-        }
+        },
+        include_contributions: { type: 'boolean', description: 'true to also list each job that contributed (customer, vehicle, payment dates, amounts).' },
       },
       required: ['period'],
+    },
+  },
+  {
+    name: 'compare_revenue_periods',
+    description: "Exact job-by-job comparison of collected revenue and net profit between two periods. Returns every job whose contribution differs, with customer, vehicle, payment dates and amounts; the differences add up exactly to the total gap. Use for 'which jobs make the difference', 'where did that $X come from', 'why is this month lower than the last 30 days'.",
+    input_schema: {
+      type: 'object',
+      properties: {
+        period_a: { type: 'string', description: 'First period, e.g. this_month.' },
+        period_b: { type: 'string', description: 'Second period, e.g. last_30_days.' },
+      },
+      required: ['period_a', 'period_b'],
     },
   },
   {
@@ -711,11 +777,14 @@ export async function onRequestPost({ request, env }) {
     if (!res.ok) throw new Error(await res.text());
     return res.json();
   }
+  // Returns the updated rows (return=representation) so every write can be
+  // verified — a PATCH matching nothing returns [] with HTTP 200.
   async function sbPatch(table, filterParam, fields) {
     const res = await fetch(`${base}/${table}?${filterParam}`, {
-      method: 'PATCH', headers: { ...headers, Prefer: 'return=minimal' }, body: JSON.stringify(fields),
+      method: 'PATCH', headers: { ...headers, Prefer: 'return=representation' }, body: JSON.stringify(fields),
     });
     if (!res.ok) throw new Error(await res.text());
+    return res.json();
   }
   async function sbInsert(table, row) {
     const res = await fetch(`${base}/${table}`, {
@@ -723,13 +792,14 @@ export async function onRequestPost({ request, env }) {
     });
     if (!res.ok) throw new Error(await res.text());
     const rows = await res.json();
-    return rows[0] ?? null;
+    if (!rows?.[0]?.id) throw new Error(`Insert into ${table} was not confirmed by the database.`);
+    return rows[0];
   }
 
   function money(n) { return n == null ? 'unknown' : `$${Number(n).toFixed(2)}`; }
 
   // Deterministic business operations (shared with the voice endpoint).
-  const ops = createBusinessOps({ sbGet, sbPatch });
+  const ops = createBusinessOps({ sbGet, sbPatch, sbInsert });
 
   function phoenixParts(date = new Date()) {
     const parts = new Intl.DateTimeFormat('en-CA', {
@@ -809,8 +879,11 @@ export async function onRequestPost({ request, env }) {
       case 'update_lead_status': {
         // Only 'contacted'/'quoted' stamp last_contacted_at — marking a lead
         // lost or booked is not a contact.
-        await sbPatch('leads', `id=eq.${encodeURIComponent(input.lead_id)}`, leadStatusUpdate(input.status));
-        return { ok: true };
+        const rows = await sbGet('leads', { select: 'id,status,last_contacted_at', id: `eq.${input.lead_id}`, limit: '1' });
+        if (!rows[0]) throw new Error('No lead found with that id.');
+        const fields = leadStatusUpdate(input.status);
+        await ops.patch('leads', input.lead_id, fields);
+        return writeResult('lead', input.lead_id, rows[0], fields);
       }
 
       case 'get_owner_briefing':
@@ -835,13 +908,14 @@ export async function onRequestPost({ request, env }) {
           throw new Error('Reminder time is required. Use due_in_minutes for relative reminders or due_at_local for a specific calendar time.');
         }
 
-        return await sbInsert('jarvis_reminders', {
+        const reminder = await sbInsert('jarvis_reminders', {
           title: title.slice(0, 240),
           notes: input.notes ? String(input.notes).slice(0, 4000) : null,
           due_at: dueAt,
           status: 'open',
           related_lead_id: input.related_lead_id ? String(input.related_lead_id) : null,
         });
+        return { ok: true, verified: true, entity: 'reminder', id: reminder.id, title: reminder.title, due_at: reminder.due_at };
       }
 
       case 'list_reminders': {
@@ -868,9 +942,10 @@ export async function onRequestPost({ request, env }) {
         const rows = await sbGet('jarvis_reminders', { select: 'id,title,status', id: `eq.${input.reminder_id}`, limit: '1' });
         const reminder = rows[0];
         if (!reminder) throw new Error('No reminder found with that id.');
-        if (reminder.status === 'done') return { ok: true, already_done: true, reminder };
-        await sbPatch('jarvis_reminders', `id=eq.${encodeURIComponent(input.reminder_id)}`, { status: 'done', completed_at: new Date().toISOString(), updated_at: new Date().toISOString() });
-        return { ok: true, completed: reminder.title };
+        if (reminder.status === 'done') return { ok: true, already_done: true, title: reminder.title };
+        const nowIso = new Date().toISOString();
+        await ops.patch('jarvis_reminders', input.reminder_id, { status: 'done', completed_at: nowIso, updated_at: nowIso });
+        return writeResult('reminder', input.reminder_id, reminder, { status: 'done' }, { title: reminder.title });
       }
 
       case 'cleanup_test_reminders': {
@@ -883,14 +958,12 @@ export async function onRequestPost({ request, env }) {
         const testPattern = /\b(test proactive reminders?|test automatic(?: delivery| reminders?)?|test jarvis(?: again)?|test reminders?|confirm automatic reminders? work|confirm automatic reminders?|automatic reminders? test)\b/i;
         const matches = rows.filter(r => testPattern.test(String(r.title || '')));
         const nowIso = new Date().toISOString();
+        const done = [];
         for (const r of matches) {
-          await sbPatch('jarvis_reminders', `id=eq.${encodeURIComponent(r.id)}`, {
-            status: 'done',
-            completed_at: nowIso,
-            updated_at: nowIso,
-          });
+          await ops.patch('jarvis_reminders', r.id, { status: 'done', completed_at: nowIso, updated_at: nowIso });
+          done.push(r.title);
         }
-        return { ok: true, completed_count: matches.length, titles: matches.map(r => r.title) };
+        return { ok: true, verified: true, completed_count: done.length, titles: done };
       }
 
       case 'list_lead_followups': {
@@ -920,26 +993,27 @@ export async function onRequestPost({ request, env }) {
 
       case 'set_lead_followup': {
         const dueAt = phoenixLocalToIso(input.follow_up_at_local);
-        const rows = await sbGet('leads', { select: 'id,fname,lname,status', id: `eq.${input.lead_id}`, limit: '1' });
+        const rows = await sbGet('leads', { select: 'id,fname,lname,status,follow_up_at', id: `eq.${input.lead_id}`, limit: '1' });
         if (!rows[0]) throw new Error('No lead found with that id.');
-        await sbPatch('leads', `id=eq.${encodeURIComponent(input.lead_id)}`, { follow_up_at: dueAt, updated_at: new Date().toISOString() });
-        return { ok: true, lead: `${rows[0].fname || ''} ${rows[0].lname || ''}`.trim(), follow_up_at: dueAt };
+        await ops.patch('leads', input.lead_id, { follow_up_at: dueAt, updated_at: new Date().toISOString() });
+        return writeResult('lead', input.lead_id, rows[0], { follow_up_at: dueAt }, { lead: `${rows[0].fname || ''} ${rows[0].lname || ''}`.trim() });
       }
 
       case 'log_lead_contact': {
-        const rows = await sbGet('leads', { select: 'id,fname,lname,status,notes', id: `eq.${input.lead_id}`, limit: '1' });
+        const rows = await sbGet('leads', { select: 'id,fname,lname,status,notes,last_contacted_at,follow_up_at', id: `eq.${input.lead_id}`, limit: '1' });
         const lead = rows[0];
         if (!lead) throw new Error('No lead found with that id.');
         const fields = { last_contacted_at: new Date().toISOString(), updated_at: new Date().toISOString() };
-        if (input.status) fields.status = String(input.status).toLowerCase();
+        if (input.status) fields.status = leadStatusUpdate(input.status).status;
         if (input.follow_up_at_local) fields.follow_up_at = phoenixLocalToIso(input.follow_up_at_local);
         if (input.notes) {
           const stamp = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Phoenix', year: 'numeric', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }).format(new Date());
           const appended = `[${stamp}] ${String(input.notes).trim()}`;
           fields.notes = lead.notes ? `${lead.notes}\n${appended}`.slice(0, 12000) : appended.slice(0, 12000);
         }
-        await sbPatch('leads', `id=eq.${encodeURIComponent(input.lead_id)}`, fields);
-        return { ok: true, lead: `${lead.fname || ''} ${lead.lname || ''}`.trim(), status: fields.status || lead.status, follow_up_at: fields.follow_up_at || null };
+        await ops.patch('leads', input.lead_id, fields);
+        const { notes: _n, ...shown } = fields;
+        return writeResult('lead', input.lead_id, lead, shown, { lead: `${lead.fname || ''} ${lead.lname || ''}`.trim(), notesAppended: Boolean(input.notes) });
       }
 
 
@@ -979,7 +1053,7 @@ export async function onRequestPost({ request, env }) {
           status: 'open',
           source: 'jarvis',
         });
-        return { ok: true, note: row };
+        return { ok: true, verified: true, entity: 'note', id: row.id, note: row };
       }
 
       case 'list_business_notes': {
@@ -1003,8 +1077,8 @@ export async function onRequestPost({ request, env }) {
         if (!note) throw new Error('No business note found with that id.');
         if (note.status === 'resolved') return { ok: true, already_resolved: true, summary: note.summary };
         const nowIso = new Date().toISOString();
-        await sbPatch('jarvis_business_notes', `id=eq.${encodeURIComponent(input.note_id)}`, { status: 'resolved', resolved_at: nowIso, updated_at: nowIso });
-        return { ok: true, resolved: note.summary };
+        await ops.patch('jarvis_business_notes', input.note_id, { status: 'resolved', resolved_at: nowIso, updated_at: nowIso });
+        return writeResult('note', input.note_id, note, { status: 'resolved' }, { summary: note.summary });
       }
 
       case 'list_jobs': {
@@ -1029,7 +1103,7 @@ export async function onRequestPost({ request, env }) {
           const about = ev.scopeOfWork || ev.lineItems.map(li => li.label).join(', ') || ev.bookingRequest.text || ev.bookingRequest.selections.join('; ') || null;
           return {
             id: r.id, fname: r.fname, lname: r.lname, vehicle: r.vehicle, service: r.service, date: r.date, time: r.time,
-            job_status: r.job_status, estimate_amount: r.estimate_amount, invoice_amount: r.invoice_amount,
+            job_status: r.job_status, ...ev.money, // estimateTotal/invoiceTotal include tax; *_Subtotal are pre-tax
             about: about ? about.slice(0, 240) : null,
           };
         });
@@ -1050,14 +1124,14 @@ export async function onRequestPost({ request, env }) {
           fields.time = String(input.time).trim();
         }
         if (!Object.keys(fields).length) throw new Error('Need a date or time to reschedule to.');
-        const rows = await sbGet('bookings', { select: 'id,fname,lname,date,time,job_status,status', id: `eq.${input.job_id}`, limit: '1' });
+        const rows = await sbGet('bookings', { select: 'id,fname,lname,date,time,date_tbd,job_status,status', id: `eq.${input.job_id}`, limit: '1' });
         const job = rows[0];
         if (!job) throw new Error('No job found with that id.');
         if (['PAID', 'CANCELLED'].includes(job.job_status) || String(job.status || '').toLowerCase() === 'cancelled') {
           throw new Error(`This job is ${job.job_status || job.status}; rescheduling it would rewrite history. Change it in the dashboard if that's really intended.`);
         }
-        await sbPatch('bookings', `id=eq.${encodeURIComponent(input.job_id)}`, fields);
-        return { ok: true, customer: `${job.fname || ''} ${job.lname || ''}`.trim(), from: { date: job.date, time: job.time }, to: { date: fields.date || job.date, time: fields.time || job.time } };
+        await ops.patch('bookings', input.job_id, fields);
+        return writeResult('booking', input.job_id, job, fields, { customer: `${job.fname || ''} ${job.lname || ''}`.trim() });
       }
 
       case 'pricing_history': {
@@ -1088,12 +1162,14 @@ export async function onRequestPost({ request, env }) {
         const amount = Number(input.amount);
         if (!isValidYmd(input.date)) throw new Error('Date must be YYYY-MM-DD.');
         if (!Number.isFinite(amount) || amount < 0) throw new Error('Amount must be a non-negative number.');
-        return await sbInsert('marketing_spend', { date: input.date, channel: String(input.channel || 'other').toLowerCase(), amount });
+        const row = await sbInsert('marketing_spend', { date: input.date, channel: String(input.channel || 'other').toLowerCase(), amount });
+        return { ok: true, verified: true, entity: 'marketing_spend', id: row.id, date: row.date, channel: row.channel, amount: row.amount };
       }
 
       case 'log_call': {
         const direction = ['inbound', 'outbound'].includes(input.direction) ? input.direction : 'inbound';
-        return await sbInsert('calls', { phone: String(input.phone || '').slice(0, 40), direction, outcome: String(input.outcome || 'other').slice(0, 40), notes: input.notes ? String(input.notes).slice(0, 4000) : null });
+        const row = await sbInsert('calls', { phone: String(input.phone || '').slice(0, 40), direction, outcome: String(input.outcome || 'other').slice(0, 40), notes: input.notes ? String(input.notes).slice(0, 4000) : null });
+        return { ok: true, verified: true, entity: 'call', id: row.id, phone: row.phone, outcome: row.outcome };
       }
 
       case 'list_calls': {
@@ -1109,24 +1185,22 @@ export async function onRequestPost({ request, env }) {
       }
 
       case 'search_customers': {
-        const q = cleanSearchText(input.query);
-        if (!q) throw new Error('query is required.');
-        const words = q.split(' ');
-        const orParts = [];
-        if (words.length >= 2) orParts.push(`and(fname.ilike."*${words[0]}*",lname.ilike."*${words.slice(1).join(' ')}*")`);
-        orParts.push(`fname.ilike."*${q}*"`, `lname.ilike."*${q}*"`, `phone.ilike."*${q}*"`, `vin.ilike."*${q}*"`);
-        return await sbGet('customers', { select: 'id,fname,lname,phone,email,vehicle,vin,notes', or: `(${orParts.join(',')})`, limit: '10' });
+        // Same people resolution as get_customer_context, shaped for the card.
+        const found = await ops.findPeople({ query: input.query });
+        return found.people.map(p => ({ id: p.key, fname: p.name, lname: '', phone: p.phone, email: p.email, vehicle: p.vehicles[0] || null, vin: p.vin, foundIn: p.sources, jobCount: p.jobCount }));
       }
 
       case 'update_job_status': {
         const status = String(input.job_status || '').toUpperCase();
         if (status === 'PAID') throw new Error("Don't use update_job_status for PAID — use mark_job_paid so the actual payment gets recorded, not just the label.");
+        if (status === 'CANCELLED') throw new Error('Use cancel_job to cancel — it sets both status fields exactly like the admin button.');
         if (!SETTABLE_JOB_STATUSES.includes(status)) throw new Error(`Job status must be one of: ${SETTABLE_JOB_STATUSES.join(', ')}.`);
-        const rows = await sbGet('bookings', { select: 'id,job_status', id: `eq.${input.job_id}`, limit: '1' });
+        const rows = await sbGet('bookings', { select: 'id,job_status,status', id: `eq.${input.job_id}`, limit: '1' });
         if (!rows[0]) throw new Error('No job found with that id.');
         if (rows[0].job_status === 'PAID') throw new Error('This job is PAID; changing its status would pull it out of revenue. Do that in the dashboard if intended.');
-        await sbPatch('bookings', `id=eq.${encodeURIComponent(input.job_id)}`, { job_status: status });
-        return { ok: true, from: rows[0].job_status, to: status };
+        if (rows[0].job_status === 'CANCELLED') throw new Error('This job is cancelled; use reopen_job first.');
+        await ops.patch('bookings', input.job_id, { job_status: status });
+        return writeResult('booking', input.job_id, rows[0], { job_status: status });
       }
 
       case 'mark_job_paid':
@@ -1137,7 +1211,22 @@ export async function onRequestPost({ request, env }) {
         });
 
       case 'get_revenue_summary':
-        return await ops.revenueSummary({ period: input.period });
+        return await ops.revenueSummary({ period: input.period, include_contributions: input.include_contributions === true });
+
+      case 'compare_revenue_periods':
+        return await ops.comparePeriods({ period_a: input.period_a, period_b: input.period_b });
+
+      case 'get_vehicle_jobs':
+        return await ops.vehicleJobs({ vehicle: input.vehicle, customer: input.customer });
+
+      case 'get_result_set_details':
+        return await ops.resultSetDetails({ type: input.type, ids: input.ids });
+
+      case 'cancel_job':
+        return await ops.cancelJob({ job_id: input.job_id, reason: input.reason || '', confirmed: input.confirmed === true });
+
+      case 'reopen_job':
+        return await ops.reopenJob({ job_id: input.job_id, confirmed: input.confirmed === true });
 
       case 'get_owner_pay_summary':
         return await ops.ownerPaySummary({ period: input.period, periodDays: input.periodDays });
@@ -1167,8 +1256,16 @@ export async function onRequestPost({ request, env }) {
     weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
     hour: 'numeric', minute: '2-digit', hour12: true,
   });
+  // Conversation state from the previous turn (record ids, pending
+  // confirmation) — see _lib/jarvis-context.js. Web sends it back in the body;
+  // Telegram stores it per chat.
+  const priorContext = payload.context && typeof payload.context === 'object' ? payload.context : null;
+  const plan = forceNaturalNoteCapture ? { mode: 'note', keepHistory: true, instruction: '' } : planTurn(latestUserText, priorContext, focusedIntent);
+  // Self-contained questions (revenue, briefing…) get only the current message,
+  // so an earlier subject can't leak into the answer.
+  const historyForTurn = plan.keepHistory ? incomingMessages : incomingMessages.slice(-1);
   let messages = [
-    ...incomingMessages.map(m => ({ role: m.role, content: m.content })),
+    ...historyForTurn.map(m => ({ role: m.role, content: m.content })),
   ];
   const noteCaptureInstruction = forceNaturalNoteCapture
     ? `\n\n[ROUTING: The latest message is an owner operational note, not a status question. You MUST call capture_business_note exactly once using only facts explicitly stated. Do not call get_action_center, get_owner_briefing, list_reminders, or any unrelated tool. After saving, confirm the note briefly and do not invent an appointment/reminder.]`
@@ -1176,12 +1273,15 @@ export async function onRequestPost({ request, env }) {
   const focusInstruction = forceNaturalNoteCapture ? '' : focusedRoutingInstruction(focusedIntent);
   messages[messages.length - 1] = {
     ...messages[messages.length - 1],
-    content: `[Today is ${todayCtx}]\n\n${messages[messages.length - 1].content}${noteCaptureInstruction}${focusInstruction}`,
+    content: `[Today is ${todayCtx}]\n\n${messages[messages.length - 1].content}${noteCaptureInstruction}${focusInstruction}${plan.instruction ? `\n\n[CONTEXT: ${plan.instruction}]` : ''}`,
   };
   const focusedTools = forceNaturalNoteCapture ? null : toolsForFocusedIntent(focusedIntent);
-  const toolsForTurn = forceNaturalNoteCapture
+  let toolsForTurn = forceNaturalNoteCapture
     ? TOOLS.filter(t => t.name === 'capture_business_note')
     : (focusedTools && focusedTools.length ? focusedTools : TOOLS);
+  if (plan.prefetch && !toolsForTurn.some(t => t.name === plan.prefetch.tool)) {
+    toolsForTurn = [...toolsForTurn, ...TOOLS.filter(t => t.name === plan.prefetch.tool)];
+  }
 
 
   const { readable, writable } = new TransformStream();
@@ -1191,10 +1291,45 @@ export async function onRequestPost({ request, env }) {
     return writer.write(encoder.encode(JSON.stringify(obj) + '\n'));
   }
 
+  // Every tool call this turn, with its outcome — drives the success-claim
+  // guard and the context handed to the next turn.
+  const turnCalls = [];
+  async function execTool(name, input) {
+    await send({ type: 'tool_call', tool: name, input });
+    try {
+      const result = await runTool(name, input);
+      turnCalls.push({ name, input, ok: true, result });
+      await send({ type: 'tool_result', tool: name, ok: true });
+      if (PRESENTABLE_TOOLS.has(name) && result && !result.needs_confirmation) {
+        await send({ type: 'data', tool: name, payload: result });
+      }
+      return JSON.stringify(result);
+    } catch (e) {
+      const error = e.message ?? String(e);
+      turnCalls.push({ name, input, ok: false, error, result: { ok: false, error } });
+      await send({ type: 'tool_result', tool: name, ok: false, error });
+      return JSON.stringify({ ok: false, error });
+    }
+  }
+  async function finish(text) {
+    const guarded = guardFinalText(text, turnCalls);
+    const nextContext = updateContext(priorContext, turnCalls, { intent: focusedIntent, plan });
+    await send({ type: 'context', context: nextContext });
+    await send({ type: 'final', text: guarded.text, ...(guarded.overridden ? { guarded: true } : {}) });
+  }
+
   // Run the agent loop in the background; the streamed response is
   // returned to the client immediately below, independent of this promise.
   (async () => {
     try {
+      // Deterministic lookup of the record the message refers to (or the
+      // confirmed pending action), run before the model answers.
+      if (plan.prefetch) {
+        const id = 'prefetch_1';
+        const content = await execTool(plan.prefetch.tool, plan.prefetch.input);
+        messages.push({ role: 'assistant', content: [{ type: 'tool_use', id, name: plan.prefetch.tool, input: plan.prefetch.input }] });
+        messages.push({ role: 'user', content: [{ type: 'tool_result', tool_use_id: id, content }] });
+      }
       for (let turn = 0; turn < MAX_TOOL_TURNS; turn++) {
         const res = await fetch(CLAUDE_API_URL, {
           method: 'POST',
@@ -1224,32 +1359,20 @@ export async function onRequestPost({ request, env }) {
 
         if (!toolUseBlocks.length || data.stop_reason !== 'tool_use') {
           const replyText = textBlocks.map(b => b.text).join('\n').trim();
-          await send({ type: 'final', text: replyText || "I don't have anything to add." });
+          await finish(replyText || "I don't have anything to add.");
           break;
         }
 
         messages.push({ role: 'assistant', content: data.content });
         const toolResults = [];
         for (const block of toolUseBlocks) {
-          await send({ type: 'tool_call', tool: block.name, input: block.input || {} });
-          let resultContent;
-          try {
-            const result = await runTool(block.name, block.input || {});
-            resultContent = JSON.stringify(result);
-            await send({ type: 'tool_result', tool: block.name, ok: true });
-            if (PRESENTABLE_TOOLS.has(block.name) && result && !result.needs_confirmation) {
-              await send({ type: 'data', tool: block.name, payload: result });
-            }
-          } catch (e) {
-            resultContent = JSON.stringify({ error: e.message ?? String(e) });
-            await send({ type: 'tool_result', tool: block.name, ok: false, error: e.message ?? String(e) });
-          }
+          const resultContent = await execTool(block.name, block.input || {});
           toolResults.push({ type: 'tool_result', tool_use_id: block.id, content: resultContent });
         }
         messages.push({ role: 'user', content: toolResults });
 
         if (turn === MAX_TOOL_TURNS - 1) {
-          await send({ type: 'final', text: 'That took more steps than I could finish in one go — try breaking it into a smaller question.' });
+          await finish('That took more steps than I could finish in one go — try breaking it into a smaller question.');
         }
       }
     } catch (err) {

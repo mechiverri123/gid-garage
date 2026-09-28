@@ -116,18 +116,49 @@ const invoiceTotal = j => num(j.invoiceAmount) + num(j.taxAmount);
 // in-window whose payment log doesn't cover the invoice (Stripe idempotent
 // retry closed it without appending), the full invoice + tax.
 // Cancelled jobs are NOT excluded: money collected on them was still collected.
+// One job's share of a period, with the evidence behind it. collectedRevenue
+// and netProfit are sums of these, so a breakdown always adds up to its total.
+export function jobContribution(j, inWindow) {
+  const payments = parsePayments(j.payments);
+  const loggedTotal = payments.reduce((s, p) => s + num(p?.amount), 0);
+  const inWindowPayments = payments.filter(p => p?.at && inWindow(p.at));
+  let collected = inWindowPayments.reduce((s, p) => s + num(p.amount), 0);
+  let basis = inWindowPayments.length ? 'payment_entries' : null;
+  let paymentDates = inWindowPayments.map(p => p.at);
+  if (j.jobStatus === 'PAID' && j.paidAt && inWindow(j.paidAt) && loggedTotal < invoiceTotal(j) - 0.01) {
+    collected = invoiceTotal(j);
+    basis = 'paid_invoice_fallback';
+    paymentDates = [j.paidAt];
+  }
+  const closedInWindow = j.jobStatus === 'PAID' && !!j.paidAt && inWindow(j.paidAt);
+  const net = closedInWindow
+    ? (j.amountPaid != null ? num(j.amountPaid) : invoiceTotal(j)) - num(j.taxAmount) - num(j.partsCost)
+    : 0;
+  return {
+    id: j.id ?? null,
+    collected,
+    basis,
+    paymentDates,
+    closedInWindow,
+    netProfit: net,
+    taxAmount: closedInWindow ? num(j.taxAmount) : 0,
+    partsCost: closedInWindow ? num(j.partsCost) : 0,
+  };
+}
+
+// Per-job contributions for a window (only jobs that contribute anything).
+export function revenueContributions(jobs, inWindow) {
+  return jobs.map(j => ({ job: j, c: jobContribution(j, inWindow) }))
+    .filter(({ c }) => c.collected !== 0 || c.closedInWindow);
+}
+
 export function collectedRevenue(jobs, inWindow) {
   let total = 0;
   let jobCount = 0;
   for (const j of jobs) {
-    const payments = parsePayments(j.payments);
-    const loggedTotal = payments.reduce((s, p) => s + num(p?.amount), 0);
-    let amount = payments.filter(p => p?.at && inWindow(p.at)).reduce((s, p) => s + num(p.amount), 0);
-    if (j.jobStatus === 'PAID' && j.paidAt && inWindow(j.paidAt) && loggedTotal < invoiceTotal(j) - 0.01) {
-      amount = invoiceTotal(j);
-    }
-    if (amount > 0) jobCount += 1;
-    total += amount;
+    const { collected } = jobContribution(j, inWindow);
+    if (collected > 0) jobCount += 1;
+    total += collected;
   }
   return { total, jobCount };
 }
@@ -135,11 +166,42 @@ export function collectedRevenue(jobs, inWindow) {
 // Dashboard net profit: for PAID jobs closed (paidAt) in-window,
 // amount paid − sales tax collected − parts cost.
 export function netProfit(jobs, inWindow) {
-  return jobs.reduce((sum, j) => {
-    if (j.jobStatus !== 'PAID' || !j.paidAt || !inWindow(j.paidAt)) return sum;
-    const paid = j.amountPaid != null ? num(j.amountPaid) : invoiceTotal(j);
-    return sum + (paid - num(j.taxAmount) - num(j.partsCost));
-  }, 0);
+  return jobs.reduce((sum, j) => sum + jobContribution(j, inWindow).netProfit, 0);
+}
+
+const cents = n => Math.round(n * 100) / 100;
+
+// Exact job-by-job explanation of why two periods differ. Every job whose
+// collected or net-profit contribution differs between A and B is listed;
+// the listed differences sum exactly to the total differences.
+export function compareRevenuePeriods(jobs, windowA, windowB) {
+  const rows = [];
+  let totalA = 0; let totalB = 0; let netA = 0; let netB = 0; let shared = 0;
+  for (const j of jobs) {
+    const a = jobContribution(j, windowA.inWindow);
+    const b = jobContribution(j, windowB.inWindow);
+    totalA += a.collected; totalB += b.collected; netA += a.netProfit; netB += b.netProfit;
+    const inA = a.collected !== 0 || a.closedInWindow;
+    const inB = b.collected !== 0 || b.closedInWindow;
+    if (inA && inB && Math.abs(a.collected - b.collected) < 0.005 && Math.abs(a.netProfit - b.netProfit) < 0.005) { shared += 1; continue; }
+    if (!inA && !inB) continue;
+    rows.push({
+      job: j,
+      where: inA && inB ? 'both_different_amounts' : inA ? 'only_in_a' : 'only_in_b',
+      a, b,
+      collectedDifference: cents(b.collected - a.collected),
+      netProfitDifference: cents(b.netProfit - a.netProfit),
+    });
+  }
+  rows.sort((x, y) => Math.abs(y.collectedDifference) - Math.abs(x.collectedDifference));
+  return {
+    a: { key: windowA.key, label: windowA.label, collected: cents(totalA), netProfit: cents(netA) },
+    b: { key: windowB.key, label: windowB.label, collected: cents(totalB), netProfit: cents(netB) },
+    collectedDifference: cents(totalB - totalA),
+    netProfitDifference: cents(netB - netA),
+    sharedJobCount: shared,
+    differences: rows,
+  };
 }
 
 // Card payments logged through Stripe in-window, the base for the fee estimate.

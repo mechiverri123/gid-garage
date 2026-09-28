@@ -1,17 +1,17 @@
 # Graph Report - gid-garage  (2026-09-27)
 
 ## Corpus Check
-- 195 files · ~1,134,418 words
+- 199 files · ~1,146,172 words
 - Verdict: corpus is large enough that graph structure adds value.
 - Unclassified: 14 file(s) not represented in the graph (top: (none) 7, .toml 2, .example 1)
 
 ## Summary
-- 2011 nodes · 3526 edges · 126 communities (101 shown, 25 thin omitted)
-- Extraction: 96% EXTRACTED · 4% INFERRED · 0% AMBIGUOUS · INFERRED: 139 edges (avg confidence: 0.88)
+- 2078 nodes · 3733 edges · 126 communities (101 shown, 25 thin omitted)
+- Extraction: 96% EXTRACTED · 4% INFERRED · 0% AMBIGUOUS · INFERRED: 163 edges (avg confidence: 0.89)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `c531db65`
+- Built from commit: `0e7357e1`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -28,18 +28,18 @@
 - CommandCenterPage.tsx
 - db
 - onRequestPost
-- JobDetailPanel
-- tokens.ts
+- EstimatePanel
+- formatters.ts
 - resultRenderer.tsx
 - package.json
-- CustomersTab
+- JobsTab
 - GIDJarvis
 - app.py
 - PrePIModal
 - Blackjack
 - types.ts
 - patchJob
-- COLORS
+- tokens.ts
 - compilerOptions
 - lead-capture.js
 - adminPost
@@ -47,21 +47,21 @@
 - devDependencies
 - AdminSchedule
 - BookingWidget
-- OwnerPayPanel
+- getAllJobs
 - compilerOptions
 - agent.py
 - dependencies
 - JarvisCore.tsx
 - AdminPhotoPanel
-- img
+- business-data.js
 - react
 - apiPost
 - Hardening Controls
 - Code Review and Quality
-- PartsCostPanel
+- job-context.test.js
 - JobDetailPanel.tsx
 - onRequestPost
-- InvoicePage
+- JobDetailPanel
 - manifest.json
 - Test-Driven Development
 - Context Engineering
@@ -73,16 +73,16 @@
 - scripts
 - Shipping and Launch
 - InspectionPanel
-- gid_jarvis
+- business-metrics.js
 - .email_appointment_update
 - API and Interface Design
 - vehicleData.ts
 - jarvis-speak.js
 - jarvis-transcribe.js
 - Brake Service
-- ErrorBoundary.tsx
+- createBusinessOps
 - google-reviews.js
-- PromptGenerator.tsx
+- OwnerPayPanel
 - AttentionPanel.tsx
 - Suspension / Shocks & Struts Service
 - vite
@@ -101,7 +101,7 @@
 - Incremental Implementation
 - Debugging and Error Recovery
 - Documentation and ADRs
-- createBusinessOps
+- business-rules.js
 - Interview Me
 - Planning and Task Breakdown
 - ReOrder: Keep Your Regulars Ordering Direct
@@ -121,22 +121,22 @@
 - Ideation Frameworks Reference
 - SlotMachine.tsx
 - Snake.tsx
-- CancelPage
+- BusinessMetrics.tsx
 - Memory.tsx
 - business-metrics.d.ts
 - idea-refine.sh
 - .gid_business
 - BUSINESS_TZ
-- GameRedeem.tsx
+- jarvis-business.js
 
 ## God Nodes (most connected - your core abstractions)
-1. `adminPost()` - 52 edges
-2. `createBusinessOps()` - 37 edges
-3. `JobDetailPanel()` - 36 edges
-4. `App()` - 34 edges
-5. `GIDJarvis` - 33 edges
-6. `react` - 33 edges
-7. `onRequestPost()` - 32 edges
+1. `createBusinessOps()` - 52 edges
+2. `adminPost()` - 52 edges
+3. `onRequestPost()` - 40 edges
+4. `JobDetailPanel()` - 36 edges
+5. `App()` - 34 edges
+6. `GIDJarvis` - 33 edges
+7. `react` - 33 edges
 8. `AdminSchedule()` - 27 edges
 9. `patchJob()` - 27 edges
 10. `BookingWidget()` - 25 edges
@@ -146,12 +146,12 @@
   JARVIS_CONSISTENCY_AUDIT.md → functions/admin-api-data.js
 - `6. Write-safety invariants (audited and tested)` --references--> `cleanSearchText()`  [INFERRED]
   JARVIS_DATA_COVERAGE_AUDIT.md → functions/_lib/business-data.js
-- `Other tables` --references--> `ownerPaySettings()`  [INFERRED]
-  JARVIS_DATA_COVERAGE_AUDIT.md → shared/business-metrics.js
-- `Still open` --references--> `isAwaitingPayment()`  [INFERRED]
-  JARVIS_CONSISTENCY_AUDIT.md → shared/business-rules.js
-- `6. Write-safety invariants (audited and tested)` --references--> `planPayment()`  [INFERRED]
-  JARVIS_DATA_COVERAGE_AUDIT.md → shared/business-rules.js
+- `Third pass (2026-09-27): Telegram production bugs` --references--> `patchVerified()`  [INFERRED]
+  JARVIS_CONSISTENCY_AUDIT.md → functions/_lib/business-data.js
+- `Third pass (2026-09-27): Telegram production bugs` --references--> `findPeople()`  [INFERRED]
+  JARVIS_CONSISTENCY_AUDIT.md → functions/_lib/business-data.js
+- `Third pass (2026-09-27): Telegram production bugs` --references--> `planTurn()`  [INFERRED]
+  JARVIS_CONSISTENCY_AUDIT.md → functions/_lib/jarvis-context.js
 
 ## Import Cycles
 - None detected.
@@ -166,12 +166,12 @@
 ## Communities (126 total, 25 thin omitted)
 
 ### Community 0 - "App.tsx"
-Cohesion: 0.13
-Nodes (26): AdminSchedule, App(), openBooking(), BookingSection(), BookingWidget, ContactBar(), DEFAULT_FAQ_SCHEMA, EstimatePage (+18 more)
+Cohesion: 0.05
+Nodes (57): react-dom, AdminSchedule, AnimatedWords(), apiPost(), App(), openBooking(), BeforeAfterSlider(), BookingSection() (+49 more)
 
 ### Community 1 - "JobOps.tsx"
 Cohesion: 0.04
-Nodes (63): ADD_JOB_SERVICES, AUDIO_LABELS, AxleConfig, BRAKE_LABELS, calcTax(), CUSTOMER_ACCENTS, CustomerAgg, CustomerRow (+55 more)
+Nodes (58): ADD_JOB_SERVICES, AUDIO_LABELS, AxleConfig, BRAKE_LABELS, CUSTOMER_ACCENTS, CustomerAgg, CustomerRow, CustomerSort (+50 more)
 
 ### Community 2 - "Game2048.tsx"
 Cohesion: 0.25
@@ -182,12 +182,12 @@ Cohesion: 0.06
 Nodes (42): LiveKit JARVIS All-in-One Build, Removed multi-hop voice chain (MediaRecorder, /jarvis-transcribe, /jarvis-speak, Piper/Railway), admin-ai-chat.js Ask GID Claude agent (NDJSON streaming), admin-api-data.js action-router CRUD API, api-customer.js public booking/quote API, App.tsx pathname router, Command Center build phases 1-6, Cf-Access-Jwt-Assertion auth gate (+34 more)
 
 ### Community 4 - "admin-ai-chat.js"
-Cohesion: 0.08
-Nodes (49): analyzeLeadFields(), classifyLeadService(), flattenLeadPayload(), isPastedLeadForm(), issueQuality(), json(), looksLikeVehicle(), ndjsonFinal() (+41 more)
+Cohesion: 0.06
+Nodes (71): analyzeLeadFields(), classifyLeadService(), flattenLeadPayload(), isPastedLeadForm(), issueQuality(), json(), looksLikeVehicle(), ndjsonFinal() (+63 more)
 
 ### Community 5 - "adminPost"
 Cohesion: 0.09
-Nodes (39): adminPost(), BackupBookingInspector(), run(), BusinessHub(), resetAllNotes(), EquityTracker(), addEntry(), load() (+31 more)
+Nodes (40): adminPost(), BackupBookingInspector(), run(), BusinessHub(), resetAllNotes(), EquityTracker(), addEntry(), load() (+32 more)
 
 ### Community 6 - "onRequestPost"
 Cohesion: 0.10
@@ -199,67 +199,67 @@ Nodes (34): addDate(), cleanTime(), configuredHour(), deliverDueReminders(), for
 
 ### Community 8 - "BookingWidget.tsx"
 Cohesion: 0.07
-Nodes (28): AUDIO_LABELS, BlackoutDate, Booking, BRAKE_LABELS, CardStepProps, DAY_LABELS, FormData, INIT_FORM (+20 more)
+Nodes (30): verify(), AUDIO_LABELS, BlackoutDate, Booking, BRAKE_LABELS, CardStepProps, DAY_LABELS, FormData (+22 more)
 
 ### Community 9 - "CommandCenterPage.tsx"
-Cohesion: 0.10
-Nodes (22): livekit-client, lucide-react, CommandCenterPage(), fadeRise, CommandPalette(), PaletteCommand, useCommandPalette(), LeadPipeline() (+14 more)
+Cohesion: 0.13
+Nodes (17): lucide-react, CommandCenterPage(), fadeRise, CommandPalette(), useCommandPalette(), LeadPipeline(), RealtimeVoiceControl(), NAV_ITEMS (+9 more)
 
 ### Community 10 - "db"
 Cohesion: 0.14
-Nodes (13): db(), Get current tax, overhead, and Stripe fee settings., Log a marketing-spend entry., Log a phone call and its outcome., List recent marketing spend entries, optionally by channel., Update a job pipeline status. Never use this for PAID., List recent leads. Pass an empty string for status/source when no filter is…, Update a lead's status using its lead id. (+5 more)
+Nodes (13): db(), Undo the most recent reversible Jarvis change., Get current tax, overhead, and Stripe fee settings., Log a marketing-spend entry., Log a phone call and its outcome., Update a job pipeline status. Never use this for PAID., List recent leads. Pass an empty string for status/source when no filter is…, Update a lead's status using its lead id. (+5 more)
 
 ### Community 11 - "onRequestPost"
 Cohesion: 0.16
 Nodes (29): ALLOWED_BETS, BET_PRIZE_TABLES, canSplitPair(), dealerPlay(), freshDeck(), genCode(), handTotal(), isBlackjack() (+21 more)
 
-### Community 12 - "JobDetailPanel"
-Cohesion: 0.08
-Nodes (21): apptTimeLabel(), CopyableField(), EstimateSummary(), EstimatePanel(), saveEstimate(), sendEstimate(), ExternalLeadModal(), handleSendEmail() (+13 more)
+### Community 12 - "EstimatePanel"
+Cohesion: 0.10
+Nodes (21): apiPost(), apptTimeLabel(), calcTax(), EstimatePage(), EstimateSummary(), handleSign(), EstimatePanel(), saveEstimate() (+13 more)
 
-### Community 13 - "tokens.ts"
-Cohesion: 0.16
-Nodes (22): BusinessMetrics(), shortDate(), StatRow(), useCountUp(), LeadDetailPanel(), Row(), Section(), MarketingPanel() (+14 more)
+### Community 13 - "formatters.ts"
+Cohesion: 0.17
+Nodes (19): LeadDetailPanel(), Row(), Section(), LiveFeed(), timeAgo(), MarketingPanel(), UpcomingJobs(), DONE_STATUSES (+11 more)
 
 ### Community 14 - "resultRenderer.tsx"
 Cohesion: 0.21
 Nodes (15): BusinessSummaryCard(), CallCard(), CustomerCard(), GenericCard(), JobCard(), STATUS_COLOR, LeadCard(), MarketingCard() (+7 more)
 
 ### Community 15 - "package.json"
-Cohesion: 0.10
-Nodes (22): name, private, type, version, autoprefixer, eslint, @eslint/js, eslint-plugin-react-hooks (+14 more)
+Cohesion: 0.09
+Nodes (23): name, private, type, version, autoprefixer, eslint, @eslint/js, eslint-plugin-react-hooks (+15 more)
 
-### Community 16 - "CustomersTab"
-Cohesion: 0.14
-Nodes (17): accentFor(), aggregateCustomers(), CustomerFileModal(), CustomersTab(), DuplicateCustomersModal(), defaultKeeper(), jobStatsFor(), loadCustomers() (+9 more)
+### Community 16 - "JobsTab"
+Cohesion: 0.12
+Nodes (22): accentFor(), aggregateCustomers(), CustomerFileModal(), CustomersTab(), DuplicateCustomersModal(), defaultKeeper(), jobStatsFor(), loadCustomers() (+14 more)
 
 ### Community 17 - "GIDJarvis"
 Cohesion: 0.16
-Nodes (11): Agent, Any, GIDJarvis, Undo the most recent reversible Jarvis change., Deterministically intercept pasted lead forms before the LLM can improvise., Collect human-entered text from an arbitrary raw lead payload., Parse Meta lead text whether fields are separated by newlines or spaces., Analyze a pasted Meta/Facebook/Instagram lead form directly from the user's… (+3 more)
+Nodes (11): Agent, Any, GIDJarvis, List recent marketing spend entries, optionally by channel., Deterministically intercept pasted lead forms before the LLM can improvise., Collect human-entered text from an arbitrary raw lead payload., Parse Meta lead text whether fields are separated by newlines or spaces., Analyze a pasted Meta/Facebook/Instagram lead form directly from the user's… (+3 more)
 
 ### Community 18 - "app.py"
 Cohesion: 0.11
 Nodes (20): BaseModel, fastapi, fastapi_responses, get, huggingface_hub, io, on_event, os (+12 more)
 
 ### Community 19 - "PrePIModal"
-Cohesion: 0.09
-Nodes (27): defaultPPIChecklist(), getPPIPublic(), insertPPI(), onVinInput(), runVinDecode(), listAllPPIs(), mapPPI(), patchPPI() (+19 more)
+Cohesion: 0.13
+Nodes (16): defaultPPIChecklist(), getPPIPublic(), insertPPI(), listAllPPIs(), mapPPI(), patchPPI(), PrePIModal(), handleComplete() (+8 more)
 
 ### Community 20 - "Blackjack"
 Cohesion: 0.24
 Nodes (19): apiGame(), BET_OPTIONS, Blackjack(), applyMidHand(), applyResolution(), deal(), digitsOf(), double() (+11 more)
 
 ### Community 21 - "types.ts"
-Cohesion: 0.19
-Nodes (13): ActivityFeed(), CommandInput(), Workspace(), toolLabel(), ActivityItem, ChatMsg, DataCard, GidUiEvent (+5 more)
+Cohesion: 0.20
+Nodes (12): ActivityFeed(), CommandInput(), STATE_LABEL, Workspace(), toolLabel(), ActivityItem, ChatMsg, DataCard (+4 more)
 
 ### Community 22 - "patchJob"
-Cohesion: 0.12
-Nodes (31): adminPostIdempotent(), save(), findOrCreateCustomerSafe(), handleUpdate(), saveAppt(), setJobStatus(), patchJob(), PaymentLinkBox() (+23 more)
+Cohesion: 0.11
+Nodes (34): DocViewerModal(), EmailQuickEdit(), save(), patchJob(), PaymentLinkBox(), handleRemove(), handleSave(), PaymentPanel() (+26 more)
 
-### Community 23 - "COLORS"
-Cohesion: 0.27
-Nodes (10): HudPanel(), ago(), daypart(), NewsColumn(), NewsItem, NewsPayload, OwnerBriefing(), QuickCommands() (+2 more)
+### Community 23 - "tokens.ts"
+Cohesion: 0.18
+Nodes (15): PaletteCommand, HudPanel(), ago(), daypart(), NewsColumn(), NewsItem, NewsPayload, OwnerBriefing() (+7 more)
 
 ### Community 24 - "compilerOptions"
 Cohesion: 0.11
@@ -289,17 +289,17 @@ Nodes (7): AdminPasswordGate(), AdminSchedule(), fmtConfirmWhen(), handleDropRes
 Cohesion: 0.17
 Nodes (9): BookingWidget(), isAvailable(), isAvailableSync(), parseSlotHour(), BrakePadSelector(), dateKey(), getBookedTimesForDate(), getPhoenixNow() (+1 more)
 
-### Community 31 - "OwnerPayPanel"
-Cohesion: 0.09
-Nodes (21): buildInvoicesPdf(), csvCell(), handleCreate(), getAllJobs(), getJobById(), InvoiceExport(), printInvoices(), shareInvoicePreview() (+13 more)
+### Community 31 - "getAllJobs"
+Cohesion: 0.12
+Nodes (15): buildInvoicesPdf(), csvCell(), handleCreate(), getAllJobs(), getJobById(), InvoiceExport(), printInvoices(), shareInvoicePreview() (+7 more)
 
 ### Community 32 - "compilerOptions"
 Cohesion: 0.12
 Nodes (15): compilerOptions, allowImportingTsExtensions, isolatedModules, lib, module, moduleDetection, moduleResolution, noEmit (+7 more)
 
 ### Community 33 - "agent.py"
-Cohesion: 0.12
-Nodes (15): asyncio, datetime, dotenv, html, httpx, money(), Look up historical GID Garage prices for a repair/service., # IMPORTANT: explicitly bind the AgentSession to the actual browser (+7 more)
+Cohesion: 0.11
+Nodes (18): asyncio, datetime, dotenv, html, httpx, gid_jarvis(), _handle_speak_stream(), _speak_stream() (+10 more)
 
 ### Community 34 - "dependencies"
 Cohesion: 0.14
@@ -307,15 +307,15 @@ Nodes (14): dependencies, gsap, lenis, livekit-client, @livekit/protocol, liveki
 
 ### Community 35 - "JarvisCore.tsx"
 Cohesion: 0.22
-Nodes (12): @react-three/fiber, three, CoreSphere(), GlowSphere(), JarvisCore(), NetworkGlobe(), Ring(), Scene() (+4 more)
+Nodes (12): motion, @react-three/fiber, three, CoreSphere(), GlowSphere(), JarvisCore(), NetworkGlobe(), Ring() (+4 more)
 
 ### Community 36 - "AdminPhotoPanel"
-Cohesion: 0.16
-Nodes (19): AdminPhotoPanel(), compressPhoto(), deletePhoto(), handleUploadMany(), saveAllNotes(), savePhotosToDb(), PhotoPanel(), compressImage() (+11 more)
+Cohesion: 0.10
+Nodes (25): AdminPhotoPanel(), compressPhoto(), deletePhoto(), handleUploadMany(), saveAllNotes(), savePhotosToDb(), PartsCostPanel(), deleteReceipt() (+17 more)
 
-### Community 37 - "img"
-Cohesion: 0.15
-Nodes (14): AnimatedWords(), BeforeAfterSlider(), Hero(), img(), MissionStatement(), PhotoGallery(), onTouchEnd(), prev() (+6 more)
+### Community 37 - "business-data.js"
+Cohesion: 0.14
+Nodes (32): cleanSearchText(), CONTEXT_COLUMNS, customerContext(), findPeople(), jobDetail(), peopleSources(), vehicleJobs(), digits() (+24 more)
 
 ### Community 38 - "react"
 Cohesion: 0.17
@@ -333,9 +333,9 @@ Nodes (42): Broken Access Control, Broken Authentication, Cross-Site Scripting (
 Cohesion: 0.07
 Nodes (29): 1. Correctness, 2. Readability & Simplicity, 3. Architecture, 4. Security, 5. Performance, Change Descriptions, Change Sizing, Code Review and Quality (+21 more)
 
-### Community 42 - "PartsCostPanel"
-Cohesion: 0.15
-Nodes (11): DocViewerModal(), PartsCostPanel(), deleteReceipt(), handleUploadMany(), saveCost(), saveReceiptsToDb(), ScanUploadBox(), handleRemove() (+3 more)
+### Community 42 - "job-context.test.js"
+Cohesion: 0.10
+Nodes (27): patchVerified(), 4. How analysis stays tied to evidence, ref_node_assert, ref_node_test, chat(), ENV, setup(), claudeText() (+19 more)
 
 ### Community 43 - "JobDetailPanel.tsx"
 Cohesion: 0.33
@@ -345,9 +345,9 @@ Nodes (8): adminPost(), FullJob, JobDetailPanel(), Row(), Section(), useBusiness
 Cohesion: 0.33
 Nodes (7): json(), makeToken(), namesLikelyMatch(), onRequestPost(), fetchCurrentTaxRate(), findOrCreateCustomerId(), safeEqual()
 
-### Community 45 - "InvoicePage"
-Cohesion: 0.21
-Nodes (11): apiPost(), EmailQuickEdit(), EstimatePage(), handleSign(), fmtPhone(), getJobByIdPublic(), img(), InvoicePage() (+3 more)
+### Community 45 - "JobDetailPanel"
+Cohesion: 0.09
+Nodes (22): adminPostIdempotent(), CopyableField(), ExternalLeadModal(), handleSendEmail(), findOrCreateCustomerSafe(), from12h(), JobDetailPanel(), handleUpdate() (+14 more)
 
 ### Community 46 - "manifest.json"
 Cohesion: 0.25
@@ -393,9 +393,9 @@ Nodes (25): Accessibility, Code Quality, Common Rationalizations, Documentation,
 Cohesion: 0.53
 Nodes (6): InspectionPanel(), addCode(), markDirty(), removeCode(), save(), updateCode()
 
-### Community 57 - "gid_jarvis"
-Cohesion: 0.50
-Nodes (5): gid_jarvis(), _handle_speak_stream(), _speak_stream(), JobContext, rtc_session
+### Community 57 - "business-metrics.js"
+Cohesion: 0.17
+Nodes (19): Third pass (2026-09-27): Telegram production bugs, BUSINESS_TZ, cardRevenue(), cents(), compareRevenuePeriods(), invoiceTotal(), jobContribution(), shared_business_metrics_metricjob (+11 more)
 
 ### Community 58 - ".email_appointment_update"
 Cohesion: 0.40
@@ -421,17 +421,17 @@ Nodes (3): json(), onRequestGet(), onRequestPost()
 Cohesion: 0.67
 Nodes (4): Brake Service, New Brake Rotor and Pads with Caliper, Rotor After (new rotor installed on truck hub), Rotor Before (worn rusty rotor, tools on floor)
 
-### Community 64 - "ErrorBoundary.tsx"
-Cohesion: 0.20
-Nodes (5): react-dom, ErrorBoundary, Props, State, src_index
+### Community 64 - "createBusinessOps"
+Cohesion: 0.30
+Nodes (20): createBusinessOps(), actionCenter(), businessSummary(), cancelJob(), comparePeriods(), dataHealth(), ownerBriefing(), ownerPaySummary() (+12 more)
 
-### Community 69 - "PromptGenerator.tsx"
-Cohesion: 0.28
-Nodes (6): PromptGenerator, buildPrompt(), Field(), PromptGenerator(), handleGenerate(), VehicleInfo
+### Community 69 - "OwnerPayPanel"
+Cohesion: 0.38
+Nodes (6): nextBiweeklyDate(), OwnerPayPanel(), addOverheadItem(), logDraw(), persistSettings(), removeOverheadItem()
 
 ### Community 70 - "AttentionPanel.tsx"
-Cohesion: 0.32
-Nodes (7): motion, AttentionPanel(), CHECKLIST_LABELS, severityFor(), stableKey(), SEVERITY_COLOR, NeedsAttentionItem
+Cohesion: 0.38
+Nodes (6): AttentionPanel(), CHECKLIST_LABELS, severityFor(), stableKey(), SEVERITY_COLOR, NeedsAttentionItem
 
 ### Community 71 - "Suspension / Shocks & Struts Service"
 Cohesion: 1.00
@@ -473,9 +473,9 @@ Nodes (21): Build Failure Triage, Common Rationalizations, Debugging and Error R
 Cohesion: 0.09
 Nodes (21): ADR Lifecycle, ADR Template, API Documentation, Architecture Decision Records (ADRs), Changelog Maintenance, Common Rationalizations, Document Known Gotchas, Documentation and ADRs (+13 more)
 
-### Community 99 - "createBusinessOps"
-Cohesion: 0.06
-Nodes (91): ACTIONS, json(), onRequestPost(), CONTEXT_COLUMNS, createBusinessOps(), actionCenter(), businessSummary(), customerContext() (+83 more)
+### Community 99 - "business-rules.js"
+Cohesion: 0.15
+Nodes (32): Canonical definitions, Jarvis Consistency Audit, Mismatches fixed, Summary table, phoenixDateParts(), bookedValue(), buildActionQueue(), cancelJobPlan() (+24 more)
 
 ### Community 100 - "Interview Me"
 Cohesion: 0.11
@@ -530,8 +530,8 @@ Cohesion: 0.27
 Nodes (10): Blackjack, Game2048, GameId, GameLoader(), GAMES, GamesPage(), Memory, SlotMachine (+2 more)
 
 ### Community 113 - ".list_jobs"
-Cohesion: 0.22
-Nodes (8): Find a customer by name, phone, or VIN., List jobs/bookings. Pass empty strings for filters that are not needed. Use 15…, Still open, 2. Question → data → tool coverage, 4. How analysis stays tied to evidence, 5. Business threads / active context: decision, 7. Still not covered / known gaps, Jarvis Data Coverage Audit
+Cohesion: 0.18
+Nodes (9): money(), Look up historical GID Garage prices for a repair/service., Find a customer by name, phone, or VIN., List jobs/bookings. Pass empty strings for filters that are not needed. Use 15…, Still open, 2. Question → data → tool coverage, 5. Business threads / active context: decision, 7. Still not covered / known gaps (+1 more)
 
 ### Community 114 - ".list_calls"
 Cohesion: 0.40
@@ -549,9 +549,9 @@ Nodes (7): apiGame(), BET_OPTIONS, SlotMachine(), handleJoin(), spin(), SpinResu
 Cohesion: 0.33
 Nodes (3): Pt, randCell(), Snake()
 
-### Community 119 - "CancelPage"
-Cohesion: 0.50
-Nodes (4): apiPost(), CancelPage(), confirmCancel(), verify()
+### Community 119 - "BusinessMetrics.tsx"
+Cohesion: 0.53
+Nodes (4): BusinessMetrics(), shortDate(), StatRow(), useCountUp()
 
 ### Community 120 - "Memory.tsx"
 Cohesion: 0.47
@@ -565,17 +565,17 @@ Nodes (4): MetricJob, MetricPayment, OwnerPaySettings, PeriodWindow
 Cohesion: 0.40
 Nodes (4): function_tool, backend_business(), Use GID Garage business data/actions. action must be one of:…, Run one deterministic business operation on the website backend (/jarvis-…
 
-### Community 125 - "GameRedeem.tsx"
+### Community 125 - "jarvis-business.js"
 Cohesion: 0.67
-Nodes (3): apiGame(), GameRedeem(), lookup()
+Nodes (3): ACTIONS, json(), onRequestPost()
 
 ## Ambiguous Edges - Review These
 - `GID Garage Mobile Mechanic Wordmark Logo (car silhouette + wrench)` → `Merch SVG (traced black 2172x711 vector logo artwork, likely GID Garage wordmark)`  [AMBIGUOUS]
   public/svg merch.svg · relation: semantically_similar_to
 
 ## Knowledge Gaps
-- **761 isolated node(s):** `idea-refine.sh script`, `idea-refine.sh script`, `TABLES`, `CRITICAL_TABLES`, `CONTEXT_COLUMNS` (+756 more)
-  These have ≤1 connection - possible missing edges or undocumented components. (Counts symbols only; 981 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
+- **774 isolated node(s):** `idea-refine.sh script`, `idea-refine.sh script`, `TABLES`, `CRITICAL_TABLES`, `CONTEXT_COLUMNS` (+769 more)
+  These have ≤1 connection - possible missing edges or undocumented components. (Counts symbols only; 994 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
 - **25 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
@@ -583,15 +583,15 @@ _Questions this graph is uniquely positioned to answer:_
 
 - **What is the exact relationship between `GID Garage Mobile Mechanic Wordmark Logo (car silhouette + wrench)` and `Merch SVG (traced black 2172x711 vector logo artwork, likely GID Garage wordmark)`?**
   _Edge tagged AMBIGUOUS (relation: semantically_similar_to) - confidence is low._
-- **Why does `react` connect `react` to `App.tsx`, `JobOps.tsx`, `Game2048.tsx`, `BookingWidget.tsx`, `CommandCenterPage.tsx`, `tokens.ts`, `package.json`, `Blackjack`, `types.ts`, `COLORS`, `JarvisCore.tsx`, `JobDetailPanel.tsx`, `ErrorBoundary.tsx`, `PromptGenerator.tsx`, `Trivia.tsx`, `GamesPage.tsx`, `SlotMachine.tsx`, `Snake.tsx`, `Memory.tsx`, `GameRedeem.tsx`?**
-  _High betweenness centrality (0.135) - this node is a cross-community bridge._
-- **Why does `isAwaitingPayment()` connect `createBusinessOps` to `.list_jobs`, `JobDetailPanel`, `JobOps.tsx`?**
-  _High betweenness centrality (0.065) - this node is a cross-community bridge._
-- **Why does `Still open` connect `.list_jobs` to `createBusinessOps`?**
-  _High betweenness centrality (0.050) - this node is a cross-community bridge._
-- **Are the 10 inferred relationships involving `createBusinessOps()` (e.g. with `actionCenter()` and `businessSummary()`) actually correct?**
-  _`createBusinessOps()` has 10 INFERRED edges - model-reasoned connections that need verification._
+- **Why does `react` connect `react` to `App.tsx`, `JobOps.tsx`, `Game2048.tsx`, `JarvisCore.tsx`, `BookingWidget.tsx`, `CommandCenterPage.tsx`, `JobDetailPanel.tsx`, `formatters.ts`, `package.json`, `Trivia.tsx`, `GamesPage.tsx`, `tokens.ts`, `types.ts`, `Blackjack`, `BusinessMetrics.tsx`, `Memory.tsx`, `SlotMachine.tsx`, `Snake.tsx`?**
+  _High betweenness centrality (0.177) - this node is a cross-community bridge._
+- **Why does `isAwaitingPayment()` connect `business-rules.js` to `JobsTab`, `.list_jobs`, `business-data.js`, `JobOps.tsx`?**
+  _High betweenness centrality (0.064) - this node is a cross-community bridge._
+- **Why does `Still open` connect `.list_jobs` to `business-rules.js`?**
+  _High betweenness centrality (0.053) - this node is a cross-community bridge._
+- **Are the 16 inferred relationships involving `createBusinessOps()` (e.g. with `actionCenter()` and `businessSummary()`) actually correct?**
+  _`createBusinessOps()` has 16 INFERRED edges - model-reasoned connections that need verification._
+- **Are the 3 inferred relationships involving `onRequestPost()` (e.g. with `sbGet()` and `sbInsert()`) actually correct?**
+  _`onRequestPost()` has 3 INFERRED edges - model-reasoned connections that need verification._
 - **What connects `idea-refine.sh script`, `idea-refine.sh script`, `TABLES` to the rest of the system?**
-  _761 weakly-connected nodes found - possible documentation gaps or missing edges._
-- **Should `App.tsx` be split into smaller, more focused modules?**
-  _Cohesion score 0.12873563218390804 - nodes in this community are weakly interconnected._
+  _774 weakly-connected nodes found - possible documentation gaps or missing edges._

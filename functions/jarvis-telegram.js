@@ -128,16 +128,53 @@ async function clearHistory(env, chatId) {
   }).catch(() => {});
 }
 
+// Structured conversation state (record ids, pending confirmation) between
+// turns — see _lib/jarvis-context.js. Stored in the existing
+// jarvis_proactive_state key/value table, one row per chat. No migration.
+const contextKey = chatId => `telegram_context:${chatId}`;
+
+async function loadContext(env, chatId) {
+  const { url, key } = supabaseConfig(env);
+  if (!url || !key) return null;
+  const endpoint = new URL(`${url}/rest/v1/jarvis_proactive_state`);
+  endpoint.searchParams.set('select', 'value');
+  endpoint.searchParams.set('key', `eq.${contextKey(chatId)}`);
+  endpoint.searchParams.set('limit', '1');
+  const res = await fetch(endpoint.toString(), { headers: { apikey: key, Authorization: `Bearer ${key}` } }).catch(() => null);
+  if (!res?.ok) return null;
+  const rows = await res.json().catch(() => []);
+  const value = rows[0]?.value;
+  if (!value) return null;
+  try { return typeof value === 'string' ? JSON.parse(value) : value; } catch { return null; }
+}
+
+async function saveContext(env, chatId, context) {
+  const { url, key } = supabaseConfig(env);
+  if (!url || !key) return;
+  await fetch(`${url}/rest/v1/jarvis_proactive_state?on_conflict=key`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      apikey: key,
+      Authorization: `Bearer ${key}`,
+      Prefer: 'resolution=merge-duplicates,return=minimal',
+    },
+    body: JSON.stringify({ key: contextKey(chatId), value: context == null ? null : JSON.stringify(context), updated_at: new Date().toISOString() }),
+  }).catch(() => {});
+}
+
 async function extractFinalText(response) {
   const raw = await response.text();
   let finalText = '';
   let errorText = '';
+  let context = null;
 
   for (const line of raw.split(/\r?\n/)) {
     if (!line.trim()) continue;
     try {
       const event = JSON.parse(line);
       if (event.type === 'final' && event.text) finalText = String(event.text);
+      if (event.type === 'context' && event.context) context = event.context;
       if (event.type === 'error' && event.message) errorText = String(event.message);
     } catch {
       // Ignore malformed/non-NDJSON lines; the admin endpoint normally emits NDJSON.
@@ -146,7 +183,7 @@ async function extractFinalText(response) {
 
   if (!response.ok && !errorText) errorText = `Jarvis request failed (${response.status}).`;
   if (errorText) throw new Error(errorText);
-  return finalText || 'I completed the request but did not get a text response.';
+  return { finalText: finalText || 'I did not get a text response. Nothing was changed unless I explicitly confirmed it.', context };
 }
 
 export async function onRequestPost({ request, env }) {
@@ -182,7 +219,7 @@ export async function onRequestPost({ request, env }) {
   }
 
   if (text === '/clear') {
-    await clearHistory(env, chatId);
+    await Promise.all([clearHistory(env, chatId), saveContext(env, chatId, null)]);
     await sendTelegramText(botToken, chatId, 'Conversation context cleared.', messageId);
     return json({ ok: true });
   }
@@ -190,7 +227,7 @@ export async function onRequestPost({ request, env }) {
   try {
     await telegramRequest(botToken, 'sendChatAction', { chat_id: chatId, action: 'typing' });
 
-    const history = await loadHistory(env, chatId);
+    const [history, priorContext] = await Promise.all([loadHistory(env, chatId), loadContext(env, chatId)]);
     const messages = [...history, { role: 'user', content: text }].slice(-HISTORY_LIMIT);
 
     // Call the existing business agent in-process. No public HTTP round-trip,
@@ -201,14 +238,15 @@ export async function onRequestPost({ request, env }) {
         'Content-Type': 'application/json',
         'X-GID-Internal-Jarvis': webhookSecret,
       },
-      body: JSON.stringify({ messages }),
+      body: JSON.stringify({ messages, context: priorContext }),
     });
     const aiResponse = await runAdminAI({ request: internalRequest, env });
-    const finalText = await extractFinalText(aiResponse);
+    const { finalText, context } = await extractFinalText(aiResponse);
 
     await Promise.all([
       saveMessage(env, chatId, 'user', text, messageId),
       saveMessage(env, chatId, 'assistant', finalText, null),
+      saveContext(env, chatId, context),
     ]);
 
     await sendTelegramText(botToken, chatId, finalText, messageId);

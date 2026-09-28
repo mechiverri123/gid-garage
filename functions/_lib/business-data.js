@@ -6,13 +6,14 @@
 
 import {
   resolvePeriodWindow, collectedRevenue, netProfit, jobFromRow, ownerPaySettings, ownerTakeHome,
+  revenueContributions, compareRevenuePeriods,
 } from '../../shared/business-metrics.js';
 import {
   planPayment, dataHealthIssues, buildActionQueue, unpaidJobs, leadFollowUpReason,
-  bookedValue, jobsOnDate, phoenixToday, addDays,
+  bookedValue, jobsOnDate, phoenixToday, addDays, cancelJobPlan, reopenJobPlan,
 } from '../../shared/business-rules.js';
 import {
-  jobEvidence, resolvePerson, belongsToPerson, noteMatch, buildCustomerHistory,
+  jobEvidence, resolvePerson, belongsToPerson, noteMatch, buildCustomerHistory, vehicleMatches,
 } from '../../shared/job-context.js';
 
 const money = n => (n == null ? 'unknown' : `$${Number(n).toFixed(2)}`);
@@ -26,8 +27,12 @@ const CONTEXT_COLUMNS = [
   'vehicle', 'vin', 'mileage', 'service_address', 'notes', 'garage_notes', 'status', 'job_status',
   'created_at', 'estimate_amount', 'estimate_notes', 'line_items', 'tax_amount', 'pre_existing_damage',
   'signed_at', 'invoice_amount', 'paid_at', 'adjustment_amount', 'adjustment_reason', 'amount_paid',
-  'payments', 'parts_cost', 'inspection_data',
+  'payments', 'parts_cost', 'inspection_data', 'pre_scan', 'post_scan',
 ].join(',');
+// Photo captions live inside the photo arrays; fetched separately and only for
+// the jobs being described (legacy rows can embed base64 images).
+const PHOTO_COLUMNS = 'id,job_photos,admin_photos';
+const LEAD_COLUMNS = 'id,created_at,fname,lname,phone,email,vehicle,requested_service,quote_amount,status,follow_up_at,last_contacted_at,notes,customer_id,booking_id';
 const QUEUE_COLUMNS = 'id,customer_id,fname,lname,phone,vehicle,service,service_address,date,time,date_tbd,job_status,status,estimate_amount,invoice_amount,tax_amount,amount_paid,paid_at,stripe_transaction_id';
 
 // Safe for PostgREST or=() filters: letters, digits, space, apostrophe, hyphen, period.
@@ -35,28 +40,84 @@ export function cleanSearchText(s) {
   return String(s || '').replace(/'s\b/gi, '').replace(/[^\p{L}\p{N} '.-]/gu, ' ').replace(/\s+/g, ' ').trim().slice(0, 80);
 }
 
-export function createBusinessOps({ sbGet, sbPatch, now = () => new Date() }) {
+// Verified single-row write. sbPatch must return the updated rows
+// (Prefer: return=representation). A PATCH that matches nothing returns [] with
+// HTTP 200 — that used to read as success. Now zero rows, several rows, or a
+// stored value that differs from what was written is an error.
+export async function patchVerified(sbPatch, table, id, fields) {
+  const rows = await sbPatch(table, `id=eq.${encodeURIComponent(id)}`, fields);
+  if (!Array.isArray(rows) || rows.length !== 1) {
+    throw new Error(`Write not applied: expected 1 ${table} row with id ${id}, database updated ${Array.isArray(rows) ? rows.length : 'an unknown number of'} rows.`);
+  }
+  const row = rows[0];
+  const same = (a, b) => (typeof a === 'object' || typeof b === 'object') ? JSON.stringify(a) === JSON.stringify(b) : String(a) === String(b) || Number(a) === Number(b);
+  const mismatched = Object.keys(fields).filter(k => k !== 'updated_at' && !same(row[k], fields[k]));
+  if (mismatched.length) throw new Error(`Write not confirmed: ${table} ${id} read back different values for ${mismatched.join(', ')}.`);
+  return row;
+}
+
+// Structured result every write returns: what changed, before -> after.
+export function writeResult(entity, id, before, after, extra = {}) {
+  const changed = {};
+  for (const k of Object.keys(after)) if (k !== 'updated_at') changed[k] = { before: before?.[k] ?? null, after: after[k] };
+  return { ok: true, verified: true, entity, id, changed, ...extra };
+}
+
+export function createBusinessOps({ sbGet, sbPatch, sbInsert = null, now = () => new Date() }) {
+  const patch = (table, id, fields) => patchVerified(sbPatch, table, id, fields);
   // Same rows the Schedule dashboard loads (list-bookings: all statuses,
   // newest 2000). Errors propagate — a failed load must not read as $0.
   const loadMetricJobs = () => sbGet('bookings', {
-    select: 'id,job_status,status,paid_at,amount_paid,invoice_amount,tax_amount,parts_cost,payments',
+    select: 'id,fname,lname,vehicle,date,job_status,status,paid_at,amount_paid,invoice_amount,tax_amount,parts_cost,payments',
     order: 'date.desc,time.desc',
     limit: '2000',
   });
   // Every job that isn't closed out — the set unpaid/stale/queue rules need.
   const loadOpenJobs = () => sbGet('bookings', { select: QUEUE_COLUMNS, job_status: 'not.in.(PAID,CANCELLED)', order: 'date.asc', limit: '1000' });
 
-  async function revenueSummary({ period } = {}) {
+  const contributionRow = (job, c) => ({
+    bookingId: job.id, customer: fullName(job) || null, vehicle: job.vehicle || null,
+    paymentDates: c.paymentDates, collected: money(c.collected), basis: c.basis,
+    netProfitContribution: money(c.netProfit), taxAmount: money(c.taxAmount), partsCost: money(c.partsCost),
+  });
+
+  async function revenueSummary({ period, include_contributions = false } = {}) {
     const win = resolvePeriodWindow(period || 'this_month', now());
     const jobs = (await loadMetricJobs()).map(jobFromRow);
     const revenue = collectedRevenue(jobs, win.inWindow);
-    return {
+    const out = {
       period: win.label,
       periodKey: win.key,
       jobsContributing: revenue.jobCount,
       grossCollected: money(revenue.total),
       netProfit: money(netProfit(jobs, win.inWindow)),
       definition: 'Same numbers as the Schedule dashboard. Revenue = customer money collected in the period. Net profit = amount paid minus sales tax minus parts cost, for jobs closed out in the period.',
+    };
+    if (include_contributions) {
+      out.contributions = revenueContributions(jobs, win.inWindow)
+        .sort((a, b) => b.c.collected - a.c.collected).slice(0, 60).map(({ job, c }) => contributionRow(job, c));
+    }
+    return out;
+  }
+
+  // Exact job-by-job reason two periods differ (e.g. last_30_days vs this_month).
+  async function comparePeriods({ period_a = 'this_month', period_b = 'last_30_days' } = {}) {
+    const n = now();
+    const jobs = (await loadMetricJobs()).map(jobFromRow);
+    const cmp = compareRevenuePeriods(jobs, resolvePeriodWindow(period_a, n), resolvePeriodWindow(period_b, n));
+    return {
+      periodA: { ...cmp.a, collected: money(cmp.a.collected), netProfit: money(cmp.a.netProfit) },
+      periodB: { ...cmp.b, collected: money(cmp.b.collected), netProfit: money(cmp.b.netProfit) },
+      collectedDifference: money(cmp.collectedDifference),
+      netProfitDifference: money(cmp.netProfitDifference),
+      sharedJobsWithSameAmounts: cmp.sharedJobCount,
+      differences: cmp.differences.map(d => ({
+        bookingId: d.job.id, customer: fullName(d.job) || null, vehicle: d.job.vehicle || null, where: d.where,
+        collectedInA: money(d.a.collected), collectedInB: money(d.b.collected), collectedDifference: money(d.collectedDifference),
+        netProfitDifference: money(d.netProfitDifference),
+        paymentDatesInA: d.a.paymentDates, paymentDatesInB: d.b.paymentDates,
+      })),
+      explanation: 'differences lists every job whose contribution differs between the two periods; its collectedDifference values add up exactly to collectedDifference (B minus A).',
     };
   }
 
@@ -84,9 +145,36 @@ export function createBusinessOps({ sbGet, sbPatch, now = () => new Date() }) {
     };
   }
 
+  // Load every domain a person can live in, for resolution by name/phone.
+  async function peopleSources(q) {
+    const words = q.split(' ');
+    const qDigits = q.replace(/\D/g, '');
+    const ors = words.flatMap(w => [`fname.ilike."*${w}*"`, `lname.ilike."*${w}*"`]);
+    if (qDigits.length >= 7) ors.push(`phone.ilike.*${qDigits.slice(-4)}*`);
+    const [customers, bookings, leads, notes] = await Promise.all([
+      sbGet('customers', { select: 'id,fname,lname,phone,email,vehicle,vin,notes', or: `(${ors.join(',')})`, limit: '25' }),
+      sbGet('bookings', { select: 'id,customer_id,fname,lname,phone,email,vehicle,date', or: `(${ors.join(',')})`, limit: '300' }),
+      sbGet('leads', { select: LEAD_COLUMNS, or: `(${ors.join(',')})`, limit: '100' }),
+      sbGet('jarvis_business_notes', { select: 'id,contact_name,phone,email,vehicle', or: `(${words.map(w => `contact_name.ilike."*${w}*"`).join(',')})`, limit: '100' }),
+    ]);
+    return { customers, bookings, leads, notes };
+  }
+
+  // Everyone matching a name/phone across customers, bookings, leads and notes.
+  async function findPeople({ query } = {}) {
+    const q = cleanSearchText(query);
+    if (!q) throw new Error('query is required.');
+    const src = await peopleSources(q);
+    const r = resolvePerson(q, src.customers, src.bookings, { leads: src.leads, notes: src.notes });
+    if (r.status === 'not_found') return { status: 'not_found', query: q, people: [] };
+    return { status: r.status, people: r.status === 'resolved' ? [r.person] : r.candidates, possibleRelated: r.possibleRelated || [] };
+  }
+
   async function customerContext({ query, customer_id } = {}) {
     let customers;
     let seedRows = [];
+    let seedLeads = [];
+    let seedNotes = [];
     let q = cleanSearchText(query);
     if (customer_id) {
       customers = await sbGet('customers', { select: 'id,fname,lname,phone,email,vehicle,vin,notes', id: `eq.${customer_id}`, limit: '1' });
@@ -95,27 +183,25 @@ export function createBusinessOps({ sbGet, sbPatch, now = () => new Date() }) {
       seedRows = await sbGet('bookings', { select: 'id,customer_id,fname,lname,phone,email,vehicle,date', customer_id: `eq.${customer_id}`, limit: '200' });
     } else {
       if (!q) throw new Error('Need a customer name, phone, or customer_id.');
-      const words = q.split(' ');
-      const qDigits = q.replace(/\D/g, '');
-      const ors = words.flatMap(w => [`fname.ilike."*${w}*"`, `lname.ilike."*${w}*"`]);
-      if (qDigits.length >= 7) ors.push(`phone.ilike.*${qDigits.slice(-4)}*`);
-      [customers, seedRows] = await Promise.all([
-        sbGet('customers', { select: 'id,fname,lname,phone,email,vehicle,vin,notes', or: `(${ors.join(',')})`, limit: '25' }),
-        sbGet('bookings', { select: 'id,customer_id,fname,lname,phone,email,vehicle,date', or: `(${ors.join(',')})`, limit: '300' }),
-      ]);
+      const src = await peopleSources(q);
+      ({ customers } = src);
+      seedRows = src.bookings; seedLeads = src.leads; seedNotes = src.notes;
     }
 
-    const resolved = resolvePerson(q, customers, seedRows);
+    const resolved = resolvePerson(q, customers, seedRows, { leads: seedLeads, notes: seedNotes });
     if (resolved.status !== 'resolved') return resolved;
     const person = resolved.person;
     const customerRecord = customers.find(c => c.id === person.customerId) || null;
 
+    // Bookings only when the person has booking/customer identity (a note-only
+    // subject like "Lisa" has none — answer from notes, never invent a record).
     const [first, ...restName] = cleanSearchText(person.name).split(' ');
     const nameFilter = restName.length ? `and(fname.ilike."${first}",lname.ilike."${restName.join(' ')}")` : `fname.ilike."${first}"`;
     const jobOr = [nameFilter, ...(person.customerId ? [`customer_id.eq.${person.customerId}`] : [])];
+    const hasRecordIdentity = person.sources.some(s => s !== 'note');
     const [jobRows, leads, calls, notes, reminders] = await Promise.all([
-      sbGet('bookings', { select: CONTEXT_COLUMNS, or: `(${jobOr.join(',')})`, order: 'date.asc', limit: '100' }),
-      sbGet('leads', { select: 'id,created_at,fname,lname,phone,email,vehicle,requested_service,quote_amount,status,follow_up_at,last_contacted_at,notes,customer_id,booking_id', order: 'created_at.desc', limit: '500' }),
+      hasRecordIdentity ? sbGet('bookings', { select: CONTEXT_COLUMNS, or: `(${jobOr.join(',')})`, order: 'date.asc', limit: '100' }) : Promise.resolve([]),
+      sbGet('leads', { select: LEAD_COLUMNS, order: 'created_at.desc', limit: '500' }),
       sbGet('calls', { select: 'id,created_at,phone,direction,outcome,lead_id,customer_id,notes', order: 'created_at.desc', limit: '300' }),
       sbGet('jarvis_business_notes', { select: '*', order: 'created_at.desc', limit: '300' }),
       sbGet('jarvis_reminders', { select: 'id,title,notes,due_at,status,related_lead_id', status: 'eq.open', order: 'due_at.asc', limit: '200' }),
@@ -129,21 +215,102 @@ export function createBusinessOps({ sbGet, sbPatch, now = () => new Date() }) {
     const nameLower = person.name.toLowerCase();
     const myReminders = reminders.filter(r => leadIds.has(r.related_lead_id) || (nameLower && `${r.title} ${r.notes || ''}`.toLowerCase().includes(nameLower)));
 
+    const myJobs = jobRows.filter(r => belongsToPerson(r, person));
+    // Photo captions for the most recent 10 jobs (often the real findings).
+    const recentIds = myJobs.slice(-10).map(r => r.id);
+    if (recentIds.length) {
+      const photos = await sbGet('bookings', { select: PHOTO_COLUMNS, id: `in.(${recentIds.join(',')})` }).catch(() => []);
+      const byId = new Map(photos.map(p => [p.id, p]));
+      for (const r of myJobs) if (byId.has(r.id)) Object.assign(r, { job_photos: byId.get(r.id).job_photos, admin_photos: byId.get(r.id).admin_photos });
+    }
+
     return {
       status: 'resolved',
-      ...buildCustomerHistory({
-        person, jobRows: jobRows.filter(r => belongsToPerson(r, person)),
-        leads: myLeads, calls: myCalls, notes: myNotes, reminders: myReminders,
-      }, now()),
+      ...buildCustomerHistory({ person, jobRows: myJobs, leads: myLeads, calls: myCalls, notes: myNotes, reminders: myReminders }, now()),
       customerRecordNotes: customerRecord?.notes || null,
+      possibleRelated: resolved.possibleRelated,
+      ...(person.sources.every(s => s === 'note') ? { note: `${person.name} only appears in owner notes — there is no customer, booking or lead record. Answer from the notes.` } : {}),
     };
+  }
+
+  // Jobs on a vehicle ("the Ranger", "2021 Blazer"), newest first, with evidence.
+  async function vehicleJobs({ vehicle, customer } = {}) {
+    const words = cleanSearchText(vehicle).split(' ').filter(Boolean);
+    if (!words.length) throw new Error('vehicle is required.');
+    const rows = await sbGet('bookings', { select: CONTEXT_COLUMNS, and: `(${words.map(w => `vehicle.ilike."*${w}*"`).join(',')})`, order: 'date.desc', limit: '40' });
+    const today = phoenixToday(now());
+    let matches = rows.filter(r => vehicleMatches(r.vehicle, words.join(' ')));
+    if (customer) matches = matches.filter(r => fullName(r).toLowerCase().includes(cleanSearchText(customer).toLowerCase()));
+    const jobs = matches.map(r => jobEvidence(r));
+    const latestPast = jobs.find(j => !j.cancelled && j.date && j.date <= today) || null;
+    return {
+      vehicleQuery: words.join(' '),
+      count: jobs.length,
+      latestJobId: latestPast?.id || jobs[0]?.id || null,
+      distinctCustomers: [...new Set(jobs.map(j => j.customer).filter(Boolean))],
+      jobs: jobs.slice(0, 15),
+      note: jobs.length > 1 && new Set(jobs.map(j => j.customer)).size > 1 ? 'Several customers have this vehicle model; name whose job you mean.' : undefined,
+    };
+  }
+
+  // Current records for the result set the previous answer showed ("each one").
+  async function resultSetDetails({ type, ids = [] } = {}) {
+    const list = ids.filter(Boolean).slice(0, 25);
+    if (!list.length) return { type, items: [] };
+    const inIds = `in.(${list.join(',')})`;
+    if (type === 'leads') {
+      const rows = await sbGet('leads', { select: LEAD_COLUMNS, id: inIds });
+      const n = now();
+      return { type, items: rows.map(l => ({ id: l.id, name: fullName(l) || l.phone, status: l.status, created_at: l.created_at, last_contacted_at: l.last_contacted_at, follow_up_at: l.follow_up_at, followUpReason: leadFollowUpReason(l, n), requested_service: l.requested_service, notes: l.notes })) };
+    }
+    if (type === 'jobs') {
+      const rows = await sbGet('bookings', { select: CONTEXT_COLUMNS, id: inIds });
+      return { type, items: rows.map(r => jobEvidence(r)) };
+    }
+    if (type === 'notes') return { type, items: await sbGet('jarvis_business_notes', { select: '*', id: inIds }) };
+    return { type, items: [], note: `No detail lookup for ${type}.` };
   }
 
   async function jobDetail({ job_id } = {}) {
     if (!job_id) throw new Error('job_id is required.');
     const rows = await sbGet('bookings', { select: '*', id: `eq.${job_id}`, limit: '1' });
     if (!rows[0]) throw new Error('No job found with that id.');
-    return { customer: fullName(rows[0]) || null, phone: rows[0].phone || null, ...jobEvidence(rows[0], { detail: true }) };
+    return { customerId: rows[0].customer_id || null, phone: rows[0].phone || null, ...jobEvidence(rows[0], { detail: true }) };
+  }
+
+  // Same state transition as the admin "Mark as Cancelled" button
+  // (job_status CANCELLED + status cancelled). Nothing is deleted. The reason
+  // has no column on bookings, so it is kept as a Jarvis note on the job.
+  async function cancelJob({ job_id, reason = '', confirmed = false } = {}) {
+    if (!job_id) throw new Error('job_id is required.');
+    const rows = await sbGet('bookings', { select: 'id,fname,lname,vehicle,date,time,job_status,status', id: `eq.${job_id}`, limit: '1' });
+    const row = rows[0];
+    if (!row) throw new Error('No job found with that id.');
+    const plan = cancelJobPlan(jobFromRow(row));
+    const who = fullName(row) || 'this customer';
+    const summary = `Cancel ${who}'s job (${row.vehicle || 'vehicle on file'}, ${row.date || 'no date'}${row.time ? ` ${row.time}` : ''}, currently ${row.job_status}). It is marked Cancelled like the admin button — nothing is deleted.${reason ? ` Reason noted: "${reason}".` : ''}`;
+    if (!confirmed) return { needs_confirmation: true, summary };
+    const after = await patch('bookings', job_id, plan.fields);
+    let reasonNote = null;
+    if (reason && sbInsert) {
+      reasonNote = await sbInsert('jarvis_business_notes', {
+        raw_text: `Job ${job_id} cancelled via Jarvis. Reason: ${reason}`.slice(0, 12000),
+        summary: `Cancelled ${who}'s ${row.vehicle || ''} job — ${reason}`.slice(0, 500),
+        contact_name: who, vehicle: row.vehicle || null, status: 'resolved', source: 'jarvis',
+      }).then(n => ({ saved: true, id: n?.id || null })).catch(e => ({ saved: false, error: e.message }));
+    }
+    return writeResult('booking', job_id, plan.before, { job_status: after.job_status, status: after.status }, { customer: who, reasonNote });
+  }
+
+  async function reopenJob({ job_id, confirmed = false } = {}) {
+    if (!job_id) throw new Error('job_id is required.');
+    const rows = await sbGet('bookings', { select: 'id,fname,lname,vehicle,date,job_status,status', id: `eq.${job_id}`, limit: '1' });
+    const row = rows[0];
+    if (!row) throw new Error('No job found with that id.');
+    const plan = reopenJobPlan(jobFromRow(row));
+    if (!confirmed) return { needs_confirmation: true, summary: `Reopen ${fullName(row) || 'this'}'s cancelled job (${row.vehicle || 'vehicle on file'}) and move it back to Booked, like the admin Reopen button.` };
+    const after = await patch('bookings', job_id, plan.fields);
+    return writeResult('booking', job_id, plan.before, { job_status: after.job_status, status: after.status });
   }
 
   async function actionCenter() {
@@ -252,12 +419,14 @@ export function createBusinessOps({ sbGet, sbPatch, now = () => new Date() }) {
       (preview.fullyPaid ? ', so the job will be marked PAID.' : `, leaving ${money(preview.balanceAfter)} owed (status ${preview.resultingStatus}).`) +
       ' No receipt email is sent.';
     if (!confirmed) return { needs_confirmation: true, summary };
-    await sbPatch('bookings', `id=eq.${encodeURIComponent(job_id)}`, fields);
-    return { ok: true, recorded: money(preview.amount), paidTotal: money(preview.paidAfter), balance: money(preview.balanceAfter), status: preview.resultingStatus };
+    const after = await patch('bookings', job_id, fields);
+    return writeResult('booking', job_id, { amount_paid: row.amount_paid, job_status: row.job_status }, { amount_paid: after.amount_paid, job_status: after.job_status },
+      { recorded: money(preview.amount), paidTotal: money(preview.paidAfter), invoiceTotalInclTax: money(preview.totalDue), balance: money(preview.balanceAfter), status: after.job_status });
   }
 
   return {
-    loadMetricJobs, revenueSummary, ownerPaySummary, customerContext, jobDetail, actionCenter,
-    unpaidSummary, dataHealth, businessSummary, ownerBriefing, recordPayment,
+    loadMetricJobs, patch, revenueSummary, comparePeriods, ownerPaySummary, findPeople, customerContext, vehicleJobs,
+    resultSetDetails, jobDetail, cancelJob, reopenJob, actionCenter, unpaidSummary, dataHealth, businessSummary,
+    ownerBriefing, recordPayment,
   };
 }

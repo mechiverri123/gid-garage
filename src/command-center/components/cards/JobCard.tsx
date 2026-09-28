@@ -13,7 +13,10 @@ export function JobCard({ payload }: { payload: any[] }) {
   return (
     <div className="space-y-2">
       {payload.map((j: any, i: number) => {
-        const amount = j.invoice_amount != null ? `$${Number(j.invoice_amount).toFixed(2)}` : j.estimate_amount != null ? `~$${Number(j.estimate_amount).toFixed(2)}` : '—';
+        // Customer-facing totals (tax included) from list_jobs; raw pre-tax columns only as a fallback.
+        const invoice = j.invoiceTotal ?? j.invoice_amount;
+        const estimate = j.estimateTotal ?? j.estimate_amount;
+        const amount = invoice != null ? `$${Number(invoice).toFixed(2)}` : estimate != null ? `~$${Number(estimate).toFixed(2)}` : '—';
         const color = STATUS_COLOR[j.job_status] || '#8899A6';
         return (
           <div key={j.id || i} className="bg-black/20 border border-white/5 rounded-lg p-3">

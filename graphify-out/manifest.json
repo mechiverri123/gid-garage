@@ -30,9 +30,9 @@
     "semantic_hash": "ce619fcfd1eeb9713d76458dbcb97c85"
   },
   "functions/admin-ai-chat.js": {
-    "mtime": 1790571490.183077,
-    "seen": 1790571944.8899374,
-    "ast_hash": "0c97e5533362c5e4cf26ae1c619bad88",
+    "mtime": 1790575292.4620345,
+    "seen": 1790575619.0700116,
+    "ast_hash": "fa5eea9af92caf98f8dfa686ba4913d9",
     "semantic_hash": ""
   },
   "functions/admin-api-data.js": {
@@ -162,10 +162,10 @@
     "semantic_hash": "1b8c69a11d6d68cf571d27d9aab058ec"
   },
   "functions/jarvis-telegram.js": {
-    "mtime": 1790545945.7667148,
-    "seen": 1790568222.99168,
-    "ast_hash": "5439ad213a0e1680105de479ee8b98d0",
-    "semantic_hash": "5439ad213a0e1680105de479ee8b98d0"
+    "mtime": 1790575312.8133607,
+    "seen": 1790575619.0713515,
+    "ast_hash": "6a7e0229d057375880fc9029615848f8",
+    "semantic_hash": ""
   },
   "functions/jarvis-transcribe.js": {
     "mtime": 1790404713.990285,
@@ -192,9 +192,9 @@
     "semantic_hash": ""
   },
   "jarvis-agent/agent.py": {
-    "mtime": 1790571612.9727936,
-    "seen": 1790571944.8915718,
-    "ast_hash": "5a5a16ff5521684e757c88cd2aba39c2",
+    "mtime": 1790575348.7831588,
+    "seen": 1790575619.0715454,
+    "ast_hash": "c3e1f8ab0b0837a58ad644501962b54a",
     "semantic_hash": ""
   },
   "jarvis_phase1_service_dictionary_fix.sql": {
@@ -462,10 +462,10 @@
     "semantic_hash": "98df7e106c6e5a22424b3a549bcb8fd3"
   },
   "src/command-center/components/cards/JobCard.tsx": {
-    "mtime": 1790477181.347181,
-    "seen": 1790568222.991711,
-    "ast_hash": "df493a7bef7e4a4fc8e58c1b0f751359",
-    "semantic_hash": "df493a7bef7e4a4fc8e58c1b0f751359"
+    "mtime": 1790575339.0051062,
+    "seen": 1790575619.074827,
+    "ast_hash": "d3d3deb217e07a6cb5bf3c2e4355bffb",
+    "semantic_hash": ""
   },
   "src/command-center/components/cards/LeadCard.tsx": {
     "mtime": 1790477181.342023,
@@ -498,10 +498,10 @@
     "semantic_hash": "b6d805a2c4440ef8a8530baa59d7b7dc"
   },
   "src/command-center/hooks/useAdminAI.ts": {
-    "mtime": 1790487944.889035,
-    "seen": 1790568222.9917147,
-    "ast_hash": "858503977a41c1de1964fd92ced3d4e4",
-    "semantic_hash": "858503977a41c1de1964fd92ced3d4e4"
+    "mtime": 1790575322.172429,
+    "seen": 1790575619.0751631,
+    "ast_hash": "ec82b3b672c64a5ffb64bae2e2b6e4ba",
+    "semantic_hash": ""
   },
   "src/command-center/hooks/useBusinessSummary.ts": {
     "mtime": 1790477181.2374022,
@@ -846,9 +846,9 @@
     "semantic_hash": ""
   },
   "shared/business-metrics.js": {
-    "mtime": 1790571039.2161958,
-    "seen": 1790571944.891919,
-    "ast_hash": "1b24c82ef0a5202491cc76a06eac77c7",
+    "mtime": 1790574736.624017,
+    "seen": 1790575619.0718796,
+    "ast_hash": "379d1d353e1573d2660c9fabb64dc307",
     "semantic_hash": ""
   },
   "skills-lock.json": {
@@ -858,9 +858,9 @@
     "semantic_hash": ""
   },
   "tests/business-metrics.test.js": {
-    "mtime": 1790570233.9245136,
-    "seen": 1790570434.6958761,
-    "ast_hash": "d27541733d424c8bc7fd26187f85d055",
+    "mtime": 1790575518.6573162,
+    "seen": 1790575619.0765724,
+    "ast_hash": "e6336696523e7c95504663acc3ad862c",
     "semantic_hash": ""
   },
   ".agents/skills/api-and-interface-design/SKILL.md": {
@@ -1224,27 +1224,27 @@
     "semantic_hash": ""
   },
   "JARVIS_CONSISTENCY_AUDIT.md": {
-    "mtime": 1790571927.882447,
-    "seen": 1790571944.901539,
-    "ast_hash": "45586249caa207c0ae88260f60930dee",
+    "mtime": 1790575613.908743,
+    "seen": 1790575619.0814521,
+    "ast_hash": "9b0e90791c7d1c17ef048742a4c56590",
     "semantic_hash": ""
   },
   "functions/_lib/business-data.js": {
-    "mtime": 1790571519.7922466,
-    "seen": 1790571944.8898685,
-    "ast_hash": "94c7863bc2df709558e5582978d575df",
+    "mtime": 1790575181.4025674,
+    "seen": 1790575619.0699403,
+    "ast_hash": "fd412747a77c439be189f8d912ad278a",
     "semantic_hash": ""
   },
   "functions/_lib/jarvis-intent.js": {
-    "mtime": 1790571347.9034183,
-    "seen": 1790571944.8898704,
-    "ast_hash": "4a2e6aeb91d47cd0026b358e67bef45b",
+    "mtime": 1790575065.0943515,
+    "seen": 1790575619.069944,
+    "ast_hash": "80cd3178699f5b0dc180c51d43484fed",
     "semantic_hash": ""
   },
   "functions/jarvis-business.js": {
-    "mtime": 1790571561.5543728,
-    "seen": 1790571944.8910794,
-    "ast_hash": "d9bff2046829d69cbd4b57fc5d114c41",
+    "mtime": 1790575339.4447017,
+    "seen": 1790575619.0710845,
+    "ast_hash": "7f15cb7120c8e35a5e25d1f8a69fdadf",
     "semantic_hash": ""
   },
   "shared/business-rules.d.ts": {
@@ -1254,33 +1254,33 @@
     "semantic_hash": ""
   },
   "shared/business-rules.js": {
-    "mtime": 1790571799.0690289,
-    "seen": 1790571944.8919215,
-    "ast_hash": "7ab50ab31d01bfa59dd9e665b212c7c2",
+    "mtime": 1790574776.8560765,
+    "seen": 1790575619.071945,
+    "ast_hash": "96ce46e23f5fac59956adbcc0453e734",
     "semantic_hash": ""
   },
   "shared/job-context.js": {
-    "mtime": 1790571752.078015,
-    "seen": 1790571944.8919225,
-    "ast_hash": "0727c0fbbd7b7df20840f327fc5f119f",
+    "mtime": 1790574880.964979,
+    "seen": 1790575619.0719461,
+    "ast_hash": "a2e937f6c43172684420a197b2610546",
     "semantic_hash": ""
   },
   "tests/business-data.test.js": {
-    "mtime": 1790571814.08706,
-    "seen": 1790571944.8963494,
-    "ast_hash": "5f88b51b8c81b653626049dbbbd70999",
+    "mtime": 1790575472.9624557,
+    "seen": 1790575619.076571,
+    "ast_hash": "9f41de48c442a8354f75e4fcaa1bdd43",
     "semantic_hash": ""
   },
   "tests/business-rules.test.js": {
-    "mtime": 1790571752.107765,
-    "seen": 1790571944.8964176,
-    "ast_hash": "7eb40da947f29e92a738994c94b769f9",
+    "mtime": 1790575518.6260614,
+    "seen": 1790575619.0765738,
+    "ast_hash": "ef38c6f921a797d1bbf979d4691a3e5c",
     "semantic_hash": ""
   },
   "tests/fixtures.js": {
-    "mtime": 1790571763.3716795,
-    "seen": 1790571944.8964188,
-    "ast_hash": "a4ad93ed919f43258e4976ac1bd3c04a",
+    "mtime": 1790575421.5438232,
+    "seen": 1790575619.076576,
+    "ast_hash": "3a4880ea94a11e6f1f209d86c4d55207",
     "semantic_hash": ""
   },
   "tests/jarvis-intent.test.js": {
@@ -1290,15 +1290,39 @@
     "semantic_hash": ""
   },
   "tests/job-context.test.js": {
-    "mtime": 1790571763.3716795,
-    "seen": 1790571944.8964207,
-    "ast_hash": "772de9d665bcb47c15457d5607779387",
+    "mtime": 1790575518.6866958,
+    "seen": 1790575619.076645,
+    "ast_hash": "b2298c5c965184d21508cc155a015911",
     "semantic_hash": ""
   },
   "JARVIS_DATA_COVERAGE_AUDIT.md": {
     "mtime": 1790571889.803766,
     "seen": 1790571944.9015405,
     "ast_hash": "058d3aa1d6b770684d1729ec5aac0c62",
+    "semantic_hash": ""
+  },
+  "functions/_lib/jarvis-context.js": {
+    "mtime": 1790575098.8050022,
+    "seen": 1790575619.0699422,
+    "ast_hash": "049757617f75d32b02f8afcdb777d391",
+    "semantic_hash": ""
+  },
+  "tests/admin-ai-chat.test.js": {
+    "mtime": 1790575562.821721,
+    "seen": 1790575619.076569,
+    "ast_hash": "4d06490e563eb7426764c999a0cd9493",
+    "semantic_hash": ""
+  },
+  "tests/fake-supabase.js": {
+    "mtime": 1790575421.5766652,
+    "seen": 1790575619.076575,
+    "ast_hash": "1e99a05bbec401a657f9204d91493fa8",
+    "semantic_hash": ""
+  },
+  "tests/jarvis-context.test.js": {
+    "mtime": 1790575577.4128456,
+    "seen": 1790575619.076577,
+    "ast_hash": "7f7a4be763642d05add99fb995f75257",
     "semantic_hash": ""
   }
 }

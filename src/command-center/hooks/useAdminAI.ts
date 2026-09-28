@@ -10,6 +10,9 @@ export function useAdminAI(onWriteLikelyHappened: () => void, onFinalText?: (tex
   const [liveActivity, setLiveActivity] = useState<ActivityItem[]>([]);
   const [jarvisState, setJarvisState] = useState<JarvisState>('idle');
   const pulseTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Record ids / pending confirmation from the last answer (functions/_lib/jarvis-context.js),
+  // sent back so follow-ups like "what vehicle was that on?" resolve to real records.
+  const contextRef = useRef<unknown>(null);
 
   const pulse = useCallback((state: JarvisState, ms: number) => {
     setJarvisState(state);
@@ -30,7 +33,7 @@ export function useAdminAI(onWriteLikelyHappened: () => void, onFinalText?: (tex
       const res = await fetch('/admin-ai-chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: nextMessages }),
+        body: JSON.stringify({ messages: nextMessages, context: contextRef.current }),
       });
       if (!res.ok) throw new Error(await res.text());
       if (!res.body) throw new Error('No response stream.');
@@ -65,6 +68,8 @@ export function useAdminAI(onWriteLikelyHappened: () => void, onFinalText?: (tex
               return copy;
             });
             if (!event.ok) pulse('error', ERROR_PULSE_MS);
+          } else if (event.type === 'context') {
+            contextRef.current = event.context ?? null;
           } else if (event.type === 'data') {
             pendingCards = [...pendingCards, { tool: event.tool, payload: event.payload }];
           } else if (event.type === 'final') {
@@ -101,6 +106,7 @@ export function useAdminAI(onWriteLikelyHappened: () => void, onFinalText?: (tex
 
   const clear = useCallback(() => {
     setChatMessages([]);
+    contextRef.current = null;
     setLiveActivity([]);
     setJarvisState('idle');
   }, []);

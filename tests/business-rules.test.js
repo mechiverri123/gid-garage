@@ -124,7 +124,6 @@ test('data health flags each inconsistency class and nothing on clean rows', () 
   const types = dataHealthIssues({ jobs, leads, reminders, customers }, NOW).map(i => `${i.type}:${i.id}`).sort();
   assert.deepEqual(types, [
     'booked_lead_without_booking:l1',
-    'duplicate_customer_phone:c1,c2',
     'fully_paid_not_marked_paid:f1',
     'fully_paid_not_marked_paid:o1', // overpaid AND not marked PAID — both are true
     'overpaid:o1',
@@ -134,7 +133,14 @@ test('data health flags each inconsistency class and nothing on clean rows', () 
     'past_appointment_pre_service:s1',
     'payment_history_mismatch:m1',
     'reminder_not_delivered:r1',
+    'shared_phone_number:c1,c2',
   ]);
+  // Bug 13: a shared phone is only a possible duplicate, never stated as fact.
+  const phone = dataHealthIssues({ customers }, NOW)[0];
+  assert.equal(phone.confidence, 'possible');
+  assert.match(phone.detail, /Possible duplicate or shared contact/);
+  assert.match(phone.suggested_manual_check, /legitimately shared/);
+  assert.ok(dataHealthIssues({ jobs, leads, reminders, customers }, NOW).every(i => i.severity && i.confidence && i.evidence && i.suggested_manual_check));
 });
 
 // ---- action queue -----------------------------------------------------------------
@@ -171,4 +177,28 @@ test('date and time validation for reschedules', () => {
   assert.equal(isValidYmd('09/28/2026'), false);
   for (const t of ['11:00 AM', '9:30 pm', '13:00', 'TBD']) assert.equal(isValidApptTime(t), true, t);
   for (const t of ['25:00', 'noonish', '13:00 PM', '']) assert.equal(isValidApptTime(t), false, t);
+});
+
+// ---- Bug 8: explicit estimate/invoice totals; Bug 9: admin cancel transition ----
+
+import { jobMoney, cancelJobPlan, reopenJobPlan } from '../shared/business-rules.js';
+
+test('8: estimate total is customer-facing (subtotal + tax); subtotal only by name', () => {
+  const m = jobMoney({ jobStatus: 'ESTIMATE_SENT', estimateAmount: 392.40, taxAmount: 16.71, invoiceAmount: null });
+  assert.equal(m.estimateTotal, 409.11);
+  assert.equal(m.estimateSubtotal, 392.4);
+  assert.equal(m.estimateTax, 16.71);
+  assert.equal(m.invoiceTotal, null);
+  assert.equal(m.balanceDue, 409.11);
+  const inv = jobMoney({ jobStatus: 'INVOICED', estimateAmount: 392.40, invoiceAmount: 380, taxAmount: 16.71, amountPaid: 100 });
+  assert.equal(inv.invoiceTotal, 396.71);
+  assert.equal(inv.balanceDue, 296.71);
+  assert.equal(jobMoney({ jobStatus: 'PAID', invoiceAmount: 100, taxAmount: 5, amountPaid: 105 }).balanceDue, 0);
+});
+
+test('9: cancel/reopen write exactly what the admin buttons write', () => {
+  assert.deepEqual(cancelJobPlan({ jobStatus: 'ESTIMATE_SENT', status: 'confirmed' }).fields, { job_status: 'CANCELLED', status: 'cancelled' });
+  assert.throws(() => cancelJobPlan({ jobStatus: 'PAID' }), /PAID/);
+  assert.throws(() => cancelJobPlan({ jobStatus: 'CANCELLED' }), /already cancelled/);
+  assert.deepEqual(reopenJobPlan({ jobStatus: 'CANCELLED', status: 'cancelled' }).fields, { job_status: 'BOOKED', status: 'confirmed' });
 });

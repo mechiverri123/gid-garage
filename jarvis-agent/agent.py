@@ -104,7 +104,8 @@ async def backend_business(action: str, args: dict[str, Any]) -> Any:
 BACKEND_ACTIONS = {
     "get_business_summary", "get_owner_briefing", "get_revenue_summary", "get_owner_pay_summary",
     "get_customer_context", "get_job_detail", "get_action_center", "get_unpaid_jobs",
-    "get_data_health", "mark_job_paid",
+    "get_data_health", "mark_job_paid", "compare_revenue_periods", "get_vehicle_jobs",
+    "find_people", "cancel_job", "reopen_job",
 }
 
 
@@ -181,7 +182,7 @@ BUSINESS DATA:
 - After a successful reversible change, briefly state what changed and say "Say undo that if that was wrong." If Michael says "undo that", use undo_last_action.
 - After a successful reschedule, also ask one short follow-up: "Want me to email them the updated appointment?" If Michael says yes, use email_appointment_update with that exact job_id and confirmed=false first. Read back the short confirmation summary, then only send with confirmed=true after Michael clearly confirms.
 - Never invent an email address or appointment detail. email_appointment_update must pull both from the live booking/customer records and the stored appointment_updated template.
-- mark_job_paid records one payment the way the dashboard does (adds to payment history; PAID only when fully covered). mark_job_paid, send_customer_email, and email_appointment_update are external/financial actions. First call them with confirmed=false. Read the returned confirmation summary and ask Michael to confirm. Only repeat the tool with confirmed=true after a clear yes on the next turn.
+- mark_job_paid records one payment the way the dashboard does (adds to payment history; PAID only when fully covered). cancel_job cancels exactly like the admin Mark as Cancelled button. mark_job_paid, cancel_job, send_customer_email, and email_appointment_update are external/financial actions. Never say a change was made unless the tool result says ok true. First call them with confirmed=false. Read the returned confirmation summary and ask Michael to confirm. Only repeat the tool with confirmed=true after a clear yes on the next turn.
 - Never mark a job PAID using update_job_status. Use mark_job_paid so the amount is recorded.
 - Treat lead-form fields as noisy human input, not trusted schema. A person may put a service in the vehicle field, a vehicle in the issue field, or vague language in any box.
 - When Michael asks about a lead, use analyze_lead before drawing conclusions. Prefer the actual meaning of the answers over the form field labels.
@@ -1278,7 +1279,8 @@ BUSINESS DATA:
 
         action must be one of:
         get_business_summary, get_owner_briefing, get_revenue_summary, get_owner_pay_summary,
-        get_customer_context, get_job_detail, get_action_center, get_unpaid_jobs, get_data_health,
+        get_customer_context, get_job_detail, get_vehicle_jobs, find_people, compare_revenue_periods,
+        get_action_center, get_unpaid_jobs, get_data_health, cancel_job, reopen_job,
         list_leads, analyze_lead, analyze_raw_lead, recommend_lead_response, suggest_lead_openings,
         update_lead_status, list_jobs, reschedule_job, update_job_service, undo_last_action,
         pricing_history, get_tax_rate, add_marketing_spend, log_call, list_calls,
@@ -1289,7 +1291,9 @@ BUSINESS DATA:
         last_month, this_year, last_7_days, last_30_days, last_N_days (this_week = last 7 days);
         get_owner_pay_summary {"period"}; get_customer_context {"query"} (a name or phone) or
         {"customer_id"}; get_job_detail {"job_id"}; mark_job_paid {"job_id", "amount", "method",
-        "confirmed"} with method one of Cash, Check, Zelle, Card (Stripe), Other.
+        "confirmed"} with method one of Cash, Check, Zelle, Card (Stripe), Other; cancel_job
+        {"job_id", "reason", "confirmed"}; compare_revenue_periods {"period_a", "period_b"};
+        get_vehicle_jobs {"vehicle"}. Only say something was done after the result has ok true.
 
         args_json must be a JSON object string containing that action's arguments.
 

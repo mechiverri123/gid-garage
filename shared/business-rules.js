@@ -67,6 +67,41 @@ export function jobBalance(job) {
   return Math.max(0, round2(jobTotalDue(job) - num(job.amountPaid)));
 }
 
+// Every money figure on a job, named so nobody has to guess which column is
+// customer-facing. estimate/invoice_amount are PRE-TAX subtotals; tax_amount is
+// the job's tax (from taxable line items). Customer-facing totals include tax —
+// the estimate page and invoice both show subtotal + tax.
+export function jobMoney(job) {
+  const tax = job.taxAmount == null ? null : round2(num(job.taxAmount));
+  const withTax = sub => (sub == null ? null : round2(num(sub) + num(tax)));
+  const out = {
+    estimateSubtotal: job.estimateAmount == null ? null : round2(num(job.estimateAmount)),
+    estimateTax: job.estimateAmount == null ? null : tax,
+    estimateTotal: withTax(job.estimateAmount),
+    invoiceSubtotal: job.invoiceAmount == null ? null : round2(num(job.invoiceAmount)),
+    invoiceTax: job.invoiceAmount == null ? null : tax,
+    invoiceTotal: withTax(job.invoiceAmount),
+    amountPaid: job.amountPaid == null ? null : round2(num(job.amountPaid)),
+    balanceDue: null,
+  };
+  if (!isCancelled(job) && job.jobStatus !== 'PAID' && (job.invoiceAmount != null || job.estimateAmount != null)) out.balanceDue = jobBalance(job);
+  if (job.jobStatus === 'PAID') out.balanceDue = 0;
+  return out;
+}
+
+// Exactly what the admin "Mark as Cancelled" / "Reopen Job" buttons write
+// (JobOps.tsx setJobStatus): both columns, so the calendar and pipeline agree.
+export function cancelJobPlan(job) {
+  if (isCancelled(job)) throw new Error('This job is already cancelled.');
+  if (job.jobStatus === 'PAID') throw new Error('This job is PAID; cancelling it would pull a paid job out of the books. Do that in the dashboard if it is really intended.');
+  return { fields: { job_status: 'CANCELLED', status: 'cancelled' }, before: { job_status: job.jobStatus ?? null, status: job.status ?? null } };
+}
+
+export function reopenJobPlan(job) {
+  if (!isCancelled(job)) throw new Error('This job is not cancelled.');
+  return { fields: { job_status: 'BOOKED', status: 'confirmed' }, before: { job_status: job.jobStatus ?? null, status: job.status ?? null } };
+}
+
 // Work is done but the job isn't PAID. Same set as the dashboard's "Unpaid / Due".
 export function isAwaitingPayment(job) {
   return !isCancelled(job) && (job.jobStatus === 'COMPLETED' || job.jobStatus === 'INVOICED');
@@ -172,9 +207,30 @@ export function planPayment(job, { amount, method = 'Other', stripeId = '', note
 
 // ---- data health (read-only) ---------------------------------------------
 
+// Read-only consistency findings. Each carries how sure we are and what to
+// check by hand — a finding is a lead for the owner to review, not a verdict.
+//   severity:   high (money/records wrong) | medium | low
+//   confidence: certain (the stored values contradict each other)
+//             | possible (could be legitimate — e.g. a shared family phone)
+const HEALTH = {
+  paid_without_paid_at: ['high', 'certain', 'Marked PAID but has no paid date, so it is missing from every revenue period.', 'Open the job and set the paid date, or re-record the payment.'],
+  paid_without_amount: ['high', 'certain', 'Marked PAID with no amount paid, no payment history and no invoice total.', 'Check what was actually collected and record it.'],
+  payment_history_mismatch: ['high', 'certain', null, 'Compare the payment history with amount paid on the job and correct whichever is wrong.'],
+  overpaid: ['medium', 'certain', null, 'Check for a duplicate payment entry or a tip/extra charge that should be on the invoice.'],
+  fully_paid_not_marked_paid: ['medium', 'certain', null, 'If the customer is paid up, mark the job PAID in the dashboard.'],
+  paid_with_balance: ['medium', 'certain', null, 'Check whether a discount or write-off was intended, or a payment is missing.'],
+  past_appointment_pre_service: ['low', 'certain', null, 'Update the job status (done, cancelled, or rescheduled).'],
+  booked_lead_without_booking: ['low', 'certain', 'Lead is marked booked but is not linked to a booking.', 'Link the lead to its booking, or fix the lead status.'],
+  reminder_not_delivered: ['medium', 'certain', null, 'Check the proactive cron / Telegram delivery.'],
+  shared_phone_number: ['low', 'possible', null, 'Review manually: these may be one person split across records, or a legitimately shared phone (family, spouse, business line).'],
+};
+
 export function dataHealthIssues({ jobs = [], leads = [], reminders = [], customers = [] }, now = new Date()) {
   const issues = [];
-  const add = (type, area, id, who, detail) => issues.push({ type, area, id, who, detail });
+  const add = (type, area, id, who, detail, evidence = {}) => {
+    const [severity, confidence, defaultDetail, suggested_manual_check] = HEALTH[type];
+    issues.push({ type, area, severity, confidence, id, who, detail: detail || defaultDetail, evidence, suggested_manual_check });
+  };
   const today = phoenixToday(now);
 
   for (const j of jobs) {
@@ -184,24 +240,25 @@ export function dataHealthIssues({ jobs = [], leads = [], reminders = [], custom
     const logged = round2(payments.reduce((s, p) => s + num(p?.amount), 0));
     const totalDue = round2(num(j.invoiceAmount) + num(j.taxAmount));
     const paid = j.amountPaid == null ? null : round2(num(j.amountPaid));
+    const ev = { job_status: j.jobStatus, paid_at: j.paidAt || null, amount_paid: paid, invoice_total_incl_tax: j.invoiceAmount == null ? null : totalDue, payment_history_total: payments.length ? logged : null };
 
-    if (j.jobStatus === 'PAID' && !j.paidAt) add('paid_without_paid_at', 'money', j.id, who, 'Marked PAID but has no paid date, so it is missing from every revenue period.');
-    if (j.jobStatus === 'PAID' && paid == null && !payments.length && totalDue <= 0) add('paid_without_amount', 'money', j.id, who, 'Marked PAID with no amount paid, no payment history and no invoice total.');
-    if (payments.length && Math.abs(logged - num(paid)) > 0.01) add('payment_history_mismatch', 'money', j.id, who, `Payment history sums to $${logged.toFixed(2)} but amount paid is $${num(paid).toFixed(2)}.`);
-    if (j.invoiceAmount != null && paid != null && paid > totalDue + 0.01) add('overpaid', 'money', j.id, who, `Amount paid $${paid.toFixed(2)} is more than invoice + tax $${totalDue.toFixed(2)}.`);
-    if (j.jobStatus !== 'PAID' && j.invoiceAmount != null && totalDue > 0 && paid != null && paid >= totalDue - 0.01) add('fully_paid_not_marked_paid', 'money', j.id, who, `Paid $${paid.toFixed(2)} of $${totalDue.toFixed(2)} but status is ${j.jobStatus}.`);
-    if (j.jobStatus === 'PAID' && j.invoiceAmount != null && paid != null && paid < totalDue - 0.01) add('paid_with_balance', 'money', j.id, who, `Marked PAID but only $${paid.toFixed(2)} of $${totalDue.toFixed(2)} is recorded.`);
-    if (j.date && j.date < today && !j.dateTbd && PRE_SERVICE_STATUSES.includes(j.jobStatus)) add('past_appointment_pre_service', 'schedule', j.id, who, `Appointment was ${j.date} but the job is still ${j.jobStatus}.`);
+    if (j.jobStatus === 'PAID' && !j.paidAt) add('paid_without_paid_at', 'money', j.id, who, null, ev);
+    if (j.jobStatus === 'PAID' && paid == null && !payments.length && totalDue <= 0) add('paid_without_amount', 'money', j.id, who, null, ev);
+    if (payments.length && Math.abs(logged - num(paid)) > 0.01) add('payment_history_mismatch', 'money', j.id, who, `Payment history sums to $${logged.toFixed(2)} but amount paid is $${num(paid).toFixed(2)}.`, ev);
+    if (j.invoiceAmount != null && paid != null && paid > totalDue + 0.01) add('overpaid', 'money', j.id, who, `Amount paid $${paid.toFixed(2)} is more than invoice + tax $${totalDue.toFixed(2)}.`, ev);
+    if (j.jobStatus !== 'PAID' && j.invoiceAmount != null && totalDue > 0 && paid != null && paid >= totalDue - 0.01) add('fully_paid_not_marked_paid', 'money', j.id, who, `Paid $${paid.toFixed(2)} of $${totalDue.toFixed(2)} but status is ${j.jobStatus}.`, ev);
+    if (j.jobStatus === 'PAID' && j.invoiceAmount != null && paid != null && paid < totalDue - 0.01) add('paid_with_balance', 'money', j.id, who, `Marked PAID but only $${paid.toFixed(2)} of $${totalDue.toFixed(2)} is recorded.`, ev);
+    if (j.date && j.date < today && !j.dateTbd && PRE_SERVICE_STATUSES.includes(j.jobStatus)) add('past_appointment_pre_service', 'schedule', j.id, who, `Appointment was ${j.date} but the job is still ${j.jobStatus}.`, { date: j.date, job_status: j.jobStatus });
   }
 
   for (const l of leads) {
-    if (String(l.status || '').toLowerCase() === 'booked' && !l.booking_id) add('booked_lead_without_booking', 'crm', l.id, fullName(l) || l.phone, 'Lead is marked booked but is not linked to a booking.');
+    if (String(l.status || '').toLowerCase() === 'booked' && !l.booking_id) add('booked_lead_without_booking', 'crm', l.id, fullName(l) || l.phone, null, { status: l.status, booking_id: null });
   }
 
   for (const r of reminders) {
     const due = new Date(r.due_at).getTime();
     if (r.status === 'open' && !r.notified_at && Number.isFinite(due) && due < now.getTime() - REMINDER_DELIVERY_GRACE_MS) {
-      add('reminder_not_delivered', 'reminders', r.id, r.title, `Due ${r.due_at} but never sent to Telegram.`);
+      add('reminder_not_delivered', 'reminders', r.id, r.title, `Due ${r.due_at} but never sent to Telegram.`, { due_at: r.due_at, notified_at: null });
     }
   }
 
@@ -211,8 +268,12 @@ export function dataHealthIssues({ jobs = [], leads = [], reminders = [], custom
     if (digits.length < 10) continue;
     byPhone.set(digits, [...(byPhone.get(digits) || []), c]);
   }
-  for (const [, group] of byPhone) {
-    if (group.length > 1) add('duplicate_customer_phone', 'crm', group.map(c => c.id).join(','), group.map(fullName).join(' / '), `${group.length} customer records share one phone number.`);
+  for (const [digits, group] of byPhone) {
+    if (group.length > 1) {
+      add('shared_phone_number', 'crm', group.map(c => c.id).join(','), group.map(fullName).join(' / '),
+        `Possible duplicate or shared contact: ${group.map(fullName).join(' and ')} have the same phone number. This may be one person split across records, or legitimately shared contact info.`,
+        { phone_last4: digits.slice(-4), customer_ids: group.map(c => c.id) });
+    }
   }
 
   return issues;

@@ -11,10 +11,13 @@
 import { createBusinessOps } from './_lib/business-data.js';
 
 const ACTIONS = {
-  get_revenue_summary: (ops, a) => ops.revenueSummary({ period: a.period }),
+  get_revenue_summary: (ops, a) => ops.revenueSummary({ period: a.period, include_contributions: a.include_contributions === true }),
+  compare_revenue_periods: (ops, a) => ops.comparePeriods({ period_a: a.period_a, period_b: a.period_b }),
   get_owner_pay_summary: (ops, a) => ops.ownerPaySummary({ period: a.period, periodDays: a.period_days ?? a.periodDays }),
   get_customer_context: (ops, a) => ops.customerContext({ query: a.query, customer_id: a.customer_id }),
   get_job_detail: (ops, a) => ops.jobDetail({ job_id: a.job_id }),
+  get_vehicle_jobs: (ops, a) => ops.vehicleJobs({ vehicle: a.vehicle, customer: a.customer }),
+  find_people: (ops, a) => ops.findPeople({ query: a.query }),
   get_action_center: ops => ops.actionCenter(),
   get_unpaid_jobs: ops => ops.unpaidSummary(),
   get_data_health: ops => ops.dataHealth(),
@@ -22,6 +25,8 @@ const ACTIONS = {
   get_owner_briefing: ops => ops.ownerBriefing(),
   // Confirmation-gated exactly like chat: without confirmed=true it only
   // returns the summary.
+  cancel_job: (ops, a) => ops.cancelJob({ job_id: a.job_id, reason: a.reason || '', confirmed: a.confirmed === true }),
+  reopen_job: (ops, a) => ops.reopenJob({ job_id: a.job_id, confirmed: a.confirmed === true }),
   mark_job_paid: (ops, a) => ops.recordPayment({
     job_id: a.job_id, amount: a.amount, method: a.method || 'Other',
     stripe_transaction_id: a.stripe_transaction_id || '', note: a.note || '', confirmed: a.confirmed === true,
@@ -52,13 +57,22 @@ export async function onRequestPost({ request, env }) {
     if (!res.ok) throw new Error(await res.text());
     return res.json();
   };
+  // Writes return the updated rows so ops can verify them (see patchVerified).
   const sbPatch = async (table, filter, fields) => {
-    const res = await fetch(`${base}/${table}?${filter}`, { method: 'PATCH', headers: { ...headers, Prefer: 'return=minimal' }, body: JSON.stringify(fields) });
+    const res = await fetch(`${base}/${table}?${filter}`, { method: 'PATCH', headers: { ...headers, Prefer: 'return=representation' }, body: JSON.stringify(fields) });
     if (!res.ok) throw new Error(await res.text());
+    return res.json();
+  };
+  const sbInsert = async (table, row) => {
+    const res = await fetch(`${base}/${table}`, { method: 'POST', headers: { ...headers, Prefer: 'return=representation' }, body: JSON.stringify(row) });
+    if (!res.ok) throw new Error(await res.text());
+    const rows = await res.json();
+    if (!rows?.[0]?.id) throw new Error(`Insert into ${table} was not confirmed by the database.`);
+    return rows[0];
   };
 
   try {
-    const result = await run(createBusinessOps({ sbGet, sbPatch }), body.args && typeof body.args === 'object' ? body.args : {});
+    const result = await run(createBusinessOps({ sbGet, sbPatch, sbInsert }), body.args && typeof body.args === 'object' ? body.args : {});
     return json({ ok: true, result });
   } catch (e) {
     return json({ ok: false, error: e?.message || String(e) }, 200);
