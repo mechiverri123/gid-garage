@@ -30,9 +30,9 @@
     "semantic_hash": "ce619fcfd1eeb9713d76458dbcb97c85"
   },
   "functions/admin-ai-chat.js": {
-    "mtime": 1790612437.3469887,
-    "seen": 1790612517.466559,
-    "ast_hash": "cda83eda4ad1018426d851f3776867ba",
+    "mtime": 1790614144.022563,
+    "seen": 1790614811.794993,
+    "ast_hash": "ac2042b8cd47772e0c5bd8a5f4d76d2f",
     "semantic_hash": ""
   },
   "functions/admin-api-data.js": {
@@ -204,9 +204,9 @@
     "semantic_hash": ""
   },
   "package.json": {
-    "mtime": 1790570241.6860948,
-    "seen": 1790570434.6910667,
-    "ast_hash": "f644129f2871bdc1a7e39b3ed941ff31",
+    "mtime": 1790614439.9044683,
+    "seen": 1790614811.7971373,
+    "ast_hash": "8221f106e6bbbc902b39ce127f835a0e",
     "semantic_hash": ""
   },
   "postcss.config.js": {
@@ -1230,9 +1230,9 @@
     "semantic_hash": ""
   },
   "functions/_lib/business-data.js": {
-    "mtime": 1790576540.2657077,
-    "seen": 1790576691.6495376,
-    "ast_hash": "44efc5627525502957d9f67ec63814ce",
+    "mtime": 1790614132.0894835,
+    "seen": 1790614811.794367,
+    "ast_hash": "462ee6d56271a3da5b3bcbe31694472f",
     "semantic_hash": ""
   },
   "functions/_lib/jarvis-intent.js": {
@@ -1416,15 +1416,15 @@
     "semantic_hash": ""
   },
   "src/command-center/seo/SeoMode.tsx": {
-    "mtime": 1790587901.3076735,
-    "seen": 1790588110.937788,
-    "ast_hash": "9bed39c842a80a075d1e9b666cb17a99",
+    "mtime": 1790614293.0535645,
+    "seen": 1790614811.801977,
+    "ast_hash": "374e0344c2c937df7a95fac2b68d386c",
     "semantic_hash": ""
   },
   "src/command-center/seo/SeoPanels.tsx": {
-    "mtime": 1790612788.715307,
-    "seen": 1790612847.1937795,
-    "ast_hash": "0fe0646be629cec98fc8cdbdb0417f85",
+    "mtime": 1790614293.0413697,
+    "seen": 1790614811.801979,
+    "ast_hash": "353c681ca8a97b9fceb8cb3152d68dff",
     "semantic_hash": ""
   },
   "src/command-center/seo/seoTypes.ts": {
@@ -1470,9 +1470,9 @@
     "semantic_hash": ""
   },
   "SEO_SETUP.md": {
-    "mtime": 1790591000.7465243,
-    "seen": 1790591450.9743497,
-    "ast_hash": "678c29e038274e821f5346856b2ffbcb",
+    "mtime": 1790614763.0515356,
+    "seen": 1790614811.81,
+    "ast_hash": "73dc9203374dfb3904cea1a1bb5c0dcf",
     "semantic_hash": ""
   },
   "functions/_lib/access-auth.js": {
@@ -1566,9 +1566,9 @@
     "semantic_hash": ""
   },
   "tests/business-threads.test.js": {
-    "mtime": 1790612486.1071322,
-    "seen": 1790612517.4755025,
-    "ast_hash": "47c07e18a8daefe4d46b1bd510eca1d2",
+    "mtime": 1790614182.9422224,
+    "seen": 1790614811.8036642,
+    "ast_hash": "d0341005668f4ea0e2b76d87fc284ed5",
     "semantic_hash": ""
   },
   "shared/seo/evidence.js": {
@@ -1581,6 +1581,24 @@
     "mtime": 1790612808.4633653,
     "seen": 1790612847.1957946,
     "ast_hash": "6670b002c902abbb2864dcc7e2eb8106",
+    "semantic_hash": ""
+  },
+  "src/command-center/seo/ServiceAreaMap.tsx": {
+    "mtime": 1790614649.2841828,
+    "seen": 1790614811.8019807,
+    "ast_hash": "3d02d54ff6a13680a1fb17d1f0c5a08a",
+    "semantic_hash": ""
+  },
+  "src/command-center/seo/mapFeatures.ts": {
+    "mtime": 1790614770.331049,
+    "seen": 1790614811.8019817,
+    "ast_hash": "bb89a7e9afbcb23750926369d5d6f34f",
+    "semantic_hash": ""
+  },
+  "tests/seo-map-features.test.js": {
+    "mtime": 1790614763.0449743,
+    "seen": 1790614811.8043678,
+    "ast_hash": "70f4e7b874d946e51f38bd372c9f0dd2",
     "semantic_hash": ""
   }
 }

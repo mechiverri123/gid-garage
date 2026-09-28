@@ -9,7 +9,8 @@ import type { ActivityItem, JarvisState } from '../types';
 import { JarvisStatus } from '../components/JarvisStatus';
 import { SEO_VIEWS, type SeoView, type SeoOverview, type SeoRecommendation, type SeoGeography } from './seoTypes';
 import { useSeoData } from './useSeoData';
-import { SEO, SEO_PANEL, SEO_LABEL, KpiTile, LocalityBar, ServiceAreaMap, OpportunityList, DemandPanel, CompetitorPanel, SeasonalityPanel, AuthorityPanel, ConnectionsPanel, Empty } from './SeoPanels';
+import { SEO, SEO_PANEL, SEO_LABEL, KpiTile, LocalityBar, OpportunityList, DemandPanel, CompetitorPanel, SeasonalityPanel, AuthorityPanel, ConnectionsPanel, Empty } from './SeoPanels';
+import { ServiceAreaMap } from './ServiceAreaMap';
 import { useState } from 'react';
 
 export function SeoMode({ focus, onFocus, coreState, liveActivity }: { focus: SeoView; onFocus: (v: SeoView) => void; coreState: JarvisState; liveActivity: ActivityItem[] }) {

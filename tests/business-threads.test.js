@@ -79,3 +79,56 @@ test('a note about someone with no earlier open notes asks nothing', async () =>
   assert.doesNotMatch(r.claudeRequests[1].messages.at(-1).content[0].content, /owner_question/); // the tool result itself
   assert.equal(r.context.pendingAction, undefined);
 });
+
+// ---- production regression: Postgres echoes timestamps in its own format --------
+// PATCH … Prefer: return=representation returns resolved_at as "…59.4+00:00" for
+// "…59.400Z". The old read-back compared text, so every close that actually
+// succeeded was reported as "Close failed".
+const pgTimestamp = v => (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}T[\d:.]+Z$/.test(v)
+  ? v.replace(/(\.\d*?)0+Z$/, '$1Z').replace(/\.Z$/, 'Z').replace(/Z$/, '+00:00') : v);
+function postgresLike(db, { failIds = [] } = {}) {
+  const orig = db.sbPatch;
+  db.sbPatch = async (table, filter, fields) => {
+    if (failIds.some(id => filter.includes(id))) throw new Error('simulated database error');
+    return (await orig(table, filter, fields)).map(row => Object.fromEntries(Object.entries(row).map(([k, v]) => [k, pgTimestamp(v)])));
+  };
+  return db;
+}
+const RICHARD_OLDER = [
+  { ...OLD, id: 'R1' },
+  { id: 'R0', created_at: '2026-09-19T15:00:00Z', status: 'open', contact_name: 'Richard', summary: 'Richard waiting to hear about the Ranger parts', raw_text: 'Richard is waiting to hear about the Ranger parts.' },
+];
+const toolResultText = req => JSON.stringify(req.messages);
+
+test('regression: "Richard confirmed Tuesday" → yes → every earlier note persists closed and is reported closed', async () => {
+  const db = postgresLike(fakeSupabase({ ...seed(), jarvis_business_notes: structuredClone(RICHARD_OLDER) }));
+  const first = await chat({ db, text: 'Richard confirmed Tuesday', script: [claudeTool('capture_business_note', { raw_text: 'Richard confirmed Tuesday', summary: 'Richard confirmed Tuesday', contact_name: 'Richard' }), claudeText('Saved. Richard has 2 earlier open notes. Close them?')] });
+  assert.deepEqual([...first.context.pendingAction.input.note_ids].sort(), ['R0', 'R1']);
+
+  const yes = await chat({ db, text: 'yes', context: first.context, script: [claudeText('Closed both earlier Richard notes.')] });
+  const seen = toolResultText(yes.claudeRequests[0]);
+  assert.match(seen, /Closed all 2 earlier notes \(verified in the database\)/);
+  assert.doesNotMatch(seen, /not closed|Write not confirmed|still open/);
+  assert.deepEqual(db.tables.jarvis_business_notes.filter(n => ['R0', 'R1'].includes(n.id)).map(n => n.status), ['resolved', 'resolved']);
+
+  const waiting = await chat({ db, text: 'What am I waiting on?', script: [claudeTool('get_action_center', {}), claudeText('Nothing from Richard.')] });
+  const queue = JSON.parse(waiting.claudeRequests[1].messages.at(-1).content[0].content);
+  // (the fixture's separate Richard *job* with an unapproved estimate is still legitimately listed)
+  assert.equal(queue.waiting_on.filter(w => w.type === 'owner_note' && /richard/i.test(w.who || '')).length, 0);
+});
+
+test('partial close is reported from the database, with the count', async () => {
+  const db = postgresLike(fakeSupabase({ ...seed(), jarvis_business_notes: structuredClone(RICHARD_OLDER) }), { failIds: ['R0'] });
+  const first = await chat({ db, text: 'Richard confirmed Tuesday', script: [claudeTool('capture_business_note', { raw_text: 'Richard confirmed Tuesday', summary: 'Richard confirmed Tuesday', contact_name: 'Richard' }), claudeText('Close them?')] });
+  const yes = await chat({ db, text: 'yes', context: first.context, script: [claudeText('Closed 1 of 2.')] });
+  assert.match(toolResultText(yes.claudeRequests[0]), /Closed 1 of 2 earlier notes; 1 is still open/);
+  assert.equal(db.tables.jarvis_business_notes.find(n => n.id === 'R0').status, 'open');
+});
+
+test('verified writes accept Postgres timestamp formatting (paid_at, completed_at, resolved_at …)', async () => {
+  const { patchVerified } = await import('../functions/_lib/business-data.js');
+  const sent = '2026-09-28T16:35:59.400Z';
+  const row = await patchVerified(async () => [{ id: 'X', resolved_at: '2026-09-28T16:35:59.4+00:00', status: 'resolved' }], 't', 'X', { status: 'resolved', resolved_at: sent });
+  assert.equal(row.id, 'X');
+  await assert.rejects(patchVerified(async () => [{ id: 'X', resolved_at: '2026-09-28T16:36:59.4+00:00' }], 't', 'X', { resolved_at: sent }), /read back different values/);
+});

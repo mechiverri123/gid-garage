@@ -73,6 +73,7 @@ Everything below is optional and incremental. With no credentials at all, SEO Mo
 | Variable | Needed for |
 |---|---|
 | `SEO_SYNC_SECRET` | cron → `/seo-sync` (**already set**) |
+| `VITE_MAP_STYLE_URL` | *optional* build variable: a MapLibre style URL for the Service Area map. Leave it unset to use OpenFreeMap's free "dark" OpenStreetMap style, which needs no key. |
 | `CF_ACCESS_TEAM_DOMAIN` | `/jarvis/seo-data` Access JWT verification (**already set**), e.g. `yourteam.cloudflareaccess.com` |
 | `CF_ACCESS_AUD` | `/jarvis/seo-data` Access JWT verification (**already set**): the Access application's AUD tag |
 | `GOOGLE_SERVICE_ACCOUNT_JSON` | Search Console + GA4 (the full key-file JSON) |

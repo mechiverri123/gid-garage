@@ -74,7 +74,8 @@ export function LocalityBar({ breakdown, metric = 'clicks' }: { breakdown: SeoOv
 const LEAD_COLOR = '#7FB8FF';
 const COMPETITOR_COLOR = '#FFB454';
 
-export function ServiceAreaMap({ geo }: { geo?: SeoGeography }) {
+// Fallback when the interactive map (ServiceAreaMap.tsx) can't load.
+export function ServiceAreaDiagram({ geo }: { geo?: SeoGeography }) {
   if (!geo) return <Empty>Loading service area…</Empty>;
   const size = 360; const pad = 20; const r = size / 2 - pad;
   const milesPerDegLat = 69; const milesPerDegLng = 69 * Math.cos((geo.center.lat * Math.PI) / 180);

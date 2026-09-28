@@ -50,7 +50,11 @@ export async function patchVerified(sbPatch, table, id, fields) {
     throw new Error(`Write not applied: expected 1 ${table} row with id ${id}, database updated ${Array.isArray(rows) ? rows.length : 'an unknown number of'} rows.`);
   }
   const row = rows[0];
-  const same = (a, b) => (typeof a === 'object' || typeof b === 'object') ? JSON.stringify(a) === JSON.stringify(b) : String(a) === String(b) || Number(a) === Number(b);
+  // Postgres echoes timestamps in its own format ("…59.4+00:00" for "…59.400Z"):
+  // same instant, different text. Compare those by instant, not by string.
+  const isTimestamp = v => typeof v === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(v);
+  const same = (a, b) => (typeof a === 'object' || typeof b === 'object') ? JSON.stringify(a) === JSON.stringify(b)
+    : String(a) === String(b) || Number(a) === Number(b) || (isTimestamp(a) && isTimestamp(b) && Date.parse(a) === Date.parse(b));
   const mismatched = Object.keys(fields).filter(k => k !== 'updated_at' && !same(row[k], fields[k]));
   if (mismatched.length) throw new Error(`Write not confirmed: ${table} ${id} read back different values for ${mismatched.join(', ')}.`);
   return row;

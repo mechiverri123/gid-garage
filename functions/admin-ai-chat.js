@@ -1164,14 +1164,31 @@ export async function onRequestPost({ request, env }) {
       case 'resolve_business_note': {
         // Several ids: closing a person's superseded notes after the owner said yes.
         if (Array.isArray(input.note_ids) && !input.note_id) {
-          const ids = input.note_ids.map(String).slice(0, 20);
+          const ids = [...new Set(input.note_ids.map(String))].slice(0, 20);
           if (!ids.length) throw new Error('note_ids is empty.');
-          const results = [];
-          for (const id of ids) results.push(await runTool('resolve_business_note', { note_id: id }).catch(e => ({ ok: false, id, error: e.message })));
-          const failed = results.filter(r => r.ok === false);
-          return failed.length
-            ? { ok: false, error: `${failed.length} of ${ids.length} notes were not closed: ${failed.map(f => f.error).join('; ')}`, results }
-            : { ok: true, verified: true, entity: 'note', closed: ids.length, results };
+          // Ids and counts only in logs — never note contents.
+          const log = (step, extra = {}) => console.log(JSON.stringify({ thread_close: step, ...extra }));
+          log('thread_close_started');
+          log('thread_close_target_count', { count: ids.length });
+          const writeErrors = [];
+          for (const id of ids) {
+            try { await runTool('resolve_business_note', { note_id: id }); } catch (e) { writeErrors.push(`${id}: ${String(e.message).slice(0, 200)}`); }
+          }
+          log('thread_close_write_status', { attempted: ids.length, write_errors: writeErrors.length });
+          // The answer comes from what is persisted now, not from what the writes said.
+          const persisted = await sbGet('jarvis_business_notes', { select: 'id,status', id: `in.(${ids.join(',')})` });
+          const closed = persisted.filter(n => n.status === 'resolved').map(n => n.id);
+          const stillOpen = ids.filter(id => !closed.includes(id));
+          log('thread_close_rows_affected', { closed: closed.length, of: ids.length });
+          if (!stillOpen.length) {
+            log('thread_close_verified', { closed: closed.length });
+            return { ok: true, verified: true, entity: 'note', closed: closed.length, of: ids.length, summary: `Closed all ${closed.length} earlier note${closed.length === 1 ? '' : 's'} (verified in the database).` };
+          }
+          log('thread_close_failed', { closed: closed.length, still_open: stillOpen.length, errors: writeErrors });
+          if (closed.length) {
+            return { ok: true, partial: true, verified: true, entity: 'note', closed: closed.length, of: ids.length, still_open_ids: stillOpen, summary: `Closed ${closed.length} of ${ids.length} earlier notes; ${stillOpen.length} ${stillOpen.length === 1 ? 'is' : 'are'} still open.` };
+          }
+          return { ok: false, error: `None of the ${ids.length} earlier notes were closed — they are all still open in the database.`, write_errors: writeErrors };
         }
         const rows = await sbGet('jarvis_business_notes', { select: 'id,summary,status', id: `eq.${encodeURIComponent(input.note_id)}`, limit: '1' });
         const note = rows[0];
