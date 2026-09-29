@@ -25,3 +25,4 @@ export function workspaceTop(state: WorkspaceState): WorkspaceView | null;
 export function resolveCalendarWhen(when: string, today: string): { date: string; mode: CalendarMode } | null;
 export function parseLocalCommand(text: string, state: WorkspaceState, opts?: { meta?: JobMetaEntry[]; today?: string }): (WorkspaceAction & { reply?: string }) | null;
 export function describeScreen(state: WorkspaceState, meta?: JobMetaEntry[]): Record<string, unknown> | null;
+export function isScreenFollowUp(text: string, state: WorkspaceState): boolean;

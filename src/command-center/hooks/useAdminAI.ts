@@ -29,7 +29,8 @@ export function useAdminAI(onWriteLikelyHappened: () => void, onFinalText?: (tex
     pulseTimer.current = setTimeout(() => setJarvisState('idle'), ms);
   }, []);
 
-  const ask = useCallback(async (question: string) => {
+  // speak:false = a silent screen follow-up (the voice agent already answered).
+  const ask = useCallback(async (question: string, opts?: { speak?: boolean }) => {
     const q = question.trim();
     if (!q || asking) return;
     setAsking(true);
@@ -95,7 +96,7 @@ export function useAdminAI(onWriteLikelyHappened: () => void, onFinalText?: (tex
             setLiveActivity([]);
             pulse('success', SUCCESS_PULSE_MS);
             onWriteLikelyHappened();
-            if (onFinalText) void onFinalText(finalText);
+            if (onFinalText && opts?.speak !== false) void onFinalText(finalText);
           } else if (event.type === 'error') {
             sawFinal = true;
             setChatMessages(prev => [...prev, { role: 'assistant', content: `Error: ${event.message}` }]);

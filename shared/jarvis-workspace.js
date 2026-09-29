@@ -143,6 +143,35 @@ const PERIOD_RE = /^(?:(?:show|graph|chart|what about|how about|and|switch to|ch
 const CAL_RE = /^(?:(?:show|open|go to|what about|how about|and|what do i have|jump to)(?: me)? )*(today|tomorrow|yesterday|this week|next week|last week|this month|next month|last month|(?:next |this )?(?:sunday|monday|tuesday|wednesday|thursday|friday|saturday))$/;
 const CAL_MODE_RE = /^(?:(?:show|switch to|go to)(?: the)? )?(day|week|month) view$/;
 
+const ORDINAL_WORDS = new Set(['first', '1st', 'second', '2nd', 'third', '3rd', 'fourth', '4th', 'fifth', '5th', 'last', 'middle', 'center', 'centre', 'left', 'right', 'newest', 'latest', 'oldest', 'most recent', 'earliest']);
+const SYNONYMS = {
+  brake: ['brake', 'rotor', 'pad', 'caliper'], oil: ['oil'], diagnostic: ['diag'], diag: ['diag'],
+  transmission: ['transmission', 'trans'], trans: ['transmission', 'trans'], tire: ['tire', 'tread'], battery: ['battery'],
+  suspension: ['suspension', 'strut', 'shock', 'control arm'], coolant: ['coolant', 'radiator'], radiator: ['radiator', 'coolant'],
+};
+// Conversational wrapping around the thing being asked for: "back to overview",
+// "take me to the payment tab", "can you pull up the Sep 26 job".
+const LEAD_FILLER = /^(?:can you|could you|would you|will you|let's|lets|let me|i want to|i wanna|i'd like to|take me|bring me|go|head|switch|flip|jump|move|pull|bring|open|show|see|view|check|look at|look|give me|back|over|up|to|into|on|at|the|me|us|its|it's|his|her|their|that|this|just|and|then|now)\b\s*/;
+const TRAIL_FILLER = /\s*\b(?:tab|page|section|screen|info|again|one|job|card|please|instead)$/;
+function core(t) {
+  let s = t; let prev;
+  do { prev = s; s = s.replace(LEAD_FILLER, ''); } while (s && s !== prev);
+  do { prev = s; s = s.replace(TRAIL_FILLER, ''); } while (s && s !== prev);
+  return s.trim() || t;
+}
+const MONTHS = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+// { month: 'MM' | null, day: 'DD' } from "sep 26", "september 26th", "9/26", "the 26th".
+function spokenDate(c) {
+  const pad = x => String(x).padStart(2, '0');
+  let m = c.match(/\b(jan|feb|mar|apr|may|jun|jul|aug|sept?|oct|nov|dec)[a-z]*\.? (\d{1,2})(?:st|nd|rd|th)?\b/);
+  if (m) return { month: pad(MONTHS.indexOf(m[1].slice(0, 3)) + 1), day: pad(m[2]) };
+  m = c.match(/\b(\d{1,2})\/(\d{1,2})\b/);
+  if (m) return { month: pad(m[1]), day: pad(m[2]) };
+  m = c.match(/^(\d{1,2})(?:st|nd|rd|th)$/);
+  if (m) return { month: null, day: pad(m[1]) };
+  return null;
+}
+
 function clean(text) {
   return String(text || '').toLowerCase()
     .replace(/[’']/g, "'")
@@ -166,38 +195,44 @@ export function parseLocalCommand(text, state, { meta = [], today } = {}) {
   if (!view) return null;
 
   if (view.type === 'jobs') {
-    const tab = t.match(TAB_RE);
-    if (tab) return { type: 'tab', tab: TAB_WORDS[tab[1]] };
-    if (/^(?:next|next one|go right|swipe left)$/.test(t)) return { type: 'step', delta: 1 };
-    if (/^(?:previous|prev|previous one|go left|swipe right)$/.test(t)) return { type: 'step', delta: -1 };
-    if (/^(?:open|expand|zoom in on|show) (?:it|that|this one|that one)$|^zoom in$/.test(t)) return { type: 'focus', index: view.focus, expand: true };
+    const c = core(t);
     const n = view.jobIds.length;
-    const num = t.match(/^(?:open |show )?(?:number|#|job) ?(\d{1,2})$/);
+    // "the diagnostic one" / "the diagnostic job" picks a job; "diagnostic" alone is the tab.
+    if (TAB_WORDS[c] && !/\b(?:one|job)$/.test(t)) return { type: 'tab', tab: TAB_WORDS[c] };
+    if (/^(?:next|next job|go right|swipe left|forward)$/.test(c)) return { type: 'step', delta: 1 };
+    if (/^(?:previous|prev|go left|swipe right|last job before)$/.test(c)) return { type: 'step', delta: -1 };
+    if (/^(?:it|zoom in|expand|expand it|zoom in on it)$/.test(c) || /^(?:open|expand|zoom in on|show) (?:it|that|this one|that one)$/.test(t)) return { type: 'focus', index: view.focus, expand: true };
+    const num = c.match(/^(?:number|#|job|card)? ?(\d{1,2})$/);
     if (num && Number(num[1]) >= 1 && Number(num[1]) <= n) return { type: 'focus', index: Number(num[1]) - 1, expand: true };
-    const ord = t.match(ORD_RE);
-    if (ord) {
-      const w = ord[1];
+    if (ORDINAL_WORDS.has(c)) {
       const dated = meta.map((m, i) => ({ i, d: String(m?.date || '') }));
       let index;
-      if (w in ORDINALS) index = ORDINALS[w];
-      else if (w === 'last') index = n - 1;
-      else if (w === 'middle' || w === 'center' || w === 'centre') index = Math.floor((n - 1) / 2);
-      else if (w === 'left') index = view.focus - 1;
-      else if (w === 'right') index = view.focus + 1;
+      if (c in ORDINALS) index = ORDINALS[c];
+      else if (c === 'last') index = n - 1;
+      else if (c === 'middle' || c === 'center' || c === 'centre') index = Math.floor((n - 1) / 2);
+      else if (c === 'left') index = view.focus - 1;
+      else if (c === 'right') index = view.focus + 1;
       else if (dated.length === n) {
         const sorted = [...dated].sort((a, b) => a.d.localeCompare(b.d));
-        index = (w === 'oldest' || w === 'earliest' ? sorted[0] : sorted[sorted.length - 1]).i;
+        index = (c === 'oldest' || c === 'earliest' ? sorted[0] : sorted[sorted.length - 1]).i;
       }
-      if (index != null && index >= 0 && index < n) return { type: 'focus', index, expand: true };
-      return null;
+      return index != null && index >= 0 && index < n ? { type: 'focus', index, expand: true } : null;
     }
-    const pick = t.match(PICK_RE);
-    if (pick && meta.length === n) {
-      const words = (pick[1] || pick[2]).split(' ').filter(w => w.length >= 3 && !STOP.has(w));
-      if (words.length) {
-        const hits = meta.map((m, i) => ({ i, l: String(m?.label || '').toLowerCase() })).filter(m => words.every(w => m.l.includes(w)));
-        if (hits.length === 1) return { type: 'focus', index: hits[0].i, expand: true };
-      }
+    if (meta.length !== n) return null;
+    // "the Sep 26 job", "the 26th", "9/26"
+    const day = spokenDate(c);
+    if (day) {
+      const hits = meta.map((m, i) => ({ i, d: String(m?.date || '') })).filter(m => (day.month ? m.d.slice(5) === `${day.month}-${day.day}` : m.d.slice(8) === day.day));
+      if (hits.length === 1) return { type: 'focus', index: hits[0].i, expand: true };
+      if (day.month || hits.length) return null;
+    }
+    // "the brake one", "that oil change job" (brake also means rotors/pads)
+    const words = c.split(' ').filter(w => w.length >= 3 && !STOP.has(w));
+    if (words.length) {
+      const labels = meta.map((m, i) => ({ i, l: String(m?.label || '').toLowerCase() }));
+      const has = (l, w) => (SYNONYMS[w] || SYNONYMS[w.replace(/s$/, '')] || [w.replace(/s$/, '')]).some(x => l.includes(x));
+      const hits = labels.filter(m => words.every(w => has(m.l, w)));
+      if (hits.length === 1) return { type: 'focus', index: hits[0].i, expand: true };
     }
     return null;
   }
@@ -233,4 +268,17 @@ export function describeScreen(state, meta = []) {
   if (v.type === 'analytics') return { view: 'analytics', range: v.range };
   if (v.type === 'calendar') return { view: 'calendar', date: v.date, mode: v.mode };
   return { view: v.type, query: v.query || '' };
+}
+
+// A spoken sentence the page parser couldn't place but that clearly refers to
+// the open job cards ("pull up the one with the rotors", "go to her payment").
+// Those go to the text Jarvis with the screen context (silently: the voice
+// agent already acknowledged), so voice follow-ups get the same understanding
+// as typed ones. Other topics stay with the voice agent.
+const SCREEN_REF = /\b(?:one|job|card|tab|overview|estimate|quote|payment|paid|inspection|notes?|parts|summary|details|first|second|third|last|middle|newest|oldest|left|right|next|previous|back|brake|oil|rotor|pads?|diag\w*|transmission|tires?|jan|feb|mar|apr|may|jun|jul|aug|sept?|oct|nov|dec)\b|\b\d{1,2}(?:st|nd|rd|th)\b/;
+const OTHER_TOPIC = /\b(?:revenue|money|made|profit|calendar|schedule|tomorrow|today|customers?|leads?|remind|reminder|text|email|call|book|reschedule|cancel|mark)\b/;
+export function isScreenFollowUp(text, state) {
+  const t = clean(text);
+  const v = top(state);
+  return !!t && v?.type === 'jobs' && t.split(' ').length <= 12 && SCREEN_REF.test(t) && !OTHER_TOPIC.test(t);
 }

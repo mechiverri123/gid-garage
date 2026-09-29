@@ -33,7 +33,7 @@ import { Skeleton, ErrorState } from './ui/primitives';
 import type { OrbState } from './ui/JarvisOrb';
 import { C } from './ui/theme';
 import './ui/command-center.css';
-import { workspaceReduce, parseLocalCommand, describeScreen, workspaceTop, INITIAL_WORKSPACE } from '../../shared/jarvis-workspace.js';
+import { workspaceReduce, parseLocalCommand, describeScreen, workspaceTop, isScreenFollowUp, INITIAL_WORKSPACE } from '../../shared/jarvis-workspace.js';
 import { phoenixYmd } from '../../shared/business-metrics.js';
 import { jobMeta, revenuePrefetch } from './workspace/jobMeta';
 
@@ -106,9 +106,11 @@ export function CommandCenterPage({ onLock }: { onLock: () => void }) {
   }), []);
 
   // Spoken on-screen commands ("close jobs", "show payment") via the voice transcript.
+  const askRef = useRef<((q: string, o?: { speak?: boolean }) => void) | null>(null);
   const voice = useLiveKitJarvis(text => {
     const local = parseLocalCommand(text, wsRef.current, { meta: screenMeta(), today: phoenixYmd(new Date()) });
     if (local && local.type !== 'noop') dispatchWs(local);
+    else if (!local && isScreenFollowUp(text, wsRef.current)) askRef.current?.(text, { speak: false });
   }, applyScreenAction);
 
   // Ops (default) vs SEO Mode. SEO answers from Jarvis switch modes and bring
@@ -126,6 +128,8 @@ export function CommandCenterPage({ onLock }: { onLock: () => void }) {
     if (voice.connected) await voice.speakText(text);
   }, onUiEvent, screenHooks);
 
+  askRef.current = ask;
+
   // Every typed command: things about what's on screen are handled instantly
   // here (deterministic parser); everything else goes to Jarvis with the
   // screen context so it can answer with a view.
@@ -142,12 +146,16 @@ export function CommandCenterPage({ onLock }: { onLock: () => void }) {
   // Browser Back closes the workspace one level instead of leaving /jarvis.
   const depth = ws.stack.length;
   const pushedDepth = useRef(0);
+  // Our own history.go() after an in-page close also fires popstate; that one
+  // must not close a second level (it sent a calendar job straight home).
+  const selfPops = useRef(0);
   useEffect(() => {
     if (depth > pushedDepth.current) { for (let i = pushedDepth.current; i < depth; i++) window.history.pushState({ jarvisView: i + 1 }, ''); pushedDepth.current = depth; }
-    else if (depth < pushedDepth.current) { const n = pushedDepth.current - depth; pushedDepth.current = depth; window.history.go(-n); }
+    else if (depth < pushedDepth.current) { const n = pushedDepth.current - depth; pushedDepth.current = depth; selfPops.current += 1; window.history.go(-n); }
   }, [depth]);
   useEffect(() => {
     const onPop = () => {
+      if (selfPops.current > 0) { selfPops.current -= 1; return; }
       if (pushedDepth.current > 0 && wsRef.current.stack.length === pushedDepth.current) { pushedDepth.current -= 1; dispatchWs({ type: 'close' }); }
     };
     window.addEventListener('popstate', onPop);

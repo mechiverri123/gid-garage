@@ -183,3 +183,29 @@ test('screen tools: same actions for chat and voice', async () => {
   assert.equal(none.ok, false);
   assert.equal(workspaceTop(workspaceReduce(INITIAL_WORKSPACE, { type: 'open', view: { type: 'settings' } })).type, 'settings');
 });
+
+test('natural phrasing: filler, dates, synonyms (owner-reported cases)', () => {
+  const s = run([three]);
+  assert.deepEqual(cmd('back to overview', s), { type: 'tab', tab: 'overview' });
+  assert.deepEqual(cmd('go back to the overview', s), { type: 'tab', tab: 'overview' });
+  assert.deepEqual(cmd('take me to the payment tab', s), { type: 'tab', tab: 'payment' });
+  assert.deepEqual(cmd('can you show me the inspection', s), { type: 'tab', tab: 'inspection' });
+  assert.equal(cmd('pull up the sep 26 job', s).index, 2);
+  assert.equal(cmd('open September 21st', s).index, 0);
+  assert.equal(cmd('the 24th', s).index, 1);
+  assert.equal(cmd('9/26', s).index, 2);
+  assert.equal(cmd('pull up the brake job', s).index, 2);
+  assert.equal(cmd('the diagnostic one', s).index, 1); // a job, not the Inspection tab
+  assert.deepEqual(cmd('diagnostics', s), { type: 'tab', tab: 'inspection' });
+  assert.equal(cmd('pull up the oct 3 job', s), null); // no such date on screen -> Jarvis decides
+  assert.deepEqual(cmd('go back', s), { type: 'close' });
+});
+
+test('spoken screen follow-ups the parser misses go to Jarvis; other topics do not', async () => {
+  const { isScreenFollowUp } = await import('../shared/jarvis-workspace.js');
+  const s = run([three]);
+  assert.equal(isScreenFollowUp('pull up the one with the new rotors', s), true);
+  assert.equal(isScreenFollowUp("what's my revenue this month", s), false);
+  assert.equal(isScreenFollowUp('remind me tomorrow to order pads', s), false);
+  assert.equal(isScreenFollowUp('pull up the one with the new rotors', INITIAL_WORKSPACE), false); // nothing open
+});
