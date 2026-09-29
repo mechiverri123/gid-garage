@@ -69,6 +69,11 @@ Jarvis is the interactive command interface for GID Garage, not primarily a chat
   - **SEO tools:** only offered when the turn is about SEO or the owner is on the SEO page.
   - **Persona:** JARVIS-style British butler, "sir" in every reply (SYSTEM_PROMPT → PERSONA). Instant screen commands get short spoken acknowledgements (`ackFor` in CommandCenterPage).
   - **Tests:** `tests/voice-stack.test.js`, plus the global commands in `tests/jarvis-workspace.test.js`. The dev-only hook `window.__jarvisVoiceUtterance(text)` injects a final utterance for browser regression runs.
+- **Feed panels** (`functions/_lib/jarvis-feeds.js`, `/jarvis/feeds`, `workspace/FeedViews.tsx`) are brief, reviews, social and mail.
+  - "Brief me", "show me my reviews", "any new followers" and "check my email" are answered by the fast path (`parsePanelRequest` → `show_panel`) with no Claude call.
+  - Outside calls are cached in R2 (`GID_PHOTOS`: `cache/`; tokens and history in `private/`, which the photo routes refuse to serve).
+  - They're read-only toward Google, Meta and Zoho.
+  - The wake word (`voice/wakeWord.tsx`) is the browser's free speech recognition and only starts Deepgram after "Jarvis".
 - The only remaining `/admin` link on `/jarvis` is the explicit "Admin dashboard" item in the account menu. Settings opens the admin Hub re-themed; new customers are created with their first job (New Job), same as `/admin`.
 
 # 0.3 COMMAND CENTER UI (redesign, 2026-09-28)

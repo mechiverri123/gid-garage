@@ -460,7 +460,7 @@ export function useDirectVoice({ onUtterance, onBargeIn }: { onUtterance: (text:
     mode: 'direct' as const,
     state, error, partial, budgetNote, diagnostics,
     connected: state === 'listening' || state === 'speaking' || state === 'thinking' || state === 'interrupted',
-    connect, disconnect, toggle,
+    connect, disconnect, toggle, isActive: () => r.active,
     speak, speakChunk, endSpeech, stopSpeaking: stopPlayback, setThinking,
     // Compatibility with the LiveKit hook's shape.
     speakText: speak,

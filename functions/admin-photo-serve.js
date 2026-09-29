@@ -29,7 +29,7 @@ export async function onRequestGet({ request, env }) {
   }
 
   // Prevent path traversal
-  if (key.includes('..') || key.startsWith('/')) {
+  if (key.includes('..') || key.startsWith('/') || key.startsWith('private/')) {
     return new Response('Invalid key', { status: 400 });
   }
 

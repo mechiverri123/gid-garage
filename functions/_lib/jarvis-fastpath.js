@@ -7,9 +7,12 @@
 // doesn't match (or finds nothing) goes to Claude as before.
 // Tests: tests/voice-stack.test.js.
 
-import { parseRevenueRequest, parseScheduleRequest, parseCustomerJobsRequest } from '../../shared/jarvis-workspace.js';
+import { parseRevenueRequest, parseScheduleRequest, parseCustomerJobsRequest, parsePanelRequest } from '../../shared/jarvis-workspace.js';
 
 export function matchFastPath(text, today) {
+  // "brief me", "show me my reviews", "any new followers", "check my email"
+  const panel = parsePanelRequest(text);
+  if (panel) return { tool: 'show_panel', input: panel };
   const rev = parseRevenueRequest(text, today);
   if (rev) return { tool: 'show_revenue', input: rev };
   const cal = parseScheduleRequest(text, today);
@@ -53,5 +56,6 @@ export function fastLine(match, result, today) {
   if (match.tool === 'show_revenue') return typeof result.collected === 'number' ? revenueLine(result, today) : null;
   if (match.tool === 'show_calendar') return result.date ? calendarLine(result, today) : null;
   if (match.tool === 'show_jobs') return result.jobs?.length ? result.say || null : null;
+  if (match.tool === 'show_panel') return result.say || null;
   return null;
 }

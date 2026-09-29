@@ -46,6 +46,10 @@ export function normalizeView(v) {
       return { type: 'newJob' };
     case 'settings':
       return { type: 'settings' };
+    // Feed panels (functions/_lib/jarvis-feeds.js): the daily brief, Google
+    // reviews, Facebook/Instagram, email. `open` picks one email in the mail panel.
+    case 'brief': case 'reviews': case 'social': case 'mail':
+      return { type: v.type, ...(v.type === 'mail' && v.open ? { open: String(v.open).slice(0, 80) } : {}) };
     default:
       return null;
   }
@@ -62,6 +66,9 @@ export function workspaceReduce(state, action) {
       const view = normalizeView(action.view);
       if (!view) return state;
       if (t && view.type === 'jobs' && BROWSERS.has(t.type)) return { stack: [...state.stack, view].slice(-MAX_STACK) };
+      // The brief is a hub: whatever it opens stacks, so "close" returns to the brief.
+      if (t?.type === 'brief' && view.type !== 'brief') return { stack: [...state.stack, view].slice(-MAX_STACK) };
+      if (state.stack[0]?.type === 'brief' && view.type !== 'brief' && t.type !== 'jobs') return replaceTop(state, view);
       if (t && t.type === view.type) return replaceTop(state, view);
       return { stack: [view] };
     }
@@ -505,5 +512,24 @@ export function parseCustomerJobsRequest(text) {
   }
   m = t.match(/^(?:pull up|bring up|open up|open)\s+([a-z][a-z.'-]+ [a-z][a-z.'-]+)$/);
   if (m && !/\b(?:calendar|schedule|revenue|jobs?|customers?|settings|seo|chart|graph|dashboard|jarvis|payment|estimate|inspection|notes|parts|overview|month|week|today|tomorrow)\b/.test(m[1])) return { customer: m[1], count: null };
+  return null;
+}
+
+// ---- feed panels: brief / reviews / social / email ------------------------------------
+
+const PANEL_VERB = String.raw`(?:(?:can you |could you )?(?:show|pull up|open|bring up|let me see|check|see|read|go to|take me to|display|give me)(?: me)? )?`;
+const PANEL_ASKS = [
+  ['brief', new RegExp(String.raw`^(?:brief me|(?:give me |show me |pull up |what's )?(?:the |my |a |today's )?(?:daily |morning |evening )?(?:brief|briefing|rundown|run down)(?: for today)?|good (?:morning|afternoon|evening)|what's (?:going on|happening|the plan) today|catch me up|morning report|daily report)$`)],
+  ['reviews', new RegExp(String.raw`^${PANEL_VERB}(?:my |our |the )?(?:google )?reviews?$|^(?:any|do i have any|did i get any|did we get any|have i (?:gotten|got) any|have we (?:gotten|got) any) new (?:google )?reviews$|^how (?:are|is) (?:my|our) (?:google )?(?:reviews|rating)$|^(?:what's|what is) (?:my|our) (?:google )?rating$`)],
+  ['social', new RegExp(String.raw`^${PANEL_VERB}(?:my |our |the )?(?:facebook|instagram|insta|ig|social media|socials|social|fb)(?: page| account| stats| insights)?(?: and (?:my |our )?(?:facebook|instagram|insta))?$|^(?:any|do i have any|did i get any|how many) new (?:followers|likes|follows)(?: on (?:facebook|instagram|insta|social media))?(?: overnight| today| this week)?$|^how(?:'s| is| are) (?:my|our) (?:facebook|instagram|social media|socials|page) doing$`)],
+  ['mail', new RegExp(String.raw`^${PANEL_VERB}(?:my |our |the )?(?:new )?(?:e-?mails?|inbox|mail)$|^(?:any|do i have any|did i get any|have i (?:gotten|got) any) new (?:e-?mails?|mail)$|^check (?:my )?(?:e-?mail|inbox|mail)$|^(?:any|did i get an?|is there an?) (?:o'?reilly(?:'s)?|parts) (?:order|receipt|email)s?$`)],
+];
+
+// "Brief me", "show me my reviews", "any new followers", "check my email" ->
+// { panel }, else null. Short, plain requests only; anything richer goes to Jarvis.
+export function parsePanelRequest(text) {
+  const t = clean(text).replace(/\s+(?:jarvis|sir)$/, '');
+  if (!t || t.split(' ').length > 12) return null;
+  for (const [panel, re] of PANEL_ASKS) if (re.test(t)) return { panel };
   return null;
 }

@@ -2,3 +2,4 @@
 export function speakable(text: string, opts?: { maxChars?: number }): string;
 export function createSentenceBuffer(): { push(delta: string): string[]; flush(): string };
 export function wantsFullReadout(text: string): boolean;
+export function afterWakeWord(text: string): string | null;

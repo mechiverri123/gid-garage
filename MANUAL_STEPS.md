@@ -1,3 +1,24 @@
+# Jarvis feeds: brief, reviews, Facebook/Instagram, email, wake word
+
+All free, and there's nothing to set in Cloudflare. Tokens are stored in the R2 bucket under `private/`, which only the Access-protected `/jarvis/feeds` can read.
+
+- **Wake word "Jarvis".** On /jarvis, turn on "Wake word" under the voice button. Use Chrome or Edge.
+  - The browser listens only for "Jarvis"; paid voice starts after it hears it, then sleeps after 45 s of quiet.
+  - Chrome's mic indicator stays on while it listens.
+- **Google reviews** use the existing `GOOGLE_PLACES_API_KEY` / `GOOGLE_PLACE_ID` and need nothing new.
+  - They appear at the top of SEO. Ask "Jarvis, show me my reviews" to open them.
+  - The brief counts new reviews from the last 7 days.
+- **Facebook + Instagram (+ Meta ads)**, one time: say "Jarvis, show me my Facebook". The panel has the steps.
+  - Graph API Explorer token with pages_show_list, pages_read_engagement, instagram_basic, instagram_manage_insights and ads_read.
+  - Also paste the app ID and secret, so the page token doesn't expire.
+  - The ads part uses a 60-day user token. Re-paste it when the panel says it has expired.
+- **Zoho Mail**, one time: say "Jarvis, check my email". The panel has the steps.
+  - api-console.zoho.com → Self Client.
+  - Scope `ZohoMail.accounts.READ,ZohoMail.messages.READ`.
+  - Paste the ID, secret and code within 10 minutes.
+  - O'Reilly emails are flagged as parts orders. The access is read-only.
+- **Brief:** "Jarvis, brief me" or "good morning". It shows today's jobs, weather, what needs you, reviews, overnight likes and followers, email, and ads. Telegram briefings are unchanged.
+
 # Jarvis voice (direct Deepgram + Claude + Cartesia) — setup
 
 Voice no longer uses LiveKit Inference. The page talks to Deepgram (hearing)

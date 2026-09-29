@@ -52,3 +52,14 @@ export function createSentenceBuffer() {
 export function wantsFullReadout(text) {
   return /\b(read (?:me |it |them |that |those )?(?:all|everything|the details|every|out)|read (?:it|them) (?:all|out)|tell me everything|all the details|go through (?:each|every|all))\b/i.test(String(text || ''));
 }
+
+// Wake word: "hey jarvis, what's on tomorrow" -> "what's on tomorrow" (the text
+// after the last "Jarvis"); "" for "Jarvis" alone; null when it isn't there.
+// Includes common mishearings. Used by src/command-center/voice/wakeWord.tsx.
+const WAKE = /\b(?:jarvis|jervis|jarvus|javis|jarvas)\b[\s,.!?]*/gi;
+export function afterWakeWord(text) {
+  const t = String(text || '');
+  let end = -1;
+  for (const m of t.matchAll(WAKE)) end = (m.index ?? 0) + m[0].length;
+  return end < 0 ? null : t.slice(end).trim();
+}

@@ -15,11 +15,13 @@ import { useBusinessSummary } from './hooks/useBusinessSummary';
 import { useAdminAI } from './hooks/useAdminAI';
 import { useLiveKitJarvis, type RealtimeVoiceState } from './hooks/useLiveKitJarvis';
 import { useDirectVoice } from './voice/useDirectVoice';
+import { useWakeWord, WakeWordToggle } from './voice/wakeWord';
 
 // Voice engine: 'direct' (default) = browser <-> Deepgram STT / Cartesia TTS with
 // Claude via admin-ai-chat.js. 'livekit' = the legacy LiveKit agent, kept only
 // as a rollback (set VITE_JARVIS_VOICE=livekit and redeploy). Never both.
 const VOICE_MODE: 'direct' | 'livekit' = import.meta.env.VITE_JARVIS_VOICE === 'livekit' ? 'livekit' : 'direct';
+const WAKE_SLEEP_MS = 45_000; // a wake-word session sleeps after this long with no new request
 import { RealtimeVoiceControl } from './components/RealtimeVoiceControl';
 import { LeadDetailPanel } from './components/LeadDetailPanel';
 import { LeadPipeline } from './components/LeadPipeline';
@@ -41,7 +43,7 @@ import { C } from './ui/theme';
 import './ui/command-center.css';
 import { workspaceReduce, parseLocalCommand, describeScreen, workspaceTop, isScreenFollowUp, INITIAL_WORKSPACE } from '../../shared/jarvis-workspace.js';
 import { phoenixYmd } from '../../shared/business-metrics.js';
-import { jobMeta, revenuePrefetch } from './workspace/jobMeta';
+import { jobMeta, revenuePrefetch, feedPrefetch } from './workspace/jobMeta';
 
 // Jobs, calendar, revenue and lists open here, over the dashboard (never /admin).
 const JarvisWorkspace = lazy(() => import('./workspace/JarvisWorkspace'));
@@ -118,6 +120,8 @@ export function CommandCenterPage({ onLock }: { onLock: () => void }) {
     if (!a || typeof a.type !== 'string') return;
     const range = (a.view as { range?: { from?: string; to?: string } } | undefined)?.range;
     if (a.data && range?.from && range?.to) revenuePrefetch.set(`${range.from}|${range.to}`, a.data);
+    const vt = (a.view as { type?: string } | undefined)?.type;
+    if (a.data && vt && ['brief', 'reviews', 'social', 'mail'].includes(vt)) feedPrefetch.set(vt, a.data);
     dispatchWs(a);
   };
   const screenHooks = useMemo(() => ({
@@ -144,6 +148,32 @@ export function CommandCenterPage({ onLock }: { onLock: () => void }) {
   // Direct voice: every final utterance enters the same command path as typing.
   const direct = useDirectVoice({ onUtterance: text => utteranceRef.current?.(text), onBargeIn: () => abortRef.current?.() });
   const voice = VOICE_MODE === 'direct' ? direct : livekit;
+
+  // "Jarvis" wake word (voice/wakeWord.tsx, free): the browser listens for the
+  // word only; the paid voice session starts when it hears it and goes back to
+  // sleep after WAKE_SLEEP_MS without a new request.
+  const [wakeOn, setWakeOn] = useState(() => { try { return localStorage.getItem('jv-wake') === '1'; } catch { return false; } });
+  const setWake = (v: boolean) => { setWakeOn(v); try { localStorage.setItem('jv-wake', v ? '1' : '0'); } catch { /* private mode */ } };
+  const wakeSession = useRef(false);
+  const disconnectVoice = direct.disconnect; // stable (useCallback); `direct` itself is new every render
+  const voiceLive = direct.state !== 'off' && direct.state !== 'error' && direct.state !== 'unavailable';
+  const wake = useWakeWord({
+    enabled: wakeOn && VOICE_MODE === 'direct',
+    paused: voiceLive,
+    onWake: async command => {
+      wakeSession.current = true;
+      await direct.connect();
+      if (!direct.isActive()) return;
+      if (command) utteranceRef.current?.(command);
+      else void direct.speak('Yes, sir?');
+    },
+  });
+  useEffect(() => {
+    if (!voiceLive) { wakeSession.current = false; return; }
+    if (!wakeSession.current || direct.state !== 'listening') return;
+    const t = window.setTimeout(() => { if (wakeSession.current) void disconnectVoice(); }, WAKE_SLEEP_MS);
+    return () => window.clearTimeout(t);
+  }, [direct.state, voiceLive, disconnectVoice]);
   const markHandledRef = useRef<((t: string) => void) | null>(null);
   markHandledRef.current = livekit.markHandled;
 
@@ -290,11 +320,18 @@ export function CommandCenterPage({ onLock }: { onLock: () => void }) {
     { id: 'takehome', label: 'Take-home this week', run: () => askAndShow('what did I actually take home this week') },
     { id: 'seo', label: 'SEO Mode (local search)', run: () => setMode('seo') },
     { id: 'seo-brief', label: 'How is local search doing?', run: () => ask('How is my local SEO doing this month?') },
+    { id: 'brief', label: 'Daily brief', run: () => openView({ type: 'brief' }) },
+    { id: 'reviews', label: 'Google reviews', run: () => openView({ type: 'reviews' }) },
+    { id: 'social', label: 'Facebook & Instagram', run: () => openView({ type: 'social' }) },
+    { id: 'mail', label: 'Email inbox', run: () => openView({ type: 'mail' }) },
     { id: 'refresh', label: 'Refresh dashboard', run: () => loadSummary() },
   ]);
 
-  const voiceControl = <RealtimeVoiceControl mode={VOICE_MODE} state={voice.state} error={voice.error} diagnostics={voice.diagnostics} onToggle={voice.toggle} onTestVoice={voice.testVoice}
-    partial={VOICE_MODE === 'direct' ? direct.partial : ''} note={VOICE_MODE === 'direct' ? direct.budgetNote : null} />;
+  const voiceControl = <div className="flex flex-col gap-2">
+    <RealtimeVoiceControl mode={VOICE_MODE} state={voice.state} error={voice.error} diagnostics={voice.diagnostics} onToggle={() => { wakeSession.current = false; voice.toggle(); }} onTestVoice={voice.testVoice}
+      partial={VOICE_MODE === 'direct' ? direct.partial : ''} note={VOICE_MODE === 'direct' ? direct.budgetNote : null} />
+    {VOICE_MODE === 'direct' && <WakeWordToggle on={wakeOn} onChange={setWake} supported={wake.supported} listening={wake.listening} error={wake.error} />}
+  </div>;
   const title = mode === 'seo' ? 'Local Search Command Center' : 'Command Center';
 
   return (
@@ -317,7 +354,7 @@ export function CommandCenterPage({ onLock }: { onLock: () => void }) {
           <div className="max-w-[1920px] mx-auto px-4 sm:px-6 xl:px-8 py-5 flex flex-col gap-4 sm:gap-5">
             {error && !summary && <ErrorState message={`Couldn't load the dashboard: ${error}`} onRetry={loadSummary} />}
             {mode === 'seo' ? (
-              <SeoMode focus={seoFocus} onFocus={setSeoFocus} orb={orb} />
+              <SeoMode focus={seoFocus} onFocus={setSeoFocus} orb={orb} onOpenReviews={() => openView({ type: 'reviews' })} />
             ) : !summary ? (
               loading ? <DashboardSkeleton /> : null
             ) : (<>

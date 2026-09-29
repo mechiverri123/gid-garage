@@ -40,6 +40,7 @@ import { runScreenTool } from './_lib/jarvis-screen.js';
 import { readBudget, addUsage, anthropicUsd, pricing } from './_lib/ai-budget.js';
 import { readClaudeStream } from './_lib/claude-stream.js';
 import { matchFastPath, fastLine } from './_lib/jarvis-fastpath.js';
+import { loadBrief, reviewsFeed, socialFeed, mailFeed, briefLine, reviewsLine, socialLine, mailLine } from './_lib/jarvis-feeds.js';
 import { createSentenceBuffer, wantsFullReadout } from '../shared/voice-text.js';
 import { claimsWriteSuccess, isSuccessfulWrite, SEO_TOOLS } from './_lib/jarvis-context.js';
 import { SEO_PATTERN } from './_lib/jarvis-intent.js';
@@ -365,6 +366,11 @@ const UI_TOOLS = [
     name: 'show_customers',
     description: 'Open the customer list (optionally filtered by a name/phone/vehicle query).',
     input_schema: { type: 'object', properties: { query: { type: 'string' } } },
+  },
+  {
+    name: 'show_panel',
+    description: "Open a panel on the owner's screen: brief (the visual daily brief: jobs, weather, leads, unpaid, reviews, social, email, ads), reviews (Google reviews), social (Facebook + Instagram followers/likes/posts), mail (Zoho inbox; O'Reilly parts emails flagged). Reply with the returned `say` line.",
+    input_schema: { type: 'object', properties: { panel: { type: 'string', enum: ['brief', 'reviews', 'social', 'mail'] } }, required: ['panel'] },
   },
   {
     name: 'control_screen',
@@ -1498,6 +1504,20 @@ export async function onRequestPost({ request, env }) {
       case 'update_seo_recommendation':
         return await seo().updateRecommendation({ id: String(input.id || ''), action: String(input.action || ''), reason: String(input.reason || ''), note: String(input.note || '') });
 
+      case 'show_panel': {
+        // Feed panels (functions/_lib/jarvis-feeds.js). The data rides along with
+        // the open action so the panel shows exactly what was said.
+        const panel = ['brief', 'reviews', 'social', 'mail'].includes(input.panel) ? input.panel : 'brief';
+        const feedArgs = { env, bucket: env.GID_PHOTOS };
+        const safeFeed = p => p.catch(e => ({ connected: true, error: e.message }));
+        const data = panel === 'brief' ? await loadBrief({ env, ops, sbGet })
+          : panel === 'reviews' ? await safeFeed(reviewsFeed(feedArgs))
+          : panel === 'social' ? await safeFeed(socialFeed(feedArgs))
+          : await safeFeed(mailFeed(feedArgs));
+        const hour = Number(phoenixParts().hour);
+        const say = panel === 'brief' ? briefLine(data, hour) : panel === 'reviews' ? reviewsLine(data) : panel === 'social' ? socialLine(data) : mailLine(data);
+        return { panel, say, onScreen: true, __ui: [{ type: 'open', view: { type: panel }, data }] };
+      }
       case 'show_jobs': case 'show_revenue': case 'show_calendar': case 'show_job_list': case 'show_customers': case 'control_screen':
         return runScreenTool(name, input, { ops, screen: uiScreen?.screen ?? null, today: phoenixDateString() });
 
