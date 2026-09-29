@@ -49,7 +49,12 @@ function ackFor(a: WsAction) {
   if (a.type === 'tab') return `${TAB_WORD[String(a.tab)] ?? 'Done'}.`;
   if (a.type === 'focus' || a.type === 'step') return 'Opened.';
   if (a.type === 'range') { const r = a.range as Record<string, unknown>; return r.last_days ? `Showing the last ${r.last_days} days.` : 'Updated.'; }
-  if (a.type === 'calendar') return 'Calendar updated.';
+  if (a.type === 'calendar') return a.mode && !a.date ? `${String(a.mode).replace(/^./, c => c.toUpperCase())} view.` : 'Calendar updated.';
+  if (a.type === 'filter') {
+    if (typeof a.query === 'string') return a.query ? `Searching "${a.query}".` : 'Search cleared.';
+    const s = String(a.status);
+    return `Showing ${s === 'all' ? 'all jobs' : `${s.toLowerCase().replace(/_/g, ' ')} jobs`}.`;
+  }
   return 'Done.';
 }
 

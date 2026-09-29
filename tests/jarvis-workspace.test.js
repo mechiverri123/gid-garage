@@ -209,3 +209,19 @@ test('spoken screen follow-ups the parser misses go to Jarvis; other topics do n
   assert.equal(isScreenFollowUp('remind me tomorrow to order pads', s), false);
   assert.equal(isScreenFollowUp('pull up the one with the new rotors', INITIAL_WORKSPACE), false); // nothing open
 });
+
+test('jobs list and calendar: same spoken/typed switching as the job tabs', () => {
+  const L = run([{ type: 'open', view: { type: 'jobList', status: 'active' } }]);
+  assert.deepEqual(cmd('all', L), { type: 'filter', status: 'all' });
+  assert.deepEqual(cmd('show all jobs', L), { type: 'filter', status: 'all' });
+  assert.deepEqual(cmd('the paid ones', L), { type: 'filter', status: 'PAID' });
+  assert.deepEqual(cmd('back to active', L), { type: 'filter', status: 'active' });
+  assert.deepEqual(cmd('unpaid', L), { type: 'filter', status: 'unpaid' });
+  assert.deepEqual(cmd('show me in progress', L), { type: 'filter', status: 'IN_PROGRESS' });
+  assert.deepEqual(cmd('find Jill', L), { type: 'filter', query: 'jill' });
+  assert.deepEqual(cmd('clear search', L), { type: 'filter', query: '' });
+  assert.equal(workspaceTop(workspaceReduce(L, cmd('all', L))).status, 'all');
+  const Cal = run([{ type: 'open', view: { type: 'calendar', date: '2026-09-28', mode: 'week' } }]);
+  assert.deepEqual(cmd('month', Cal), { type: 'calendar', mode: 'month' });
+  assert.deepEqual(cmd('switch to day', Cal), { type: 'calendar', mode: 'day' });
+});

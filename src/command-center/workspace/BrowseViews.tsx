@@ -15,6 +15,7 @@ const STATUS_FILTERS = [
   { value: 'active', label: 'Active' }, { value: 'unpaid', label: 'Unpaid' }, { value: 'PAID', label: 'Paid' },
   { value: 'CANCELLED', label: 'Cancelled' }, { value: 'all', label: 'All' },
 ];
+const STAGE_LABEL: Record<string, string> = { BOOKED: 'Booked', ESTIMATE_SENT: 'Estimate sent', SIGNED: 'Signed', IN_PROGRESS: 'In progress', COMPLETED: 'Completed', INVOICED: 'Invoiced' };
 function statusMatch(j: Job, s: string) {
   if (s === 'all') return true;
   if (s === 'active') return !isCancelled(j) && j.jobStatus !== 'PAID';
@@ -56,6 +57,10 @@ export function JobListView({ query, status, dispatch }: { query: string; status
           <button key={f.value} type="button" onClick={() => dispatch({ type: 'filter', status: f.value })} className="cc-btn text-[13px] font-semibold px-3 h-9 rounded-lg"
             style={f.value === status ? { background: 'rgba(52,214,255,0.18)', color: C.text, border: `1px solid ${C.cyan}` } : { color: C.text2, border: `1px solid ${C.border}` }}>{f.label}</button>
         ))}
+        {!STATUS_FILTERS.some(f => f.value === status) && (
+          <button type="button" onClick={() => dispatch({ type: 'filter', status: 'active' })} title="Back to Active" className="cc-btn text-[13px] font-semibold px-3 h-9 rounded-lg"
+            style={{ background: 'rgba(52,214,255,0.18)', color: C.text, border: `1px solid ${C.cyan}` }}>{STAGE_LABEL[status] ?? status} ×</button>
+        )}
         {jobs && <span className="self-center text-[13.5px] ml-1" style={{ color: C.muted }}>{rows.length} job{rows.length === 1 ? '' : 's'}</span>}
       </div>
       {error ? <ErrorState message={`Couldn't load jobs: ${error}`} /> : !jobs ? <Skeleton className="h-[360px]" /> : !rows.length ? <EmptyState icon={Briefcase} title="No jobs match">Try another name or filter.</EmptyState> : (

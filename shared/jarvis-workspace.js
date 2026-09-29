@@ -141,7 +141,15 @@ const STOP = new Set(['the', 'one', 'job', 'jobs', 'that', 'this', 'from', 'with
 const RANGE_RE = /^(?:(?:show|graph|chart|give me|what about|how about|and|pull up|display|now|try|do|make it|switch to|change to)(?: me)? )*(?:the )?(?:(?:last|past|previous) )?(\d{1,4}) ?days?(?: of revenue| revenue)?$/;
 const PERIOD_RE = /^(?:(?:show|graph|chart|what about|how about|and|switch to|change to)(?: me)? )*(?:revenue )?(today|yesterday|this week|this month|last month|this year)(?: revenue)?$/;
 const CAL_RE = /^(?:(?:show|open|go to|what about|how about|and|what do i have|jump to)(?: me)? )*(today|tomorrow|yesterday|this week|next week|last week|this month|next month|last month|(?:next |this )?(?:sunday|monday|tuesday|wednesday|thursday|friday|saturday))$/;
-const CAL_MODE_RE = /^(?:(?:show|switch to|go to)(?: the)? )?(day|week|month) view$/;
+const CAL_MODE_RE = /^(?:(?:show|switch to|go to|change to)(?: the)? )?(?:by )?(day|week|month)(?: view)?$/;
+const LIST_STATUS = {
+  all: 'all', everything: 'all', 'all of them': 'all', every: 'all',
+  active: 'active', open: 'active', current: 'active',
+  unpaid: 'unpaid', owed: 'unpaid', outstanding: 'unpaid', 'who owes': 'unpaid', due: 'unpaid',
+  paid: 'PAID', cancelled: 'CANCELLED', canceled: 'CANCELLED',
+  booked: 'BOOKED', 'estimate sent': 'ESTIMATE_SENT', estimates: 'ESTIMATE_SENT', signed: 'SIGNED',
+  'in progress': 'IN_PROGRESS', completed: 'COMPLETED', done: 'COMPLETED', invoiced: 'INVOICED',
+};
 
 const ORDINAL_WORDS = new Set(['first', '1st', 'second', '2nd', 'third', '3rd', 'fourth', '4th', 'fifth', '5th', 'last', 'middle', 'center', 'centre', 'left', 'right', 'newest', 'latest', 'oldest', 'most recent', 'earliest']);
 const SYNONYMS = {
@@ -152,7 +160,7 @@ const SYNONYMS = {
 // Conversational wrapping around the thing being asked for: "back to overview",
 // "take me to the payment tab", "can you pull up the Sep 26 job".
 const LEAD_FILLER = /^(?:can you|could you|would you|will you|let's|lets|let me|i want to|i wanna|i'd like to|take me|bring me|go|head|switch|flip|jump|move|pull|bring|open|show|see|view|check|look at|look|give me|back|over|up|to|into|on|at|the|me|us|its|it's|his|her|their|that|this|just|and|then|now)\b\s*/;
-const TRAIL_FILLER = /\s*\b(?:tab|page|section|screen|info|again|one|job|card|please|instead)$/;
+const TRAIL_FILLER = /\s*\b(?:tab|page|section|screen|info|again|one|job|jobs|card|please|instead|filter|only|ones)$/;
 function core(t) {
   let s = t; let prev;
   do { prev = s; s = s.replace(LEAD_FILLER, ''); } while (s && s !== prev);
@@ -234,6 +242,19 @@ export function parseLocalCommand(text, state, { meta = [], today } = {}) {
       const hits = labels.filter(m => words.every(w => has(m.l, w)));
       if (hits.length === 1) return { type: 'focus', index: hits[0].i, expand: true };
     }
+    return null;
+  }
+
+  // Jobs list: the same chips as the screen (Active / Unpaid / Paid / Cancelled / All),
+  // pipeline stages, and search ("find Jill", "search Acura", "clear search").
+  if (view.type === 'jobList' || view.type === 'customers') {
+    if (/^(?:clear|reset)(?: the)? (?:search|filters?)$/.test(t)) return { type: 'filter', query: '' };
+    if (view.type === 'jobList') {
+      const status = LIST_STATUS[core(t)];
+      if (status) return { type: 'filter', status };
+    }
+    const find = t.match(/^(?:search|find|look up|lookup|filter|search for|find me|show me|show)(?: for)? (.+)$/);
+    if (find && !LIST_STATUS[core(find[1])]) return { type: 'filter', query: find[1].replace(/^(?:the |a )/, '').replace(/'s$/, '') };
     return null;
   }
 
