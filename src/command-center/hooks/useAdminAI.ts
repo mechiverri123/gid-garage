@@ -11,6 +11,7 @@ const ERROR_PULSE_MS = 600;
 export interface ScreenHooks {
   getScreen?: () => unknown;
   onWorkspace?: (action: unknown, data?: unknown) => void;
+  onBudget?: (budget: unknown) => void;
 }
 
 export function useAdminAI(onWriteLikelyHappened: () => void, onFinalText?: (text: string) => void | Promise<void>, onUiEvent?: (e: UiModeEvent) => void, screen?: ScreenHooks) {
@@ -29,10 +30,16 @@ export function useAdminAI(onWriteLikelyHappened: () => void, onFinalText?: (tex
     pulseTimer.current = setTimeout(() => setJarvisState('idle'), ms);
   }, []);
 
-  // speak:false = a silent screen follow-up (the voice agent already answered).
-  const ask = useCallback(async (question: string, opts?: { speak?: boolean }) => {
+  // Voice turns: voice:true asks for short spoken replies streamed sentence by
+  // sentence (onSay); onFinal sees the final event (spoken flag, guard override).
+  // speak:false = don't read the final text through onFinalText.
+  const abortRef = useRef<AbortController | null>(null);
+  const abort = useCallback(() => { abortRef.current?.abort(); }, []);
+  const ask = useCallback(async (question: string, opts?: { speak?: boolean; voice?: boolean; onSay?: (sentence: string) => void; onFinal?: (e: { text: string; spoken?: boolean; guarded?: boolean }) => void }) => {
     const q = question.trim();
     if (!q || asking) return;
+    const controller = new AbortController();
+    abortRef.current = controller;
     setAsking(true);
     setLiveActivity([]);
     setJarvisState('processing');
@@ -43,7 +50,8 @@ export function useAdminAI(onWriteLikelyHappened: () => void, onFinalText?: (tex
       const res = await fetch('/admin-ai-chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: nextMessages, context: contextRef.current, ...(screen ? { ui: { enabled: true, screen: screen.getScreen?.() ?? null } } : {}) }),
+        body: JSON.stringify({ messages: nextMessages, context: contextRef.current, ...(screen ? { ui: { enabled: true, screen: screen.getScreen?.() ?? null } } : {}), ...(opts?.voice ? { voice: true, stream: true } : {}) }),
+        signal: controller.signal,
       });
       if (!res.ok) throw new Error(await res.text());
       if (!res.body) throw new Error('No response stream.');
@@ -88,7 +96,12 @@ export function useAdminAI(onWriteLikelyHappened: () => void, onFinalText?: (tex
             contextRef.current = event.context ?? null;
           } else if (event.type === 'data') {
             pendingCards = [...pendingCards, { tool: event.tool, payload: event.payload }];
+          } else if (event.type === 'say') {
+            opts?.onSay?.(String(event.text || ''));
+          } else if (event.type === 'budget') {
+            screen?.onBudget?.(event);
           } else if (event.type === 'final') {
+            opts?.onFinal?.({ text: event.text || '', spoken: event.spoken, guarded: event.guarded });
             sawFinal = true;
             const finalText = event.text || 'No answer.';
             setChatMessages(prev => [...prev, { role: 'assistant', content: finalText, cards: pendingCards.length ? pendingCards : undefined }]);
@@ -112,6 +125,7 @@ export function useAdminAI(onWriteLikelyHappened: () => void, onFinalText?: (tex
         pulse('error', ERROR_PULSE_MS);
       }
     } catch (err: any) {
+      if (err?.name === 'AbortError') { setLiveActivity([]); setJarvisState('idle'); return; } // interrupted by the owner (barge-in)
       setChatMessages(prev => [...prev, { role: 'assistant', content: `Error: ${err.message}` }]);
       setLiveActivity([]);
       pulse('error', ERROR_PULSE_MS);
@@ -133,5 +147,5 @@ export function useAdminAI(onWriteLikelyHappened: () => void, onFinalText?: (tex
     setJarvisState('idle');
   }, []);
 
-  return { chatMessages, asking, liveActivity, jarvisState, ask, clear, addLocal };
+  return { chatMessages, asking, liveActivity, jarvisState, ask, abort, clear, addLocal };
 }

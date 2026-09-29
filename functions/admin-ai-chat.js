@@ -37,6 +37,10 @@ import { SETTABLE_JOB_STATUSES, PAYMENT_METHODS, leadStatusUpdate, leadFollowUpR
 import { jobEvidence } from '../shared/job-context.js';
 import { JOB_TABS, CALENDAR_MODES } from '../shared/jarvis-workspace.js';
 import { runScreenTool } from './_lib/jarvis-screen.js';
+import { readBudget, addUsage, anthropicUsd, pricing } from './_lib/ai-budget.js';
+import { readClaudeStream } from './_lib/claude-stream.js';
+import { createSentenceBuffer, wantsFullReadout } from '../shared/voice-text.js';
+import { claimsWriteSuccess, isSuccessfulWrite } from './_lib/jarvis-context.js';
 
 const CLAUDE_MODEL = 'claude-haiku-4-5-20251001';
 const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
@@ -927,6 +931,23 @@ export async function onRequestPost({ request, env }) {
     return ndjsonFinal(analysis.owner_analysis, analysis);
   }
 
+  // Monthly AI budget governor (functions/_lib/ai-budget.js). An estimate, not
+  // billing: at the ceiling, stop starting new paid Claude turns; the page's
+  // own screen commands keep working without AI.
+  const budget = await readBudget({ base, headers, env });
+  if (budget.state === 'blocked') {
+    const body = [
+      { type: 'budget', ...budget },
+      { type: 'ui_mode', mode: 'ops' },
+      { type: 'final', text: 'Monthly Jarvis AI budget reached. Screen commands and shortcuts still work; AI answers resume next month or when the budget is raised.' },
+    ].map(e => JSON.stringify(e)).join('\n') + '\n';
+    return new Response(new TextEncoder().encode(body), { headers: { 'Content-Type': 'application/x-ndjson; charset=utf-8', 'Cache-Control': 'no-cache' } });
+  }
+  // Voice turns (/jarvis spoken input): short spoken replies, streamed per sentence.
+  const voiceTurn = payload.voice === true;
+  const streamSay = payload.stream === true;
+  const fullReadout = wantsFullReadout(latestUserText);
+
   // ---- Tool implementations (direct Supabase REST, same pattern as admin-api-data.js) ----
   async function sbGet(table, params) {
     const qs = new URLSearchParams(params).toString();
@@ -1528,6 +1549,16 @@ export async function onRequestPost({ request, env }) {
     const screen = uiScreen.screen ? JSON.stringify(uiScreen.screen).slice(0, 3000) : 'nothing open (normal Jarvis screen)';
     messages[messages.length - 1] = { ...last, content: `${last.content}\n\n[SCREEN: ${screen}]\n[${VISUAL_FIRST}]` };
   }
+  if (voiceTurn) {
+    const last = messages[messages.length - 1];
+    const style = fullReadout
+      ? 'The owner asked to hear the details: read them plainly, no lists or symbols.'
+      : budget.state === 'conscious'
+        ? 'Reply in ONE short spoken sentence.'
+        : 'Reply in 1-2 short spoken sentences.';
+    messages[messages.length - 1] = { ...last, content: `${last.content}\n\n[VOICE: This reply is spoken aloud. ${style} No markdown, lists, URLs or ids. The screen shows the detail.]` };
+  }
+  const maxTokens = fullReadout ? 1024 : voiceTurn ? (budget.state === 'conscious' ? 200 : 350) : 1024;
 
 
   const { readable, writable } = new TransformStream();
@@ -1565,6 +1596,22 @@ export async function onRequestPost({ request, env }) {
       return JSON.stringify({ ok: false, error });
     }
   }
+  let saidCount = 0;
+  async function say(sentence) {
+    const text = String(sentence || '').trim();
+    if (!streamSay || !text) return;
+    // Never speak a success claim before a write actually succeeded (guardFinalText).
+    if (claimsWriteSuccess(text) && !turnCalls.some(isSuccessfulWrite)) return;
+    saidCount += 1;
+    await send({ type: 'say', text });
+  }
+  const usageTotal = {};
+  const addTurnUsage = u => { for (const [k, v] of Object.entries(u || {})) if (typeof v === 'number') usageTotal[k] = (usageTotal[k] || 0) + v; };
+  async function recordAnthropicUsage() {
+    const usd = anthropicUsd(usageTotal, pricing(env));
+    if (usd > 0) await addUsage({ base, headers, provider: 'anthropic', units: (usageTotal.input_tokens || 0) + (usageTotal.output_tokens || 0), usd });
+  }
+
   async function finish(text) {
     const guarded = guardFinalText(text, turnCalls);
     const nextContext = updateContext(priorContext, turnCalls, { intent: focusedIntent, plan });
@@ -1573,7 +1620,7 @@ export async function onRequestPost({ request, env }) {
     // anything else returns the Command Center to operations.
     const seoTurn = focusedIntent === 'seo' || turnCalls.some(c => c.ok && SEO_FOCUS[c.name]);
     await send({ type: 'ui_mode', mode: seoTurn ? 'seo' : 'ops' });
-    await send({ type: 'final', text: guarded.text, ...(guarded.overridden ? { guarded: true } : {}) });
+    await send({ type: 'final', text: guarded.text, ...(guarded.overridden ? { guarded: true } : {}), ...(streamSay ? { spoken: saidCount > 0 && !guarded.overridden } : {}) });
   }
 
   // Run the agent loop in the background; the streamed response is
@@ -1598,19 +1645,42 @@ export async function onRequestPost({ request, env }) {
           },
           body: JSON.stringify({
             model: CLAUDE_MODEL,
-            max_tokens: 1024,
-            system: SYSTEM_PROMPT,
+            max_tokens: maxTokens,
+            // Static instructions + tool list are cached (billed at ~10% on reuse).
+            system: [{ type: 'text', text: SYSTEM_PROMPT, cache_control: { type: 'ephemeral' } }],
             tools: toolsForTurn,
             messages,
+            ...(streamSay ? { stream: true } : {}),
           }),
         });
 
         if (!res.ok) {
           const detail = await res.text();
-          await send({ type: 'error', message: `Claude API error: ${detail}` });
+          const quota = res.status === 429 || res.status === 402 || /credit|quota|billing/i.test(detail);
+          console.warn(`GID_AI_ERROR provider=anthropic status=${res.status} quota=${quota}`);
+          await send({ type: 'error', message: quota ? 'Claude is unavailable right now (Anthropic rate limit or billing). Screen commands still work.' : `Claude API error: ${detail.slice(0, 300)}` });
           break;
         }
-        const data = await res.json();
+        let data;
+        if (streamSay) {
+          // Speak sentences as they complete, one sentence behind, so text Claude
+          // writes before a tool call ("Let me pull that up") is dropped, not spoken.
+          const sentences = createSentenceBuffer();
+          const pending = [];
+          let held = null;
+          let toolTurn = false;
+          data = await readClaudeStream(res, {
+            onText: delta => {
+              for (const s of sentences.push(delta)) { if (held != null) pending.push(say(held)); held = s; }
+            },
+            onToolStart: () => { toolTurn = true; held = null; sentences.flush(); },
+          });
+          if (!toolTurn) { const rest = sentences.flush(); if (held != null) pending.push(say(held)); pending.push(say(rest)); }
+          await Promise.all(pending);
+        } else {
+          data = await res.json();
+        }
+        addTurnUsage(data.usage);
 
         const toolUseBlocks = (data.content || []).filter(b => b.type === 'tool_use');
         const textBlocks = (data.content || []).filter(b => b.type === 'text');
@@ -1636,6 +1706,7 @@ export async function onRequestPost({ request, env }) {
     } catch (err) {
       await send({ type: 'error', message: err.message ?? 'Unknown error' });
     } finally {
+      await recordAnthropicUsage().catch(() => {});
       await writer.close();
     }
   })();

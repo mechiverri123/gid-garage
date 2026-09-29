@@ -13,6 +13,7 @@ import { CalendarView } from './CalendarView';
 import { JobListView, CustomersView } from './BrowseViews';
 import { ExternalLeadModal, BusinessHub } from '../../JobOps';
 import { useAllJobs, putJob } from './jobStore';
+import { UsagePanel } from './UsagePanel';
 import './workspace.css';
 
 type View = { type: string; [k: string]: unknown };
@@ -64,7 +65,7 @@ export default function JarvisWorkspace({ state, dispatch, onAsk, asking, reply 
       case 'customers': return <CustomersView query={String(view.query || '')} dispatch={dispatch} />;
       case 'newJob': return <NewJob dispatch={dispatch} />;
       // The admin Hub (tax rate, business notes, backups), same component and writes, re-themed.
-      case 'settings': return <div className="jv-glass jv-pop jv-skin max-w-[1180px] mx-auto p-4 sm:p-6"><BusinessHub /></div>;
+      case 'settings': return <div className="jv-glass jv-pop max-w-[1180px] mx-auto p-4 sm:p-6"><UsagePanel /><div className="jv-skin"><BusinessHub /></div></div>;
       default: return null;
     }
   };

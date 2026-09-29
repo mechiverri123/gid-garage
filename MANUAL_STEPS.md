@@ -1,3 +1,50 @@
+# Jarvis voice (direct Deepgram + Claude + Cartesia) — setup
+
+Voice no longer uses LiveKit Inference. The page talks to Deepgram (hearing)
+and Cartesia (Benedict's voice) directly with short-lived tokens; Claude answers
+through the same Jarvis backend as typing. Nothing runs on your computer.
+
+1. **Keys.** Get three API keys:
+   - Anthropic: console.anthropic.com. The key you already have is fine.
+   - Deepgram: console.deepgram.com. New accounts get free credit.
+   - Cartesia: play.cartesia.ai → API keys.
+2. **Cloudflare Pages.** Go to the project → Settings → Environment variables (Production) and add:
+   - `DEEPGRAM_API_KEY`
+   - `CARTESIA_API_KEY`
+   - `ANTHROPIC_API_KEY` (already set)
+   - Optional: `JARVIS_MONTHLY_AI_BUDGET_USD=25` (25 is the default).
+   - Optional: `CARTESIA_VOICE_ID` (see "Benedict" below).
+3. **Supabase.** Go to SQL Editor, then paste and run `jarvis_ai_usage_migration.sql`. It's one small table for the budget counter. Without it, Jarvis still works, but usage isn't tracked.
+4. **Deploy.** Push, or press "Retry deployment" in Cloudflare.
+
+**Benedict.** He's picked automatically: Jarvis looks up the Cartesia voice named
+"Benedict — Measured Mediator" once and caches it. To pin it, open
+`gidgarage.com/jarvis/voice?action=voice` while logged in and copy the `id` into
+`CARTESIA_VOICE_ID`.
+
+**Spending safety net.** The in-app budget is an estimate; also set limits at the providers:
+- Anthropic: Settings → Limits → set a monthly spend limit (e.g. $10), and leave auto-reload off.
+- Deepgram: Billing → keep auto-recharge off, so the prepaid/free balance is the cap.
+- Cartesia: Billing → stay on the free or Pro plan. If an overage or usage-based billing option is offered, turn it off.
+
+**Test voice.** Open `/jarvis` → Start voice, then say each of these:
+1. "Pull all three of Jill's jobs side by side"
+2. "Open the middle one"
+3. "Show the payment"
+4. "Show revenue this month"
+5. "Show the last 13 days"
+6. "Switch to SEO"
+7. "Back to Jarvis"
+8. "Show bookings this week"
+9. "Cancel Nate Lima's job". It should ask you to confirm. Say no.
+
+Then talk while Benedict is speaking; he should stop immediately.
+Settings → Usage shows this month's estimated spend and the last voice timings.
+
+**Rollback to LiveKit.** Set `VITE_JARVIS_VOICE=livekit` in Cloudflare and redeploy. That uses the old LiveKit agent, which is still deployed and needs LiveKit credits.
+
+---
+
 # GID Command Center — What was built, what you need to do
 
 ## Files changed (this is the real list — ignore your diff tool if it shows

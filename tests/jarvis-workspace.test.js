@@ -29,7 +29,8 @@ test('Jill workflow: three cards -> middle -> inspection -> payment -> close it 
 test('close words: one level vs everything', () => {
   const open = run([three, { type: 'focus', index: 2, expand: true }]);
   for (const t of ['close', 'close it', 'close that', 'go back', 'back', 'close the job']) assert.deepEqual(cmd(t, open), { type: 'close' }, t);
-  for (const t of ['exit', 'Jarvis exit', 'close jobs', 'close all jobs', 'close everything', 'get rid of these', 'back to Jarvis', 'close these']) assert.deepEqual(cmd(t, open), { type: 'close_all' }, t);
+  for (const t of ['exit', 'Jarvis exit', 'close jobs', 'close all jobs', 'close everything', 'get rid of these', 'close these']) assert.deepEqual(cmd(t, open), { type: 'close_all' }, t);
+  assert.deepEqual(cmd('back to Jarvis', open), { type: 'home' }); // closes everything AND leaves SEO mode
   assert.equal(cmd('close', INITIAL_WORKSPACE).type, 'noop');
 });
 
@@ -286,7 +287,8 @@ test('more natural tab and close words', () => {
   assert.deepEqual(cmd('scan report', s), { type: 'tab', tab: 'inspection' });
   assert.deepEqual(cmd('the receipts', s), { type: 'tab', tab: 'parts' });
   assert.deepEqual(cmd('what about the balance', s), { type: 'tab', tab: 'payment' });
-  for (const q of ["I'm done", "that's all", 'go home', 'take me home']) assert.deepEqual(cmd(q, s), { type: 'close_all' }, q);
+  for (const q of ["I'm done", "that's all"]) assert.deepEqual(cmd(q, s), { type: 'close_all' }, q);
+  for (const q of ['go home', 'take me home']) assert.deepEqual(cmd(q, s), { type: 'home' }, q);
 });
 
 test('voice follow-ups for every open view reach Jarvis; new topics stay with the voice agent', async () => {
@@ -298,4 +300,19 @@ test('voice follow-ups for every open view reach Jarvis; new topics stay with th
   assert.equal(isScreenFollowUp('what about the afternoon of the 3rd', Cal), true);
   assert.equal(isScreenFollowUp('only the ones that are signed', L), true);
   assert.equal(isScreenFollowUp('remind me to call Jill', L), false);
+});
+
+test('global voice/typed commands need no AI: modes and main screens, from anywhere', () => {
+  const none = INITIAL_WORKSPACE;
+  for (const q of ['switch to SEO', 'SEO mode', 'open the SEO dashboard', 'go to local search']) assert.deepEqual(cmd(q, none), { type: 'mode', mode: 'seo' }, q);
+  for (const q of ['go back to Jarvis', 'back to Jarvis', 'Jarvis dashboard', 'go home', 'main screen']) assert.deepEqual(cmd(q, none), { type: 'home' }, q);
+  assert.deepEqual(cmd('open calendar', none), { type: 'open', view: { type: 'calendar', mode: 'week' } });
+  assert.deepEqual(cmd('show me my schedule', none), { type: 'open', view: { type: 'calendar', mode: 'week' } });
+  assert.deepEqual(cmd('pull up all jobs', none), { type: 'open', view: { type: 'jobList', status: 'all' } });
+  assert.deepEqual(cmd('open customers', run([three])), { type: 'open', view: { type: 'customers' } });
+  assert.deepEqual(cmd('new job', none), { type: 'open', view: { type: 'newJob' } });
+  // Real questions still go to Jarvis.
+  assert.equal(cmd('show bookings this week', none), null);
+  assert.equal(cmd("pull up Jill's jobs", none), null);
+  assert.equal(cmd('how is my SEO doing', none), null);
 });

@@ -11,7 +11,8 @@ import {
   type RemoteParticipant,
 } from 'livekit-client';
 
-export type RealtimeVoiceState = 'off' | 'connecting' | 'listening' | 'speaking' | 'error';
+// thinking / interrupted / unavailable come from the direct voice pipeline (voice/useDirectVoice.ts).
+export type RealtimeVoiceState = 'off' | 'connecting' | 'listening' | 'thinking' | 'speaking' | 'interrupted' | 'unavailable' | 'error';
 
 export type VoiceDiagnostics = {
   room: boolean;

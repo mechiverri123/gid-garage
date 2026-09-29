@@ -14,6 +14,12 @@ import type { Lead, NeedsAttentionItem, JarvisState } from './types';
 import { useBusinessSummary } from './hooks/useBusinessSummary';
 import { useAdminAI } from './hooks/useAdminAI';
 import { useLiveKitJarvis, type RealtimeVoiceState } from './hooks/useLiveKitJarvis';
+import { useDirectVoice } from './voice/useDirectVoice';
+
+// Voice engine: 'direct' (default) = browser <-> Deepgram STT / Cartesia TTS with
+// Claude via admin-ai-chat.js. 'livekit' = the legacy LiveKit agent, kept only
+// as a rollback (set VITE_JARVIS_VOICE=livekit and redeploy). Never both.
+const VOICE_MODE: 'direct' | 'livekit' = import.meta.env.VITE_JARVIS_VOICE === 'livekit' ? 'livekit' : 'direct';
 import { RealtimeVoiceControl } from './components/RealtimeVoiceControl';
 import { LeadDetailPanel } from './components/LeadDetailPanel';
 import { LeadPipeline } from './components/LeadPipeline';
@@ -50,6 +56,9 @@ function ackFor(a: WsAction) {
   if (a.type === 'focus' || a.type === 'step') return 'Opened.';
   if (a.type === 'range') { const r = a.range as Record<string, unknown>; return r.last_days ? `Showing the last ${r.last_days} days.` : 'Updated.'; }
   if (a.type === 'calendar') return a.mode && !a.date ? `${String(a.mode).replace(/^./, c => c.toUpperCase())} view.` : 'Calendar updated.';
+  if (a.type === 'mode') return a.mode === 'seo' ? 'SEO mode.' : 'Jarvis.';
+  if (a.type === 'home') return 'Back to Jarvis.';
+  if (a.type === 'open') return 'Opened.';
   if (a.type === 'filter') {
     if (typeof a.query === 'string') return a.query ? `Searching "${a.query}".` : 'Search cleared.';
     const s = String(a.status);
@@ -63,13 +72,13 @@ function ackFor(a: WsAction) {
 export function orbStateFor(asking: boolean, jarvisState: JarvisState, voice: RealtimeVoiceState): OrbState {
   const fromAgent: Record<JarvisState, OrbState> = { idle: 'idle', processing: 'thinking', tool: 'working', success: 'complete', error: 'error' };
   if (asking) return fromAgent[jarvisState];
-  if (voice === 'connecting') return 'thinking';
-  if (voice === 'listening') return 'listening';
+  if (voice === 'connecting' || voice === 'thinking') return 'thinking';
+  if (voice === 'listening' || voice === 'interrupted') return 'listening';
   if (voice === 'speaking') return 'working';
   if (voice === 'error') return 'error';
   return fromAgent[jarvisState];
 }
-const VOICE_LABEL: Record<RealtimeVoiceState, string> = { off: 'off', connecting: 'connecting…', listening: 'listening', speaking: 'speaking', error: 'error' };
+const VOICE_LABEL: Record<RealtimeVoiceState, string> = { off: 'off', connecting: 'connecting…', listening: 'listening', thinking: 'thinking', speaking: 'speaking', interrupted: 'listening', unavailable: 'unavailable', error: 'error' };
 
 function DashboardSkeleton() {
   return (
@@ -112,9 +121,12 @@ export function CommandCenterPage({ onLock }: { onLock: () => void }) {
 
   // Spoken on-screen commands ("close jobs", "show payment") via the voice transcript.
   const askRef = useRef<((q: string, o?: { speak?: boolean }) => void) | null>(null);
-  const voice = useLiveKitJarvis(text => {
+  const applyLocalRef = useRef<((a: WsAction, q: string) => void) | null>(null);
+  const utteranceRef = useRef<((text: string) => void) | null>(null);
+  const abortRef = useRef<(() => void) | null>(null);
+  const livekit = useLiveKitJarvis(text => {
     const local = parseLocalCommand(text, wsRef.current, { meta: screenMeta(), today: phoenixYmd(new Date()) });
-    if (local && local.type !== 'noop') { dispatchWs(local); markHandledRef.current?.(text); }
+    if (local && local.type !== 'noop') { applyLocalRef.current?.(local, text); markHandledRef.current?.(text); }
     else if (!local && isScreenFollowUp(text, wsRef.current)) {
       // Typed Jarvis answers it (with the screen) and that answer is spoken;
       // the voice agent stays quiet, so there's one reply and one LLM call.
@@ -122,8 +134,11 @@ export function CommandCenterPage({ onLock }: { onLock: () => void }) {
       askRef.current?.(text);
     }
   }, applyScreenAction);
+  // Direct voice: every final utterance enters the same command path as typing.
+  const direct = useDirectVoice({ onUtterance: text => utteranceRef.current?.(text), onBargeIn: () => abortRef.current?.() });
+  const voice = VOICE_MODE === 'direct' ? direct : livekit;
   const markHandledRef = useRef<((t: string) => void) | null>(null);
-  markHandledRef.current = voice.markHandled;
+  markHandledRef.current = livekit.markHandled;
 
   // Ops (default) vs SEO Mode. SEO answers from Jarvis switch modes and bring
   // the relevant panel into focus (structured ui_focus events).
@@ -133,7 +148,7 @@ export function CommandCenterPage({ onLock }: { onLock: () => void }) {
   const setSeoFocus = useCallback((v: SeoView) => setUi(s => applyUiEvent(s, { type: 'ui_focus', mode: 'seo', target: v })), []);
   const { mode, seoFocus } = ui;
 
-  const { chatMessages, asking, liveActivity, jarvisState, ask, clear, addLocal } = useAdminAI(() => {
+  const { chatMessages, asking, liveActivity, jarvisState, ask, abort, clear, addLocal } = useAdminAI(() => {
     loadSummary();
     loadLeads(leadStatusFilter || undefined);
   }, async (text) => {
@@ -141,19 +156,58 @@ export function CommandCenterPage({ onLock }: { onLock: () => void }) {
   }, onUiEvent, screenHooks);
 
   askRef.current = ask;
+  abortRef.current = abort;
+  const askingRef = useRef(false);
+  askingRef.current = asking;
 
   // Every typed command: things about what's on screen are handled instantly
   // here (deterministic parser); everything else goes to Jarvis with the
   // screen context so it can answer with a view.
+  // Page-level screen actions: modes ("switch to SEO", "back to Jarvis") plus
+  // everything the workspace reducer handles.
+  const applyLocal = (local: WsAction, q: string) => {
+    if (local.type === 'mode') { dispatchWs({ type: 'close_all' }); setMode(local.mode as 'ops' | 'seo'); } // the new mode is what you see
+    else if (local.type === 'home') { dispatchWs({ type: 'close_all' }); setMode('ops'); }
+    else if (local.type !== 'noop') dispatchWs(local);
+    addLocal(q, local.type === 'noop' ? String(local.reply) : ackFor(local));
+  };
+  applyLocalRef.current = applyLocal;
   const command = useCallback((q: string) => {
     const local = parseLocalCommand(q, wsRef.current, { meta: screenMeta(), today: phoenixYmd(new Date()) });
+    if (local) { applyLocalRef.current?.(local, q); return; }
+    ask(q);
+  }, [ask]);
+
+  // Dev-only test hook: inject a final spoken sentence (what Deepgram delivers)
+  // so the voice -> command path can be regression-tested without a microphone.
+  useEffect(() => {
+    if (!import.meta.env.DEV) return;
+    (window as unknown as { __jarvisVoiceUtterance?: (t: string) => void }).__jarvisVoiceUtterance = t => utteranceRef.current?.(t);
+  }, []);
+
+  // A finished spoken sentence (direct voice). Screen commands run instantly
+  // for free; anything else goes to Jarvis in voice mode, and its reply is
+  // spoken sentence by sentence as it streams in.
+  utteranceRef.current = (text: string) => {
+    const local = parseLocalCommand(text, wsRef.current, { meta: screenMeta(), today: phoenixYmd(new Date()) });
     if (local) {
-      if (local.type !== 'noop') dispatchWs(local);
-      addLocal(q, local.type === 'noop' ? String(local.reply) : ackFor(local));
+      applyLocal(local, text);
+      direct.setThinking(false);
+      if (local.type === 'noop') void direct.speak(String(local.reply));
       return;
     }
-    ask(q);
-  }, [ask, addLocal]);
+    if (askingRef.current) { abort(); window.setTimeout(() => utteranceRef.current?.(text), 150); return; } // newest request wins
+    void ask(text, {
+      voice: true,
+      speak: false,
+      onSay: sentence => { void direct.speakChunk(sentence); },
+      onFinal: e => {
+        if (e.spoken) direct.endSpeech();
+        else if (e.text) void direct.speak(e.text); // guard override, or a reply that wasn't streamed
+        direct.setThinking(false);
+      },
+    });
+  };
 
   // Browser Back closes the workspace one level instead of leaving /jarvis.
   const depth = ws.stack.length;
@@ -230,7 +284,8 @@ export function CommandCenterPage({ onLock }: { onLock: () => void }) {
     { id: 'refresh', label: 'Refresh dashboard', run: () => loadSummary() },
   ]);
 
-  const voiceControl = <RealtimeVoiceControl state={voice.state} error={voice.error} diagnostics={voice.diagnostics} onToggle={voice.toggle} onTestVoice={voice.testVoice} />;
+  const voiceControl = <RealtimeVoiceControl mode={VOICE_MODE} state={voice.state} error={voice.error} diagnostics={voice.diagnostics} onToggle={voice.toggle} onTestVoice={voice.testVoice}
+    partial={VOICE_MODE === 'direct' ? direct.partial : ''} note={VOICE_MODE === 'direct' ? direct.budgetNote : null} />;
   const title = mode === 'seo' ? 'Local Search Command Center' : 'Command Center';
 
   return (

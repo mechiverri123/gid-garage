@@ -267,6 +267,19 @@ const LIST_STATUS = {
   'in progress': 'IN_PROGRESS', completed: 'COMPLETED', done: 'COMPLETED', invoiced: 'INVOICED',
 };
 
+// Global, deterministic commands (no AI tokens): modes and the main screens.
+const HOME_RE = /^(?:(?:go |switch |take me |head )?back (?:to )?|return to |go to |switch to |take me to |take me |open )?(?:jarvis|home|the dashboard|dashboard|the main screen|main screen|main|normal|ops|ops mode|operations)$|^(?:go home|home)$/;
+const SEO_RE = /^(?:(?:switch|go|jump|flip|change|head) (?:over )?(?:back )?to |open |show (?:me )?|enter |take me to |pull up )?(?:the )?(?:seo|local seo|local search|search console)(?: mode| page| dashboard| center| command center| screen| view| tab)?$/;
+const OPEN_VERB = '(?:open|show|pull up|go to|bring up|take me to|switch to|view)(?: me)?(?: the| my)?';
+const GLOBAL_OPENS = [
+  [new RegExp(`^${OPEN_VERB} (?:calendar|schedule)$|^(?:calendar|schedule)$`), { type: 'calendar', mode: 'week' }],
+  [new RegExp(`^${OPEN_VERB} all(?: the| of the| my)? jobs$|^all jobs$`), { type: 'jobList', status: 'all' }],
+  [new RegExp(`^${OPEN_VERB} (?:jobs|job list|jobs list|work orders)$`), { type: 'jobList', status: 'active' }],
+  [new RegExp(`^${OPEN_VERB} (?:customers|customer list|clients)$|^customers$`), { type: 'customers' }],
+  [new RegExp(`^${OPEN_VERB} settings$|^settings$`), { type: 'settings' }],
+  [/^(?:new job|create a (?:new )?job|add a (?:new )?job|start a new job|new customer|add a customer)$/, { type: 'newJob' }],
+];
+
 // Conversational wrapping around the thing being asked for: "back to overview",
 // "take me to the payment tab", "can you pull up the Sep 26 job".
 const LEAD_FILLER = /^(?:can you|could you|would you|will you|let's|lets|let me|i want to|i wanna|i'd like to|i need to|i need|take me|bring me|what about|how about|graph|chart|plot|go|head|switch|flip|jump|move|pull|bring|open|show|see|view|check|look at|look|give me|display|back|over|up|to|into|on|at|the|me|us|its|it's|his|her|their|that|this|just|and|then|now|also|instead|for|of)\b\s*/;
@@ -317,6 +330,10 @@ export function parseLocalCommand(text, state, { meta = [], today } = {}) {
   const t = clean(text);
   if (!t || t.split(' ').length > 12) return null;
   const view = top(state);
+
+  if (HOME_RE.test(t)) return { type: 'home' };
+  if (SEO_RE.test(t)) return { type: 'mode', mode: 'seo' };
+  for (const [re, target] of GLOBAL_OPENS) if (re.test(t) && view?.type !== target.type) return { type: 'open', view: { ...target } };
 
   if (CLOSE_ALL.test(t) && !CLOSE_ONE.test(t)) return view ? { type: 'close_all' } : { type: 'noop', reply: 'Nothing is open.' };
   if (CLOSE_ONE.test(t)) return view ? { type: 'close' } : { type: 'noop', reply: 'Nothing is open.' };

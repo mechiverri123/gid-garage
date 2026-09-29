@@ -186,9 +186,9 @@
     "semantic_hash": ""
   },
   "jarvis-agent/agent.py": {
-    "mtime": 1790643911.6212454,
-    "seen": 1790644103.887862,
-    "ast_hash": "beb7f293fada6c2d6b4a11d200533047",
+    "mtime": 1790645324.3979807,
+    "seen": 1790645400.115965,
+    "ast_hash": "8ecb64b37e001c18cacfcb10901b20a8",
     "semantic_hash": ""
   },
   "jarvis_phase1_service_dictionary_fix.sql": {
@@ -276,9 +276,9 @@
     "semantic_hash": "a33ab1cd5b7348688a6ddcd64664307f"
   },
   "src/command-center/CommandCenterPage.tsx": {
-    "mtime": 1790643103.4581692,
-    "seen": 1790643144.2201695,
-    "ast_hash": "a8849b9762a73e39baa9d938fc134c57",
+    "mtime": 1790645345.6655939,
+    "seen": 1790645400.122299,
+    "ast_hash": "36ae3550275e09914da6b99e9a9a862c",
     "semantic_hash": ""
   },
   "src/command-center/api.ts": {
@@ -426,9 +426,9 @@
     "semantic_hash": "12e3b018aa58d1afaab8a77e5f0ecae5"
   },
   "src/command-center/hooks/useLiveKitJarvis.ts": {
-    "mtime": 1790640502.7213385,
-    "seen": 1790640624.708732,
-    "ast_hash": "b8933123fd89539afbe573212ac0d9ba",
+    "mtime": 1790645345.665076,
+    "seen": 1790645400.1272798,
+    "ast_hash": "d6024bdb7d0142c127b4b0af1225be9a",
     "semantic_hash": ""
   },
   "src/command-center/tokens.ts": {
@@ -570,9 +570,9 @@
     "semantic_hash": "a643d83b7626b709e8beeda21099b3f0"
   },
   "CLAUDE.md": {
-    "mtime": 1790640618.1275012,
-    "seen": 1790640624.717733,
-    "ast_hash": "992e54089e26a95deecc5f00466f0a3a",
+    "mtime": 1790645371.2403336,
+    "seen": 1790645400.15191,
+    "ast_hash": "43738f7a8315fa4ede22815b863d502a",
     "semantic_hash": ""
   },
   "CODEBASE.md": {

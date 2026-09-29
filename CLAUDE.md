@@ -49,15 +49,22 @@ Jarvis is the interactive command interface for GID Garage, not primarily a chat
 - **Money on screen is canonical.** `revenueRange` (business-data.js) uses inclusive Arizona day ranges (`resolveDayRange`/`dayRangeWindow`) and the canonical collected / net-profit math.
   - On `/jarvis` the spoken number comes from the same `show_revenue` result as the chart.
   - Test: `revenueRange` this month equals `revenueSummary` this month.
-- **Voice opens views too.** The LiveKit agent's `show_on_screen` tool calls `/hooks/business` (`show_*`, the same `functions/_lib/jarvis-screen.js` as the chat) and forwards the returned `__ui` actions to the page on the `gid.ui` topic. The page applies them through the same workspace, and on-screen follow-ups use the user transcript. Agent changes need `lk agent deploy` from `jarvis-agent/`.
-- **Voice runs on LiveKit Inference only** (STT + LLM + TTS on one LiveKit account). The owner decided on 2026-09-28 not to move to separate Deepgram/Cartesia/Anthropic billing, so don't reintroduce that.
-  - Credit use is kept low:
-    - the page stops voice after 4 min of silence or 60 s with the tab hidden;
-    - spoken replies are capped at `JARVIS_LLM_MAX_TOKENS` (default 220);
-    - screen commands the page handles are reported on `gid.handled`, and the agent skips its LLM/TTS turn for them;
-    - spoken follow-ups the page sends to typed Jarvis are answered once, by typed Jarvis.
-  - On a 429 or quota error, the agent logs `GID_VOICE_ERROR component=… model=… status=… quota=…` (no credentials). It then tells the page on `gid.status` and leaves the room, with no crash or retry loop.
-  - The page shows "Voice unavailable" and pauses Start (30 min for quota, 2 min for rate limits, stored in localStorage). Typed Jarvis is unaffected.
+- **Legacy LiveKit path (rollback only):** the LiveKit agent's `show_on_screen` tool calls `/hooks/business` (`show_*`, the same `functions/_lib/jarvis-screen.js` as the chat) and forwards the returned `__ui` actions to the page on the `gid.ui` topic. The page applies them through the same workspace, and on-screen follow-ups use the user transcript. Agent changes need `lk agent deploy` from `jarvis-agent/`.
+- **Voice = direct providers (2026-09-28, owner's decision, supersedes "LiveKit only").**
+  - **Pipeline:** browser `src/command-center/voice/useDirectVoice.ts`
+    - mic → AudioWorklet 16 kHz PCM → local VAD → Deepgram nova-3 WebSocket (only speech plus a 300 ms pre-roll is sent; KeepAlive in silence);
+    - the final utterance goes to the SAME `command` path as typing (`parseLocalCommand`: screen, mode and global commands with no AI cost), otherwise to `admin-ai-chat.js` with `voice:true, stream:true`;
+    - `say` events stream sentences → Cartesia WebSocket (Benedict) → WebAudio.
+  - **Streamed speech guard:** narration Claude writes before a tool call is never spoken, and sentences pass the write-claim guard before they're said.
+  - **Barge-in:** stops playback, cancels the Cartesia context, and aborts the chat request.
+  - **Tokens:** `functions/jarvis/voice.js` (Access plus verified JWT) mints 10-minute Deepgram/Cartesia tokens; the master keys stay server-side. It resolves Benedict ("Benedict — Measured Mediator") once per isolate unless `CARTESIA_VOICE_ID` is set.
+  - **Budget governor:** `functions/_lib/ai-budget.js`, backed by the `jarvis_ai_usage` table and the `jarvis_add_usage` RPC (`jarvis_ai_usage_migration.sql`).
+    - Tracks estimated Anthropic, STT and TTS spend against `JARVIS_MONTHLY_AI_BUDGET_USD` (default 25).
+    - Thresholds: warn at 80%; cost-conscious at 92% (shorter spoken replies); blocked at 100% (no new Claude turns or voice sessions; screen commands still work). Settings → Usage shows it.
+    - It's an estimate, never a billing guarantee.
+  - **Failure handling:** provider failures show "Voice unavailable" and typed Jarvis keeps working. Quota errors pause voice (localStorage) with no retry loop. Deepgram reconnects at most 3 times, with backoff.
+  - **Rollback:** the LiveKit agent + `useLiveKitJarvis` are the legacy path, off unless `VITE_JARVIS_VOICE=livekit`. Delete them only after the direct stack has run in production for a while.
+  - **Tests:** `tests/voice-stack.test.js`, plus the global commands in `tests/jarvis-workspace.test.js`. The dev-only hook `window.__jarvisVoiceUtterance(text)` injects a final utterance for browser regression runs.
 - The only remaining `/admin` link on `/jarvis` is the explicit "Admin dashboard" item in the account menu. Settings opens the admin Hub re-themed; new customers are created with their first job (New Job), same as `/admin`.
 
 # 0.3 COMMAND CENTER UI (redesign, 2026-09-28)
