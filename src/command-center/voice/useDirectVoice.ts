@@ -33,6 +33,12 @@ const MAX_RECONNECTS = 3;
 const FADE_S = 0.012;       // 12 ms edge fades: inaudible, removes the "pop"
 const LEAD_S = 0.08;        // first-chunk buffer so streamed audio never gaps (gaps crackle)
 const OUT_SLEEP_MS = 1500;  // suspend the speaker side this long after he stops
+const OUT_LEVEL = 0.9;      // a little headroom so loud peaks never clip (clipping crackles)
+// Cartesia output rates. Asking for the speaker's own rate means the browser never
+// resamples; per-chunk resampling leaves a tiny discontinuity at every chunk seam,
+// heard as faint static while he talks.
+const TTS_RATES = [8000, 16000, 22050, 24000, 44100, 48000];
+const ttsRateFor = (sampleRate?: number) => (sampleRate && TTS_RATES.includes(sampleRate) ? sampleRate : 24000);
 
 const readPause = (): { until: number; reason: string } | null => {
   try { const v = JSON.parse(localStorage.getItem(PAUSE_KEY) || 'null'); return v && v.until > Date.now() ? v : null; } catch { return null; }
@@ -91,6 +97,7 @@ export function useDirectVoice({ onUtterance, onBargeIn }: { onUtterance: (text:
     // playback
     sources: new Set<AudioBufferSourceNode>(), nextTime: 0, ttsContext: null as string | null, ttsChars: 0, speakingOut: false,
     out: null as AudioContext | null, gain: null as GainNode | null, carry: new Uint8Array(0), sleepTimer: 0 as number | 0,
+    ttsRate: 24000, nextFrame: 0,
     // timings
     tSpeechEnd: 0, tFinal: 0, tFirstText: 0, tFirstAudio: 0,
     lastActivity: Date.now(), reconnects: 0, keepAlive: 0 as number | 0, usageTimer: 0 as number | 0,
@@ -125,7 +132,7 @@ export function useDirectVoice({ onUtterance, onBargeIn }: { onUtterance: (text:
     const out = r.out; const g = r.gain?.gain;
     if (!out || !g || r.nextTime <= out.currentTime) return;
     const end = r.nextTime;
-    g.setValueAtTime(1, Math.max(out.currentTime, end - FADE_S * 2));
+    g.setValueAtTime(OUT_LEVEL, Math.max(out.currentTime, end - FADE_S * 2));
     g.linearRampToValueAtTime(0, end);
   }, [r]);
 
@@ -136,7 +143,7 @@ export function useDirectVoice({ onUtterance, onBargeIn }: { onUtterance: (text:
     for (const s of r.sources) { try { s.stop(t + 0.025); } catch { /* already ended */ } }
     r.sources.clear(); r.carry = new Uint8Array(0);
     sleepOutSoon();
-    r.nextTime = 0;
+    r.nextTime = 0; r.nextFrame = 0;
     if (r.ttsContext && r.tts?.readyState === WebSocket.OPEN) {
       // Stop Cartesia generating audio nobody will hear.
       try { r.tts.send(JSON.stringify({ context_id: r.ttsContext, cancel: true })); } catch { /* socket closing */ }
@@ -157,14 +164,19 @@ export function useDirectVoice({ onUtterance, onBargeIn }: { onUtterance: (text:
     r.carry = bytes.slice(whole);
     if (!whole) return;
     const samples = new Float32Array(bytes.buffer.slice(0, whole));
-    const buf = ctx.createBuffer(1, samples.length, 24000);
+    const buf = ctx.createBuffer(1, samples.length, r.ttsRate);
     buf.copyToChannel(samples, 0);
     const src = ctx.createBufferSource();
     src.buffer = buf; src.connect(r.gain!);
+    // Schedule on whole output frames so consecutive chunks join sample-exactly.
+    const sr = ctx.sampleRate;
     const fresh = r.nextTime < ctx.currentTime + 0.005; // nothing queued: a new phrase (or a gap)
-    const at = fresh ? ctx.currentTime + LEAD_S : r.nextTime;
-    if (fresh) { g.cancelScheduledValues(at); g.setValueAtTime(0, at); g.linearRampToValueAtTime(1, at + FADE_S); }
-    src.start(at); r.nextTime = at + buf.duration;
+    const startFrame = fresh ? Math.ceil((ctx.currentTime + LEAD_S) * sr) : r.nextFrame;
+    const at = startFrame / sr;
+    if (fresh) { g.cancelScheduledValues(at); g.setValueAtTime(0, at); g.linearRampToValueAtTime(OUT_LEVEL, at + FADE_S); }
+    src.start(at);
+    r.nextFrame = startFrame + Math.round(samples.length * sr / r.ttsRate);
+    r.nextTime = r.nextFrame / sr;
     r.sources.add(src);
     if (!r.tFirstAudio) {
       r.tFirstAudio = performance.now();
@@ -228,11 +240,14 @@ export function useDirectVoice({ onUtterance, onBargeIn }: { onUtterance: (text:
     if (!r.tFirstText) r.tFirstText = performance.now();
     try {
       const ws = await openTts();
-      if (!r.ttsContext) { r.ttsContext = `jv-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`; r.tFirstAudio = 0; }
+      if (!r.ttsContext) {
+        r.ttsContext = `jv-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`; r.tFirstAudio = 0;
+        r.ttsRate = ttsRateFor(r.out?.sampleRate); r.carry = new Uint8Array(0);
+      }
       const s = r.session!;
       ws.send(JSON.stringify({
         model_id: s.cartesia.model, transcript: clean ? `${clean} ` : '', voice: s.cartesia.voiceId, language: 'en',
-        context_id: r.ttsContext, continue: !last, output_format: { container: 'raw', encoding: 'pcm_f32le', sample_rate: 24000 },
+        context_id: r.ttsContext, continue: !last, output_format: { container: 'raw', encoding: 'pcm_f32le', sample_rate: r.ttsRate },
       }));
       r.ttsChars += clean.length;
     } catch {
