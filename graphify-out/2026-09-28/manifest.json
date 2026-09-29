@@ -144,9 +144,9 @@
     "semantic_hash": ""
   },
   "functions/jarvis-proactive.js": {
-    "mtime": 1790582220.9829507,
-    "seen": 1790582568.211737,
-    "ast_hash": "0b2efdd0c1a960cfc1c9b830d57a71bb",
+    "mtime": 1790655560.3117013,
+    "seen": 1790655607.4599652,
+    "ast_hash": "50c3c89501801a92700a89a63de3d416",
     "semantic_hash": ""
   },
   "functions/jarvis-speak.js": {
@@ -168,10 +168,10 @@
     "semantic_hash": ""
   },
   "functions/lead-capture.js": {
-    "mtime": 1790496672.868708,
-    "seen": 1790568222.9916813,
-    "ast_hash": "8eacfea913e182328de4da25daa9e6f0",
-    "semantic_hash": "8eacfea913e182328de4da25daa9e6f0"
+    "mtime": 1790655523.7495265,
+    "seen": 1790655607.460361,
+    "ast_hash": "41c3b16c59b77ad61c010ee7f641fd75",
+    "semantic_hash": ""
   },
   "functions/save-card.js": {
     "mtime": 1790477180.8703618,
@@ -588,9 +588,9 @@
     "semantic_hash": "fd787bd83c244fb46ab680994613908b"
   },
   "MANUAL_STEPS.md": {
-    "mtime": 1790653386.6823618,
-    "seen": 1790653401.6012385,
-    "ast_hash": "39a80f352de1fa4258fd8e5e3854dca2",
+    "mtime": 1790655600.3863144,
+    "seen": 1790655607.4751863,
+    "ast_hash": "eec3748eb3a92507b1118e4221923124",
     "semantic_hash": ""
   },
   "README-FIRST.txt": {
@@ -1758,9 +1758,9 @@
     "semantic_hash": ""
   },
   "functions/_lib/jarvis-feeds.js": {
-    "mtime": 1790652980.7806218,
-    "seen": 1790653401.5850937,
-    "ast_hash": "385f021ffbb03feae94a6bf2eaeddad4",
+    "mtime": 1790655539.4606032,
+    "seen": 1790655607.4578757,
+    "ast_hash": "d92d5dff42857cc47fbd453267a7800a",
     "semantic_hash": ""
   },
   "functions/jarvis/feeds.js": {
@@ -1776,15 +1776,15 @@
     "semantic_hash": ""
   },
   "src/command-center/workspace/FeedViews.tsx": {
-    "mtime": 1790653146.3970237,
-    "seen": 1790653401.5932078,
-    "ast_hash": "e17205786b4a14829167bcfe56003c12",
+    "mtime": 1790655560.3132255,
+    "seen": 1790655607.4665406,
+    "ast_hash": "913f001d811631f72ca67ef601f786da",
     "semantic_hash": ""
   },
   "tests/jarvis-feeds.test.js": {
-    "mtime": 1790653347.903723,
-    "seen": 1790653401.594982,
-    "ast_hash": "bd0dc01eb26f270c70f08c66d1487a7c",
+    "mtime": 1790655582.9014783,
+    "seen": 1790655607.4686267,
+    "ast_hash": "f5fb4ab550af9716b67239059462fca9",
     "semantic_hash": ""
   }
 }

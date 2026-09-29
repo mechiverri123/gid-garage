@@ -277,8 +277,20 @@ export function SocialView() {
 }
 
 // Facebook/Instagram lead forms -> leads (polled every 5 min by the proactive cron).
-function LeadSyncLine({ s }: { s: Any | null }) {
+function LeadSyncLine({ s: initial }: { s: Any | null }) {
   const [fix, setFix] = useState(false);
+  const [s, setS] = useState(initial);
+  const [checking, setChecking] = useState(false);
+  const [note, setNote] = useState<string | null>(null);
+  const checkNow = async () => {
+    setChecking(true); setNote(null);
+    try {
+      const res = await fetch('/jarvis/feeds', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'check_leads' }) });
+      const out = await res.json();
+      if (out.status) setS(out.status);
+      setNote(out.error ? null : `${out.imported ?? 0} new lead${out.imported === 1 ? '' : 's'} imported.`);
+    } catch (e) { setNote(e instanceof Error ? e.message : String(e)); } finally { setChecking(false); }
+  };
   const bad = s?.lastError && (!s.checkedAt || Date.parse(s.errorAt) > Date.parse(s.checkedAt));
   return (
     <div className="rounded-xl px-4 py-3 text-[14px] flex flex-col gap-2" style={{ ...box, color: C.text2 }}>
@@ -287,8 +299,12 @@ function LeadSyncLine({ s }: { s: Any | null }) {
         {!s ? <span>Waiting for the first check (every 5 minutes, 6 a.m.–10 p.m.).</span>
           : bad ? <span style={{ color: C.amber }}>Can't read lead forms: {s.lastError}</span>
           : <span>Checked {timeAgo(s.checkedAt)} · {s.forms ?? 0} form{s.forms === 1 ? '' : 's'}{s.lastImported ? ` · last new lead ${timeAgo(s.lastImported)}` : ''}</span>}
-        {bad && <button type="button" className="underline" style={{ color: C.cyan }} onClick={() => setFix(v => !v)}>{fix ? 'Hide' : 'Reconnect with lead permissions'}</button>}
+        <span className="ml-auto flex gap-3">
+          <button type="button" className="underline" style={{ color: C.cyan }} disabled={checking} onClick={checkNow}>{checking ? 'Checking…' : 'Check now'}</button>
+          <button type="button" className="underline" style={{ color: C.cyan }} onClick={() => setFix(v => !v)}>{fix ? 'Hide' : 'Update permissions'}</button>
+        </span>
       </div>
+      {note && <div role="status" style={{ color: C.green }}>{note}</div>}
       {fix && <ConnectMeta onDone={() => setFix(false)} />}
     </div>
   );

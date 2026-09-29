@@ -2,14 +2,14 @@
 // Under /jarvis/* so it inherits the Cloudflare Access app (CLAUDE.md §0); the
 // Access JWT is verified here too (verifyAccess).
 // GET  ?action=status|brief|reviews|social|ads|mail[&force=1]   ?action=message&id=&folder=
-// POST { action: 'connect_meta', token, appId?, appSecret? }
+// POST { action: 'connect_meta', token, appId?, appSecret? }   { action: 'check_leads' }
 //      { action: 'connect_zoho', clientId, clientSecret, code }
 //      { action: 'disconnect', which: 'meta' | 'zoho' }
 // Logic and caching: functions/_lib/jarvis-feeds.js. Read-only toward Google,
 // Meta and Zoho: nothing here posts, replies or sends anything.
 import { verifyAccess } from '../_lib/access-auth.js';
 import { createBusinessOps } from '../_lib/business-data.js';
-import { reviewsFeed, socialFeed, adsFeed, mailFeed, mailMessage, feedStatus, loadBrief, connectMeta, connectZoho, disconnectFeed } from '../_lib/jarvis-feeds.js';
+import { reviewsFeed, socialFeed, adsFeed, mailFeed, mailMessage, feedStatus, loadBrief, connectMeta, connectZoho, disconnectFeed, pollMetaLeads, leadSyncStatus } from '../_lib/jarvis-feeds.js';
 
 const json = (body, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' } });
 
@@ -18,6 +18,19 @@ export async function handleFeeds({ request, env, verify = verifyAccess, fetchIm
   if (!auth.ok) return json({ error: auth.error }, auth.status);
   const bucket = env.GID_PHOTOS;
   const url = new URL(request.url);
+  const supabaseUrl = env.SUPABASE_URL ?? env.VITE_SUPABASE_URL;
+  const key = env.SUPABASE_SERVICE_KEY;
+  const headers = { apikey: key, Authorization: `Bearer ${key}` };
+  const sbGet = async (table, params) => {
+    const res = await fetchImpl(`${supabaseUrl}/rest/v1/${table}?${new URLSearchParams(params)}`, { headers });
+    if (!res.ok) throw new Error(await res.text());
+    return res.json();
+  };
+  const sbInsert = async (table, row) => {
+    const res = await fetchImpl(`${supabaseUrl}/rest/v1/${table}`, { method: 'POST', headers: { ...headers, 'Content-Type': 'application/json', Prefer: 'return=representation' }, body: JSON.stringify(row) });
+    if (!res.ok) throw new Error(await res.text());
+    return (await res.json())[0] || row;
+  };
   try {
     if (request.method === 'GET') {
       const action = url.searchParams.get('action') || 'status';
@@ -31,14 +44,6 @@ export async function handleFeeds({ request, env, verify = verifyAccess, fetchIm
         case 'mail': return json(await mailFeed(args));
         case 'message': return json(await mailMessage({ bucket, id: url.searchParams.get('id'), folderId: url.searchParams.get('folder'), fetchImpl }));
         case 'brief': {
-          const supabaseUrl = env.SUPABASE_URL ?? env.VITE_SUPABASE_URL;
-          const key = env.SUPABASE_SERVICE_KEY;
-          const headers = { apikey: key, Authorization: `Bearer ${key}` };
-          const sbGet = async (table, params) => {
-            const res = await fetchImpl(`${supabaseUrl}/rest/v1/${table}?${new URLSearchParams(params)}`, { headers });
-            if (!res.ok) throw new Error(await res.text());
-            return res.json();
-          };
           const ops = createBusinessOps({ sbGet, sbPatch: async () => { throw new Error('read only'); } });
           return json(await loadBrief({ env, ops, sbGet, fetchImpl }));
         }
@@ -51,6 +56,15 @@ export async function handleFeeds({ request, env, verify = verifyAccess, fetchIm
     switch (body.action) {
       case 'connect_meta': return json(await connectMeta({ env, bucket, token: s(body.token), appId: s(body.appId), appSecret: s(body.appSecret), fetchImpl }));
       case 'connect_zoho': return json(await connectZoho({ bucket, clientId: s(body.clientId), clientSecret: s(body.clientSecret), code: s(body.code), fetchImpl }));
+      // "Check now" in the Facebook panel: the same import the cron runs (no Telegram alert; you're looking at it).
+      case 'check_leads': {
+        try {
+          const out = await pollMetaLeads({ env, bucket, sbGet, sbInsert, fetchImpl });
+          return json({ imported: out.imported.length, connected: out.connected, status: await leadSyncStatus(bucket) });
+        } catch (e) {
+          return json({ error: e.message, status: await leadSyncStatus(bucket) });
+        }
+      }
       case 'disconnect': return json(await disconnectFeed({ bucket, which: s(body.which) }));
       default: return json({ error: 'Unknown action' }, 400);
     }

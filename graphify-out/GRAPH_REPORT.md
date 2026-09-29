@@ -1,17 +1,17 @@
 # Graph Report - gid-garage  (2026-09-28)
 
 ## Corpus Check
-- 274 files · ~1,269,581 words
+- 274 files · ~1,269,798 words
 - Verdict: corpus is large enough that graph structure adds value.
 - Unclassified: 16 file(s) not represented in the graph (top: (none) 7, .css 3, .toml 2)
 
 ## Summary
-- 2977 nodes · 6582 edges · 161 communities (133 shown, 28 thin omitted)
+- 2977 nodes · 6586 edges · 161 communities (133 shown, 28 thin omitted)
 - Extraction: 97% EXTRACTED · 3% INFERRED · 0% AMBIGUOUS · INFERRED: 207 edges (avg confidence: 0.88)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `9f1f5d5d`
+- Built from commit: `7b0e042f`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -217,7 +217,7 @@ Nodes (42): LiveKit JARVIS All-in-One Build, Removed multi-hop voice chain (Medi
 
 ### Community 4 - "jarvis-context.js"
 Cohesion: 0.12
-Nodes (25): cap(), CLAIM_PATTERNS, detectFacet(), extractJobId(), FACET_JOB_FIELDS, FACET_VEHICLE_FIELDS, facetInstruction(), FACETS (+17 more)
+Nodes (22): cap(), CLAIM_PATTERNS, detectFacet(), extractJobId(), FACET_JOB_FIELDS, FACET_VEHICLE_FIELDS, facetInstruction(), FACETS (+14 more)
 
 ### Community 5 - "adminPost"
 Cohesion: 0.10
@@ -368,8 +368,8 @@ Cohesion: 0.07
 Nodes (29): 1. Correctness, 2. Readability & Simplicity, 3. Architecture, 4. Security, 5. Performance, Change Descriptions, Change Sizing, Code Review and Quality (+21 more)
 
 ### Community 42 - "admin-ai-chat.js"
-Cohesion: 0.09
-Nodes (50): analyzeLeadFields(), classifyLeadService(), flattenLeadPayload(), isPastedLeadForm(), issueQuality(), json(), looksLikeVehicle(), ndjsonFinal() (+42 more)
+Cohesion: 0.08
+Nodes (53): analyzeLeadFields(), classifyLeadService(), flattenLeadPayload(), isPastedLeadForm(), issueQuality(), json(), looksLikeVehicle(), ndjsonFinal() (+45 more)
 
 ### Community 43 - "jarvis-feeds.js"
 Cohesion: 0.14
