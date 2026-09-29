@@ -1,7 +1,7 @@
 // Jarvis Jobs and Customers: searchable lists over the same list-bookings data
 // the admin Jobs/Customers tabs use. Picking one opens it in the job overlay.
 import { useMemo, useState } from 'react';
-import { Search, Briefcase, Users, ChevronRight } from 'lucide-react';
+import { Search, Briefcase, Users, ChevronRight, UserPlus } from 'lucide-react';
 import type { Job } from '../../JobOps';
 import { jobMoney, isAwaitingPayment, jobBalance, isCancelled } from '../../../shared/business-rules.js';
 import { collectedRevenue } from '../../../shared/business-metrics.js';
@@ -120,6 +120,8 @@ export function CustomersView({ query, dispatch }: { query: string; dispatch: Di
       <div className="flex flex-wrap items-center gap-3">
         <h2 className="flex items-center gap-2 text-[22px] font-bold mr-2" style={{ color: C.text }}><Users size={22} color={C.cyan} />Customers</h2>
         <SearchBox value={query} onChange={v => dispatch({ type: 'filter', query: v })} placeholder="Search name, phone, vehicle…" />
+        {/* Customer files are created with their first job (find-or-create), exactly as in /admin. */}
+        <ActionButton variant="primary" icon={UserPlus} onClick={() => dispatch({ type: 'open', view: { type: 'newJob' } })}>New customer</ActionButton>
       </div>
       {error ? <ErrorState message={`Couldn't load customers: ${error}`} /> : !jobs ? <Skeleton className="h-[360px]" /> : !people.length ? <EmptyState icon={Users} title="No customers match" /> : (
         <div className="grid gap-2 md:grid-cols-2">

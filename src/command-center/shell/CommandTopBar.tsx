@@ -24,8 +24,8 @@ function useOutside(ref: React.RefObject<HTMLElement>, onOut: () => void, active
 const ATTN_ICON = { lead_follow_up: UserRound, missed_call: PhoneMissed, unpaid_invoice: Receipt } as const;
 const ATTN_TONE = { lead_follow_up: C.cyan, missed_call: C.amber, unpaid_invoice: C.red } as const;
 
-export function CommandTopBar({ title, attention, onSearch, onOpenMenu, onRefresh, onLock, onAttention, refreshing }: {
-  title: string; attention: NeedsAttentionItem[]; onSearch: (q: string) => void; onOpenMenu: () => void; onRefresh: () => void; onLock: () => void; onAttention: (i: NeedsAttentionItem) => void; refreshing?: boolean;
+export function CommandTopBar({ title, attention, onSearch, onOpenMenu, onRefresh, onLock, onAttention, onSettings, refreshing }: {
+  title: string; attention: NeedsAttentionItem[]; onSearch: (q: string) => void; onOpenMenu: () => void; onRefresh: () => void; onLock: () => void; onAttention: (i: NeedsAttentionItem) => void; onSettings: () => void; refreshing?: boolean;
 }) {
   const now = useClock();
   const [q, setQ] = useState('');
@@ -82,7 +82,7 @@ export function CommandTopBar({ title, attention, onSearch, onOpenMenu, onRefres
           )}
         </div>
 
-        <a href="/admin?tab=hub" className={`${iconBtn} hidden sm:flex`} style={iconStyle} aria-label="Settings" title="Settings"><Settings size={18} /></a>
+        <button type="button" onClick={onSettings} className={`${iconBtn} hidden sm:flex`} style={iconStyle} aria-label="Settings" title="Settings"><Settings size={18} /></button>
 
         <div className="relative" ref={acctRef}>
           <button type="button" onClick={() => setAcctOpen(o => !o)} className={iconBtn} style={{ ...iconStyle, color: C.cyan }} aria-label="Account" aria-expanded={acctOpen}><CircleUser size={20} /></button>

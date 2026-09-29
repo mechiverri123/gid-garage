@@ -91,21 +91,25 @@ export function CommandCenterPage({ onLock }: { onLock: () => void }) {
   const screenMeta = () => { const t = workspaceTop(wsRef.current); return t?.type === 'jobs' ? t.jobIds.map((id: string) => jobMeta.get(id) ?? { label: '', date: '' }) : []; };
   const openView = useCallback((view: Record<string, unknown>) => dispatchWs({ type: 'open', view }), []);
   const openJob = useCallback((id: string) => dispatchWs({ type: 'open', view: { type: 'jobs', jobIds: [id] } }), []);
+  // A view opened by Jarvis (chat `ui` event or voice gid.ui). Revenue actions
+  // carry the numbers Jarvis just quoted, so the chart shows them instantly.
+  const applyScreenAction = (action: unknown) => {
+    const a = action as WsAction;
+    if (!a || typeof a.type !== 'string') return;
+    const range = (a.view as { range?: { from?: string; to?: string } } | undefined)?.range;
+    if (a.data && range?.from && range?.to) revenuePrefetch.set(`${range.from}|${range.to}`, a.data);
+    dispatchWs(a);
+  };
   const screenHooks = useMemo(() => ({
     getScreen: () => describeScreen(wsRef.current, screenMeta()),
-    onWorkspace: (action: unknown, data?: unknown) => {
-      const a = action as WsAction;
-      const range = (a?.view as { range?: { from?: string; to?: string } } | undefined)?.range;
-      if (data && range?.from && range?.to) revenuePrefetch.set(`${range.from}|${range.to}`, data);
-      dispatchWs(a);
-    },
+    onWorkspace: (action: unknown) => applyScreenAction(action),
   }), []);
 
   // Spoken on-screen commands ("close jobs", "show payment") via the voice transcript.
   const voice = useLiveKitJarvis(text => {
     const local = parseLocalCommand(text, wsRef.current, { meta: screenMeta(), today: phoenixYmd(new Date()) });
     if (local && local.type !== 'noop') dispatchWs(local);
-  });
+  }, applyScreenAction);
 
   // Ops (default) vs SEO Mode. SEO answers from Jarvis switch modes and bring
   // the relevant panel into focus (structured ui_focus events).
@@ -223,7 +227,7 @@ export function CommandCenterPage({ onLock }: { onLock: () => void }) {
 
       <div className="flex-1 flex flex-col min-w-0">
         <CommandTopBar title={title} attention={summary?.needsAttention ?? []} onSearch={q => openView({ type: 'jobList', query: q, status: 'all' })}
-          onOpenMenu={() => setDrawer(true)} onRefresh={loadSummary} onLock={onLock} onAttention={openAttention} refreshing={loading} />
+          onOpenMenu={() => setDrawer(true)} onSettings={() => openView({ type: 'settings' })} onRefresh={loadSummary} onLock={onLock} onAttention={openAttention} refreshing={loading} />
 
         <main ref={main} className="flex-1 overflow-y-auto overflow-x-hidden">
           <div className="max-w-[1920px] mx-auto px-4 sm:px-6 xl:px-8 py-5 flex flex-col gap-4 sm:gap-5">
@@ -248,7 +252,7 @@ export function CommandCenterPage({ onLock }: { onLock: () => void }) {
               </div>
 
               <div className="grid gap-4 sm:gap-5 lg:grid-cols-2 xl:grid-cols-12">
-                <div className="xl:col-span-4 min-w-0"><QuickActionHero onLeadSaved={() => { loadSummary(); loadLeads(leadStatusFilter || undefined); }} onNewJob={() => openView({ type: 'newJob' })} onPickJob={() => openView({ type: 'jobList', status: 'active' })} /></div>
+                <div className="xl:col-span-4 min-w-0"><QuickActionHero onLeadSaved={() => { loadSummary(); loadLeads(leadStatusFilter || undefined); }} onNewJob={() => openView({ type: 'newJob' })} onPickJob={() => openView({ type: 'jobList', status: 'active' })} onCustomers={() => openView({ type: 'customers' })} /></div>
                 <div className="xl:col-span-5 min-w-0"><ThisMonth summary={summary} /></div>
                 <div className="lg:col-span-2 xl:col-span-3 min-w-0"><LeadsBySource summary={summary} /></div>
               </div>

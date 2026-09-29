@@ -17,7 +17,7 @@ export const NAV: NavItem[] = [
   { key: 'seo', label: 'SEO', icon: SearchCheck, target: { kind: 'mode', mode: 'seo' } },
   { key: 'reports', label: 'Reports', icon: BarChart3, target: { kind: 'view', view: { type: 'analytics', range: { period: 'this_month' } } } },
   { key: 'jarvis', label: 'Jarvis', icon: Bot, target: { kind: 'section', id: 'cc-jarvis' } },
-  { key: 'settings', label: 'Settings', icon: Settings, target: { kind: 'href', href: '/admin?tab=hub' } },
+  { key: 'settings', label: 'Settings', icon: Settings, target: { kind: 'view', view: { type: 'settings' } } },
 ];
 
 function NavButton({ item, active, compact, onGo }: { item: NavItem; active: boolean; compact: boolean; onGo: (t: NavTarget) => void }) {

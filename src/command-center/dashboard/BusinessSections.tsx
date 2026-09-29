@@ -56,7 +56,7 @@ function NewLeadDialog({ onClose, onSaved }: { onClose: () => void; onSaved: () 
   );
 }
 
-export function QuickActionHero({ onLeadSaved, onNewJob, onPickJob }: { onLeadSaved: () => void; onNewJob: () => void; onPickJob: () => void }) {
+export function QuickActionHero({ onLeadSaved, onNewJob, onPickJob, onCustomers }: { onLeadSaved: () => void; onNewJob: () => void; onPickJob: () => void; onCustomers: () => void }) {
   const [newLead, setNewLead] = useState(false);
   return (
     <CommandCard variant="primary" className="p-5 overflow-hidden">
@@ -71,7 +71,7 @@ export function QuickActionHero({ onLeadSaved, onNewJob, onPickJob }: { onLeadSa
       <div className="relative grid grid-cols-2 gap-2.5">
         <CommandButton icon={PlusCircle} label="New Job" hint="Contact → date → estimate" onClick={onNewJob} />
         <CommandButton icon={UserPlus} label="New Lead" hint="Add it here" tone="purple" onClick={() => setNewLead(true)} />
-        <CommandButton icon={Users} label="Add Customer" hint="Customers" tone="green" href="/admin?tab=customers" />
+        <CommandButton icon={Users} label="Add Customer" hint="Find or add" tone="green" onClick={onCustomers} />
         <CommandButton icon={FileText} label="Send Estimate" hint="Pick a job" tone="amber" onClick={onPickJob} />
       </div>
       {newLead && <NewLeadDialog onClose={() => setNewLead(false)} onSaved={onLeadSaved} />}

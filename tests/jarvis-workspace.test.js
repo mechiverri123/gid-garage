@@ -162,3 +162,24 @@ test('show_jobs lays cards out oldest to newest, newest N kept', async () => {
   const nf = await ops.jobsForView({ job_ids: ['j2', 'j1'], newest_first: true });
   assert.deepEqual(nf.jobs.map(j => j.id), ['j2', 'j1']);
 });
+
+// ---- chat and voice open the same views (functions/_lib/jarvis-screen.js) -------
+import { runScreenTool } from '../functions/_lib/jarvis-screen.js';
+
+test('screen tools: same actions for chat and voice', async () => {
+  const ops = fakeOps();
+  const jobs = await runScreenTool('show_jobs', { job_ids: ['j2', 'j1'], tab: 'inspection' }, { ops, today: '2026-09-28' });
+  assert.deepEqual(jobs.__ui, [{ type: 'open', view: { type: 'jobs', jobIds: ['j1', 'j2'], tab: 'inspection', focus: undefined, title: null } }]);
+  assert.equal(jobs.say, 'Opening the inspection.');
+  const cal = await runScreenTool('show_calendar', { when: 'friday' }, { ops, today: '2026-09-28' });
+  assert.deepEqual(cal.__ui[0].view, { type: 'calendar', date: '2026-10-02', mode: 'day' });
+  const rev = await runScreenTool('show_revenue', { last_days: 13 }, { ops, today: '2026-09-28' });
+  assert.deepEqual(rev.__ui[0].view.range, { from: '2026-09-16', to: '2026-09-28', key: 'last_13_days' });
+  assert.equal(rev.__ui[0].data.collected, rev.collected); // the chart gets the numbers Jarvis quotes
+  assert.equal('series' in rev, false); // the model sees facts, not 13 rows of chart data
+  const ctl = await runScreenTool('control_screen', { action: 'tab', position: 2, tab: 'payment' }, { ops, today: '2026-09-28', screen: { jobs: [{ id: 'a' }, { id: 'b' }] } });
+  assert.deepEqual(ctl.__ui, [{ type: 'focus', index: 1, expand: true }, { type: 'tab', tab: 'payment' }]);
+  const none = await runScreenTool('control_screen', { action: 'close' }, { ops, today: '2026-09-28' });
+  assert.equal(none.ok, false);
+  assert.equal(workspaceTop(workspaceReduce(INITIAL_WORKSPACE, { type: 'open', view: { type: 'settings' } })).type, 'settings');
+});

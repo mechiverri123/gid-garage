@@ -4,22 +4,22 @@
 // Esc or the browser Back button closes one level; the command bar keeps
 // Jarvis (typed + follow-ups like "payment", "close") available on top.
 import { useEffect, useRef, useState } from 'react';
-import { X, Send, Loader2, Briefcase, CalendarDays, BarChart3, Users, ChevronRight } from 'lucide-react';
+import { X, Send, Loader2, Briefcase, CalendarDays, BarChart3, Users, ChevronRight, Settings } from 'lucide-react';
 import { workspaceTop, type WorkspaceState } from '../../../shared/jarvis-workspace.js';
 import { C } from '../ui/theme';
 import { JobsView, type JobsViewState } from './JobsView';
 import { AnalyticsView } from './AnalyticsView';
 import { CalendarView } from './CalendarView';
 import { JobListView, CustomersView } from './BrowseViews';
-import { ExternalLeadModal } from '../../JobOps';
+import { ExternalLeadModal, BusinessHub } from '../../JobOps';
 import { useAllJobs, putJob } from './jobStore';
 import './workspace.css';
 
 type View = { type: string; [k: string]: unknown };
 type Dispatch = (a: { type: string; [k: string]: unknown }) => void;
 
-const LABEL: Record<string, string> = { jobs: 'Jobs', analytics: 'Revenue', calendar: 'Calendar', jobList: 'All jobs', customers: 'Customers', newJob: 'New job' };
-const ICON = { jobs: Briefcase, analytics: BarChart3, calendar: CalendarDays, jobList: Briefcase, customers: Users, newJob: Briefcase } as const;
+const LABEL: Record<string, string> = { jobs: 'Jobs', analytics: 'Revenue', calendar: 'Calendar', jobList: 'All jobs', customers: 'Customers', newJob: 'New job', settings: 'Settings' };
+const ICON = { jobs: Briefcase, analytics: BarChart3, calendar: CalendarDays, jobList: Briefcase, customers: Users, newJob: Briefcase, settings: Settings } as const;
 
 // The admin "new job" wizard (contact → date → estimate), same code and writes,
 // re-themed. The finished job opens right here.
@@ -63,6 +63,8 @@ export default function JarvisWorkspace({ state, dispatch, onAsk, asking, reply 
       case 'jobList': return <JobListView query={String(view.query || '')} status={String(view.status || 'active')} dispatch={dispatch} />;
       case 'customers': return <CustomersView query={String(view.query || '')} dispatch={dispatch} />;
       case 'newJob': return <NewJob dispatch={dispatch} />;
+      // The admin Hub (tax rate, business notes, backups), same component and writes, re-themed.
+      case 'settings': return <div className="jv-glass jv-pop jv-skin max-w-[1180px] mx-auto p-4 sm:p-6"><BusinessHub /></div>;
       default: return null;
     }
   };

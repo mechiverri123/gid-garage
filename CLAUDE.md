@@ -49,7 +49,8 @@ Jarvis is the interactive command interface for GID Garage, not primarily a chat
 - **Money on screen is canonical.** `revenueRange` (business-data.js) uses inclusive Arizona day ranges (`resolveDayRange`/`dayRangeWindow`) and the canonical collected / net-profit math.
   - On `/jarvis` the spoken number comes from the same `show_revenue` result as the chart.
   - Test: `revenueRange` this month equals `revenueSummary` this month.
-- **Still to do:** "New Customer" and Settings still link to `/admin`. Voice-initiated "open" requests ("pull Jill's jobs" said aloud) need the LiveKit agent to emit ui events. Today only on-screen commands work by voice.
+- **Voice opens views too.** The LiveKit agent's `show_on_screen` tool calls `/hooks/business` (`show_*`, the same `functions/_lib/jarvis-screen.js` as the chat) and forwards the returned `__ui` actions to the page on the `gid.ui` topic. The page applies them through the same workspace, and on-screen follow-ups use the user transcript. Agent changes need `lk agent deploy` from `jarvis-agent/`.
+- The only remaining `/admin` link on `/jarvis` is the explicit "Admin dashboard" item in the account menu. Settings opens the admin Hub re-themed; new customers are created with their first job (New Job), same as `/admin`.
 
 # 0.3 COMMAND CENTER UI (redesign, 2026-09-28)
 

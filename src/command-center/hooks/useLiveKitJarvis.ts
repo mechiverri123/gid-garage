@@ -38,9 +38,13 @@ const EMPTY_DIAGNOSTICS: VoiceDiagnostics = {
 // onUserTranscript: each finished sentence the owner speaks (the agent's
 // lk.transcription text stream), so on-screen commands like "close jobs" or
 // "show payment" work by voice too.
-export function useLiveKitJarvis(onUserTranscript?: (text: string) => void) {
+// onScreen: views the voice agent opens ("pull up Jill's jobs"), sent on the
+// gid.ui topic as { actions: [...] } (jarvis-agent/agent.py show_on_screen).
+export function useLiveKitJarvis(onUserTranscript?: (text: string) => void, onScreen?: (action: unknown) => void) {
   const transcriptRef = useRef(onUserTranscript);
   transcriptRef.current = onUserTranscript;
+  const screenRef = useRef(onScreen);
+  screenRef.current = onScreen;
   const [state, setState] = useState<RealtimeVoiceState>('off');
   const [error, setError] = useState<string | null>(null);
   const [roomName, setRoomName] = useState<string | null>(null);
@@ -180,6 +184,17 @@ export function useLiveKitJarvis(onUserTranscript?: (text: string) => void) {
         const text = (await reader.readAll()).trim();
         if (reader.info.attributes?.['lk.transcription_final'] === 'false' || !text) return;
         transcriptRef.current?.(text);
+      });
+      const applyScreen = (raw: string, fromIdentity?: string) => {
+        if (fromIdentity === liveRoom.localParticipant.identity) return;
+        try {
+          const msg = JSON.parse(raw) as { actions?: unknown[] };
+          for (const a of msg.actions ?? []) screenRef.current?.(a);
+        } catch { /* not a screen message */ }
+      };
+      liveRoom.registerTextStreamHandler('gid.ui', async (reader, participant) => applyScreen(await reader.readAll(), participant.identity));
+      liveRoom.on(RoomEvent.DataReceived, (payload, participant, _kind, topic) => {
+        if (topic === 'gid.ui') applyScreen(new TextDecoder().decode(payload), participant?.identity);
       });
       setRoomName(tokenBody.room_name || null);
       patchDiagnostics({

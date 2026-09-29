@@ -38,6 +38,8 @@ export function normalizeView(v) {
       return { type: 'customers', query: String(v.query || '').slice(0, 80) };
     case 'newJob':
       return { type: 'newJob' };
+    case 'settings':
+      return { type: 'settings' };
     default:
       return null;
   }

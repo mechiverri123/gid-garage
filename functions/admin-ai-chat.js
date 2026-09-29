@@ -35,7 +35,8 @@ import { isInsideServiceArea } from '../shared/seo/service-area.js';
 import { ownerPaySettings } from '../shared/business-metrics.js';
 import { SETTABLE_JOB_STATUSES, PAYMENT_METHODS, leadStatusUpdate, leadFollowUpReason, isValidYmd, isValidApptTime, noteContactKey } from '../shared/business-rules.js';
 import { jobEvidence } from '../shared/job-context.js';
-import { JOB_TABS, CALENDAR_MODES, resolveCalendarWhen } from '../shared/jarvis-workspace.js';
+import { JOB_TABS, CALENDAR_MODES } from '../shared/jarvis-workspace.js';
+import { runScreenTool } from './_lib/jarvis-screen.js';
 
 const CLAUDE_MODEL = 'claude-haiku-4-5-20251001';
 const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
@@ -1467,54 +1468,8 @@ export async function onRequestPost({ request, env }) {
       case 'update_seo_recommendation':
         return await seo().updateRecommendation({ id: String(input.id || ''), action: String(input.action || ''), reason: String(input.reason || ''), note: String(input.note || '') });
 
-      case 'show_jobs': {
-        const r = await ops.jobsForView({
-          customer: input.customer, vehicle: input.vehicle, service: input.service, job_ids: input.job_ids,
-          count: input.count, newest_first: input.newest_first === true,
-        });
-        if (!r.jobs?.length) return r;
-        const n = r.jobs.length;
-        const newestIdx = r.order === 'newest_first' ? 0 : n - 1;
-        const focus = input.focus === 'newest' ? newestIdx : input.focus === 'oldest' ? n - 1 - newestIdx : undefined;
-        const who = r.subject ? `${r.subject.split(' ')[0]}'s` : 'the';
-        const say = input.tab ? `Opening the ${input.tab}.` : `Pulling up ${who} ${n === 1 ? 'job' : `${n} jobs`}.`;
-        return { ...r, onScreen: true, say, __ui: [{ type: 'open', view: { type: 'jobs', jobIds: r.jobs.map(j => j.id), tab: input.tab, focus, title: r.subject } }] };
-      }
-      case 'show_revenue': {
-        const spec = input.from ? { from: input.from, to: input.to } : input.month ? { month: input.month } : input.last_days ? { last_days: input.last_days } : { period: input.period || 'this_month' };
-        const r = await ops.revenueRange(spec);
-        const { series, ...facts } = r;
-        return { ...facts, onScreen: true, __ui: [{ type: 'open', view: { type: 'analytics', range: { from: r.from, to: r.to, key: r.key } }, data: r }] };
-      }
-      case 'show_calendar': {
-        const today = phoenixDateString();
-        const r = resolveCalendarWhen(input.when || 'this week', today) || { date: today, mode: 'week' };
-        const mode = CALENDAR_MODES.includes(input.mode) ? input.mode : r.mode;
-        return { date: r.date, mode, onScreen: true, __ui: [{ type: 'open', view: { type: 'calendar', date: r.date, mode } }] };
-      }
-      case 'show_job_list':
-        return { onScreen: true, __ui: [{ type: 'open', view: { type: 'jobList', query: String(input.query || ''), status: String(input.status || 'active') } }] };
-      case 'show_customers':
-        return { onScreen: true, __ui: [{ type: 'open', view: { type: 'customers', query: String(input.query || '') } }] };
-      case 'control_screen': {
-        if (!uiScreen?.screen) return { ok: false, error: 'Nothing is open on the screen.' };
-        const jobs = Array.isArray(uiScreen.screen.jobs) ? uiScreen.screen.jobs : [];
-        const idx = input.job_id ? jobs.findIndex(j => j.id === input.job_id) : Number(input.position) - 1;
-        const actions = [];
-        if (input.action === 'close' || input.action === 'close_all') actions.push({ type: input.action });
-        else {
-          if (input.job_id || input.position) {
-            if (!(idx >= 0 && idx < jobs.length)) return { ok: false, error: 'That job is not on the screen.' };
-            actions.push({ type: 'focus', index: idx, expand: true });
-          }
-          if (input.action === 'tab') {
-            if (!JOB_TABS.includes(input.tab)) return { ok: false, error: `tab must be one of ${JOB_TABS.join(', ')}.` };
-            actions.push({ type: 'tab', tab: input.tab });
-          }
-          if (!actions.length) return { ok: false, error: 'Say which job (job_id or position).' };
-        }
-        return { ok: true, onScreen: true, __ui: actions };
-      }
+      case 'show_jobs': case 'show_revenue': case 'show_calendar': case 'show_job_list': case 'show_customers': case 'control_screen':
+        return runScreenTool(name, input, { ops, screen: uiScreen?.screen ?? null, today: phoenixDateString() });
 
       case 'send_customer_email': {
         if (!input.confirmed) {

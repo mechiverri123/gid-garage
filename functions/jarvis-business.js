@@ -7,11 +7,15 @@
 // Auth: X-GID-Internal-Jarvis must equal TELEGRAM_WEBHOOK_SECRET (the same
 // internal secret jarvis-telegram.js uses to call admin-ai-chat).
 // Body: { action: string, args?: object }  ->  { ok: true, result } | { ok: false, error }
+// show_jobs / show_revenue / show_calendar / show_job_list / show_customers return
+// result.__ui: workspace actions the agent forwards to the /jarvis page (LiveKit topic gid.ui).
 
 import { createBusinessOps } from './_lib/business-data.js';
 import { createSeoStore } from './_lib/seo/store.js';
 import { createSeoOps } from './_lib/seo/ops.js';
 import { isInsideServiceArea } from '../shared/seo/service-area.js';
+import { runScreenTool, SCREEN_TOOL_NAMES } from './_lib/jarvis-screen.js';
+import { phoenixToday } from '../shared/business-rules.js';
 
 // Local SEO (read-only for voice; recommendation state changes stay in text/web).
 const SEO_ACTIONS = {
@@ -64,7 +68,10 @@ export async function onRequestPost({ request, env }) {
   try { body = await request.json(); } catch { return json({ ok: false, error: 'Invalid JSON' }, 400); }
   const run = ACTIONS[body?.action];
   const seoRun = SEO_ACTIONS[body?.action];
-  if (!run && !seoRun) return json({ ok: false, error: `Unsupported action. Use one of: ${[...Object.keys(ACTIONS), ...Object.keys(SEO_ACTIONS)].join(', ')}` }, 400);
+  // Screen views (voice "pull up Jill's jobs"): same actions as the /jarvis chat;
+  // the result's __ui goes back to the agent, which forwards it to the page.
+  const screenRun = SCREEN_TOOL_NAMES.has(body?.action) && body.action !== 'control_screen';
+  if (!run && !seoRun && !screenRun) return json({ ok: false, error: `Unsupported action. Use one of: ${[...Object.keys(ACTIONS), ...Object.keys(SEO_ACTIONS)].join(', ')}` }, 400);
 
   const base = `${supabaseUrl}/rest/v1`;
   const headers = { apikey: serviceKey, Authorization: `Bearer ${serviceKey}`, 'Content-Type': 'application/json' };
@@ -89,9 +96,12 @@ export async function onRequestPost({ request, env }) {
 
   try {
     const args = body.args && typeof body.args === 'object' ? body.args : {};
+    const ops = () => createBusinessOps({ sbGet, sbPatch, sbInsert });
     const result = seoRun
       ? await seoRun(createSeoOps({ store: createSeoStore({ supabaseUrl, serviceKey }), env }), args)
-      : await run(createBusinessOps({ sbGet, sbPatch, sbInsert }), args);
+      : screenRun
+        ? await runScreenTool(body.action, args, { ops: ops(), today: phoenixToday() })
+        : await run(ops(), args);
     return json({ ok: true, result });
   } catch (e) {
     return json({ ok: false, error: e?.message || String(e) }, 200);

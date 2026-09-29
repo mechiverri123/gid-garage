@@ -11,7 +11,8 @@ export type WorkspaceView =
   | { type: 'calendar'; date: string | null; mode: CalendarMode }
   | { type: 'jobList'; query: string; status: string }
   | { type: 'customers'; query: string }
-  | { type: 'newJob' };
+  | { type: 'newJob' }
+  | { type: 'settings' };
 
 export interface WorkspaceState { stack: WorkspaceView[] }
 export type WorkspaceAction = { type: string; [k: string]: unknown };

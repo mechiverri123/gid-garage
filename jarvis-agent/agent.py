@@ -152,8 +152,13 @@ async def send_brevo_email(to_email: str, to_name: str, subject: str, body_html:
             raise RuntimeError(f"Brevo rejected the email ({response.status_code}): {response.text[:300]}")
 
 
+SCREEN_VIEWS = {"show_jobs", "show_revenue", "show_calendar", "show_job_list", "show_customers"}
+
+
 class GIDJarvis(Agent):
-    def __init__(self) -> None:
+    def __init__(self, ui_room: Any = None) -> None:
+        # The LiveKit room, so show_on_screen can hand views to the /jarvis page.
+        self._ui_room = ui_room
         today = datetime.now(ARIZONA).strftime("%A, %B %d, %Y").replace(" 0", " ")
         super().__init__(
             instructions=f"""You are JARVIS, Michael's private realtime operating assistant for GID Garage, a mobile mechanic business in Flagstaff, Arizona.
@@ -171,6 +176,11 @@ VOICE STYLE:
 - Never announce your own status or availability. Do not say phrases such as 'standing by', 'ready', 'online', 'awaiting instructions', 'at your service', 'here when you need me', 'systems operational', or similar idle/status chatter.
 - Do not speak just because the voice session connected. Stay silent until Michael actually says or sends something that requires a response.
 - After completing a request, give only the result or required follow-up. Do not append a sign-off, readiness statement, or invitation to continue unless a clarification or confirmation is actually required.
+
+SCREEN (visual-first):
+- Michael is looking at the /jarvis screen. When he asks to pull up, show, open or see something that can be shown (a customer's jobs, "the brake job", a job's estimate/payment/inspection, the calendar or a day, revenue or net profit for any period, the jobs list, customers), call show_on_screen and speak ONE short sentence. If the result has "say", speak exactly that. Never read out what the screen shows unless he asks.
+- For revenue and net profit use show_on_screen with show_revenue (not get_revenue_summary) so the spoken number matches the chart.
+- Commands about what is already on screen (close, close jobs, exit, go back, next, the middle one, the last one, payment, inspection, estimate, notes, a number of days, tomorrow, month view) are handled by the screen itself. Do not call any tool for them; say nothing more than "Done."
 
 BUSINESS DATA:
 - You have one live GID Garage dispatcher tool named gid_business for jobs, customers, leads, calls, marketing, pricing, owner pay, and email.
@@ -1272,6 +1282,38 @@ BUSINESS DATA:
 
 
     @function_tool
+    async def show_on_screen(self, context: RunContext, view: str, args_json: str) -> Any:
+        """Open a view on Michael's /jarvis screen. view is one of:
+        show_jobs {"customer", "vehicle", "service", "count", "newest_first", "tab"} (tab: overview, estimate, payment, inspection, notes, parts; "last three" = count 3, still oldest to newest),
+        show_revenue {"period"} (today, yesterday, this_week, this_month, last_month, this_year) or {"last_days": N} or {"month": "september"} or {"from": "YYYY-MM-DD", "to": "YYYY-MM-DD"},
+        show_calendar {"when"} (today, tomorrow, this week, next week, a weekday, YYYY-MM-DD),
+        show_job_list {"query", "status"}, show_customers {"query"}.
+        args_json is a JSON object string. Speak one short sentence afterward."""
+        if view not in SCREEN_VIEWS:
+            raise ValueError(f"view must be one of {sorted(SCREEN_VIEWS)}")
+        try:
+            args = json.loads(args_json or "{}")
+        except json.JSONDecodeError as exc:
+            raise ValueError(f"args_json must be valid JSON: {exc}") from exc
+        try:
+            result = await backend_business(view, args if isinstance(args, dict) else {})
+        except Exception as exc:
+            return {"ok": False, "error": f"{type(exc).__name__}: {exc}"}
+        actions = result.pop("__ui", []) if isinstance(result, dict) else []
+        if actions and self._ui_room is not None:
+            payload = json.dumps({"actions": actions})
+            try:
+                lp = self._ui_room.local_participant
+                if hasattr(lp, "send_text"):
+                    await lp.send_text(payload, topic="gid.ui")
+                else:
+                    await lp.publish_data(payload.encode(), reliable=True, topic="gid.ui")
+            except Exception as exc:
+                print(f"gid.ui publish error: {type(exc).__name__}: {exc}")
+                return {**result, "onScreen": False, "error": "The screen could not be updated."}
+        return result
+
+    @function_tool
     async def gid_business(
         self,
         context: RunContext,
@@ -1448,7 +1490,7 @@ async def gid_jarvis(ctx: JobContext):
 
     await session.start(
         room=ctx.room,
-        agent=GIDJarvis(),
+        agent=GIDJarvis(ui_room=ctx.room),
         room_options=room_io.RoomOptions(
             participant_identity=participant.identity,
             text_input=True,
