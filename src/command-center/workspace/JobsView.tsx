@@ -7,7 +7,8 @@ import { ChevronLeft, ChevronRight, CheckCircle2, LayoutGrid, Maximize2 } from '
 import type { Job } from '../../JobOps';
 import { C, money } from '../ui/theme';
 import { StatusBadge, Skeleton, ErrorState, ActionButton } from '../ui/primitives';
-import { useJobs, jobTitle } from './jobStore';
+import { useJobs, jobTitle, loadAllJobs } from './jobStore';
+import { jobFamily } from '../../../shared/jarvis-workspace.js';
 import { JobFocus, customerName, jobTotal, whenLabel } from './JobFocus';
 
 export interface JobsViewState { type: 'jobs'; jobIds: string[]; focus: number; expanded: boolean; tab: string; title: string | null }
@@ -57,6 +58,22 @@ function JobCard({ job, role, compact, onClick, delay }: { job: Job | null; role
 
 export function JobsView({ view, dispatch }: { view: JobsViewState; dispatch: Dispatch }) {
   const { jobs, error } = useJobs(view.jobIds);
+
+  // One job opened from anywhere (list, calendar, dashboard, a single Jarvis
+  // match) sits inside its customer's jobs, so "job 3", "Sep 26", "next" and
+  // "the brake one" work the same everywhere. Same list data /admin loads.
+  const single = view.jobIds.length === 1 && !(view as { family?: boolean }).family ? view.jobIds[0] : null;
+  useEffect(() => {
+    if (!single) return;
+    let live = true;
+    loadAllJobs().then(list => {
+      if (!live) return;
+      const target = list.find(j => j.id === single);
+      const name = target ? `${target.fname || ''} ${target.lname || ''}`.trim() : '';
+      dispatch({ type: 'context', forId: single, jobIds: jobFamily(list, single), title: name || null });
+    }, () => { if (live) dispatch({ type: 'context', forId: single, jobIds: [single] }); });
+    return () => { live = false; };
+  }, [single, dispatch]);
   const width = useWidth();
   const n = view.jobIds.length;
   const touch = useRef<number | null>(null);

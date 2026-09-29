@@ -5,7 +5,7 @@
 //
 // Pure — no I/O, no clock (callers pass `today`). The React side
 // (src/command-center/workspace/) renders the top of the stack; the backend
-// (admin-ai-chat.js) emits the same actions as `ui` events.
+// (admin-ai-chat.js, jarvis-business.js) emits the same actions as `ui` events.
 // Tests: tests/jarvis-workspace.test.js.
 
 export const JOB_TABS = ['overview', 'estimate', 'payment', 'inspection', 'notes', 'parts'];
@@ -13,6 +13,7 @@ export const CALENDAR_MODES = ['day', 'week', 'month'];
 export const INITIAL_WORKSPACE = { stack: [] };
 
 const MAX_STACK = 4;
+const MAX_JOBS = 12;
 const clamp = (n, lo, hi) => Math.max(lo, Math.min(hi, n));
 const top = state => state.stack[state.stack.length - 1] || null;
 const replaceTop = (state, view) => ({ stack: [...state.stack.slice(0, -1), view] });
@@ -22,11 +23,16 @@ export function normalizeView(v) {
   if (!v || typeof v !== 'object') return null;
   switch (v.type) {
     case 'jobs': {
-      const jobIds = [...new Set((Array.isArray(v.jobIds) ? v.jobIds : []).map(String).filter(Boolean))].slice(0, 12);
+      const jobIds = [...new Set((Array.isArray(v.jobIds) ? v.jobIds : []).map(String).filter(Boolean))].slice(0, MAX_JOBS);
       if (!jobIds.length) return null;
       const tab = JOB_TABS.includes(v.tab) ? v.tab : 'overview';
       const focus = clamp(Number.isInteger(v.focus) ? v.focus : Math.floor((jobIds.length - 1) / 2), 0, jobIds.length - 1);
-      return { type: 'jobs', jobIds, focus, expanded: jobIds.length === 1 || !!v.expanded || v.tab != null, tab, title: v.title ? String(v.title).slice(0, 80) : null };
+      return {
+        type: 'jobs', jobIds, focus, expanded: jobIds.length === 1 || !!v.expanded || v.tab != null, tab,
+        title: v.title ? String(v.title).slice(0, 80) : null,
+        // family: already widened to the customer's other jobs (see 'context').
+        family: !!v.family,
+      };
     }
     case 'analytics':
       return { type: 'analytics', range: v.range && typeof v.range === 'object' ? v.range : { period: 'this_month' } };
@@ -59,6 +65,17 @@ export function workspaceReduce(state, action) {
       if (t && t.type === view.type) return replaceTop(state, view);
       return { stack: [view] };
     }
+    // A single job was opened (from a list, the calendar, the dashboard or one
+    // Jarvis match): widen it to the customer's jobs so "job 3", "Sep 26",
+    // "next" and "the brake one" work the same everywhere. Applies only while
+    // that same single job is still what's on screen.
+    case 'context': {
+      if (t?.type !== 'jobs' || t.family || t.jobIds.length !== 1 || t.jobIds[0] !== action.forId) return state;
+      const jobIds = [...new Set((action.jobIds || []).map(String))].slice(0, MAX_JOBS);
+      const focus = jobIds.indexOf(action.forId);
+      if (focus < 0) return replaceTop(state, { ...t, family: true });
+      return replaceTop(state, { ...t, jobIds, focus, family: true, title: t.title || (action.title ? String(action.title).slice(0, 80) : null) });
+    }
     case 'close':
       if (!t) return state;
       if (t.type === 'jobs' && t.expanded && t.jobIds.length > 1) return replaceTop(state, { ...t, expanded: false });
@@ -67,7 +84,7 @@ export function workspaceReduce(state, action) {
       return INITIAL_WORKSPACE;
     case 'focus':
       if (t?.type !== 'jobs') return state;
-      return replaceTop(state, { ...t, focus: clamp(Number(action.index) || 0, 0, t.jobIds.length - 1), expanded: action.expand ?? t.expanded });
+      return replaceTop(state, { ...t, focus: clamp(Number(action.index) || 0, 0, t.jobIds.length - 1), expanded: action.expand ?? t.expanded, ...(JOB_TABS.includes(action.tab) ? { tab: action.tab, expanded: true } : {}) });
     case 'step':
       if (t?.type !== 'jobs') return state;
       return replaceTop(state, { ...t, focus: clamp(t.focus + (Number(action.delta) || 0), 0, t.jobIds.length - 1) });
@@ -90,14 +107,105 @@ export function workspaceReduce(state, action) {
 
 export const workspaceTop = top;
 
+// ---- a customer's jobs ---------------------------------------------------------------
+
+const digits10 = s => String(s || '').replace(/\D/g, '').slice(-10);
+const fullName = j => `${j?.fname || ''} ${j?.lname || ''}`.trim().toLowerCase().replace(/\s+/g, ' ');
+const cancelled = j => String(j?.status || '').toLowerCase() === 'cancelled' || j?.jobStatus === 'CANCELLED';
+
+// The jobs that belong to the same customer as `id`, oldest -> newest, at most
+// 12 around it. Same person = same customer file; for older jobs without one,
+// the same full name and phone. Never guesses on a first name alone.
+// list: the admin job list (camelCase Job rows).
+export function jobFamily(list, id) {
+  const target = (list || []).find(j => j.id === id);
+  if (!target) return [id];
+  const name = fullName(target);
+  const phone = digits10(target.phone);
+  const same = j => {
+    if (j.id === id) return true;
+    if (target.customerId && j.customerId) return j.customerId === target.customerId;
+    return !!name && name.includes(' ') && fullName(j) === name && (!phone || !digits10(j.phone) || digits10(j.phone) === phone);
+  };
+  const fam = list.filter(j => same(j) && j.status !== 'deleted' && (j.id === id || !cancelled(j) || cancelled(target)))
+    .sort((a, b) => String(a.date || '').localeCompare(String(b.date || '')) || String(a.id).localeCompare(String(b.id)));
+  const at = fam.findIndex(j => j.id === id);
+  const start = clamp(at - Math.floor(MAX_JOBS / 2), 0, Math.max(0, fam.length - MAX_JOBS));
+  return fam.slice(start, start + MAX_JOBS).map(j => j.id);
+}
+
+// ---- spoken numbers and dates -------------------------------------------------------
+
+const UNITS = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve', 'thirteen', 'fourteen', 'fifteen', 'sixteen', 'seventeen', 'eighteen', 'nineteen'];
+const TENS = { twenty: 20, thirty: 30, forty: 40, fifty: 50, sixty: 60, seventy: 70, eighty: 80, ninety: 90 };
+const ORD_UNITS = { first: 1, second: 2, third: 3, fourth: 4, fifth: 5, sixth: 6, seventh: 7, eighth: 8, ninth: 9, tenth: 10, eleventh: 11, twelfth: 12, thirteenth: 13, fourteenth: 14, fifteenth: 15, sixteenth: 16, seventeenth: 17, eighteenth: 18, nineteenth: 19, twentieth: 20, thirtieth: 30 };
+const CARD = `(?:(?:${Object.keys(TENS).join('|')})(?:[ -](?:${UNITS.slice(1, 10).join('|')}))?|${UNITS.join('|')})`;
+const ORD = `(?:(?:twenty|thirty)[ -](?:first|second|third|fourth|fifth|sixth|seventh|eighth|ninth)|${Object.keys(ORD_UNITS).join('|')})`;
+function cardinal(w) {
+  const [a, b] = w.split(/[ -]/);
+  if (a in TENS) return TENS[a] + (b ? UNITS.indexOf(b) : 0);
+  return UNITS.indexOf(a);
+}
+function ordinal(w) {
+  const [a, b] = w.split(/[ -]/);
+  return b ? TENS[a] + ORD_UNITS[b] : ORD_UNITS[a];
+}
+const MONTH_RE = '(?:jan|feb|mar|apr|may|jun|jul|aug|sept?|oct|nov|dec)[a-z]*\\.?';
+
+// Speech-to-text often spells numbers out. Turn them into digits only where a
+// number is clearly meant (dates, counts of days/weeks, "job three"), so
+// "the brake one" stays a word.
+function spokenNumbers(t) {
+  return t
+    .replace(new RegExp(`\\b(${MONTH_RE}) (?:the )?(${ORD})\\b`, 'g'), (_, m, o) => `${m} ${ordinal(o)}th`)
+    .replace(new RegExp(`\\b(${MONTH_RE}) (${CARD})\\b`, 'g'), (_, m, c) => `${m} ${cardinal(c)}`)
+    .replace(new RegExp(`\\b(${CARD}) (days?|weeks?|months?)\\b`, 'g'), (_, c, u) => `${cardinal(c)} ${u}`)
+    .replace(/\b(?:a|one) (?:couple|couple of) (days?|weeks?|months?)\b/g, '2 $1')
+    .replace(/\ba (day|week|month)\b/g, '1 $1')
+    .replace(new RegExp(`\\b(job|card|number) (?:number )?(${CARD})\\b`, 'g'), (_, k, c) => `${k} ${cardinal(c)}`)
+    // "the twenty sixth" (6th and up; "the third" stays a card position)
+    .replace(new RegExp(`\\bthe (${ORD})\\b`, 'g'), (all, o) => (ordinal(o) >= 6 ? `the ${ordinal(o)}th` : all));
+}
+
+const MONTHS = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+const pad2 = x => String(x).padStart(2, '0');
+// { month: 'MM' | null, day: 'DD' } from "sep 26", "september 26th", "9/26", "the 26th".
+export function spokenDate(c) {
+  const s = spokenNumbers(String(c || '').toLowerCase());
+  let m = s.match(new RegExp(`\\b(${MONTH_RE}) (\\d{1,2})(?:st|nd|rd|th)?\\b`));
+  if (m) return { month: pad2(MONTHS.indexOf(m[1].slice(0, 3)) + 1), day: pad2(m[2]) };
+  m = s.match(/\b(\d{1,2})\/(\d{1,2})\b/);
+  if (m) return { month: pad2(m[1]), day: pad2(m[2]) };
+  m = s.match(/(?:^|\bthe )(\d{1,2})(?:st|nd|rd|th)\b/);
+  if (m) return { month: null, day: pad2(m[1]) };
+  return null;
+}
+// A spoken date as YYYY-MM-DD relative to today: prefer 'future' (calendar) or
+// 'past' (revenue). "the 3rd" uses this month, moved a month if needed.
+export function spokenYmd(c, today, prefer = 'future') {
+  const d = spokenDate(c);
+  if (!d || !today) return null;
+  let [y, m] = today.split('-').map(Number);
+  if (d.month) m = Number(d.month);
+  const make = () => `${y}-${pad2(m)}-${d.day}`;
+  let ymd = make();
+  if (prefer === 'future' && ymd < today) { if (d.month) y += 1; else { m += 1; if (m > 12) { m = 1; y += 1; } } ymd = make(); }
+  if (prefer === 'past' && ymd > today) { if (d.month) y -= 1; else { m -= 1; if (m < 1) { m = 12; y -= 1; } } ymd = make(); }
+  const [yy, mm, dd] = ymd.split('-').map(Number);
+  const probe = new Date(Date.UTC(yy, mm - 1, dd));
+  return probe.getUTCMonth() === mm - 1 && probe.getUTCDate() === dd ? ymd : null;
+}
+
 // ---- calendar words -> date + mode ------------------------------------------------
 
 const WEEKDAYS = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
 const shift = (ymd, days) => { const [y, m, d] = ymd.split('-').map(Number); return new Date(Date.UTC(y, m - 1, d + days, 12)).toISOString().slice(0, 10); };
+const shiftMonth = (ymd, k) => { const [y, m] = ymd.split('-').map(Number); return new Date(Date.UTC(y, m - 1 + k, 1, 12)).toISOString().slice(0, 10); };
 const dow = ymd => new Date(`${ymd}T12:00:00Z`).getUTCDay();
 
 // "today", "tomorrow", "friday", "next friday", "this week", "next week",
-// "next month", "2026-10-02" -> { date, mode } or null. `today` is the Arizona date.
+// "next month", "october 3rd", "the 3rd", "2026-10-02" -> { date, mode } or null.
+// `today` is the Arizona date.
 export function resolveCalendarWhen(when, today) {
   const w = String(when || '').toLowerCase().trim().replace(/^(on|for)\s+/, '');
   if (!w) return null;
@@ -109,8 +217,8 @@ export function resolveCalendarWhen(when, today) {
   if (w === 'next week') return { date: shift(today, 7), mode: 'week' };
   if (w === 'last week') return { date: shift(today, -7), mode: 'week' };
   if (/^(this )?month$/.test(w)) return { date: today, mode: 'month' };
-  if (w === 'next month') { const [y, m] = today.split('-').map(Number); return { date: `${m === 12 ? y + 1 : y}-${String(m === 12 ? 1 : m + 1).padStart(2, '0')}-01`, mode: 'month' }; }
-  if (w === 'last month') { const [y, m] = today.split('-').map(Number); return { date: `${m === 1 ? y - 1 : y}-${String(m === 1 ? 12 : m - 1).padStart(2, '0')}-01`, mode: 'month' }; }
+  if (w === 'next month') return { date: shiftMonth(today, 1), mode: 'month' };
+  if (w === 'last month') return { date: shiftMonth(today, -1), mode: 'month' };
   const wd = w.match(/^(this |next )?(sun|mon|tue|tues|wed|thu|thur|thurs|fri|sat)[a-z]*$/);
   if (wd) {
     const target = WEEKDAYS.findIndex(d => d.startsWith(wd[2].slice(0, 3)));
@@ -118,76 +226,88 @@ export function resolveCalendarWhen(when, today) {
     if (wd[1] === 'next ' && ahead === 0) ahead = 7;
     return { date: shift(today, ahead), mode: 'day' };
   }
-  return null;
+  const month = w.match(new RegExp(`^(${MONTH_RE})$`));
+  if (month) { const m = MONTHS.indexOf(month[1].slice(0, 3)) + 1; const [y, tm] = today.split('-').map(Number); return { date: `${m < tm ? y + 1 : y}-${pad2(m)}-01`, mode: 'month' }; }
+  const date = spokenYmd(w, today, 'future');
+  return date ? { date, mode: 'day' } : null;
 }
 
 // ---- on-screen commands -----------------------------------------------------------
 
-const CLOSE_ONE = /^(?:close|dismiss|hide|collapse|shrink)(?: (?:it|that|this|the job|this job|that job|the (?:estimate|payment|inspection|notes|parts|overview|tab)))?$|^(?:go )?back$|^never ?mind$/;
-const CLOSE_ALL = /^(?:close|dismiss|hide|clear|get rid of|exit|close out)(?: (?:all|everything|all jobs|all (?:of )?(?:these|them|those)(?: jobs)?|(?:the )?jobs|these(?: jobs)?|them|those|(?:the )?(?:calendar|chart|graph|analytics|revenue(?: chart)?|customers|customer list|job list|list|screen|overlay|windows?)))?$|^(?:back to|go back to|return to) (?:jarvis|home|the dashboard|dashboard|main|normal)$/;
+const CLOSE_ONE = /^(?:close|dismiss|hide|collapse|shrink)(?: (?:it|that|this|the job|this job|that job|the (?:estimate|payment|inspection|notes|parts|overview|tab)))?$|^(?:go )?back$|^never ?mind$|^(?:go )?back (?:one|a step|up)$/;
+const CLOSE_ALL = /^(?:close|dismiss|hide|clear|get rid of|exit|close out)(?: (?:all|everything|all jobs|all (?:of )?(?:these|them|those)(?: jobs)?|(?:the )?jobs|these(?: jobs)?|them|those|(?:the )?(?:calendar|chart|graph|analytics|revenue(?: chart)?|customers|customer list|job list|list|screen|overlay|windows?)))?$|^(?:(?:go )?back to|return to|take me) (?:jarvis|home|the dashboard|dashboard|main|normal|the main screen)$|^(?:i'm done|im done|i am done|that's all|thats all|all done|go home|home|dashboard|main screen)$/;
 const TAB_WORDS = {
-  overview: 'overview', summary: 'overview', details: 'overview',
-  estimate: 'estimate', quote: 'estimate',
-  payment: 'payment', payments: 'payment', pay: 'payment', billing: 'payment', invoice: 'payment',
-  inspection: 'inspection', diagnostics: 'inspection', diagnostic: 'inspection', dtc: 'inspection', codes: 'inspection', tires: 'inspection',
-  notes: 'notes', 'diagnostic notes': 'notes', 'tech notes': 'notes', 'technician notes': 'notes', 'scope': 'notes',
-  parts: 'parts',
+  overview: 'overview', summary: 'overview', details: 'overview', services: 'overview', status: 'overview', totals: 'overview', customer: 'overview', vehicle: 'overview',
+  estimate: 'estimate', quote: 'estimate', 'line items': 'estimate', 'scope of work': 'estimate',
+  payment: 'payment', payments: 'payment', pay: 'payment', billing: 'payment', invoice: 'payment', balance: 'payment', receipt: 'payment',
+  inspection: 'inspection', diagnostics: 'inspection', diagnostic: 'inspection', dtc: 'inspection', codes: 'inspection', 'trouble codes': 'inspection',
+  tires: 'inspection', 'tire pressure': 'inspection', 'tread depth': 'inspection', scan: 'inspection', scans: 'inspection', 'scan report': 'inspection', 'scan reports': 'inspection',
+  notes: 'notes', 'diagnostic notes': 'notes', 'tech notes': 'notes', 'technician notes': 'notes', 'customer notes': 'notes', photos: 'notes', 'photo notes': 'notes', pictures: 'notes',
+  parts: 'parts', 'parts cost': 'parts', receipts: 'parts', 'parts receipts': 'parts',
 };
-const TAB_RE = new RegExp(`^(?:(?:show|open|go to|switch to|pull up|view|see|let me see|check|flip to|jump to)(?: me)? )?(?:(?:the|its|his|her|their|that|this) )?(${Object.keys(TAB_WORDS).sort((a, b) => b.length - a.length).join('|')})(?: (?:tab|page|info|section|details|screen))?$`);
-const ORDINALS = { first: 0, '1st': 0, one: 0, second: 1, '2nd': 1, two: 1, third: 2, '3rd': 2, three: 2, fourth: 3, '4th': 3, fifth: 4, '5th': 4 };
-const ORD_RE = /^(?:(?:open|show|pull up|expand|select|go to|focus on|focus|zoom in on|look at|bring up)(?: me)? )?(?:the )?(first|1st|second|2nd|third|3rd|fourth|4th|fifth|5th|last|middle|center|centre|left|right|newest|latest|oldest|most recent|earliest)(?: one| job| card)?$/;
-const PICK_RE = /^(?:open|show|pull up|expand|select|go to|look at|bring up)(?: me)? (?:the )?(.+?)(?: one| job)?$|^(?:the |that )(.+?) (?:one|job)$/;
-const STOP = new Set(['the', 'one', 'job', 'jobs', 'that', 'this', 'from', 'with', 'for', 'on', 'of', 'a', 'an', 'me', 'up']);
-const RANGE_RE = /^(?:(?:show|graph|chart|give me|what about|how about|and|pull up|display|now|try|do|make it|switch to|change to)(?: me)? )*(?:the )?(?:(?:last|past|previous) )?(\d{1,4}) ?days?(?: of revenue| revenue)?$/;
-const PERIOD_RE = /^(?:(?:show|graph|chart|what about|how about|and|switch to|change to)(?: me)? )*(?:revenue )?(today|yesterday|this week|this month|last month|this year)(?: revenue)?$/;
-const CAL_RE = /^(?:(?:show|open|go to|what about|how about|and|what do i have|jump to)(?: me)? )*(today|tomorrow|yesterday|this week|next week|last week|this month|next month|last month|(?:next |this )?(?:sunday|monday|tuesday|wednesday|thursday|friday|saturday))$/;
-const CAL_MODE_RE = /^(?:(?:show|switch to|go to|change to)(?: the)? )?(?:by )?(day|week|month)(?: view)?$/;
+const ORDINALS = { first: 0, '1st': 0, second: 1, '2nd': 1, third: 2, '3rd': 2, fourth: 3, '4th': 3, fifth: 4, '5th': 4 };
+const ORDINAL_WORDS = new Set([...Object.keys(ORDINALS), 'last', 'middle', 'center', 'centre', 'left', 'right', 'newest', 'latest', 'oldest', 'most recent', 'earliest', 'recent']);
+const STOP = new Set(['the', 'one', 'job', 'jobs', 'that', 'this', 'from', 'with', 'for', 'on', 'of', 'a', 'an', 'me', 'up', 'did', 'was', 'where', 'we', 'had', 'her', 'his', 'their']);
+const SYNONYMS = {
+  brake: ['brake', 'rotor', 'pad', 'caliper'], oil: ['oil'], diagnostic: ['diag'], diag: ['diag'],
+  transmission: ['transmission', 'trans'], trans: ['transmission', 'trans'], tire: ['tire', 'tread'], battery: ['battery'],
+  suspension: ['suspension', 'strut', 'shock', 'control arm'], coolant: ['coolant', 'radiator'], radiator: ['radiator', 'coolant'],
+  alternator: ['alternator'], starter: ['starter'], spark: ['spark plug', 'ignition'], audio: ['audio', 'speaker', 'stereo'],
+};
+const PERIODS = {
+  today: { period: 'today' }, yesterday: { period: 'yesterday' }, 'this week': { last_days: 7 }, 'last week': { last_days: 7 }, 'past week': { last_days: 7 },
+  'this month': { period: 'this_month' }, 'last month': { period: 'last_month' }, 'this year': { period: 'this_year' }, 'year to date': { period: 'this_year' }, ytd: { period: 'this_year' },
+};
 const LIST_STATUS = {
-  all: 'all', everything: 'all', 'all of them': 'all', every: 'all',
+  all: 'all', everything: 'all', 'all of them': 'all', every: 'all', 'all jobs': 'all',
   active: 'active', open: 'active', current: 'active',
-  unpaid: 'unpaid', owed: 'unpaid', outstanding: 'unpaid', 'who owes': 'unpaid', due: 'unpaid',
+  unpaid: 'unpaid', owed: 'unpaid', outstanding: 'unpaid', 'who owes': 'unpaid', due: 'unpaid', 'owes me': 'unpaid',
   paid: 'PAID', cancelled: 'CANCELLED', canceled: 'CANCELLED',
   booked: 'BOOKED', 'estimate sent': 'ESTIMATE_SENT', estimates: 'ESTIMATE_SENT', signed: 'SIGNED',
   'in progress': 'IN_PROGRESS', completed: 'COMPLETED', done: 'COMPLETED', invoiced: 'INVOICED',
 };
 
-const ORDINAL_WORDS = new Set(['first', '1st', 'second', '2nd', 'third', '3rd', 'fourth', '4th', 'fifth', '5th', 'last', 'middle', 'center', 'centre', 'left', 'right', 'newest', 'latest', 'oldest', 'most recent', 'earliest']);
-const SYNONYMS = {
-  brake: ['brake', 'rotor', 'pad', 'caliper'], oil: ['oil'], diagnostic: ['diag'], diag: ['diag'],
-  transmission: ['transmission', 'trans'], trans: ['transmission', 'trans'], tire: ['tire', 'tread'], battery: ['battery'],
-  suspension: ['suspension', 'strut', 'shock', 'control arm'], coolant: ['coolant', 'radiator'], radiator: ['radiator', 'coolant'],
-};
 // Conversational wrapping around the thing being asked for: "back to overview",
 // "take me to the payment tab", "can you pull up the Sep 26 job".
-const LEAD_FILLER = /^(?:can you|could you|would you|will you|let's|lets|let me|i want to|i wanna|i'd like to|take me|bring me|go|head|switch|flip|jump|move|pull|bring|open|show|see|view|check|look at|look|give me|back|over|up|to|into|on|at|the|me|us|its|it's|his|her|their|that|this|just|and|then|now)\b\s*/;
-const TRAIL_FILLER = /\s*\b(?:tab|page|section|screen|info|again|one|job|jobs|card|please|instead|filter|only|ones)$/;
+const LEAD_FILLER = /^(?:can you|could you|would you|will you|let's|lets|let me|i want to|i wanna|i'd like to|i need to|i need|take me|bring me|what about|how about|graph|chart|plot|go|head|switch|flip|jump|move|pull|bring|open|show|see|view|check|look at|look|give me|display|back|over|up|to|into|on|at|the|me|us|its|it's|his|her|their|that|this|just|and|then|now|also|instead|for|of)\b\s*/;
+const TRAIL_FILLER = /\s*\b(?:tab|page|section|screen|info|again|one|job|jobs|card|please|instead|filter|only|ones|view|then|too|instead)$/;
 function core(t) {
   let s = t; let prev;
   do { prev = s; s = s.replace(LEAD_FILLER, ''); } while (s && s !== prev);
   do { prev = s; s = s.replace(TRAIL_FILLER, ''); } while (s && s !== prev);
   return s.trim() || t;
 }
-const MONTHS = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
-// { month: 'MM' | null, day: 'DD' } from "sep 26", "september 26th", "9/26", "the 26th".
-function spokenDate(c) {
-  const pad = x => String(x).padStart(2, '0');
-  let m = c.match(/\b(jan|feb|mar|apr|may|jun|jul|aug|sept?|oct|nov|dec)[a-z]*\.? (\d{1,2})(?:st|nd|rd|th)?\b/);
-  if (m) return { month: pad(MONTHS.indexOf(m[1].slice(0, 3)) + 1), day: pad(m[2]) };
-  m = c.match(/\b(\d{1,2})\/(\d{1,2})\b/);
-  if (m) return { month: pad(m[1]), day: pad(m[2]) };
-  m = c.match(/^(\d{1,2})(?:st|nd|rd|th)$/);
-  if (m) return { month: null, day: pad(m[1]) };
-  return null;
-}
 
 function clean(text) {
-  return String(text || '').toLowerCase()
+  return spokenNumbers(String(text || '').toLowerCase()
     .replace(/[’']/g, "'")
-    .replace(/^(?:(?:ok(?:ay)?|hey|yo|alright|and)[\s,]+)*(?:jarvis\b[\s,]*)?/, '')
-    .replace(/\b(?:please|pls|for me|real quick|now)\b/g, ' ')
+    .replace(/^(?:(?:ok(?:ay)?|hey|yo|alright|all right|and|so|um|uh)[\s,]+)*(?:jarvis\b[\s,]*)?/, '')
+    .replace(/\b(?:please|pls|for me|real quick|right now)\b/g, ' ')
     .replace(/[.!?,]+/g, ' ')
     .replace(/\s+/g, ' ')
-    .trim();
+    .trim());
+}
+
+// Revenue period words: "13 days", "two weeks", "3 months", "since sep 10",
+// "from sep 1 to sep 15", "september", "this month".
+function revenueRange(c, t, today) {
+  const n = c.match(/^(?:last |past |previous )?(\d{1,4}) (day|week|month)s?(?: of revenue| revenue)?$/);
+  if (n && Number(n[1]) >= 1) {
+    const k = Number(n[1]);
+    return n[2] === 'month' ? { last_months: k } : { last_days: n[2] === 'week' ? k * 7 : k };
+  }
+  const p = PERIODS[c.replace(/^revenue (?:for )?/, '').replace(/ revenue$/, '')];
+  if (p) return p;
+  const between = t.match(/\bfrom (.+?) (?:to|through|thru|until) (.+)$/);
+  if (between && today) {
+    const from = spokenYmd(between[1], today, 'past'); const to = spokenYmd(between[2], today, 'past');
+    if (from && to) return { from, to };
+  }
+  const since = t.match(/\b(?:since|starting|from) (.+)$/);
+  if (since && today) { const from = spokenYmd(since[1], today, 'past'); if (from) return { from }; }
+  const month = c.match(new RegExp(`^(?:revenue (?:for |in )?)?(${MONTH_RE})(?: revenue)?$`));
+  if (month) return { month: month[1] };
+  return null;
 }
 
 // Returns a workspace action (or { type: 'noop', reply }) when the message is
@@ -195,23 +315,23 @@ function clean(text) {
 // meta: per visible job, in jobIds order: { label, date } for "the brake one" / "newest".
 export function parseLocalCommand(text, state, { meta = [], today } = {}) {
   const t = clean(text);
-  if (!t || t.split(' ').length > 9) return null;
+  if (!t || t.split(' ').length > 12) return null;
   const view = top(state);
 
   if (CLOSE_ALL.test(t) && !CLOSE_ONE.test(t)) return view ? { type: 'close_all' } : { type: 'noop', reply: 'Nothing is open.' };
   if (CLOSE_ONE.test(t)) return view ? { type: 'close' } : { type: 'noop', reply: 'Nothing is open.' };
   if (!view) return null;
+  const c = core(t);
 
   if (view.type === 'jobs') {
-    const c = core(t);
     const n = view.jobIds.length;
     // "the diagnostic one" / "the diagnostic job" picks a job; "diagnostic" alone is the tab.
     if (TAB_WORDS[c] && !/\b(?:one|job)$/.test(t)) return { type: 'tab', tab: TAB_WORDS[c] };
-    if (/^(?:next|next job|go right|swipe left|forward)$/.test(c)) return { type: 'step', delta: 1 };
-    if (/^(?:previous|prev|go left|swipe right|last job before)$/.test(c)) return { type: 'step', delta: -1 };
-    if (/^(?:it|zoom in|expand|expand it|zoom in on it)$/.test(c) || /^(?:open|expand|zoom in on|show) (?:it|that|this one|that one)$/.test(t)) return { type: 'focus', index: view.focus, expand: true };
-    const num = c.match(/^(?:number|#|job|card)? ?(\d{1,2})$/);
-    if (num && Number(num[1]) >= 1 && Number(num[1]) <= n) return { type: 'focus', index: Number(num[1]) - 1, expand: true };
+    if (/^(?:next|next job|go right|swipe left|forward|the next|one after|after that)$/.test(c)) return { type: 'step', delta: 1 };
+    if (/^(?:previous|prev|go left|swipe right|the previous|one before|before that|last job before)$/.test(c)) return { type: 'step', delta: -1 };
+    if (/^(?:it|zoom in|expand|expand it|zoom in on it|full screen|bigger)$/.test(c) || /^(?:open|expand|zoom in on|show) (?:it|that|this one|that one)$/.test(t)) return { type: 'focus', index: view.focus, expand: true };
+    const num = c.match(/^(?:(?:job|card) )?(?:number |# ?|no\.? )?(\d{1,2})$/);
+    if (num && !/(?:st|nd|rd|th)$/.test(c) && Number(num[1]) >= 1 && Number(num[1]) <= n) return { type: 'focus', index: Number(num[1]) - 1, expand: true };
     if (ORDINAL_WORDS.has(c)) {
       const dated = meta.map((m, i) => ({ i, d: String(m?.date || '') }));
       let index;
@@ -227,52 +347,62 @@ export function parseLocalCommand(text, state, { meta = [], today } = {}) {
       return index != null && index >= 0 && index < n ? { type: 'focus', index, expand: true } : null;
     }
     if (meta.length !== n) return null;
-    // "the Sep 26 job", "the 26th", "9/26"
+    // "the Sep 26 job", "September twenty sixth", "the 26th", "9/26"
     const day = spokenDate(c);
     if (day) {
       const hits = meta.map((m, i) => ({ i, d: String(m?.date || '') })).filter(m => (day.month ? m.d.slice(5) === `${day.month}-${day.day}` : m.d.slice(8) === day.day));
-      if (hits.length === 1) return { type: 'focus', index: hits[0].i, expand: true };
-      if (day.month || hits.length) return null;
+      if (hits.length === 1) { const tab = tabIn(c); return { type: 'focus', index: hits[0].i, expand: true, ...(tab ? { tab } : {}) }; }
+      return null; // none or several on that date: Jarvis decides with the screen context
     }
-    // "the brake one", "that oil change job" (brake also means rotors/pads)
-    const words = c.split(' ').filter(w => w.length >= 3 && !STOP.has(w));
-    if (words.length) {
-      const labels = meta.map((m, i) => ({ i, l: String(m?.label || '').toLowerCase() }));
-      const has = (l, w) => (SYNONYMS[w] || SYNONYMS[w.replace(/s$/, '')] || [w.replace(/s$/, '')]).some(x => l.includes(x));
-      const hits = labels.filter(m => words.every(w => has(m.l, w)));
-      if (hits.length === 1) return { type: 'focus', index: hits[0].i, expand: true };
-    }
+    // "the brake one", "that oil change job", "the brake job's payment" (brake also means rotors/pads)
+    // First read tab words as a tab ("the brake job's payment"); if that leaves
+    // no unique job, read them as part of the job ("the diagnostic one").
+    const all = c.replace(/'s\b/g, '').split(' ').filter(w => w.length >= 3 && !STOP.has(w));
+    const labels = meta.map((m, i) => ({ i, l: String(m?.label || '').toLowerCase() }));
+    const has = (l, w) => (SYNONYMS[w] || SYNONYMS[w.replace(/s$/, '')] || [w.replace(/s$/, '')]).some(x => l.includes(x));
+    const match = words => (words.length ? labels.filter(m => words.every(w => has(m.l, w))) : []);
+    const tab = tabIn(c);
+    const withTab = match(all.filter(w => !TAB_WORDS[w]));
+    if (withTab.length === 1) return { type: 'focus', index: withTab[0].i, expand: true, ...(tab ? { tab } : {}) };
+    const asJob = match(all);
+    if (asJob.length === 1) return { type: 'focus', index: asJob[0].i, expand: true };
     return null;
   }
 
   // Jobs list: the same chips as the screen (Active / Unpaid / Paid / Cancelled / All),
   // pipeline stages, and search ("find Jill", "search Acura", "clear search").
   if (view.type === 'jobList' || view.type === 'customers') {
-    if (/^(?:clear|reset)(?: the)? (?:search|filters?)$/.test(t)) return { type: 'filter', query: '' };
+    if (/^(?:clear|reset)(?: the)? (?:search|filters?)$|^(?:show )?(?:everyone|everybody)$/.test(t)) return { type: 'filter', query: '' };
     if (view.type === 'jobList') {
-      const status = LIST_STATUS[core(t)];
+      const status = LIST_STATUS[c];
       if (status) return { type: 'filter', status };
     }
-    const find = t.match(/^(?:search|find|look up|lookup|filter|search for|find me|show me|show)(?: for)? (.+)$/);
-    if (find && !LIST_STATUS[core(find[1])]) return { type: 'filter', query: find[1].replace(/^(?:the |a )/, '').replace(/'s$/, '') };
+    const find = t.match(/^(?:search|find|look up|lookup|filter|search for|find me|show me|show|filter by|filter for)(?: for| by)? (.+)$/);
+    if (find && !LIST_STATUS[core(find[1])]) return { type: 'filter', query: find[1].replace(/^(?:the |a )/, '').replace(/'s(?: jobs?)?$/, '').replace(/ jobs?$/, '') };
     return null;
   }
 
   if (view.type === 'analytics') {
-    const r = t.match(RANGE_RE);
-    if (r && Number(r[1]) >= 1) return { type: 'range', range: { last_days: Number(r[1]) } };
-    const p = t.match(PERIOD_RE);
-    if (p) return { type: 'range', range: p[1] === 'this week' ? { last_days: 7 } : { period: p[1].replace(' ', '_') } };
-    return null;
+    const range = revenueRange(c, t, today);
+    return range ? { type: 'range', range } : null;
   }
 
   if (view.type === 'calendar' && today) {
-    const mode = t.match(CAL_MODE_RE);
+    const mode = c.match(/^(?:by )?(day|week|month)(?: view)?$/);
     if (mode) return { type: 'calendar', mode: mode[1] };
-    const c = t.match(CAL_RE);
-    if (c) { const r = resolveCalendarWhen(c[1], today); if (r) return { type: 'calendar', ...r }; }
+    const base = view.date || today;
+    const step = view.mode === 'month' ? (k => shiftMonth(base, k)) : (k => shift(base, (view.mode === 'week' ? 7 : 1) * k));
+    if (/^(?:next|forward|next one|after that)$/.test(c)) return { type: 'calendar', date: step(1) };
+    if (/^(?:previous|prev|before that|earlier|previous one)$/.test(c)) return { type: 'calendar', date: step(-1) };
+    const r = resolveCalendarWhen(c.replace(/^(?:what do i have|what's on|whats on|what is on|what have i got)(?: on)? /, ''), today);
+    if (r) return { type: 'calendar', ...r };
   }
   return null;
+}
+
+function tabIn(c) {
+  const hit = Object.keys(TAB_WORDS).sort((a, b) => b.length - a.length).find(k => new RegExp(`\\b${k}\\b`).test(c));
+  return hit ? TAB_WORDS[hit] : null;
 }
 
 // What's on screen, for the backend prompt, so the model can resolve "the
@@ -282,24 +412,32 @@ export function describeScreen(state, meta = []) {
   if (!v) return null;
   if (v.type === 'jobs') {
     return {
-      view: 'jobs', expanded: v.expanded, tab: v.tab, focusedJobId: v.jobIds[v.focus],
+      view: 'jobs', expanded: v.expanded, tab: v.tab, focusedJobId: v.jobIds[v.focus], customer: v.title || null,
       jobs: v.jobIds.map((id, i) => ({ position: i + 1, id, ...(meta[i] ? { label: String(meta[i].label || '').slice(0, 120), date: meta[i].date || null } : {}) })),
     };
   }
   if (v.type === 'analytics') return { view: 'analytics', range: v.range };
   if (v.type === 'calendar') return { view: 'calendar', date: v.date, mode: v.mode };
-  return { view: v.type, query: v.query || '' };
+  return { view: v.type, query: v.query || '', ...(v.status ? { status: v.status } : {}) };
 }
 
-// A spoken sentence the page parser couldn't place but that clearly refers to
-// the open job cards ("pull up the one with the rotors", "go to her payment").
-// Those go to the text Jarvis with the screen context (silently: the voice
-// agent already acknowledged), so voice follow-ups get the same understanding
-// as typed ones. Other topics stay with the voice agent.
-const SCREEN_REF = /\b(?:one|job|card|tab|overview|estimate|quote|payment|paid|inspection|notes?|parts|summary|details|first|second|third|last|middle|newest|oldest|left|right|next|previous|back|brake|oil|rotor|pads?|diag\w*|transmission|tires?|jan|feb|mar|apr|may|jun|jul|aug|sept?|oct|nov|dec)\b|\b\d{1,2}(?:st|nd|rd|th)\b/;
-const OTHER_TOPIC = /\b(?:revenue|money|made|profit|calendar|schedule|tomorrow|today|customers?|leads?|remind|reminder|text|email|call|book|reschedule|cancel|mark)\b/;
+// A spoken sentence the page parser couldn't place but that is clearly about
+// the open view ("pull up the one with the new rotors", "revenue since the
+// tenth", "what about the week after"). Those go to the text Jarvis with the
+// screen context (silently: the voice agent already acknowledged), so voice
+// follow-ups get the same understanding as typed ones. Anything that starts a
+// new topic stays with the voice agent.
+const REFERS = {
+  jobs: /\b(?:one|job|card|tab|overview|estimate|quote|payment|paid|inspection|notes?|parts|summary|details|first|second|third|last|middle|newest|oldest|left|right|next|previous|back|brake|oil|rotor|pads?|diag\w*|transmission|tires?|photos?|invoice|receipts?)\b|\b\d{1,2}(?:st|nd|rd|th)?\b/,
+  analytics: /\b(?:days?|weeks?|months?|year|since|from|through|until|today|yesterday|chart|graph|compare|previous|before)\b|\b\d/,
+  calendar: /\b(?:day|week|month|today|tomorrow|yesterday|next|previous|monday|tuesday|wednesday|thursday|friday|saturday|sunday|morning|afternoon|appointment|slot)\b|\b\d{1,2}(?:st|nd|rd|th)?\b/,
+  jobList: /\b(?:all|active|unpaid|paid|cancel+ed|booked|signed|completed|invoiced|estimates?|progress|search|find|filter|show|only|ones)\b/,
+  customers: /\b(?:search|find|filter|show|customer|everyone)\b/,
+};
+const NEW_TOPIC = /\b(?:remind|reminder|text|email|call|book|reschedule|cancel|mark|note that|log|lead|leads|seo|rankings?|take[- ]?home|owner pay)\b/;
 export function isScreenFollowUp(text, state) {
   const t = clean(text);
   const v = top(state);
-  return !!t && v?.type === 'jobs' && t.split(' ').length <= 12 && SCREEN_REF.test(t) && !OTHER_TOPIC.test(t);
+  const refers = v && REFERS[v.type];
+  return !!t && !!refers && t.split(' ').length <= 14 && refers.test(t) && !NEW_TOPIC.test(t);
 }

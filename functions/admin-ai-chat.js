@@ -315,6 +315,7 @@ const UI_TOOLS = [
         newest_first: { type: 'boolean', description: 'Only when the owner literally asks for newest first / newest to oldest. "Last three" or "most recent" means the three newest jobs, still laid out oldest to newest: leave this false.' },
         tab: { type: 'string', enum: JOB_TABS, description: 'Open straight to this tab (estimate, payment, inspection, notes, parts).' },
         focus: { type: 'string', enum: ['oldest', 'middle', 'newest'], description: 'Which card to center. Default middle.' },
+        date: { type: 'string', description: 'A job date to open, as the owner said it ("September 26th", "the 24th") or YYYY-MM-DD. Shows all their jobs with that one open.' },
       },
     },
   },

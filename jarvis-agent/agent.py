@@ -1284,7 +1284,7 @@ BUSINESS DATA:
     @function_tool
     async def show_on_screen(self, context: RunContext, view: str, args_json: str) -> Any:
         """Open a view on Michael's /jarvis screen. view is one of:
-        show_jobs {"customer", "vehicle", "service", "count", "newest_first", "tab"} (tab: overview, estimate, payment, inspection, notes, parts; "last three" = count 3, still oldest to newest),
+        show_jobs {"customer", "vehicle", "service", "count", "newest_first", "tab", "date"} (date as spoken, e.g. "September 26th") (tab: overview, estimate, payment, inspection, notes, parts; "last three" = count 3, still oldest to newest),
         show_revenue {"period"} (today, yesterday, this_week, this_month, last_month, this_year) or {"last_days": N} or {"month": "september"} or {"from": "YYYY-MM-DD", "to": "YYYY-MM-DD"},
         show_calendar {"when"} (today, tomorrow, this week, next week, a weekday, YYYY-MM-DD),
         show_job_list {"query", "status"}, show_customers {"query"}.

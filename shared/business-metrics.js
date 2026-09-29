@@ -325,6 +325,13 @@ export function resolveDayRange(spec = {}, now = new Date()) {
     const r = monthRange(s.month, today);
     if (!r) throw new Error(`Unknown month "${s.month}".`);
     ({ from, to } = r); key = `month:${from.slice(0, 7)}`;
+  } else if (Number(s.last_months) >= 1) {
+    // "last 3 months" = the day after the same date 3 months ago, through today.
+    const k = Math.min(Math.round(Number(s.last_months)), 36);
+    const [yy, mm, dd] = today.split('-').map(Number);
+    const back = new Date(Date.UTC(yy, mm - 1 - k, 1, 12));
+    const dim = new Date(Date.UTC(back.getUTCFullYear(), back.getUTCMonth() + 1, 0)).getUTCDate();
+    from = shiftYmd(`${back.getUTCFullYear()}-${String(back.getUTCMonth() + 1).padStart(2, '0')}-${String(Math.min(dd, dim)).padStart(2, '0')}`, 1); key = `last_${k}_months`;
   } else if (lastN >= 1) {
     const n = Math.min(Math.round(lastN), MAX_RANGE_DAYS);
     from = shiftYmd(today, -(n - 1)); key = `last_${n}_days`;

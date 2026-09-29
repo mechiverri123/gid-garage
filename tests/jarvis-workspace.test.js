@@ -13,7 +13,7 @@ const cmd = (text, s, extra = {}) => parseLocalCommand(text, s, { meta: META, to
 
 test('Jill workflow: three cards -> middle -> inspection -> payment -> close it -> close jobs', () => {
   let s = run([three]);
-  assert.deepEqual(workspaceTop(s), { type: 'jobs', jobIds: ['a', 'b', 'c'], focus: 1, expanded: false, tab: 'overview', title: null });
+  assert.deepEqual(workspaceTop(s), { type: 'jobs', jobIds: ['a', 'b', 'c'], focus: 1, expanded: false, tab: 'overview', title: null, family: false });
   s = workspaceReduce(s, cmd('open the middle one', s));
   assert.equal(workspaceTop(s).focus, 1); assert.equal(workspaceTop(s).expanded, true);
   s = workspaceReduce(s, cmd('Show the inspection.', s));
@@ -224,4 +224,78 @@ test('jobs list and calendar: same spoken/typed switching as the job tabs', () =
   const Cal = run([{ type: 'open', view: { type: 'calendar', date: '2026-09-28', mode: 'week' } }]);
   assert.deepEqual(cmd('month', Cal), { type: 'calendar', mode: 'month' });
   assert.deepEqual(cmd('switch to day', Cal), { type: 'calendar', mode: 'day' });
+});
+
+// ---- one voice/text grammar everywhere (owner-reported: list -> Jill -> "September 26th") ---------
+import { jobFamily, spokenYmd } from '../shared/jarvis-workspace.js';
+
+const LIST = [
+  { id: 'j1', customerId: 'c-jill', fname: 'Jill', lname: 'Castle', phone: '239-233-0993', date: '2026-09-21', status: 'completed', jobStatus: 'PAID' },
+  { id: 'j2', customerId: 'c-jill', fname: 'Jill', lname: 'Castle', phone: '239-233-0993', date: '2026-09-24', status: 'completed', jobStatus: 'PAID' },
+  { id: 'j3', customerId: 'c-jill', fname: 'Jill', lname: 'Castle', phone: '239-233-0993', date: '2026-09-26', status: 'completed', jobStatus: 'PAID' },
+  { id: 'x1', customerId: 'c-other', fname: 'Jill', lname: 'Castle', phone: '480-000-0000', date: '2026-09-25', status: 'confirmed', jobStatus: 'BOOKED' }, // different file, same name
+  { id: 'x2', customerId: null, fname: 'Jill', lname: '', phone: '', date: '2026-09-22' },
+  { id: 'x3', customerId: 'c-jill', fname: 'Jill', lname: 'Castle', date: '2026-09-23', status: 'cancelled', jobStatus: 'CANCELLED' },
+];
+
+test("a job opened from a list widens to that customer's jobs, then 'September 26th' / 'job 3' work", () => {
+  assert.deepEqual(jobFamily(LIST, 'j2'), ['j1', 'j2', 'j3']); // same customer file, cancelled left out, namesakes never mixed in
+  assert.deepEqual(jobFamily(LIST, 'x2'), ['x2']); // first name only: never guessed
+  let s = run([{ type: 'open', view: { type: 'jobList', status: 'all' } }, { type: 'open', view: { type: 'jobs', jobIds: ['j2'] } }]);
+  s = workspaceReduce(s, { type: 'context', forId: 'j2', jobIds: jobFamily(LIST, 'j2'), title: 'Jill Castle' });
+  assert.deepEqual(workspaceTop(s), { type: 'jobs', jobIds: ['j1', 'j2', 'j3'], focus: 1, expanded: true, tab: 'overview', title: 'Jill Castle', family: true });
+  const meta = [{ label: 'Oil Change Jill Castle', date: '2026-09-21' }, { label: 'Diagnostic Fee Jill Castle', date: '2026-09-24' }, { label: 'Front Rotor Pads Jill Castle', date: '2026-09-26' }];
+  const say = q => parseLocalCommand(q, s, { meta, today: '2026-09-28' });
+  for (const q of ['September 26th', 'septembet 26th', 'september twenty sixth', 'the twenty sixth', 'the 26th', '9/26', 'job 3', 'job three', 'job number three', 'number 3', 'the last one', 'next', "Jill's brake job"]) {
+    const a = say(q);
+    assert.ok(a && (a.type === 'step' || a.index === 2), `${q} -> ${JSON.stringify(a)}`);
+  }
+  assert.deepEqual(say("the brake job's payment"), { type: 'focus', index: 2, expand: true, tab: 'payment' });
+  assert.deepEqual(say('september 26th inspection'), { type: 'focus', index: 2, expand: true, tab: 'inspection' });
+  // A stale widen (the owner already moved on) is ignored.
+  assert.equal(workspaceReduce(s, { type: 'context', forId: 'j2', jobIds: ['j9'] }), s);
+  // Closing goes back to the list, like Esc.
+  assert.equal(workspaceTop(workspaceReduce(workspaceReduce(s, { type: 'close' }), { type: 'close' })).type, 'jobList');
+});
+
+test('spoken numbers, periods and dates on the revenue chart and calendar', () => {
+  const A = run([{ type: 'open', view: { type: 'analytics', range: { period: 'this_month' } } }]);
+  const rev = q => cmd(q, A)?.range;
+  assert.deepEqual(rev('two weeks'), { last_days: 14 });
+  assert.deepEqual(rev('the last thirteen days'), { last_days: 13 });
+  assert.deepEqual(rev('a week'), { last_days: 7 });
+  assert.deepEqual(rev('three months'), { last_months: 3 });
+  assert.deepEqual(rev('since september 10th'), { from: '2026-09-10' });
+  assert.deepEqual(rev('from sep 1 to sep 15'), { from: '2026-09-01', to: '2026-09-15' });
+  assert.deepEqual(rev('what about august'), { month: 'august' });
+  assert.deepEqual(rev('year to date'), { period: 'this_year' });
+  assert.deepEqual(resolveDayRange({ last_months: 3 }, new Date('2026-09-28T19:00:00Z')), { from: '2026-06-29', to: '2026-09-28', days: 92, key: 'last_3_months' });
+  const Cal = run([{ type: 'open', view: { type: 'calendar', date: '2026-09-28', mode: 'week' } }]);
+  const cal = q => cmd(q, Cal);
+  assert.deepEqual(cal('october 3rd'), { type: 'calendar', date: '2026-10-03', mode: 'day' });
+  assert.deepEqual(cal('the 3rd'), { type: 'calendar', date: '2026-10-03', mode: 'day' }); // next 3rd, not last
+  assert.deepEqual(cal('next'), { type: 'calendar', date: '2026-10-05' }); // a week forward in week view
+  assert.deepEqual(cal("what's on friday"), { type: 'calendar', date: '2026-10-02', mode: 'day' });
+  assert.deepEqual(cal('november'), { type: 'calendar', date: '2026-11-01', mode: 'month' });
+  assert.equal(spokenYmd('the 30th', '2026-09-28', 'past'), '2026-08-30');
+});
+
+test('more natural tab and close words', () => {
+  const s = run([three]);
+  assert.deepEqual(cmd('show me the photos', s), { type: 'tab', tab: 'notes' });
+  assert.deepEqual(cmd('scan report', s), { type: 'tab', tab: 'inspection' });
+  assert.deepEqual(cmd('the receipts', s), { type: 'tab', tab: 'parts' });
+  assert.deepEqual(cmd('what about the balance', s), { type: 'tab', tab: 'payment' });
+  for (const q of ["I'm done", "that's all", 'go home', 'take me home']) assert.deepEqual(cmd(q, s), { type: 'close_all' }, q);
+});
+
+test('voice follow-ups for every open view reach Jarvis; new topics stay with the voice agent', async () => {
+  const { isScreenFollowUp } = await import('../shared/jarvis-workspace.js');
+  const A = run([{ type: 'open', view: { type: 'analytics', range: { period: 'this_month' } } }]);
+  const Cal = run([{ type: 'open', view: { type: 'calendar', date: '2026-09-28', mode: 'week' } }]);
+  const L = run([{ type: 'open', view: { type: 'jobList', status: 'active' } }]);
+  assert.equal(isScreenFollowUp('compare that to the week before', A), true);
+  assert.equal(isScreenFollowUp('what about the afternoon of the 3rd', Cal), true);
+  assert.equal(isScreenFollowUp('only the ones that are signed', L), true);
+  assert.equal(isScreenFollowUp('remind me to call Jill', L), false);
 });

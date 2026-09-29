@@ -3,7 +3,7 @@
 // open exactly the same views for the same request. Returns the facts for the
 // spoken/typed reply plus `__ui`: workspace actions (shared/jarvis-workspace.js)
 // the caller delivers to the page (NDJSON `ui` events / LiveKit `gid.ui` stream).
-import { JOB_TABS, CALENDAR_MODES, resolveCalendarWhen } from '../../shared/jarvis-workspace.js';
+import { JOB_TABS, CALENDAR_MODES, resolveCalendarWhen, spokenYmd } from '../../shared/jarvis-workspace.js';
 
 export const SCREEN_TOOL_NAMES = new Set(['show_jobs', 'show_revenue', 'show_calendar', 'show_job_list', 'show_customers', 'control_screen']);
 
@@ -18,10 +18,13 @@ export async function runScreenTool(name, input = {}, { ops, screen = null, toda
       if (!r.jobs?.length) return r;
       const n = r.jobs.length;
       const newestIdx = r.order === 'newest_first' ? 0 : n - 1;
-      const focus = input.focus === 'newest' ? newestIdx : input.focus === 'oldest' ? n - 1 - newestIdx : undefined;
+      // date: "2026-09-26" or as spoken ("September 26th") -> center that job.
+      const onDate = input.date ? (/^\d{4}-\d{2}-\d{2}$/.test(String(input.date)) ? String(input.date) : spokenYmd(String(input.date), today, 'past')) : null;
+      const dateIdx = onDate ? r.jobs.findIndex(j => j.date === onDate) : -1;
+      const focus = dateIdx >= 0 ? dateIdx : input.focus === 'newest' ? newestIdx : input.focus === 'oldest' ? n - 1 - newestIdx : undefined;
       const who = r.subject ? `${r.subject.split(' ')[0]}'s` : 'the';
       const say = input.tab ? `Opening the ${input.tab}.` : `Pulling up ${who} ${n === 1 ? 'job' : `${n} jobs`}.`;
-      return { ...r, onScreen: true, say, __ui: [{ type: 'open', view: { type: 'jobs', jobIds: r.jobs.map(j => j.id), tab: input.tab, focus, title: r.subject } }] };
+      return { ...r, onScreen: true, say, ...(onDate && dateIdx < 0 ? { note: `No job on ${onDate} for this customer; showing their jobs.` } : {}), __ui: [{ type: 'open', view: { type: 'jobs', jobIds: r.jobs.map(j => j.id), tab: input.tab, focus, ...(dateIdx >= 0 ? { expanded: true } : {}), title: r.subject } }] };
     }
     case 'show_revenue': {
       const spec = input.from ? { from: input.from, to: input.to } : input.month ? { month: input.month } : input.last_days ? { last_days: input.last_days } : { period: input.period || 'this_month' };

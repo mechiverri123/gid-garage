@@ -27,7 +27,7 @@ const notify = () => listeners.forEach(fn => fn());
 
 function remember(job: Job, title?: string) {
   const items = (job.lineItems || []).map(li => li.label).join(' ');
-  jobMeta.set(job.id, { label: [title, job.service, job.vehicle, items, job.estimateNotes].filter(Boolean).join(' ').slice(0, 400), date: job.date });
+  jobMeta.set(job.id, { label: [title, job.fname, job.lname, job.service, job.vehicle, items, job.estimateNotes].filter(Boolean).join(' ').slice(0, 400), date: job.date });
 }
 
 export function cachedJob(id: string): Job | undefined { return full.get(id); }

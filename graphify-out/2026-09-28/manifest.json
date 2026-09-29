@@ -186,9 +186,9 @@
     "semantic_hash": ""
   },
   "jarvis-agent/agent.py": {
-    "mtime": 1790640485.53749,
-    "seen": 1790640624.7047799,
-    "ast_hash": "5c53e08ef8540cab0f53e60210dd5184",
+    "mtime": 1790643134.5363314,
+    "seen": 1790643144.2150426,
+    "ast_hash": "7eff4112c05234358c2859142b7e1fb4",
     "semantic_hash": ""
   },
   "jarvis_phase1_service_dictionary_fix.sql": {
@@ -276,9 +276,9 @@
     "semantic_hash": "a33ab1cd5b7348688a6ddcd64664307f"
   },
   "src/command-center/CommandCenterPage.tsx": {
-    "mtime": 1790642720.4006388,
-    "seen": 1790642966.0145366,
-    "ast_hash": "6976cb3c1c9a51fe0f2f48cdbc965384",
+    "mtime": 1790643103.4581692,
+    "seen": 1790643144.2201695,
+    "ast_hash": "a8849b9762a73e39baa9d938fc134c57",
     "semantic_hash": ""
   },
   "src/command-center/api.ts": {
@@ -1638,9 +1638,9 @@
     "semantic_hash": ""
   },
   "shared/jarvis-workspace.js": {
-    "mtime": 1790642720.3257256,
-    "seen": 1790642966.0101178,
-    "ast_hash": "ca7f9a7a0ec51ed2f2a7d0b09a0e7905",
+    "mtime": 1790643083.7507954,
+    "seen": 1790643144.2165406,
+    "ast_hash": "33cc3f21f0fbc6681af18d379be2d707",
     "semantic_hash": ""
   },
   "src/command-center/workspace/AnalyticsView.tsx": {
@@ -1650,9 +1650,9 @@
     "semantic_hash": ""
   },
   "src/command-center/workspace/BrowseViews.tsx": {
-    "mtime": 1790640545.4091716,
-    "seen": 1790640624.7100782,
-    "ast_hash": "5987a8d731463abb0974eb688331a1d4",
+    "mtime": 1790643103.4576647,
+    "seen": 1790643144.2276785,
+    "ast_hash": "484b757bd0261df0e674eba3db6d6d47",
     "semantic_hash": ""
   },
   "src/command-center/workspace/CalendarView.tsx": {
@@ -1692,9 +1692,9 @@
     "semantic_hash": ""
   },
   "tests/jarvis-workspace.test.js": {
-    "mtime": 1790642743.9542985,
-    "seen": 1790642966.0276694,
-    "ast_hash": "e0cea6387b4729a458393d42c42ee2de",
+    "mtime": 1790643103.5016682,
+    "seen": 1790643144.2336433,
+    "ast_hash": "56949bf40f0a3293b4f4aa626c66447a",
     "semantic_hash": ""
   },
   "functions/_lib/jarvis-screen.js": {
