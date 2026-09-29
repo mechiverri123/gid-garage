@@ -77,7 +77,7 @@ test('no invocation exceeds 20 external fetches or 45 subrequests in total, and 
   assert.equal(outs.at(-1).runStatus, 'completed');
   assert.equal(outs.at(-1).more, false);
   assert.equal(w.tables.seo_pagespeed_runs.length, 24); // 12 pages × mobile/desktop, resumed across calls
-  assert.equal(w.tables.seo_page_audits.length, 12);
+  assert.equal(w.tables.seo_page_audits.length, 13); // 12 key pages + the soft-404 probe
   assert.equal(w.tables.seo_competitor_snapshots.length, 15); // capped crawl, resumed
   assert.equal(new Set(w.tables.seo_pagespeed_runs.map(r => `${r.url}|${r.strategy}`)).size, 24); // no page done twice
   const status = Object.fromEntries(w.tables.seo_provider_status.map(r => [r.provider, r]));

@@ -95,7 +95,10 @@ test('"Sync now" runs server-side through /jarvis/seo-data via the shared run ga
   assert.equal(calls[0].env.SEO_SYNC_SECRET, undefined);
   assert.deepEqual([(await first.json()).runStatus], ['pending']); // providers done; analysis is the next call
   const second = await post({ action: 'sync_now' });
-  assert.deepEqual([second.status, (await second.json()).runStatus], [200, 'completed']);
+  // Analysis done; the weekly Google-guidance check (knowledge) is its own call when due.
+  assert.deepEqual([second.status, (await second.json()).runStatus], [200, 'pending']);
+  const third = await post({ action: 'sync_now' });
+  assert.deepEqual([third.status, (await third.json()).runStatus], [200, 'completed']);
   const again = await post({ action: 'sync_now' }); // completed moments ago -> cooldown
   assert.equal(again.status, 429);
 });

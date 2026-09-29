@@ -57,7 +57,9 @@ export function reviewVelocity(snapshots) {
 export function parsePublicPage(html = '') {
   const pick = re => (html.match(re)?.[1] || '').replace(/\s+/g, ' ').trim();
   const title = pick(/<title[^>]*>([\s\S]*?)<\/title>/i);
-  const description = pick(/<meta[^>]+name=["']description["'][^>]+content=["']([^"']*)["']/i) || pick(/<meta[^>]+content=["']([^"']*)["'][^>]+name=["']description["']/i);
+  // Quote-matched: an apostrophe inside a double-quoted value ("Flagstaff's") must not end it.
+  const attr = re => (html.match(re)?.[2] || '').replace(/\s+/g, ' ').trim();
+  const description = attr(/<meta[^>]+name=["']description["'][^>]+content=(["'])([\s\S]*?)\1/i) || attr(/<meta[^>]+content=(["'])([\s\S]*?)\1[^>]+name=["']description["']/i);
   const h1s = [...html.matchAll(/<h1[^>]*>([\s\S]*?)<\/h1>/gi)].map(m => m[1].replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim()).filter(Boolean);
   const schemaTypes = [...html.matchAll(/"@type"\s*:\s*"([^"]+)"/g)].map(m => m[1]);
   const text = html.replace(/<script[\s\S]*?<\/script>/gi, ' ').replace(/<style[\s\S]*?<\/style>/gi, ' ').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');

@@ -205,3 +205,46 @@ Nothing here has been deployed, pushed or committed. To go live:
 3. Deploy Pages by pushing.
 4. Add the cron job.
 5. Add provider credentials one at a time, checking Connections after each.
+
+
+---
+
+## Local SEO agent (action queue, Top-5 gap, learning)
+
+Answers **"what should I do next to rank higher?"**, from GID's own data plus cited Google guidance.
+
+It's layered on the sync above; nothing here edits the website.
+
+- **Where.** `/jarvis` → SEO Mode shows the status strip and the HIGH-priority actions at the top.
+  - Tabs: **Actions · Top-5 gap · Blueprint · Rankings · Research · History & learning**.
+  - Deep link: `/jarvis#seo/actions`, `#seo/top5`, and so on.
+  - Jarvis: "what should I do for SEO?" (`get_seo_actions`) and "why aren't we top 5?" (`get_seo_top5_gap`).
+- **Code.**
+  - `shared/seo/agent.js`: playbook, GID Opportunity Score, priorities, learning, horizons, Top-5 gap, blueprint, change detection, job candidates, rank CSV.
+  - `shared/seo/agent-detectors.js`: site structure, service-page gaps, review gap, case studies, guidance changes.
+  - `shared/seo/knowledge.js`: cited guidance.
+  - `functions/_lib/seo/agent-ops.js`: data and views.
+  - `src/command-center/seo/SeoAgent.tsx`: the screens.
+  - Tests: `tests/seo-agent.test.js`.
+- **GID Opportunity Score** is GID's own prioritisation number, never a Google ranking score:
+  `100 × impact × confidence × value × learning ÷ effort`.
+  - HIGH is 55 or more with at least medium confidence; MEDIUM is 30 or more.
+  - Findings that share one fix are one card, for example all the searches that need the homepage title rewritten.
+- **Learning.**
+  - **Done** records a baseline. The effect is then measured at 7/30/90/180 days as positive correlation, negative correlation, no clear change, or insufficient data.
+  - Once a category has 3 or more measured results, its priority moves by at most ±20%. GID's own results never override Google's guidance.
+- **Site crawl.** The `site_audit` provider now reads every sitemap URL's raw HTML, which is what crawlers see before JavaScript runs.
+  - It also requests a URL that can't exist, to detect soft 404s.
+  - Analysis turns these into site-level findings: canonical conflicts, duplicate raw titles, no H1, doorway risk, and offered services without a page.
+- **Knowledge base.**
+  - Claims are sourced from Google docs retrieved on 2026-09-29.
+  - A weekly sync step re-checks each Google page. If its text changes by more than 3%, it's flagged "changed — review".
+  - Superseded guidance is never cited.
+- **Rankings.** Manual entries or CSV (`keyword,area,rank,date,in_local_pack,competitors`) per area in the service radius.
+  - There's no Google scraping.
+  - A rank-tracker export can be imported the same way.
+- **Implement.** For website findings this copies a precise brief for Claude Code, which shows the diff before changing anything.
+  - Nothing is published automatically.
+- **Setup (once).** Run `seo_agent_migration.sql` in the Supabase SQL editor. It's additive: `seo_snapshots`, `seo_knowledge` and `seo_rank_observations`.
+  - Until it's run, the queue and Top-5 gap work, while History, Rankings and the weekly research check say "not set up".
+  - The next analysis after the migration saves **Baseline #1**.

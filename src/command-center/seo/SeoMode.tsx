@@ -13,6 +13,7 @@ import { C, timeAgo } from '../ui/theme';
 import { CommandCard, SectionHeader, StatusBadge, Segmented, Skeleton, ErrorState } from '../ui/primitives';
 import { JarvisOrb, orbLabel, type OrbState } from '../ui/JarvisOrb';
 import { ReviewsCard } from '../workspace/FeedViews';
+import { AgentStatus, ActionQueueTop, ActionsView, Top5View, BlueprintView, RankingsView, ResearchView, HistoryView } from './SeoAgent';
 
 const niceDate = (ymd?: string) => { if (!ymd) return ''; const [y, m, d] = ymd.split('-').map(Number); return new Date(Date.UTC(y, m - 1, d, 12)).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' }); };
 
@@ -96,6 +97,12 @@ export function SeoMode({ focus, onFocus, orb, onOpenReviews }: { focus: SeoView
       case 'seasonality': return <SeasonalityPanel s={seo.get('seasonality')} />;
       case 'authority': return <AuthorityPanel a={seo.get('authority')} />;
       case 'connections': return <ConnectionsPanel c={conn} onSync={sync} syncing={syncing} />;
+      case 'actions': return <ActionsView a={seo.get('actions')} post={seo.post} />;
+      case 'top5': return <Top5View t={seo.get('top5')} />;
+      case 'blueprint': return <BlueprintView b={seo.get('blueprint')} post={seo.post} />;
+      case 'rankings': return <RankingsView r={seo.get('rankings')} post={seo.post} />;
+      case 'research': return <ResearchView k={seo.get('research')} post={seo.post} />;
+      case 'history': return <HistoryView hs={seo.get('history')} />;
     }
   };
 
@@ -134,6 +141,10 @@ export function SeoMode({ focus, onFocus, orb, onOpenReviews }: { focus: SeoView
 
       {/* Google reviews first: rating, total, new this week, newest two. */}
       <ReviewsCard compact onOpen={onOpenReviews} />
+
+      {/* The SEO agent: status, then HIGH priority actions (dominant). */}
+      <AgentStatus a={seo.get('actions')} onOpen={() => { onFocus('actions'); document.getElementById('seo-detail')?.scrollIntoView({ behavior: 'smooth' }); }} />
+      <ActionQueueTop a={seo.get('actions')} post={seo.post} />
 
       {notice && <div className="text-[14px] rounded-xl px-4 py-3" style={{ color: C.text, background: 'rgba(52,214,255,0.07)', border: `1px solid ${C.border}` }} role="status">{notice}</div>}
       {seo.error && <ErrorState message={`Couldn't load SEO data: ${seo.error}${/404|relation|does not exist/i.test(seo.error) ? ' — run seo_migration.sql first.' : ''}`} />}

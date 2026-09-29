@@ -111,7 +111,7 @@ export function detectPageSpeed(runs, { minPerf = 50 } = {}) {
 }
 
 export function detectTechnicalIssues(audits) {
-  return audits.flatMap(a => (a.issues || []).map(i => rec('technical', `${a.url}|${i.code}`, {
+  return audits.flatMap(a => (a.issues || []).filter(i => i.code !== 'probe').map(i => rec('technical', `${a.url}|${i.code}`, {
     title: i.title, detail: `${a.url}: ${i.detail}`, evidence: { url: a.url, ...i }, score: i.severity === 'high' ? 60 : i.severity === 'medium' ? 40 : 20, confidence: 'high',
   })));
 }
@@ -235,6 +235,7 @@ export function runDetectors(s, { prefs = [], now = new Date(), services = SERVI
     ...detectServiceAreaClaims(s.advertisedPlaces || []),
     ...detectSeasonalPrep(s.seasonalFindings || [], s.clusters || [], { now, services }),
     ...detectColdSnap(s.upcomingColdSnap || null, s.clusters || [], { services }),
+    ...(s.extra || []), // agent detectors (shared/seo/agent-detectors.js), same gates below
   ];
   const unique = [...new Map(all.map(r => [r.id, r])).values()];
   return guardRecommendations(serviceGate(applyPreferences(unique, prefs, now), services)).sort((a, b) => b.score - a.score);

@@ -47,7 +47,7 @@ const NEGATIVE = /^\s*(no|nope|nah|don'?t|never ?mind|stop|hold off|wait|not yet
 // an old subject (e.g. "Lisa") can't leak into a revenue answer.
 export const SELF_CONTAINED_INTENTS = new Set(['money', 'take_home', 'briefing', 'action_center', 'waiting_on', 'data_health', 'unpaid', 'test_reminder_cleanup']);
 
-export const SEO_TOOLS = new Set(['get_seo_overview', 'get_seo_opportunities', 'get_local_search_demand', 'get_seo_competitors', 'get_seo_seasonality', 'get_customer_geography', 'get_local_authority', 'get_seo_connections', 'check_service_area', 'update_seo_recommendation']);
+export const SEO_TOOLS = new Set(['get_seo_overview', 'get_seo_actions', 'get_seo_top5_gap', 'get_seo_opportunities', 'get_local_search_demand', 'get_seo_competitors', 'get_seo_seasonality', 'get_customer_geography', 'get_local_authority', 'get_seo_connections', 'check_service_area', 'update_seo_recommendation']);
 
 export const WRITE_TOOLS = new Set([
   'create_reminder', 'complete_reminder', 'cleanup_test_reminders', 'update_lead_status', 'set_lead_followup',

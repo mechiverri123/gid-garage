@@ -89,10 +89,19 @@ async function runSlice({ env, store, fetchImpl, budget, now, mode, only, manual
 
   // Analysis is its own invocation: it reads a lot of Supabase rows.
   if (run.phase === 'analysis') {
-    const analysis = await createSeoOps({ store, env, now }).analyze().catch(e => ({ error: e.message }));
+    const ops = createSeoOps({ store, env, now });
+    const analysis = await ops.analyze().catch(e => ({ error: e.message }));
     if (analysis.error) run.errors.push(`analysis: ${analysis.error}`);
+    // Weekly: re-check the Google documents the recommendations cite (own invocation).
+    const knowledgeDue = await ops.agent().knowledgeDue().catch(() => false);
+    run.phase = knowledgeDue ? 'knowledge' : 'done';
+    return { mode, results, analysis, more: knowledgeDue, summary };
+  }
+  if (run.phase === 'knowledge') {
+    const knowledge = await createSeoOps({ store, env, now }).agent().refreshKnowledge(fetchImpl).catch(e => ({ error: e.message }));
+    if (knowledge.error) run.errors.push(`knowledge: ${knowledge.error}`);
     run.phase = 'done';
-    return { mode, results, analysis, more: false, summary };
+    return { mode, results, knowledge, more: false, summary };
   }
 
   const today = ymd(now);

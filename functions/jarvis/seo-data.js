@@ -5,12 +5,15 @@
 // functions/_lib/access-auth.js), not mere header presence.
 // Missing token -> 401, invalid -> 403.
 // GET  ?action=overview|opportunities|demand|competitors|seasonality|geography|authority|connections|briefing|queries|technical
+//            |actions|top5|blueprint|history|knowledge|ranks|jobs   (Local SEO agent)
 // POST { action, ...args }  — allowlisted writes only:
 //   update_recommendation { id, action: accept|reject|dismiss|mark_applied|reopen, reason?, note? }
 //   add_competitor { name, website }            set_competitor_status { id, status: active|ignored }
 //   add_citation { platform, url, observed_* }   add_calendar_event { kind, label, start_date, end_date }
 //   add_authority { name, url, kind, local }     update_settings { key_pages?, canonical_*?, services?: [{id, offered}] }
 //   sync_now { mode?: incremental|backfill }      one budget-bounded sync call; the UI repeats while `more` (sync.js)
+//   add_rank { keyword, area, rank|null, date?, in_local_pack?, competitors? }   import_ranks { csv }
+//   set_knowledge_status { id, status: active|superseded }
 // Nothing here publishes anything outside GID's own database.
 
 import { createSeoStore } from '../_lib/seo/store.js';
@@ -44,6 +47,14 @@ export async function handleSeoData({ request, env, store, now = new Date(), run
       queries: () => ops.queries({ days }),
       technical: () => ops.technical(),
       briefing: () => ops.briefing(),
+      // Local SEO agent (functions/_lib/seo/agent-ops.js)
+      actions: () => ops.agent().actions(),
+      top5: () => ops.agent().top5(),
+      blueprint: () => ops.agent().blueprint(),
+      history: () => ops.agent().history(),
+      knowledge: () => ops.agent().knowledge(),
+      ranks: () => ops.agent().ranks(),
+      jobs: () => ops.agent().jobs(),
     };
     if (!reads[action]) return json({ error: `Unknown action. Use one of: ${Object.keys(reads).join(', ')}` }, 400);
     return json(await reads[action]());
@@ -99,6 +110,13 @@ export async function handleSeoData({ request, env, store, now = new Date(), run
       const rows = await store.patch('seo_settings', { id: 'eq.default' }, { ...fields, updated_at: now.toISOString() });
       return rows.length === 1 ? json({ ok: true, updated: Object.keys(fields) }) : json({ error: 'Settings row missing — run seo_migration.sql' }, 500);
     }
+    case 'add_rank':
+      return json(await ops.agent().addRank({ keyword: str(body.keyword, 120), area: str(body.area, 80), rank: body.rank === '' || body.rank == null ? null : Number(body.rank), date: isDate(body.date) ? body.date : undefined, inLocalPack: !!body.in_local_pack, competitors: Array.isArray(body.competitors) ? body.competitors.map(c => str(c, 80)).filter(Boolean).slice(0, 10) : [], note: str(body.note, 300) || '' }));
+    case 'import_ranks':
+      if (typeof body.csv !== 'string' || body.csv.length > 200000) return json({ error: 'csv (text, under 200 KB) is required' }, 400);
+      return json(await ops.agent().importRanks(body.csv));
+    case 'set_knowledge_status':
+      return json(await ops.agent().setKnowledgeStatus({ id: str(body.id, 80), status: str(body.status, 20) }));
     case 'check_location':
       return json(isInsideServiceArea(str(body.location, 200) || ''));
     case 'sync_now': {

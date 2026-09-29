@@ -1,9 +1,13 @@
 // Shapes returned by functions/jarvis/seo-data.js (/jarvis/seo-data) (see functions/_lib/seo/ops.js).
 // Kept loose where the backend passes evidence through untouched.
 
-export type SeoView = 'overview' | 'map' | 'opportunities' | 'demand' | 'competitors' | 'seasonality' | 'authority' | 'connections';
+export type SeoView = 'overview' | 'map' | 'opportunities' | 'demand' | 'competitors' | 'seasonality' | 'authority' | 'connections'
+  | 'actions' | 'top5' | 'blueprint' | 'rankings' | 'research' | 'history';
 
 export const SEO_VIEWS: { id: SeoView; label: string }[] = [
+  { id: 'actions', label: 'Actions' },
+  { id: 'top5', label: 'Top-5 gap' },
+  { id: 'blueprint', label: 'Blueprint' },
   { id: 'overview', label: 'Local overview' },
   { id: 'map', label: 'Service area' },
   { id: 'opportunities', label: 'Opportunities' },
@@ -11,6 +15,9 @@ export const SEO_VIEWS: { id: SeoView; label: string }[] = [
   { id: 'competitors', label: 'Competitors' },
   { id: 'seasonality', label: 'Seasonality' },
   { id: 'authority', label: 'Authority & listings' },
+  { id: 'rankings', label: 'Rankings' },
+  { id: 'research', label: 'Research' },
+  { id: 'history', label: 'History & learning' },
   { id: 'connections', label: 'Connections' },
 ];
 

@@ -101,6 +101,11 @@ Jarvis is the interactive command interface for GID Garage, not primarily a chat
   - `CF_ACCESS_TEAM_DOMAIN`
   - `CF_ACCESS_AUD`
   - `SEO_SYNC_SECRET`
+- **Local SEO agent** (see `SEO_SETUP.md`): the action queue, Top-5 gap, blueprint, rankings, research and history/learning tabs in SEO Mode.
+  - Code: `shared/seo/agent*.js`, `shared/seo/knowledge.js`, `functions/_lib/seo/agent-ops.js`, `seo/SeoAgent.tsx`.
+  - Tables: `seo_agent_migration.sql`, additive; the owner runs it.
+  - Recommendations cite `knowledge.js` entries.
+  - Never scrape Google or auto-publish site changes.
 - **SEO routes:**
   - `/jarvis/seo-data` (`functions/jarvis/seo-data.js`): admin API, Access plus verified JWT; also runs "Sync now".
   - `/seo-sync`: cron only.

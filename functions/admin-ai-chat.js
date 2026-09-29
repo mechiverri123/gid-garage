@@ -393,7 +393,7 @@ const VISUAL_FIRST = "VISUAL-FIRST: The owner is looking at the /jarvis screen. 
 
 // SEO tool -> SEO Mode panel the Command Center should bring to the center.
 const SEO_FOCUS = {
-  get_seo_overview: 'overview', get_seo_opportunities: 'opportunities', update_seo_recommendation: 'opportunities',
+  get_seo_overview: 'overview', get_seo_actions: 'actions', get_seo_top5_gap: 'top5', get_seo_opportunities: 'opportunities', update_seo_recommendation: 'opportunities',
   get_local_search_demand: 'demand', get_seo_competitors: 'competitors', get_seo_seasonality: 'seasonality',
   get_customer_geography: 'map', check_service_area: 'map', get_local_authority: 'authority', get_seo_connections: 'connections',
 };
@@ -811,6 +811,16 @@ const TOOLS = [
     name: 'get_seo_overview',
     description: "Local-first SEO/growth overview for a period: local search visibility, local organic clicks, GBP actions, local leads/bookings/conversion (primary); nonbranded vs branded local, local CTR/position (secondary); total/nonlocal traffic (tertiary); locality breakdown (confirmed/likely/unknown/nonlocal); which data sources are connected.",
     input_schema: { type: 'object', properties: { days: { type: 'number', description: 'Window length, default 28.' } } },
+  },
+  {
+    name: 'get_seo_actions',
+    description: "The Local SEO action queue: what to do next to rank higher, grouped HIGH / MEDIUM / LOW with GID Opportunity Score, why, the exact action, impact/effort/confidence and Google sources. Use for 'what should I do for SEO', 'how do I rank higher', 'SEO priorities'. Opens the Actions tab. Never promise a ranking.",
+    input_schema: { type: 'object', properties: {} },
+  },
+  {
+    name: 'get_seo_top5_gap',
+    description: "What is stopping GID from competing with the top local results: relevance, reviews, prominence, content, website, technical, authority, competitor and distance gaps, stated from measured data. Use for 'why aren't we top 5', 'why do competitors rank above us'. Opens the Top-5 gap tab.",
+    input_schema: { type: 'object', properties: {} },
   },
   {
     name: 'get_seo_opportunities',
@@ -1485,6 +1495,14 @@ export async function onRequestPost({ request, env }) {
 
       case 'get_seo_overview':
         return await seo().overview({ days: Math.min(Math.max(Number(input.days || 28), 7), 180) });
+      case 'get_seo_actions': {
+        // Compact for the model; the screen shows the full cards.
+        const a = await seo().agent().actions();
+        const slim = c => ({ title: c.title, priority: c.priority, score: c.opportunityScore, category: c.category, action: c.action, impact: c.impact, effort: c.effort, confidence: c.confidence, ids: c.ids });
+        return { status: a.status, high: a.high.map(slim), medium: a.medium.slice(0, 5).map(slim), low: a.low.length, decisions: a.decisions.map(slim) };
+      }
+      case 'get_seo_top5_gap':
+        return await seo().agent().top5();
       case 'get_seo_opportunities':
         return await seo().opportunities({ status: String(input.status || 'open'), limit: 15 });
       case 'get_local_search_demand':

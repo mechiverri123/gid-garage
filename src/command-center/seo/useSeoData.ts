@@ -5,6 +5,7 @@ import type { SeoView } from './seoTypes';
 const ACTION_FOR: Record<SeoView, string> = {
   overview: 'overview', map: 'geography', opportunities: 'opportunities', demand: 'demand',
   competitors: 'competitors', seasonality: 'seasonality', authority: 'authority', connections: 'connections',
+  actions: 'actions', top5: 'top5', blueprint: 'blueprint', rankings: 'ranks', research: 'knowledge', history: 'history',
 };
 
 type SyncCall = { ok: boolean; error?: string; more?: boolean; runStatus?: string; results?: { provider: string; rows?: number; partial?: boolean; skipped?: boolean; reason?: string }[]; summary?: { errors?: string[] }; runs?: number; historyIncomplete?: boolean };
@@ -33,8 +34,8 @@ export function useSeoData(view: SeoView, days: number) {
 
   // Always: overview + opportunities rail + source health for the header, plus
   // query movement and technical health for the overview page. Then the current view.
-  useEffect(() => { void load('overview'); void load('opportunities'); void load('connections'); void load('queries'); void load('technical'); }, [load, version]);
-  useEffect(() => { if (!['overview', 'opportunities', 'connections'].includes(view)) void load(view); }, [view, load, version]);
+  useEffect(() => { void load('overview'); void load('opportunities'); void load('connections'); void load('queries'); void load('technical'); void load('actions'); }, [load, version]);
+  useEffect(() => { if (!['overview', 'opportunities', 'connections', 'actions'].includes(view)) void load(view); }, [view, load, version]);
 
   const post = useCallback(async (body: Record<string, unknown>) => {
     const res = await fetch('/jarvis/seo-data', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });

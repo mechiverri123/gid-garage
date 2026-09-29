@@ -14,6 +14,7 @@ import { resolveServices } from '../../../shared/seo/services.js';
 import { SERVICE_AREA } from '../../../shared/seo/service-area.js';
 import { serviceEvidence, capacityFactor } from '../../../shared/seo/evidence.js';
 import { providerStatuses } from './providers.js';
+import { createAgentOps } from './agent-ops.js';
 
 const DAY = 86400000;
 const ymd = d => new Date(d).toISOString().slice(0, 10);
@@ -218,7 +219,7 @@ export function createSeoOps({ store, env = {}, now = new Date() }) {
     const [gsc, gscPrev, gbpCur, gbpPrev, ps, audits, citations, ads, cv, s] = await Promise.all([
       gscPeriod(w.cur), gscPeriod(w.prev), gbpPeriod(w.cur), gbpPeriod(w.prev),
       safe(store.select('seo_pagespeed_runs', { select: '*', order: 'fetched_at.desc', limit: '20' })),
-      safe(store.select('seo_page_audits', { select: '*', order: 'fetched_at.desc', limit: '10' })),
+      safe(store.select('seo_page_audits', { select: '*', order: 'fetched_at.desc', limit: '120' })),
       safe(store.select('seo_citations', { select: '*' })),
       safe(store.select('seo_ads_location_daily', { select: '*', date: `gte.${w.cur.from}` })),
       competitorsView(), settings(),
@@ -255,6 +256,7 @@ export function createSeoOps({ store, env = {}, now = new Date() }) {
   async function analyze() {
     const newChanges = await recordCompetitorChanges();
     const c = await analysisContext();
+    const extra = await agent().detections(c).catch(() => []);
     const [prefs, existing, season] = await Promise.all([safe(store.select('seo_preferences', { select: '*' })), safe(store.selectAll('seo_recommendations', { select: '*' })), seasonality()]);
     const s = c.s;
     const detected = runDetectors({
@@ -269,6 +271,7 @@ export function createSeoOps({ store, env = {}, now = new Date() }) {
       adsLocations: c.ads, outsideAreaDemand: nonOpportunities(c.gsc).outsideAreaDemand,
       advertisedPlaces: [...new Set(c.audits.flatMap(a => a.advertised_places || []))],
       seasonalFindings: season.findings, upcomingColdSnap: season.upcomingColdSnap,
+      extra,
     }, { prefs, now, services: c.services });
     const upserts = mergeDetected(existing, detected, now).map(toRow);
     // Applied changes whose monitoring window ended get measured.
@@ -277,9 +280,16 @@ export function createSeoOps({ store, env = {}, now = new Date() }) {
       const m = evaluateApplied(r, await metricValue(r.metric, { gsc: c.gsc, clusters: c.clusters, gbpActions: c.gbpActions, pagespeed: c.pagespeed }), { now, betterIs: r.metric?.kind === 'gsc_query_position' ? 'lower' : 'higher' });
       if (m) measured.push(toRow(m));
     }
-    const all = [...upserts, ...measured];
+    // 7/30/90/180-day outcomes for applied changes (learning loop).
+    const measuredIds = new Set(measured.map(m => m.id));
+    const horizons = (await agent().measureHorizons(existing.map(r => (measuredIds.has(r.id) ? { ...r, ...measured.find(m => m.id === r.id) } : r)), c.services).catch(() => [])).map(toRow);
+    const byId = new Map([...upserts, ...measured, ...horizons].map(r => [r.id, r]));
+    const all = [...byId.values()];
     if (all.length) await store.upsert('seo_recommendations', all, 'id');
-    return { detected: detected.length, written: all.length, newOpen: upserts.filter(u => u.status === 'open' && !existing.some(e => e.id === u.id)).length, expired: upserts.filter(u => u.status === 'expired').length, measured: measured.length, competitorChanges: newChanges };
+    const after = new Map(existing.map(r => [r.id, r]));
+    for (const r of all) after.set(r.id, { ...after.get(r.id), ...r });
+    const snapshot = await agent().recordSnapshot(c, [...after.values()]);
+    return { detected: detected.length, written: all.length, newOpen: upserts.filter(u => u.status === 'open' && !existing.some(e => e.id === u.id)).length, expired: upserts.filter(u => u.status === 'expired').length, measured: measured.length, horizonsMeasured: horizons.length, competitorChanges: newChanges, snapshot };
   }
 
   async function updateRecommendation({ id, action, reason = '', note = '' } = {}) {
@@ -360,7 +370,11 @@ export function createSeoOps({ store, env = {}, now = new Date() }) {
     };
   }
 
-  return { overview, opportunities, localDemand, queries, technical, competitors: competitorsView, seasonality, customerGeography, authority, connections, analyze, updateRecommendation, briefing };
+  // Local SEO agent layer (agent-ops.js): action queue, Top-5 gap, blueprint, learning, research, rankings.
+  let agentOps = null;
+  const agent = () => (agentOps ||= createAgentOps({ store, env, now, h: { gscPeriod, gbpPeriod, analysisContext, servicesNow, windows } }));
+
+  return { overview, opportunities, localDemand, queries, technical, competitors: competitorsView, seasonality, customerGeography, authority, connections, analyze, updateRecommendation, briefing, agent };
 }
 
 function groupChanges(changes) {

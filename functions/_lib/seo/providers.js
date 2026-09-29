@@ -156,6 +156,18 @@ export const ga4 = {
 
 // ---- PageSpeed Insights + own-page technical audit ----------------------------------------------
 const pageUrls = ctx => (Array.isArray(ctx.settings?.key_pages) && ctx.settings.key_pages.length ? ctx.settings.key_pages : ['https://gidgarage.com/']);
+// A URL that cannot exist: a real 404 here is healthy; 200 means every bad URL
+// serves the homepage (a "soft 404" — Google's JavaScript SEO guide).
+export const SOFT_404_PROBE = 'https://gidgarage.com/__gid-seo-audit-missing-page';
+// Every page the sitemap lists (plus key pages and the soft-404 probe), capped.
+async function auditUrls(ctx) {
+  const urls = new Set(pageUrls(ctx));
+  try {
+    const res = await ctx.fetch('https://gidgarage.com/sitemap.xml', { headers: { 'User-Agent': 'GID-Garage-SEO-Audit/1.0' } });
+    if (res.ok) for (const m of (await res.text()).matchAll(/<loc>\s*([^<\s]+)\s*<\/loc>/g)) urls.add(m[1]);
+  } catch { /* sitemap unavailable: key pages only */ }
+  return [...urls].slice(0, 40).concat(SOFT_404_PROBE);
+}
 
 // Resumable batches: sync.js passes ctx.batch = { offset, limit } sized to the
 // invocation's subrequest budget; `next` is where the following call resumes
@@ -204,13 +216,14 @@ export function parsePageSpeed(url, strategy, data) {
 
 export const siteAudit = {
   id: 'site_audit', label: 'Own-site technical audit', category: 'technical', env: [], docs: 'site-audit', snapshot: true,
-  status() { return { status: 'connected', missing: [], note: 'Reads the public HTML of your key pages (JS-rendered content is not executed).' }; },
+  status() { return { status: 'connected', missing: [], note: 'Reads the raw HTML of every sitemap page (what crawlers get before JavaScript runs) and checks that a missing page really returns 404.' }; },
   async sync(ctx) {
     const rows = [];
-    const b = batchOf(ctx, pageUrls(ctx));
+    const b = batchOf(ctx, await auditUrls(ctx));
     for (const url of b.slice) {
       const res = await ctx.fetch(url, { headers: { 'User-Agent': 'GID-Garage-SEO-Audit/1.0' } });
-      rows.push(auditPage(url, res.ok ? await res.text() : '', res.status));
+      // The probe is stored for its status only (a missing page is expected to fail).
+      rows.push(url === SOFT_404_PROBE ? { url, title: null, meta_description: null, h1: null, canonical: null, schema_types: [], advertised_places: [], issues: [{ code: 'probe', severity: 'info', title: 'Soft-404 probe', detail: `HTTP ${res.status}`, status: res.status }] } : auditPage(url, res.ok ? await res.text() : '', res.status));
     }
     await ctx.store.insert('seo_page_audits', rows);
     return { rows: rows.length, detail: `${rows.length} pages audited${b.label}`, next: b.next };

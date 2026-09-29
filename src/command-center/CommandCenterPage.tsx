@@ -29,7 +29,7 @@ import { MarketingPanel } from './components/MarketingPanel';
 import { CommandPalette, useCommandPalette } from './components/CommandPalette';
 import { CommandInput } from './components/CommandInput';
 import { SeoMode } from './seo/SeoMode';
-import type { SeoView } from './seo/seoTypes';
+import { SEO_VIEWS, type SeoView } from './seo/seoTypes';
 import { applyUiEvent, INITIAL_UI_MODE, type UiModeEvent } from './seo/uiMode';
 import { AppSidebar, type NavTarget } from './shell/AppSidebar';
 import { CommandTopBar } from './shell/CommandTopBar';
@@ -183,6 +183,13 @@ export function CommandCenterPage({ onLock }: { onLock: () => void }) {
   const onUiEvent = useCallback((e: UiModeEvent) => setUi(s => applyUiEvent(s, e)), []);
   const setMode = useCallback((m: 'ops' | 'seo') => setUi(s => applyUiEvent(s, { type: 'manual', mode: m })), []);
   const setSeoFocus = useCallback((v: SeoView) => setUi(s => applyUiEvent(s, { type: 'ui_focus', mode: 'seo', target: v })), []);
+  // Deep links: /jarvis#seo (SEO Mode) or /jarvis#seo/actions, #seo/top5, #seo/blueprint …
+  useEffect(() => {
+    const m = window.location.hash.match(/^#seo(?:\/([a-z0-9]+))?$/i);
+    if (!m) return;
+    const view = SEO_VIEWS.find(v => v.id === m[1])?.id;
+    if (view) setSeoFocus(view); else setMode('seo');
+  }, [setSeoFocus, setMode]);
   const { mode, seoFocus } = ui;
   modeRef.current = mode;
 
