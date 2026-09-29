@@ -64,6 +64,10 @@ Jarvis is the interactive command interface for GID Garage, not primarily a chat
     - It's an estimate, never a billing guarantee.
   - **Failure handling:** provider failures show "Voice unavailable" and typed Jarvis keeps working. Quota errors pause voice (localStorage) with no retry loop. Deepgram reconnects at most 3 times, with backoff.
   - **Rollback:** the LiveKit agent + `useLiveKitJarvis` are the legacy path, off unless `VITE_JARVIS_VOICE=livekit`. Delete them only after the direct stack has run in production for a while.
+  - **Fewer Claude calls:** plain "revenue for <period>", "what's on <day/week>" and "pull up <name>'s jobs" are answered with no Claude call (`functions/_lib/jarvis-fastpath.js`; grammar in `shared/jarvis-workspace.js`). The line is built from the same tool result as the screen; anything else goes to Claude.
+  - **Prompt cache:** the system prompt is cached for 1 hour (2× write, 0.1× read).
+  - **SEO tools:** only offered when the turn is about SEO or the owner is on the SEO page.
+  - **Persona:** JARVIS-style British butler, "sir" in every reply (SYSTEM_PROMPT → PERSONA). Instant screen commands get short spoken acknowledgements (`ackFor` in CommandCenterPage).
   - **Tests:** `tests/voice-stack.test.js`, plus the global commands in `tests/jarvis-workspace.test.js`. The dev-only hook `window.__jarvisVoiceUtterance(text)` injects a final utterance for browser regression runs.
 - The only remaining `/admin` link on `/jarvis` is the explicit "Admin dashboard" item in the account menu. Settings opens the admin Hub re-themed; new customers are created with their first job (New Job), same as `/admin`.
 

@@ -219,3 +219,73 @@ test('voice check: each provider reported separately; network errors still name 
   assert.equal(o.provider, 'deepgram');
   assert.match(o.error, /deepgram: fetch failed/);
 });
+
+// ---- cheaper without losing anything: fast paths, 1-hour cache, fewer tools, persona ------------
+import { matchFastPath, fastLine } from '../functions/_lib/jarvis-fastpath.js';
+
+async function webChat({ text, script = [], screen = null, voice = false }) {
+  const db = fakeSupabase(seed());
+  const { fetchImpl, claudeRequests } = fakeFetch(db, script);
+  globalThis.fetch = async (url, init = {}) => {
+    const u = new URL(url);
+    if (u.pathname.endsWith('/jarvis_ai_usage')) return new Response('[]', { headers: { 'Content-Type': 'application/json' } });
+    if (u.pathname.endsWith('/rpc/jarvis_add_usage')) return new Response(null, { status: 204 });
+    return fetchImpl(url, init);
+  };
+  const res = await onRequestPost({
+    request: new Request('https://x/admin-ai-chat', { method: 'POST', headers: { 'X-GID-Internal-Jarvis': 'internal', 'Content-Type': 'application/json' }, body: JSON.stringify({ messages: [{ role: 'user', content: text }], ui: { enabled: true, screen }, ...(voice ? { voice: true, stream: true } : {}) }) }),
+    env: ENV,
+  });
+  const events = (await res.text()).split('\n').filter(Boolean).map(l => JSON.parse(l));
+  return { events, claudeRequests, final: events.find(e => e.type === 'final')?.text, says: events.filter(e => e.type === 'say').map(e => e.text), ui: events.filter(e => e.type === 'ui').map(e => e.action) };
+}
+
+test('fast path: plain revenue / schedule / customer-jobs requests never call Claude', async () => {
+  const rev = await webChat({ text: "What's my revenue this month?", voice: true });
+  assert.equal(rev.claudeRequests.length, 0);
+  assert.equal(rev.ui[0].view.type, 'analytics');
+  assert.match(rev.final, /^[A-Z][a-z]+ stands at \$[\d,]+\.\d\d so far, sir/);
+  assert.deepEqual(rev.says, [rev.final]); // spoken exactly once, same text
+  const cal = await webChat({ text: 'Show bookings this week' });
+  assert.equal(cal.claudeRequests.length, 0);
+  assert.deepEqual([cal.ui[0].view.type, cal.ui[0].view.mode], ['calendar', 'week']);
+  assert.match(cal.final, /week.*sir\.$/i);
+  // Not a plain request -> Claude, exactly as before.
+  const why = await webChat({ text: 'why is revenue lower this month', script: [claudeText('Fewer paid jobs, sir.')] });
+  assert.equal(why.claudeRequests.length, 1);
+  // Telegram (no screen) never takes the fast path.
+  assert.equal(matchFastPath('show bookings this week', '2026-09-28').tool, 'show_calendar');
+});
+
+test('fast path: an unknown customer falls through to Claude instead of a wrong answer', async () => {
+  const r = await webChat({ text: "Pull up Zzyzx Qwerty's jobs", script: [claudeText("I'm afraid I can't find Zzyzx Qwerty, sir.")] });
+  assert.equal(r.claudeRequests.length, 1);
+  assert.equal(r.ui.length, 0);
+});
+
+test('revenue lines: exact figures, period wording, change, nothing-collected', () => {
+  const base = { from: '2026-09-01', to: '2026-09-28', days: 28, key: 'this_month', collected: 4439.02, previous: { from: '2026-08-04', to: '2026-08-31' }, changePct: 13.7 };
+  const m = { tool: 'show_revenue' };
+  assert.equal(fastLine(m, base, '2026-09-28'), 'September stands at $4,439.02 so far, sir — up 13.7% on August.');
+  assert.equal(fastLine(m, { ...base, key: 'last_13_days', days: 13, changePct: -4 }, '2026-09-28'), 'The last 13 days come to $4,439.02, sir — down 4% on the 13 days before.');
+  assert.equal(fastLine(m, { ...base, key: 'today', collected: 0 }, '2026-09-28'), 'Nothing collected today yet, sir.');
+  assert.equal(fastLine({ tool: 'show_jobs' }, { jobs: [] }, '2026-09-28'), null);
+});
+
+test('prompt: 1-hour cache, JARVIS persona, SEO tools only when relevant', async () => {
+  const r = await webChat({ text: 'who owes me money', script: [claudeText('Nobody at the moment, sir.')] });
+  const req = r.claudeRequests[0];
+  assert.deepEqual(req.system[0].cache_control, { type: 'ephemeral', ttl: '1h' });
+  assert.match(req.system[0].text, /PERSONA — speak like JARVIS/);
+  assert.match(req.system[0].text, /"sir" in EVERY reply/);
+  assert.equal(req.tools.some(t => t.name.startsWith('get_seo')), false);
+  const seo = await webChat({ text: 'what can I improve', screen: { view: 'none', pageMode: 'seo' }, script: [claudeText('Might I suggest the brake page, sir.')] });
+  assert.equal(seo.claudeRequests[0].tools.some(t => t.name === 'get_seo_overview'), true);
+});
+
+test('budget: 1-hour cache writes are priced at 2x, 5-minute at 1.25x', () => {
+  const p = pricing({});
+  const usd = anthropicUsd({ ephemeral_1h_input_tokens: 1e6, ephemeral_5m_input_tokens: 1e6, cache_creation_input_tokens: 2e6 }, p);
+  assert.equal(usd, 3.25);
+  assert.equal(anthropicUsd({ cache_creation_input_tokens: 1e6 }, p), 1.25); // no breakdown given -> 5-minute rate
+});

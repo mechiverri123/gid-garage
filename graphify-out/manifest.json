@@ -30,9 +30,9 @@
     "semantic_hash": "ce619fcfd1eeb9713d76458dbcb97c85"
   },
   "functions/admin-ai-chat.js": {
-    "mtime": 1790648057.511141,
-    "seen": 1790648374.6839938,
-    "ast_hash": "b3089c4d1b05f242090edc2f18a53c99",
+    "mtime": 1790651316.9276433,
+    "seen": 1790651373.925275,
+    "ast_hash": "6bc226c701ebf3d972653d14cd0dbfbd",
     "semantic_hash": ""
   },
   "functions/admin-api-data.js": {
@@ -276,9 +276,9 @@
     "semantic_hash": "a33ab1cd5b7348688a6ddcd64664307f"
   },
   "src/command-center/CommandCenterPage.tsx": {
-    "mtime": 1790648214.111333,
-    "seen": 1790648374.6893568,
-    "ast_hash": "2a8f67055673a414176e6cc39aa708ed",
+    "mtime": 1790651248.2323933,
+    "seen": 1790651373.9296982,
+    "ast_hash": "de41e0a3ea4562222cb73579398b3cd1",
     "semantic_hash": ""
   },
   "src/command-center/api.ts": {
@@ -570,9 +570,9 @@
     "semantic_hash": "a643d83b7626b709e8beeda21099b3f0"
   },
   "CLAUDE.md": {
-    "mtime": 1790648294.126022,
-    "seen": 1790648374.701341,
-    "ast_hash": "34ecd3b98f3735ceec11267f1b8738af",
+    "mtime": 1790651366.9690888,
+    "seen": 1790651373.9417305,
+    "ast_hash": "17bd27243c0a03b987eedd3ade18512a",
     "semantic_hash": ""
   },
   "CODEBASE.md": {
@@ -1632,15 +1632,15 @@
     "semantic_hash": ""
   },
   "shared/jarvis-workspace.d.ts": {
-    "mtime": 1790643911.6189487,
-    "seen": 1790644103.888418,
-    "ast_hash": "96e2a2a0bb6795fcfdc655de6edde58a",
+    "mtime": 1790651105.4515913,
+    "seen": 1790651373.9280493,
+    "ast_hash": "83b66c04875d65b599a565e48990e054",
     "semantic_hash": ""
   },
   "shared/jarvis-workspace.js": {
-    "mtime": 1790647836.7965567,
-    "seen": 1790648374.687605,
-    "ast_hash": "4869e5995101ac29d2edd3fe2037de27",
+    "mtime": 1790651158.757218,
+    "seen": 1790651373.9280508,
+    "ast_hash": "adee01d86102b06e086095524683c981",
     "semantic_hash": ""
   },
   "src/command-center/workspace/AnalyticsView.tsx": {
@@ -1692,21 +1692,21 @@
     "semantic_hash": ""
   },
   "tests/jarvis-workspace.test.js": {
-    "mtime": 1790647821.1080194,
-    "seen": 1790648374.695021,
-    "ast_hash": "df9688bfb69b5589819d293e21964c15",
+    "mtime": 1790651280.9271035,
+    "seen": 1790651373.9356718,
+    "ast_hash": "a2d89e22d0d0e330cd7d6ec6f60c9a74",
     "semantic_hash": ""
   },
   "functions/_lib/jarvis-screen.js": {
-    "mtime": 1790643990.2495856,
-    "seen": 1790644103.8854105,
-    "ast_hash": "907aa0cc18d077981facec08e3d9c073",
+    "mtime": 1790651236.4425366,
+    "seen": 1790651373.924629,
+    "ast_hash": "1090b2e9d8674b5d73438c7c0026876d",
     "semantic_hash": ""
   },
   "functions/_lib/ai-budget.js": {
-    "mtime": 1790647456.3407,
-    "seen": 1790648374.6824982,
-    "ast_hash": "91d668ea62a82b60ccce7af69d5d3cdd",
+    "mtime": 1790651236.4410107,
+    "seen": 1790651373.9242268,
+    "ast_hash": "7e20f1100388663f7e7f35de7ba8210c",
     "semantic_hash": ""
   },
   "functions/_lib/claude-stream.js": {
@@ -1716,9 +1716,9 @@
     "semantic_hash": ""
   },
   "functions/jarvis/voice.js": {
-    "mtime": 1790647488.9889078,
-    "seen": 1790648374.6864185,
-    "ast_hash": "c56c57b3382692624ff71760352d983d",
+    "mtime": 1790650350.895036,
+    "seen": 1790651373.927136,
+    "ast_hash": "2d8a4f8dc68948777ac696dc8a36fd27",
     "semantic_hash": ""
   },
   "shared/voice-text.d.ts": {
@@ -1734,9 +1734,9 @@
     "semantic_hash": ""
   },
   "src/command-center/voice/useDirectVoice.ts": {
-    "mtime": 1790647976.0662327,
-    "seen": 1790648374.6926084,
-    "ast_hash": "3d613d85f01435e70b412e7d32c88916",
+    "mtime": 1790650350.895036,
+    "seen": 1790651373.9334092,
+    "ast_hash": "e628a41bd3cd16c414771e646a88553a",
     "semantic_hash": ""
   },
   "src/command-center/workspace/UsagePanel.tsx": {
@@ -1746,9 +1746,15 @@
     "semantic_hash": ""
   },
   "tests/voice-stack.test.js": {
-    "mtime": 1790648057.6165462,
-    "seen": 1790648374.696145,
-    "ast_hash": "ffc940ba9cc3c499206b6190dd05332a",
+    "mtime": 1790651316.9878142,
+    "seen": 1790651373.936629,
+    "ast_hash": "a1dddc51289db7bc8009ee72135a9e1f",
+    "semantic_hash": ""
+  },
+  "functions/_lib/jarvis-fastpath.js": {
+    "mtime": 1790651235.9936883,
+    "seen": 1790651373.9245613,
+    "ast_hash": "96b16fbb2f554b7680e502684088a0b8",
     "semantic_hash": ""
   }
 }

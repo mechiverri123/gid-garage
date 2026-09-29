@@ -29,3 +29,6 @@ export function isScreenFollowUp(text: string, state: WorkspaceState): boolean;
 export function jobFamily(list: { id: string; customerId?: string | null; fname?: string; lname?: string; phone?: string; date?: string; status?: string; jobStatus?: string }[], id: string): string[];
 export function spokenDate(text: string): { month: string | null; day: string } | null;
 export function spokenYmd(text: string, today: string, prefer?: 'future' | 'past'): string | null;
+export function parseRevenueRequest(text: string, today: string): Record<string, unknown> | null;
+export function parseScheduleRequest(text: string, today: string): { when: string; date: string; mode: CalendarMode } | null;
+export function parseCustomerJobsRequest(text: string): { customer: string; count: number | null } | null;

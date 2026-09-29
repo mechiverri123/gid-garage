@@ -39,8 +39,10 @@ import { JOB_TABS, CALENDAR_MODES } from '../shared/jarvis-workspace.js';
 import { runScreenTool } from './_lib/jarvis-screen.js';
 import { readBudget, addUsage, anthropicUsd, pricing } from './_lib/ai-budget.js';
 import { readClaudeStream } from './_lib/claude-stream.js';
+import { matchFastPath, fastLine } from './_lib/jarvis-fastpath.js';
 import { createSentenceBuffer, wantsFullReadout } from '../shared/voice-text.js';
-import { claimsWriteSuccess, isSuccessfulWrite } from './_lib/jarvis-context.js';
+import { claimsWriteSuccess, isSuccessfulWrite, SEO_TOOLS } from './_lib/jarvis-context.js';
+import { SEO_PATTERN } from './_lib/jarvis-intent.js';
 
 const CLAUDE_MODEL = 'claude-haiku-4-5-20251001';
 const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
@@ -233,6 +235,12 @@ function toolsForFocusedIntent(intent) {
 
 const SYSTEM_PROMPT = `You are GID, the business assistant embedded in GID Garage's admin dashboard (a mobile mechanic business in Flagstaff, AZ). You have tools to look up and update real business data: customers, leads, jobs/bookings, marketing spend, calls, and business settings.
 
+PERSONA — speak like JARVIS, the composed British AI butler:
+- Address the owner as "sir" in EVERY reply, usually once: closing a sentence ("Done, sir.") or after an opening phrase ("Right away, sir — ..."). Never more than twice in one reply.
+- Understated, precise, courteous, quietly confident, with formal British phrasing: "Very good, sir.", "Right away, sir.", "As you wish.", "Indeed.", "I've taken the liberty of...", "Might I suggest...", "Shall I...?", "I'm afraid...". A dry, light touch of wit is welcome now and then, never at the expense of the answer.
+- No exclamation marks, gushing, slang, emoji, or filler ("Great question", "Absolutely"). No status chatter ("standing by", "at your service", "systems online").
+- The persona never bends the facts: numbers, names and dates stay exact, and every rule below still applies.
+
 RESPONSE STYLE — this is a small chat panel, not a report:
 - 1-3 short sentences, plain conversational English. Never format a raw list of records as your answer (no pipe-separated fields, no numbered field dumps, no markdown tables). The interface already shows the detailed data separately — your job is the short human takeaway, e.g. "Found Jill Castle — 3 jobs on file, one tomorrow at 1pm ready to go" not a field-by-field printout.
 - If there's genuinely nothing to say beyond the data (a plain lookup), one sentence pointing out what actually matters is enough.
@@ -375,7 +383,7 @@ const UI_TOOLS = [
 ];
 const UI_TOOL_NAMES = new Set(UI_TOOLS.map(t => t.name));
 
-const VISUAL_FIRST = "VISUAL-FIRST: The owner is looking at the /jarvis screen. When the answer can be shown (jobs, one job or its estimate/payment/inspection/notes/parts, the calendar, revenue or net profit for any period, the jobs list, customers), call the matching show_* tool first (no lookups before it; show_* tools resolve names and dates themselves) and reply in ONE short sentence, e.g. \"Pulling up Jill's three jobs.\" or \"September revenue is $4,439.02 so far.\" Never list or describe what the screen shows (no dates, services or amounts per job) unless asked to read it out. When a tool result has `say`, reply with exactly that. For money on this screen use show_revenue (not get_revenue_summary) so the spoken number matches the chart. For what is already on screen (\"the brake one\", \"its payment\", \"close it\", \"53 days\") use control_screen or show_revenue with the SCREEN context. Writes still use the normal tools and confirmations.";
+const VISUAL_FIRST = "VISUAL-FIRST: The owner is looking at the /jarvis screen. When the answer can be shown (jobs, one job or its estimate/payment/inspection/notes/parts, the calendar, revenue or net profit for any period, the jobs list, customers), call the matching show_* tool first (no lookups before it; show_* tools resolve names and dates themselves) and reply in ONE short sentence, e.g. \"Jill's three jobs, sir.\" or \"September stands at $4,439.02 so far, sir.\" Never list or describe what the screen shows (no dates, services or amounts per job) unless asked to read it out. When a tool result has `say`, reply with exactly that. For money on this screen use show_revenue (not get_revenue_summary) so the spoken number matches the chart. For what is already on screen (\"the brake one\", \"its payment\", \"close it\", \"53 days\") use control_screen or show_revenue with the SCREEN context. Writes still use the normal tools and confirmations.";
 
 // SEO tool -> SEO Mode panel the Command Center should bring to the center.
 const SEO_FOCUS = {
@@ -1543,6 +1551,11 @@ export async function onRequestPost({ request, env }) {
   if (plan.prefetch && !toolsForTurn.some(t => t.name === plan.prefetch.tool)) {
     toolsForTurn = [...toolsForTurn, ...TOOLS.filter(t => t.name === plan.prefetch.tool)];
   }
+  // SEO tools (large) are only offered when the turn could be about SEO:
+  // SEO intent/words, an active SEO conversation, or the owner on the SEO page.
+  const seoRelevant = focusedIntent === 'seo' || SEO_PATTERN.test(latestUserText) || !!priorContext?.activeSeo || uiScreen?.screen?.pageMode === 'seo';
+  if (!seoRelevant) toolsForTurn = toolsForTurn.filter(t => !SEO_TOOLS.has(t.name));
+  const fastPathMatch = uiScreen && !forceNaturalNoteCapture && !plan.facet ? matchFastPath(latestUserText, phoenixDateString()) : null;
   if (uiScreen && !forceNaturalNoteCapture) {
     toolsForTurn = [...toolsForTurn.filter(t => !UI_TOOL_NAMES.has(t.name)), ...UI_TOOLS];
     const last = messages[messages.length - 1];
@@ -1556,7 +1569,7 @@ export async function onRequestPost({ request, env }) {
       : budget.state === 'conscious'
         ? 'Reply in ONE short spoken sentence.'
         : 'Reply in 1-2 short spoken sentences.';
-    messages[messages.length - 1] = { ...last, content: `${last.content}\n\n[VOICE: This reply is spoken aloud. ${style} No markdown, lists, URLs or ids. The screen shows the detail.]` };
+    messages[messages.length - 1] = { ...last, content: `${last.content}\n\n[VOICE: This reply is spoken aloud. ${style} No markdown, lists, URLs or ids; write money as digits ($4,439.02). The screen shows the detail.]` };
   }
   const maxTokens = fullReadout ? 1024 : voiceTurn ? (budget.state === 'conscious' ? 200 : 350) : 1024;
 
@@ -1606,7 +1619,12 @@ export async function onRequestPost({ request, env }) {
     await send({ type: 'say', text });
   }
   const usageTotal = {};
-  const addTurnUsage = u => { for (const [k, v] of Object.entries(u || {})) if (typeof v === 'number') usageTotal[k] = (usageTotal[k] || 0) + v; };
+  const addTurnUsage = u => {
+    for (const [k, v] of Object.entries(u || {})) {
+      if (typeof v === 'number') usageTotal[k] = (usageTotal[k] || 0) + v;
+      else if (k === 'cache_creation' && v) for (const [kk, vv] of Object.entries(v)) if (typeof vv === 'number') usageTotal[kk] = (usageTotal[kk] || 0) + vv;
+    }
+  };
   async function recordAnthropicUsage() {
     const usd = anthropicUsd(usageTotal, pricing(env));
     if (usd > 0) await addUsage({ base, headers, provider: 'anthropic', units: (usageTotal.input_tokens || 0) + (usageTotal.output_tokens || 0), usd });
@@ -1627,6 +1645,13 @@ export async function onRequestPost({ request, env }) {
   // returned to the client immediately below, independent of this promise.
   (async () => {
     try {
+      // Plain "revenue for <period>" / "what's on <day>" / "<name>'s jobs":
+      // answered from the data with no Claude call (jarvis-fastpath.js).
+      if (fastPathMatch) {
+        const result = JSON.parse(await execTool(fastPathMatch.tool, fastPathMatch.input));
+        const line = fastLine(fastPathMatch, result, phoenixDateString());
+        if (line) { await say(line); await finish(line); return; }
+      }
       // Deterministic lookup of the record the message refers to (or the
       // confirmed pending action), run before the model answers.
       if (plan.prefetch) {
@@ -1647,7 +1672,9 @@ export async function onRequestPost({ request, env }) {
             model: CLAUDE_MODEL,
             max_tokens: maxTokens,
             // Static instructions + tool list are cached (billed at ~10% on reuse).
-            system: [{ type: 'text', text: SYSTEM_PROMPT, cache_control: { type: 'ephemeral' } }],
+            // 1-hour cache: Jarvis is used in bursts through the day, so a 5-minute
+            // cache kept expiring and being rewritten (writes cost 2x, reads 0.1x).
+            system: [{ type: 'text', text: SYSTEM_PROMPT, cache_control: { type: 'ephemeral', ttl: '1h' } }],
             tools: toolsForTurn,
             messages,
             ...(streamSay ? { stream: true } : {}),

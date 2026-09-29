@@ -21,7 +21,8 @@ export function pricing(env = {}) {
     // Claude Haiku 4.5, USD per million tokens
     inPerM: n('JARVIS_ANTHROPIC_IN_PER_MTOK', 1),
     outPerM: n('JARVIS_ANTHROPIC_OUT_PER_MTOK', 5),
-    cacheWritePerM: n('JARVIS_ANTHROPIC_CACHE_WRITE_PER_MTOK', 1.25),
+    cacheWritePerM: n('JARVIS_ANTHROPIC_CACHE_WRITE_PER_MTOK', 1.25),     // 5-minute cache writes
+    cacheWrite1hPerM: n('JARVIS_ANTHROPIC_CACHE_WRITE_1H_PER_MTOK', 2),   // 1-hour cache writes
     cacheReadPerM: n('JARVIS_ANTHROPIC_CACHE_READ_PER_MTOK', 0.1),
     // Deepgram Nova-3 streaming, pay as you go
     sttPerMin: n('JARVIS_STT_USD_PER_MIN', 0.0077),
@@ -31,11 +32,14 @@ export function pricing(env = {}) {
   };
 }
 
-// Anthropic usage block(s) -> USD.
+// Anthropic usage (summed across turns) -> USD. Cache writes are priced by TTL
+// when the response breaks them down (usage.cache_creation.ephemeral_1h/5m_*).
 export function anthropicUsd(usage = {}, p = pricing()) {
   const u = k => Number(usage[k] || 0);
+  const w1h = u('ephemeral_1h_input_tokens');
+  const w5m = usage.ephemeral_5m_input_tokens != null || usage.ephemeral_1h_input_tokens != null ? u('ephemeral_5m_input_tokens') : u('cache_creation_input_tokens');
   return (u('input_tokens') * p.inPerM + u('output_tokens') * p.outPerM
-    + u('cache_creation_input_tokens') * p.cacheWritePerM + u('cache_read_input_tokens') * p.cacheReadPerM) / 1e6;
+    + w5m * p.cacheWritePerM + w1h * p.cacheWrite1hPerM + u('cache_read_input_tokens') * p.cacheReadPerM) / 1e6;
 }
 export const sttUsd = (seconds, p = pricing()) => (Math.max(0, Number(seconds) || 0) / 60) * p.sttPerMin;
 export const ttsUsd = (chars, p = pricing()) => Math.max(0, Number(chars) || 0) * p.ttsPerChar;

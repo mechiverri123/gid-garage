@@ -171,7 +171,7 @@ test('screen tools: same actions for chat and voice', async () => {
   const ops = fakeOps();
   const jobs = await runScreenTool('show_jobs', { job_ids: ['j2', 'j1'], tab: 'inspection' }, { ops, today: '2026-09-28' });
   assert.deepEqual(jobs.__ui, [{ type: 'open', view: { type: 'jobs', jobIds: ['j1', 'j2'], tab: 'inspection', focus: undefined, title: null } }]);
-  assert.equal(jobs.say, 'Opening the inspection.');
+  assert.equal(jobs.say, 'The inspection, sir.');
   const cal = await runScreenTool('show_calendar', { when: 'friday' }, { ops, today: '2026-09-28' });
   assert.deepEqual(cal.__ui[0].view, { type: 'calendar', date: '2026-10-02', mode: 'day' });
   const rev = await runScreenTool('show_revenue', { last_days: 13 }, { ops, today: '2026-09-28' });

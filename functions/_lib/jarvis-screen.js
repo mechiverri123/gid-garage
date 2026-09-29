@@ -22,8 +22,9 @@ export async function runScreenTool(name, input = {}, { ops, screen = null, toda
       const onDate = input.date ? (/^\d{4}-\d{2}-\d{2}$/.test(String(input.date)) ? String(input.date) : spokenYmd(String(input.date), today, 'past')) : null;
       const dateIdx = onDate ? r.jobs.findIndex(j => j.date === onDate) : -1;
       const focus = dateIdx >= 0 ? dateIdx : input.focus === 'newest' ? newestIdx : input.focus === 'oldest' ? n - 1 - newestIdx : undefined;
-      const who = r.subject ? `${r.subject.split(' ')[0]}'s` : 'the';
-      const say = input.tab ? `Opening the ${input.tab}.` : `Pulling up ${who} ${n === 1 ? 'job' : `${n} jobs`}.`;
+      const words = ['', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve'];
+      const who = r.subject ? `${r.subject.split(' ')[0]}'s` : 'The';
+      const say = input.tab ? `The ${input.tab}, sir.` : n === 1 ? `${who} job, sir.` : `${who} ${words[n] || n} jobs, sir.`;
       return { ...r, onScreen: true, say, ...(onDate && dateIdx < 0 ? { note: `No job on ${onDate} for this customer; showing their jobs.` } : {}), __ui: [{ type: 'open', view: { type: 'jobs', jobIds: r.jobs.map(j => j.id), tab: input.tab, focus, ...(dateIdx >= 0 ? { expanded: true } : {}), title: r.subject } }] };
     }
     case 'show_revenue': {

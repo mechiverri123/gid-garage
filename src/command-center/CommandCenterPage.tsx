@@ -48,23 +48,28 @@ const JarvisWorkspace = lazy(() => import('./workspace/JarvisWorkspace'));
 
 type WsAction = { type: string; [k: string]: unknown };
 const TAB_WORD: Record<string, string> = { overview: 'Overview', estimate: 'Estimate', payment: 'Payment', inspection: 'Inspection', notes: 'Notes', parts: 'Parts' };
-// Short acknowledgement for a screen command handled on the page.
+// Short JARVIS-style acknowledgement for a screen command handled on the page
+// (shown in the transcript; spoken when the command came by voice).
+let ackTurn = 0;
+const pick = (...options: string[]) => options[ackTurn++ % options.length];
+const STATUS_WORD: Record<string, string> = { all: 'all jobs', active: 'active jobs', unpaid: 'unpaid jobs', PAID: 'paid jobs', CANCELLED: 'cancelled jobs', BOOKED: 'booked jobs', ESTIMATE_SENT: 'estimates sent', SIGNED: 'signed jobs', IN_PROGRESS: 'jobs in progress', COMPLETED: 'completed jobs', INVOICED: 'invoiced jobs' };
 function ackFor(a: WsAction) {
-  if (a.type === 'close') return 'Closed.';
-  if (a.type === 'close_all') return 'Back to Jarvis.';
-  if (a.type === 'tab') return `${TAB_WORD[String(a.tab)] ?? 'Done'}.`;
-  if (a.type === 'focus' || a.type === 'step') return 'Opened.';
-  if (a.type === 'range') { const r = a.range as Record<string, unknown>; return r.last_days ? `Showing the last ${r.last_days} days.` : 'Updated.'; }
-  if (a.type === 'calendar') return a.mode && !a.date ? `${String(a.mode).replace(/^./, c => c.toUpperCase())} view.` : 'Calendar updated.';
-  if (a.type === 'mode') return a.mode === 'seo' ? 'SEO mode.' : 'Jarvis.';
-  if (a.type === 'home') return 'Back to Jarvis.';
-  if (a.type === 'open') return 'Opened.';
-  if (a.type === 'filter') {
-    if (typeof a.query === 'string') return a.query ? `Searching "${a.query}".` : 'Search cleared.';
-    const s = String(a.status);
-    return `Showing ${s === 'all' ? 'all jobs' : `${s.toLowerCase().replace(/_/g, ' ')} jobs`}.`;
+  if (a.type === 'noop') return `${String(a.reply || 'Nothing to do').replace(/\.$/, '')}, sir.`;
+  if (a.type === 'close') return pick('Very good, sir.', 'As you wish.', 'Of course, sir.');
+  if (a.type === 'close_all') return pick('Cleared, sir.', 'Very good, sir.');
+  if (a.type === 'home') return pick('Welcome back, sir.', 'Back to the main screen, sir.');
+  if (a.type === 'mode') return a.mode === 'seo' ? 'Local search, sir.' : 'The command center, sir.';
+  if (a.type === 'tab') return `The ${TAB_WORD[String(a.tab)]?.toLowerCase() ?? 'details'}, sir.`;
+  if (a.type === 'focus') return a.tab ? `The ${String(a.tab)}, sir.` : pick('Right away, sir.', 'Here it is, sir.');
+  if (a.type === 'step') return pick('Next one, sir.', 'Here you are, sir.');
+  if (a.type === 'open') {
+    const v = (a.view as { type?: string; status?: string }) || {};
+    return v.type === 'calendar' ? 'Your calendar, sir.' : v.type === 'jobList' ? (v.status === 'all' ? 'All jobs, sir.' : 'Your jobs, sir.') : v.type === 'customers' ? 'Your customers, sir.' : v.type === 'settings' ? 'Settings, sir.' : v.type === 'newJob' ? 'A new job, sir.' : 'Right away, sir.';
   }
-  return 'Done.';
+  if (a.type === 'range') { const r = a.range as Record<string, unknown>; return r.last_days ? `The last ${r.last_days} days, sir.` : r.last_months ? `The last ${r.last_months} months, sir.` : 'Very good, sir.'; }
+  if (a.type === 'calendar') return a.mode && !a.date ? `${String(a.mode).replace(/^./, c => c.toUpperCase())} view, sir.` : 'Very good, sir.';
+  if (a.type === 'filter') return typeof a.query === 'string' ? (a.query ? `Searching for ${a.query}, sir.` : 'Search cleared, sir.') : `Showing ${STATUS_WORD[String(a.status)] ?? 'those jobs'}, sir.`;
+  return 'Done, sir.';
 }
 
 // Real state only: the typed agent's stream wins while it's working,
@@ -101,6 +106,7 @@ export function CommandCenterPage({ onLock }: { onLock: () => void }) {
   // the sidebar and on-screen commands all drive.
   const [ws, dispatchWs] = useReducer(workspaceReduce, INITIAL_WORKSPACE);
   const wsRef = useRef(ws);
+  const modeRef = useRef<'ops' | 'seo'>('ops');
   wsRef.current = ws;
   const screenMeta = () => { const t = workspaceTop(wsRef.current); return t?.type === 'jobs' ? t.jobIds.map((id: string) => jobMeta.get(id) ?? { label: '', date: '' }) : []; };
   const openView = useCallback((view: Record<string, unknown>) => dispatchWs({ type: 'open', view }), []);
@@ -115,7 +121,8 @@ export function CommandCenterPage({ onLock }: { onLock: () => void }) {
     dispatchWs(a);
   };
   const screenHooks = useMemo(() => ({
-    getScreen: () => describeScreen(wsRef.current, screenMeta()),
+    // What's open, plus which page (SEO vs command center) the owner is on.
+    getScreen: () => { const d = describeScreen(wsRef.current, screenMeta()); return d ? { ...d, pageMode: modeRef.current } : { view: 'none', pageMode: modeRef.current }; },
     onWorkspace: (action: unknown) => applyScreenAction(action),
   }), []);
 
@@ -147,6 +154,7 @@ export function CommandCenterPage({ onLock }: { onLock: () => void }) {
   const setMode = useCallback((m: 'ops' | 'seo') => setUi(s => applyUiEvent(s, { type: 'manual', mode: m })), []);
   const setSeoFocus = useCallback((v: SeoView) => setUi(s => applyUiEvent(s, { type: 'ui_focus', mode: 'seo', target: v })), []);
   const { mode, seoFocus } = ui;
+  modeRef.current = mode;
 
   const { chatMessages, asking, liveActivity, jarvisState, ask, abort, clear, addLocal } = useAdminAI(() => {
     loadSummary();
@@ -169,7 +177,7 @@ export function CommandCenterPage({ onLock }: { onLock: () => void }) {
     if (local.type === 'mode') { dispatchWs({ type: 'close_all' }); setMode(local.mode as 'ops' | 'seo'); } // the new mode is what you see
     else if (local.type === 'home') { dispatchWs({ type: 'close_all' }); setMode('ops'); }
     else if (local.type !== 'noop') dispatchWs(local);
-    addLocal(q, local.type === 'noop' ? String(local.reply) : ackFor(local));
+    addLocal(q, ackFor(local));
   };
   applyLocalRef.current = applyLocal;
   const command = useCallback((q: string) => {
@@ -193,7 +201,8 @@ export function CommandCenterPage({ onLock }: { onLock: () => void }) {
     if (local) {
       applyLocal(local, text);
       direct.setThinking(false);
-      if (local.type === 'noop') void direct.speak(String(local.reply));
+      // He always answers, even when the screen already shows it (a few characters of speech).
+      void direct.speak(ackFor(local));
       return;
     }
     if (askingRef.current) { abort(); window.setTimeout(() => utteranceRef.current?.(text), 150); return; } // newest request wins

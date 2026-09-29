@@ -30,9 +30,9 @@
     "semantic_hash": "ce619fcfd1eeb9713d76458dbcb97c85"
   },
   "functions/admin-ai-chat.js": {
-    "mtime": 1790643911.619707,
-    "seen": 1790644103.8858974,
-    "ast_hash": "a30530be48e3e58d9e70964c3b499b93",
+    "mtime": 1790648057.511141,
+    "seen": 1790648374.6839938,
+    "ast_hash": "b3089c4d1b05f242090edc2f18a53c99",
     "semantic_hash": ""
   },
   "functions/admin-api-data.js": {
@@ -276,9 +276,9 @@
     "semantic_hash": "a33ab1cd5b7348688a6ddcd64664307f"
   },
   "src/command-center/CommandCenterPage.tsx": {
-    "mtime": 1790645345.6655939,
-    "seen": 1790645400.122299,
-    "ast_hash": "36ae3550275e09914da6b99e9a9a862c",
+    "mtime": 1790648214.111333,
+    "seen": 1790648374.6893568,
+    "ast_hash": "2a8f67055673a414176e6cc39aa708ed",
     "semantic_hash": ""
   },
   "src/command-center/api.ts": {
@@ -336,9 +336,9 @@
     "semantic_hash": ""
   },
   "src/command-center/components/RealtimeVoiceControl.tsx": {
-    "mtime": 1790634866.6869416,
-    "seen": 1790636595.8359745,
-    "ast_hash": "66abc706dde6f42b81839d8f193b4aa5",
+    "mtime": 1790647890.2714217,
+    "seen": 1790648374.6899965,
+    "ast_hash": "881251b9814174ba8f18b3d3b28a8e83",
     "semantic_hash": ""
   },
   "src/command-center/components/Workspace.tsx": {
@@ -408,9 +408,9 @@
     "semantic_hash": "b6d805a2c4440ef8a8530baa59d7b7dc"
   },
   "src/command-center/hooks/useAdminAI.ts": {
-    "mtime": 1790642720.4006388,
-    "seen": 1790642966.018905,
-    "ast_hash": "9fbe1f45baa6514609e0c9a9f846ac32",
+    "mtime": 1790647771.631342,
+    "seen": 1790648374.6911833,
+    "ast_hash": "152d1479611875bbd1b7e46007998d54",
     "semantic_hash": ""
   },
   "src/command-center/hooks/useBusinessSummary.ts": {
@@ -426,9 +426,9 @@
     "semantic_hash": "12e3b018aa58d1afaab8a77e5f0ecae5"
   },
   "src/command-center/hooks/useLiveKitJarvis.ts": {
-    "mtime": 1790645345.665076,
-    "seen": 1790645400.1272798,
-    "ast_hash": "d6024bdb7d0142c127b4b0af1225be9a",
+    "mtime": 1790647771.631342,
+    "seen": 1790648374.6913254,
+    "ast_hash": "1c4903e7187c4df0cf7bf050a375b556",
     "semantic_hash": ""
   },
   "src/command-center/tokens.ts": {
@@ -570,9 +570,9 @@
     "semantic_hash": "a643d83b7626b709e8beeda21099b3f0"
   },
   "CLAUDE.md": {
-    "mtime": 1790645371.2403336,
-    "seen": 1790645400.15191,
-    "ast_hash": "43738f7a8315fa4ede22815b863d502a",
+    "mtime": 1790648294.126022,
+    "seen": 1790648374.701341,
+    "ast_hash": "34ecd3b98f3735ceec11267f1b8738af",
     "semantic_hash": ""
   },
   "CODEBASE.md": {
@@ -588,10 +588,10 @@
     "semantic_hash": "fd787bd83c244fb46ab680994613908b"
   },
   "MANUAL_STEPS.md": {
-    "mtime": 1790477180.804893,
-    "seen": 1790568222.991734,
-    "ast_hash": "7ca862c5ba7bb302ca1ced7aa9f5e498",
-    "semantic_hash": "7ca862c5ba7bb302ca1ced7aa9f5e498"
+    "mtime": 1790648282.2499356,
+    "seen": 1790648374.7016156,
+    "ast_hash": "a747be3476ad033968898c29b2382451",
+    "semantic_hash": ""
   },
   "README-FIRST.txt": {
     "mtime": 1790478042.688706,
@@ -1638,9 +1638,9 @@
     "semantic_hash": ""
   },
   "shared/jarvis-workspace.js": {
-    "mtime": 1790643990.2495856,
-    "seen": 1790644103.8884194,
-    "ast_hash": "880cf6ee0a2df647cc15befe8d1e413f",
+    "mtime": 1790647836.7965567,
+    "seen": 1790648374.687605,
+    "ast_hash": "4869e5995101ac29d2edd3fe2037de27",
     "semantic_hash": ""
   },
   "src/command-center/workspace/AnalyticsView.tsx": {
@@ -1662,9 +1662,9 @@
     "semantic_hash": ""
   },
   "src/command-center/workspace/JarvisWorkspace.tsx": {
-    "mtime": 1790640545.4091716,
-    "seen": 1790640624.710081,
-    "ast_hash": "a496dec4003f9024d5acbac2e3051dea",
+    "mtime": 1790647946.083611,
+    "seen": 1790648374.692817,
+    "ast_hash": "3a915f14dc077d078e4254f2f84b99a2",
     "semantic_hash": ""
   },
   "src/command-center/workspace/JobFocus.tsx": {
@@ -1692,15 +1692,63 @@
     "semantic_hash": ""
   },
   "tests/jarvis-workspace.test.js": {
-    "mtime": 1790643990.2495856,
-    "seen": 1790644103.895456,
-    "ast_hash": "b9b5eb9f7c1cc16fd029b94d7f965cd9",
+    "mtime": 1790647821.1080194,
+    "seen": 1790648374.695021,
+    "ast_hash": "df9688bfb69b5589819d293e21964c15",
     "semantic_hash": ""
   },
   "functions/_lib/jarvis-screen.js": {
     "mtime": 1790643990.2495856,
     "seen": 1790644103.8854105,
     "ast_hash": "907aa0cc18d077981facec08e3d9c073",
+    "semantic_hash": ""
+  },
+  "functions/_lib/ai-budget.js": {
+    "mtime": 1790647456.3407,
+    "seen": 1790648374.6824982,
+    "ast_hash": "91d668ea62a82b60ccce7af69d5d3cdd",
+    "semantic_hash": ""
+  },
+  "functions/_lib/claude-stream.js": {
+    "mtime": 1790648069.7885108,
+    "seen": 1790648374.6826427,
+    "ast_hash": "a53af9d3f0e621233866a5a8cb8660d1",
+    "semantic_hash": ""
+  },
+  "functions/jarvis/voice.js": {
+    "mtime": 1790647488.9889078,
+    "seen": 1790648374.6864185,
+    "ast_hash": "c56c57b3382692624ff71760352d983d",
+    "semantic_hash": ""
+  },
+  "shared/voice-text.d.ts": {
+    "mtime": 1790647907.7803826,
+    "seen": 1790648374.6885052,
+    "ast_hash": "924f4a26eaa74e834fdc07c272e85742",
+    "semantic_hash": ""
+  },
+  "shared/voice-text.js": {
+    "mtime": 1790647456.2801857,
+    "seen": 1790648374.6885066,
+    "ast_hash": "e327cd0ef5f54969e0093aeb910f8bb8",
+    "semantic_hash": ""
+  },
+  "src/command-center/voice/useDirectVoice.ts": {
+    "mtime": 1790647976.0662327,
+    "seen": 1790648374.6926084,
+    "ast_hash": "3d613d85f01435e70b412e7d32c88916",
+    "semantic_hash": ""
+  },
+  "src/command-center/workspace/UsagePanel.tsx": {
+    "mtime": 1790647944.9184978,
+    "seen": 1790648374.6929536,
+    "ast_hash": "129efff564685f65c7a345db3f0c8577",
+    "semantic_hash": ""
+  },
+  "tests/voice-stack.test.js": {
+    "mtime": 1790648057.6165462,
+    "seen": 1790648374.696145,
+    "ast_hash": "ffc940ba9cc3c499206b6190dd05332a",
     "semantic_hash": ""
   }
 }

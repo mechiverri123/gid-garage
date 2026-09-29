@@ -458,3 +458,52 @@ export function isScreenFollowUp(text, state) {
   const refers = v && REFERS[v.type];
   return !!t && !!refers && t.split(' ').length <= 14 && refers.test(t) && !NEW_TOPIC.test(t);
 }
+
+// ---- requests the server can answer exactly WITHOUT Claude ------------------------
+// (functions/_lib/jarvis-fastpath.js). Narrow on purpose: anything that isn't a
+// plain "show me revenue / the schedule / someone's jobs" returns null and goes
+// to Claude as before.
+
+const REVENUE_ASK = /\b(?:revenue|sales|takings|collected|how much (?:money )?(?:have we|did we|did i|have i|we've|i've) (?:made|make|done|do|brought in|collect(?:ed)?|take in|taken in))\b/;
+const NOT_SIMPLE = /\b(?:why|difference|differ|compare|versus|vs|take[- ]?home|owner pay|profit|by (?:source|channel|customer|service)|which|breakdown|lower|higher|per job|average|forecast|projected|goal|target|if|should|could|would|how many)\b/;
+export function parseRevenueRequest(text, today) {
+  const t = clean(text);
+  if (!REVENUE_ASK.test(t) || NOT_SIMPLE.test(t) || t.split(' ').length > 14) return null;
+  const rest = t
+    .replace(/^(?:what(?:'s| is| was| are)|show(?: me)?|give me|pull up|bring up|how(?:'s| is| are)|tell me|graph|chart|open|display)\s+/, '')
+    .replace(/\b(?:my|our|the|total|gross|revenue|sales|takings|collected|so far|how much|money|have we|did we|did i|have i|we've|i've|made|make|done|do|brought in|take in|taken in|collect|been|looking|look like|like|numbers?|chart|graph|for|in|over|during|of)\b/g, ' ')
+    .replace(/\s+/g, ' ').trim();
+  if (!rest) return { period: 'this_month' };
+  // The leftover is the period ("this month", "last 13 days", "august", "since sep 10").
+  return revenueRange(rest, rest, today);
+}
+
+const WHEN_RE = new RegExp(String.raw`\b(today|tonight|tomorrow|yesterday|this week|next week|last week|this month|next month|(?:next |this )?(?:sunday|monday|tuesday|wednesday|thursday|friday|saturday)|${MONTH_RE} \d{1,2}(?:st|nd|rd|th)?|the \d{1,2}(?:st|nd|rd|th))\b`);
+const SCHEDULE_ASK = /\b(?:bookings?|appointments?|schedule|calendar|agenda|what do i have|what's on|whats on|what have i got|what am i doing|jobs)\b/;
+const NOT_SCHEDULE = /\b(?:how many|who|unpaid|owe|paid|cancel|move|reschedule|book (?:a|an|her|him)|revenue|money|lead|leads|remind|note|email|text|call)\b/;
+export function parseScheduleRequest(text, today) {
+  const t = clean(text);
+  if (!SCHEDULE_ASK.test(t) || NOT_SCHEDULE.test(t) || t.split(' ').length > 12) return null;
+  const w = t.match(WHEN_RE);
+  if (!w) return null;
+  const r = resolveCalendarWhen(w[1].replace(/^the /, ''), today);
+  return r ? { when: w[1], ...r } : null;
+}
+
+const COUNT_WORDS = { one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10, eleven: 11, twelve: 12 };
+const NUM = String.raw`(\d{1,2}|${Object.keys(COUNT_WORDS).join('|')})`;
+// "pull up Jill's jobs", "pull all three of Jill's jobs side by side",
+// "show me Jill Castle's last 3 jobs", "pull up Jill Castle".
+export function parseCustomerJobsRequest(text) {
+  const t = clean(text).replace(/\s+side by side$/, '').replace(/\s+(?:on (?:the )?screen|up)$/, '');
+  const count = s => (s ? Number(s) || COUNT_WORDS[s] || null : null);
+  let m = t.match(new RegExp(String.raw`^(?:pull up|pull|show(?: me)?|open(?: up)?|bring up|get|let me see|display)\s+(?:all\s+)?(?:${NUM}\s+(?:of\s+)?)?([a-z][a-z.'-]*(?: [a-z][a-z.'-]*)?)'s\s+(?:(?:last|recent|latest|most recent|previous)\s+)?(?:${NUM}\s+)?(?:(?:most )?recent\s+)?(?:jobs?|job history|history|work|visits?)$`));
+  if (m) {
+    const name = m[2];
+    if (/^(?:the|my|our|this|that|his|her|their)\b/.test(name)) return null;
+    return { customer: name, count: count(m[1] || m[3]) };
+  }
+  m = t.match(/^(?:pull up|bring up|open up|open)\s+([a-z][a-z.'-]+ [a-z][a-z.'-]+)$/);
+  if (m && !/\b(?:calendar|schedule|revenue|jobs?|customers?|settings|seo|chart|graph|dashboard|jarvis|payment|estimate|inspection|notes|parts|overview|month|week|today|tomorrow)\b/.test(m[1])) return { customer: m[1], count: null };
+  return null;
+}
