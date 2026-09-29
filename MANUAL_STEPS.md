@@ -12,6 +12,12 @@ All free, and there's nothing to set in Cloudflare. Tokens are stored in the R2 
   - Graph API Explorer token with pages_show_list, pages_read_engagement, instagram_basic, instagram_manage_insights and ads_read.
   - Also paste the app ID and secret, so the page token doesn't expire.
   - The ads part uses a 60-day user token. Re-paste it when the panel says it has expired.
+- **Facebook/Instagram lead forms → leads.** Every 5 minutes from 6 a.m. to 10 p.m. (pg_cron `/hooks/proactive`), new lead-form submissions are imported into `leads` (`source = meta_ads`), and Jarvis sends a Telegram alert.
+  - Overnight leads are announced at 6 a.m.
+  - The first check quietly imports the last 7 days.
+  - The token needs `leads_retrieval`, `pages_manage_ads` and `pages_manage_metadata` (use case "Capture & manage ad leads").
+  - Status and errors are shown in the Facebook panel.
+  - No Meta webhook or App Review is needed.
 - **Zoho Mail**, one time: say "Jarvis, check my email". The panel has the steps.
   - api-console.zoho.com → Self Client.
   - Scope `ZohoMail.accounts.READ,ZohoMail.messages.READ`.

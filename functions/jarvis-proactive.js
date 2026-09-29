@@ -27,6 +27,7 @@ import { resolvePeriodWindow, collectedRevenue, jobFromRow } from '../shared/bus
 import { leadFollowUpReason, unpaidJobs, isCancelled } from '../shared/business-rules.js';
 import { createSeoStore } from './_lib/seo/store.js';
 import { createSeoOps } from './_lib/seo/ops.js';
+import { pollMetaLeads, newLeadAlert } from './_lib/jarvis-feeds.js';
 
 const TZ = 'America/Phoenix';
 const HISTORY_TEXT_LIMIT = 12000;
@@ -565,6 +566,30 @@ export async function onRequestPost({ request, env }) {
   } catch (error) {
     console.error('jarvis-proactive reminder error:', error);
     errors.push(`reminders: ${String(error?.message || error)}`);
+  }
+
+  // Facebook/Instagram lead forms -> leads, every 5 minutes, 6 a.m.–10 p.m.
+  // (overnight leads are picked up and announced at 6). Isolated: a Meta
+  // problem never blocks reminders or the briefings.
+  const hourNow = Number(parts.hour);
+  if (Number(parts.minute) % 5 === 0 && hourNow >= 6 && hourNow < 22 && env.GID_PHOTOS) {
+    try {
+      const out = await pollMetaLeads({
+        env, bucket: env.GID_PHOTOS,
+        sbGet: (table, params) => sbGet(env, table, params),
+        sbInsert: async (table, row) => (await sbRequest(env, table, { method: 'POST', headers: { Prefer: 'return=representation' }, body: JSON.stringify(row) }))?.[0] || row,
+      });
+      for (const lead of out.imported.filter(l => l.fresh)) {
+        const text = newLeadAlert(lead);
+        await sendTelegramText(botToken, chatId, text);
+        await saveAssistantHistory(env, chatId, text);
+      }
+      if (out.imported.length) actions.push(`meta_leads:${out.imported.length}`);
+    } catch (error) {
+      // Logged and shown in the Facebook panel; not a cron failure (reminders etc. still ran).
+      console.error('jarvis-proactive meta leads error:', error);
+      actions.push(`meta_leads_error: ${String(error?.message || error).slice(0, 200)}`);
+    }
   }
 
   let snapshot = null;

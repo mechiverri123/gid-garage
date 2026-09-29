@@ -3,7 +3,7 @@
 // the request grammar that opens them, and the free "Jarvis" wake word.
 import { test, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
-import { newReviewCount, reviewsFeed, socialDeltas, snapshotBefore, briefLine, reviewsLine, mailLine, htmlToText, isPartsEmail, connectZoho, mailFeed, feedStatus } from '../functions/_lib/jarvis-feeds.js';
+import { pollMetaLeads, newLeadAlert, newReviewCount, reviewsFeed, socialDeltas, snapshotBefore, briefLine, reviewsLine, mailLine, htmlToText, isPartsEmail, connectZoho, mailFeed, feedStatus } from '../functions/_lib/jarvis-feeds.js';
 import { parsePanelRequest, workspaceReduce, INITIAL_WORKSPACE } from '../shared/jarvis-workspace.js';
 import { matchFastPath } from '../functions/_lib/jarvis-fastpath.js';
 import { afterWakeWord } from '../shared/voice-text.js';
@@ -170,4 +170,31 @@ test('"brief me" on /jarvis: visual brief + spoken line, no Claude call; Telegra
   const final = events.find(e => e.type === 'final').text;
   assert.match(final, /^Good (morning|afternoon|evening), sir\./);
   assert.deepEqual(events.filter(e => e.type === 'say').map(e => e.text), [final]);
+});
+
+test('lead forms: first run backfills quietly, later leads alert once, duplicates skipped', async () => {
+  const bucket = fakeBucket({ 'private/jarvis-connections.json': { meta: { pageId: 'P1', pageToken: 'pt' } } });
+  const leads = [];
+  const sbGet = async (_t, p) => { const ids = p.external_lead_id.replace(/^in\.\(|\)$/g, '').split(','); return leads.filter(l => ids.includes(l.external_lead_id)); };
+  const sbInsert = async (_t, row) => { leads.push(row); return row; };
+  let meta = [{ id: 'L1', created_time: daysAgo(2), form_id: 'F1', campaign_name: 'Brakes Sept', field_data: [{ name: 'full_name', values: ['Allison Taylor'] }, { name: 'phone_number', values: ['9285551234'] }, { name: 'what_service', values: ['Brake change'] }] }];
+  const fetchImpl = async url => {
+    const u = String(url);
+    assert.match(u, /access_token=pt/);
+    if (u.includes('/P1/leadgen_forms')) return jsonRes({ data: [{ id: 'F1', name: 'Quote form', status: 'ACTIVE' }, { id: 'F0', status: 'ARCHIVED' }] });
+    if (u.includes('/F1/leads')) { assert.match(decodeURIComponent(u), /"time_created","operator":"GREATER_THAN"/); return jsonRes({ data: meta }); }
+    throw new Error(`unexpected ${u}`);
+  };
+  const first = await pollMetaLeads({ env: {}, bucket, sbGet, sbInsert, now: NOW, fetchImpl });
+  assert.deepEqual(first.imported.map(l => [l.external_lead_id, l.fresh, l.source, l.fname]), [['L1', false, 'meta_ads', 'Allison']]);
+  meta = [...meta, { id: 'L2', created_time: daysAgo(0.01), form_id: 'F1', field_data: [{ name: 'full_name', values: ['Rick Moe'] }, { name: 'email', values: ['r@x.com'] }] }];
+  const second = await pollMetaLeads({ env: {}, bucket, sbGet, sbInsert, now: NOW + 300_000, fetchImpl });
+  assert.deepEqual(second.imported.map(l => [l.external_lead_id, l.fresh]), [['L2', true]], 'L1 is not imported twice');
+  assert.equal(leads.length, 2);
+  assert.equal(newLeadAlert(leads[0]), "New Facebook lead, sir: Allison Taylor — brakes · 9285551234. It's in your leads.");
+  // A permission problem is recorded for the panel, and nothing is written.
+  const bad = async () => jsonRes({ error: { message: '(#200) Requires leads_retrieval permission' } }, 403);
+  await assert.rejects(pollMetaLeads({ env: {}, bucket, sbGet, sbInsert, now: NOW + 600_000, fetchImpl: bad }), /leads_retrieval/);
+  assert.match(JSON.parse(bucket.store.get('private/jarvis-meta-leads.json')).lastError, /leads_retrieval/);
+  assert.equal((await pollMetaLeads({ env: {}, bucket: fakeBucket(), sbGet, sbInsert, fetchImpl })).connected, false);
 });

@@ -138,7 +138,7 @@ async function fetchMetaLead(env, leadgenId) {
   return res.json();
 }
 
-function normalizeMetaLead(metaLead, webhookValue) {
+export function normalizeMetaLead(metaLead, webhookValue) {
   const fields = metaFieldMap(metaLead.field_data);
   const fullName = pickField(fields, ['fullname','name']);
   const { fname, lname } = splitName(fullName);

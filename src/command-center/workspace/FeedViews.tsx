@@ -162,7 +162,7 @@ export function ConnectMeta({ onDone }: { onDone: () => void }) {
     <div className="flex flex-col gap-3 text-[14px]" style={{ color: C.text2 }}>
       <ol className="list-decimal pl-5 flex flex-col gap-1">
         <li>Open <a className="underline" style={{ color: C.cyan }} href="https://developers.facebook.com/tools/explorer/" target="_blank" rel="noreferrer">Graph API Explorer</a> and pick your Meta app (App ID and secret are under App settings → Basic).</li>
-        <li>Add permissions: pages_show_list, pages_read_engagement, instagram_basic, instagram_manage_insights, ads_read. Click <b>Generate Access Token</b> and approve your GID page.</li>
+        <li>Add permissions: pages_show_list, pages_read_engagement, instagram_basic, ads_read, business_management, and for lead forms leads_retrieval, pages_manage_ads, pages_manage_metadata. Click <b>Generate Access Token</b> and approve your GID page.</li>
         <li>Paste the token below. With the app ID and secret, Jarvis turns it into a page token that doesn’t expire.</li>
       </ol>
       <div className="grid gap-3 sm:grid-cols-2">
@@ -263,6 +263,7 @@ export function SocialView() {
           </Panel>
         )}
       </div>
+      <LeadSyncLine s={data.leadSync as Any | null} />
       {fb?.url && (
         <Panel icon={Facebook} title="Your page, live">
           <div className="flex justify-center">
@@ -271,6 +272,24 @@ export function SocialView() {
           </div>
         </Panel>
       )}
+    </div>
+  );
+}
+
+// Facebook/Instagram lead forms -> leads (polled every 5 min by the proactive cron).
+function LeadSyncLine({ s }: { s: Any | null }) {
+  const [fix, setFix] = useState(false);
+  const bad = s?.lastError && (!s.checkedAt || Date.parse(s.errorAt) > Date.parse(s.checkedAt));
+  return (
+    <div className="rounded-xl px-4 py-3 text-[14px] flex flex-col gap-2" style={{ ...box, color: C.text2 }}>
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+        <span className="font-semibold" style={{ color: C.text }}>Lead forms → leads</span>
+        {!s ? <span>Waiting for the first check (every 5 minutes, 6 a.m.–10 p.m.).</span>
+          : bad ? <span style={{ color: C.amber }}>Can't read lead forms: {s.lastError}</span>
+          : <span>Checked {timeAgo(s.checkedAt)} · {s.forms ?? 0} form{s.forms === 1 ? '' : 's'}{s.lastImported ? ` · last new lead ${timeAgo(s.lastImported)}` : ''}</span>}
+        {bad && <button type="button" className="underline" style={{ color: C.cyan }} onClick={() => setFix(v => !v)}>{fix ? 'Hide' : 'Reconnect with lead permissions'}</button>}
+      </div>
+      {fix && <ConnectMeta onDone={() => setFix(false)} />}
     </div>
   );
 }

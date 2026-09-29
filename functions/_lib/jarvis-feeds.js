@@ -16,6 +16,7 @@
 
 import { phoenixYmd } from '../../shared/business-metrics.js';
 import { weatherToday } from './command-center-extras.js';
+import { normalizeMetaLead } from '../lead-capture.js';
 
 const CONN_KEY = 'private/jarvis-connections.json';
 const HISTORY_KEY = 'private/jarvis-feed-history.json';
@@ -175,7 +176,7 @@ export async function socialFeed({ env, bucket, now = Date.now(), force = false,
     igPostLikes: data.instagram?.posts ? data.instagram.posts.reduce((t, p) => t + p.likes, 0) : null,
   };
   const series = await recordHistory(bucket, 'social', today, snap);
-  return { connected: true, ...data, changes: socialDeltas(snap, snapshotBefore(series, today)), tokenExpires: m.userTokenExpires };
+  return { connected: true, ...data, changes: socialDeltas(snap, snapshotBefore(series, today)), tokenExpires: m.userTokenExpires, leadSync: await leadSyncStatus(bucket) };
 }
 
 export async function adsFeed({ env, bucket, now = Date.now(), force = false, fetchImpl = (...a) => fetch(...a) }) {
@@ -193,6 +194,61 @@ export async function adsFeed({ env, bucket, now = Date.now(), force = false, fe
     const [yesterday, last7] = await Promise.all([pick('yesterday'), pick('last_7d')]);
     return { yesterday, last7 };
   }, { now, force })) };
+}
+
+// ---- Facebook / Instagram lead forms -> leads ------------------------------------------------
+// Polled (every 5 min from the proactive cron) with the connected page token,
+// so no Meta webhook or App Review is needed. Same row shape as the Meta
+// webhook in lead-capture.js (normalizeMetaLead); deduped on external_lead_id.
+const LEADS_KEY = 'private/jarvis-meta-leads.json';
+const LEAD_FIELDS = 'id,created_time,ad_id,ad_name,adset_id,adset_name,campaign_id,campaign_name,form_id,field_data';
+
+// sbGet(table, params) -> rows; sbInsert(table, row) -> inserted row.
+export async function pollMetaLeads({ env, bucket, sbGet, sbInsert, now = Date.now(), fetchImpl = (...a) => fetch(...a) }) {
+  const m = (await readJson(bucket, CONN_KEY))?.meta;
+  if (!m?.pageId || !m?.pageToken) return { connected: false, imported: [] };
+  const state = (await readJson(bucket, LEADS_KEY)) || {};
+  // First run looks back 7 days (imported quietly); later runs overlap 15 min.
+  const since = Math.floor((state.checkedAt ? Date.parse(state.checkedAt) - 15 * 60_000 : now - 7 * DAY) / 1000);
+  const save = extra => writeJson(bucket, LEADS_KEY, { ...state, ...extra });
+  try {
+    const forms = await graph(env, `${m.pageId}/leadgen_forms`, m.pageToken, fetchImpl, { fields: 'id,name,status', limit: '50' });
+    const found = [];
+    for (const f of (forms.data || []).filter(x => x.status !== 'ARCHIVED' && x.status !== 'DELETED')) {
+      const res = await graph(env, `${f.id}/leads`, m.pageToken, fetchImpl, {
+        fields: LEAD_FIELDS, limit: '50',
+        filtering: JSON.stringify([{ field: 'time_created', operator: 'GREATER_THAN', value: since }]),
+      });
+      for (const lead of res.data || []) found.push({ ...lead, form_name: f.name });
+    }
+    const ids = [...new Set(found.map(l => String(l.id)))];
+    const existing = ids.length ? await sbGet('leads', { select: 'external_lead_id', external_lead_id: `in.(${ids.join(',')})` }) : [];
+    const have = new Set(existing.map(r => String(r.external_lead_id)));
+    const imported = [];
+    for (const lead of found) {
+      const id = String(lead.id);
+      if (have.has(id)) continue;
+      have.add(id);
+      const row = normalizeMetaLead(lead, { leadgen_id: id, form_id: lead.form_id });
+      row.source = 'meta_ads';
+      if (lead.form_name) row.campaign = row.campaign || lead.form_name;
+      const saved = await sbInsert('leads', row);
+      // The first run's 7-day backfill is quiet; after that every imported lead is new (alert).
+      imported.push({ ...saved, fresh: !!state.checkedAt });
+    }
+    await save({ checkedAt: new Date(now).toISOString(), lastError: null, forms: (forms.data || []).length, lastImported: imported.length ? new Date(now).toISOString() : state.lastImported || null });
+    return { connected: true, forms: (forms.data || []).length, imported };
+  } catch (e) {
+    await save({ lastError: e.message, errorAt: new Date(now).toISOString() });
+    throw e;
+  }
+}
+export const leadSyncStatus = bucket => readJson(bucket, LEADS_KEY);
+
+export function newLeadAlert(lead) {
+  const name = `${lead.fname || ''} ${lead.lname || ''}`.trim() || 'Someone';
+  const bits = [lead.requested_service, lead.vehicle, lead.phone].filter(Boolean).join(' · ');
+  return `New Facebook lead, sir: ${name}${bits ? ` — ${bits}` : ''}. It's in your leads.`;
 }
 
 // ---- Zoho Mail ----------------------------------------------------------------------------
