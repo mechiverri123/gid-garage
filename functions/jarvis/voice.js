@@ -12,11 +12,12 @@
 // POST { action: 'usage', sttSeconds, ttsChars } -> records estimated voice spend
 // GET  ?action=usage -> monthly budget summary for Settings -> Usage
 // GET  ?action=voice -> the resolved Cartesia voice (to pin CARTESIA_VOICE_ID if wanted)
+// GET  ?action=check -> tests each provider separately (no secrets in the output)
 
 import { verifyAccess } from '../_lib/access-auth.js';
 import { readBudget, addUsage, pricing, sttUsd, ttsUsd } from '../_lib/ai-budget.js';
 
-const CARTESIA_VERSION = '2025-04-16';
+const CARTESIA_VERSION = '2026-08-14';
 const TOKEN_TTL_S = 600;
 const json = (body, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' } });
 
@@ -29,14 +30,27 @@ export async function resolveVoice(env, fetchImpl = (...a) => fetch(...a)) {
   const res = await fetchImpl('https://api.cartesia.ai/voices?q=Benedict&limit=100', {
     headers: { Authorization: `Bearer ${env.CARTESIA_API_KEY}`, 'X-API-Key': env.CARTESIA_API_KEY, 'Cartesia-Version': CARTESIA_VERSION },
   });
-  if (!res.ok) throw providerError('cartesia', res.status, 'voice lookup failed');
+  if (!res.ok) throw providerError('cartesia', res.status, `Cartesia voice lookup failed (${res.status}): ${await detail(res)}`);
   const body = await res.json();
   const voices = Array.isArray(body) ? body : body.data || [];
-  const text = v => `${v.name || ''} ${v.description || ''}`.toLowerCase();
+  const text = v => `${v.name || ''} ${v.tagline || ''} ${v.description || ''}`.toLowerCase();
   const pick = voices.find(v => /benedict/.test(text(v)) && /measured|mediator/.test(text(v)));
   if (!pick) throw providerError('cartesia', 404, 'Benedict (Measured Mediator) voice not found — set CARTESIA_VOICE_ID');
-  voiceCache = { id: pick.id, name: pick.name, source: 'lookup' };
+  voiceCache = { id: pick.id, name: [pick.name, pick.tagline].filter(Boolean).join(' — '), source: 'lookup' };
   return voiceCache;
+}
+
+// Run one provider call; any failure (HTTP, network, bad JSON) names the provider.
+async function tagged(provider, fn) {
+  try { return await fn(); } catch (e) {
+    if (e?.provider) throw e;
+    throw providerError(provider, 0, `${provider}: ${e?.message || e}`);
+  }
+}
+
+async function detail(res) {
+  const t = await res.text().catch(() => '');
+  try { const j = JSON.parse(t); return String(j.message || j.err_msg || j.error || j.title || t).slice(0, 200); } catch { return t.slice(0, 200); }
 }
 
 function providerError(provider, status, message) {
@@ -52,7 +66,7 @@ async function deepgramToken(env, fetchImpl) {
     headers: { Authorization: `Token ${env.DEEPGRAM_API_KEY}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({ ttl_seconds: TOKEN_TTL_S }),
   });
-  if (!res.ok) throw providerError('deepgram', res.status, 'speech-to-text token refused');
+  if (!res.ok) throw providerError('deepgram', res.status, `Deepgram refused the token request (${res.status}): ${await detail(res)}`);
   const body = await res.json();
   return { token: body.access_token, expiresIn: body.expires_in };
 }
@@ -63,7 +77,7 @@ async function cartesiaToken(env, fetchImpl) {
     headers: { Authorization: `Bearer ${env.CARTESIA_API_KEY}`, 'X-API-Key': env.CARTESIA_API_KEY, 'Cartesia-Version': CARTESIA_VERSION, 'Content-Type': 'application/json' },
     body: JSON.stringify({ grants: { tts: true }, expires_in: TOKEN_TTL_S }),
   });
-  if (!res.ok) throw providerError('cartesia', res.status, 'text-to-speech token refused');
+  if (!res.ok) throw providerError('cartesia', res.status, `Cartesia refused the token request (${res.status}): ${await detail(res)}`);
   const body = await res.json();
   return body.token;
 }
@@ -83,6 +97,16 @@ export async function handleVoice({ request, env, fetchImpl = (...a) => fetch(..
     if (action === 'usage') {
       const b = await budget();
       return json({ ...b, configured: { anthropic: !!env.ANTHROPIC_API_KEY, deepgram: !!env.DEEPGRAM_API_KEY, cartesia: !!env.CARTESIA_API_KEY } });
+    }
+    if (action === 'check') {
+      // Open /jarvis/voice?action=check in the browser to see exactly which provider fails.
+      const run = async (name, fn) => { try { const v = await fn(); return { name, ok: true, ...(v || {}) }; } catch (e) { return { name, ok: false, status: e?.status || null, error: e?.message || String(e) }; } };
+      const results = await Promise.all([
+        run('deepgram token', async () => { if (!env.DEEPGRAM_API_KEY) throw new Error('DEEPGRAM_API_KEY is not set'); const t = await deepgramToken(env, fetchImpl); return { expiresIn: t.expiresIn, gotToken: !!t.token }; }),
+        run('cartesia token', async () => { if (!env.CARTESIA_API_KEY) throw new Error('CARTESIA_API_KEY is not set'); return { gotToken: !!(await cartesiaToken(env, fetchImpl)) }; }),
+        run('cartesia voice (Benedict)', async () => { if (!env.CARTESIA_API_KEY) throw new Error('CARTESIA_API_KEY is not set'); const v = await resolveVoice(env, fetchImpl); return { id: v.id, voice: v.name, source: v.source }; }),
+      ]);
+      return json({ ok: results.every(r => r.ok), results, keys: { anthropic: !!env.ANTHROPIC_API_KEY, deepgram: !!env.DEEPGRAM_API_KEY, cartesia: !!env.CARTESIA_API_KEY } });
     }
     if (action === 'voice') {
       if (!env.CARTESIA_API_KEY) return json({ error: 'CARTESIA_API_KEY is not set.' }, 503);
@@ -112,7 +136,11 @@ export async function handleVoice({ request, env, fetchImpl = (...a) => fetch(..
     const b = await budget();
     if (b.state === 'blocked') return json({ error: 'Monthly Jarvis AI budget reached.', reason: 'budget', budget: b }, 402);
     try {
-      const [dg, ct, voice] = await Promise.all([deepgramToken(env, fetchImpl), cartesiaToken(env, fetchImpl), resolveVoice(env, fetchImpl)]);
+      const [dg, ct, voice] = await Promise.all([
+        tagged('deepgram', () => deepgramToken(env, fetchImpl)),
+        tagged('cartesia', () => cartesiaToken(env, fetchImpl)),
+        tagged('cartesia', () => resolveVoice(env, fetchImpl)),
+      ]);
       return json({
         deepgram: { token: dg.token, expiresIn: dg.expiresIn },
         cartesia: { token: ct, voiceId: voice.id, model: env.CARTESIA_MODEL || 'sonic-3', version: CARTESIA_VERSION },

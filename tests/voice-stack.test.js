@@ -167,7 +167,7 @@ function providers({ dgStatus = 200, usage = [] } = {}) {
     const j = (b, s = 200) => new Response(JSON.stringify(b), { status: s, headers: { 'Content-Type': 'application/json' } });
     if (String(url).includes('deepgram.com/v1/auth/grant')) return dgStatus === 200 ? j({ access_token: 'dg-temp', expires_in: 600 }) : j({ err: 'x' }, dgStatus);
     if (String(url).includes('cartesia.ai/access-token')) return j({ token: 'ct-temp' });
-    if (String(url).includes('cartesia.ai/voices')) return j({ data: [{ id: 'v-other', name: 'Benedict - Friendly', description: 'upbeat' }, { id: 'v-benedict', name: 'Benedict - Measured Mediator', description: 'calm British' }] });
+    if (String(url).includes('cartesia.ai/voices')) return j({ data: [{ id: 'v-other', name: 'Benedict', tagline: 'Friendly Neighbor', description: 'upbeat' }, { id: 'v-benedict', name: 'Benedict', tagline: 'Measured Mediator', description: 'calm British' }] });
     if (String(url).includes('/jarvis_ai_usage')) return j(usage);
     return j({}, 404);
   };
@@ -203,4 +203,19 @@ test('voice turn: narration before a tool call is not spoken, only the reply', a
   const pre = { content: [{ type: 'text', text: "Now I'll open all three jobs side by side. " }, { type: 'tool_use', id: 't1', name: 'get_revenue_summary', input: { period: 'this_month' } }], stop_reason: 'tool_use' };
   const r = await voiceChat({ text: "what's my revenue this month", script: [pre, claudeText('Revenue is up. It was a good month.')] });
   assert.deepEqual(r.says, ['Revenue is up.', 'It was a good month.']);
+});
+
+test('voice check: each provider reported separately; network errors still name the provider', async () => {
+  const get = new Request('https://gidgarage.com/jarvis/voice?action=check');
+  const { fetchImpl } = providers({ dgStatus: 401 });
+  const body = await (await handleVoice({ request: get, env: VOICE_ENV, fetchImpl, verify: allow })).json();
+  assert.equal(body.ok, false);
+  assert.deepEqual(body.results.map(r => [r.name, r.ok]), [['deepgram token', false], ['cartesia token', true], ['cartesia voice (Benedict)', true]]);
+  assert.equal(body.results[0].status, 401);
+  assert.equal(body.results[2].id, 'v-benedict');
+  assert.doesNotMatch(JSON.stringify(body), /dg-secret|ct-secret/);
+  const offline = await handleVoice({ request: post({ action: 'session' }), env: VOICE_ENV, fetchImpl: async u => { if (String(u).includes('deepgram')) throw new TypeError('fetch failed'); return fetchImpl(u); }, verify: allow });
+  const o = await offline.json();
+  assert.equal(o.provider, 'deepgram');
+  assert.match(o.error, /deepgram: fetch failed/);
 });

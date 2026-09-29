@@ -158,13 +158,13 @@ export function useDirectVoice({ onUtterance, onBargeIn }: { onUtterance: (text:
       ws.onerror = () => reject(new Error('text-to-speech connection failed'));
       ws.onclose = () => { r.tts = null; r.ttsReady = null; patch({ agent: false }); };
       ws.onmessage = ev => {
-        let m: { type?: string; data?: string; context_id?: string; error?: string; status_code?: number };
+        let m: { type?: string; data?: string; context_id?: string; error?: string; message?: string; status_code?: number };
         try { m = JSON.parse(String(ev.data)); } catch { return; }
         if (m.context_id && m.context_id !== r.ttsContext) return; // cancelled context
         if (m.type === 'chunk' && m.data) playChunk(m.data);
         else if (m.type === 'error') {
-          const quota = m.status_code === 402 || m.status_code === 429 || /quota|credit|limit/i.test(String(m.error));
-          console.warn(`GID_VOICE_ERROR provider=cartesia status=${m.status_code ?? '-'} quota=${quota}`);
+          const quota = m.status_code === 402 || m.status_code === 429 || /quota|credit|limit/i.test(String(m.message || m.error));
+          console.warn(`GID_VOICE_ERROR provider=cartesia status=${m.status_code ?? '-'} quota=${quota} ${m.message || m.error || ''}`);
           r.ttsContext = null;
           // TTS down: Jarvis still answers in text on screen.
           setError(quota ? 'Voice output is unavailable (Cartesia limit reached). Replies show as text.' : 'Voice output hiccup — the reply is on screen.');
@@ -185,7 +185,7 @@ export function useDirectVoice({ onUtterance, onBargeIn }: { onUtterance: (text:
       if (!r.ttsContext) { r.ttsContext = `jv-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`; r.tFirstAudio = 0; }
       const s = r.session!;
       ws.send(JSON.stringify({
-        model_id: s.cartesia.model, transcript: clean ? `${clean} ` : '', voice: { mode: 'id', id: s.cartesia.voiceId }, language: 'en',
+        model_id: s.cartesia.model, transcript: clean ? `${clean} ` : '', voice: s.cartesia.voiceId, language: 'en',
         context_id: r.ttsContext, continue: !last, output_format: { container: 'raw', encoding: 'pcm_f32le', sample_rate: 24000 },
       }));
       r.ttsChars += clean.length;
@@ -294,7 +294,8 @@ export function useDirectVoice({ onUtterance, onBargeIn }: { onUtterance: (text:
     if (!res.ok) {
       const quota = res.status === 402 || body.quota;
       if (quota) writePause(body.reason === 'budget' ? 60 * 60_000 : 30 * 60_000, body.reason === 'budget' ? 'monthly Jarvis AI budget reached' : `${body.provider || 'provider'} limit reached`);
-      const e = new Error(body.reason === 'budget' ? 'Monthly Jarvis AI budget reached. Typed Jarvis still works.' : body.reason === 'not_configured' ? "Voice isn't set up yet (add the provider keys). Typed Jarvis works." : `Voice unavailable (${body.provider || 'provider'} ${body.status || res.status}). Typed Jarvis still works.`);
+      const why = body.error ? String(body.error).slice(0, 180) : `${body.provider || 'voice service'} returned ${body.status || res.status}`;
+      const e = new Error(body.reason === 'budget' ? 'Monthly Jarvis AI budget reached. Typed Jarvis still works.' : body.reason === 'not_configured' ? "Voice isn't set up yet (add the provider keys). Typed Jarvis works." : `Voice unavailable: ${why}. Typed Jarvis still works. (Details: open /jarvis/voice?action=check)`);
       throw e;
     }
     return body as Session;
