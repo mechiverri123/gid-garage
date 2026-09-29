@@ -50,6 +50,14 @@ Jarvis is the interactive command interface for GID Garage, not primarily a chat
   - On `/jarvis` the spoken number comes from the same `show_revenue` result as the chart.
   - Test: `revenueRange` this month equals `revenueSummary` this month.
 - **Voice opens views too.** The LiveKit agent's `show_on_screen` tool calls `/hooks/business` (`show_*`, the same `functions/_lib/jarvis-screen.js` as the chat) and forwards the returned `__ui` actions to the page on the `gid.ui` topic. The page applies them through the same workspace, and on-screen follow-ups use the user transcript. Agent changes need `lk agent deploy` from `jarvis-agent/`.
+- **Voice runs on LiveKit Inference only** (STT + LLM + TTS on one LiveKit account). The owner decided on 2026-09-28 not to move to separate Deepgram/Cartesia/Anthropic billing, so don't reintroduce that.
+  - Credit use is kept low:
+    - the page stops voice after 4 min of silence or 60 s with the tab hidden;
+    - spoken replies are capped at `JARVIS_LLM_MAX_TOKENS` (default 220);
+    - screen commands the page handles are reported on `gid.handled`, and the agent skips its LLM/TTS turn for them;
+    - spoken follow-ups the page sends to typed Jarvis are answered once, by typed Jarvis.
+  - On a 429 or quota error, the agent logs `GID_VOICE_ERROR component=… model=… status=… quota=…` (no credentials). It then tells the page on `gid.status` and leaves the room, with no crash or retry loop.
+  - The page shows "Voice unavailable" and pauses Start (30 min for quota, 2 min for rate limits, stored in localStorage). Typed Jarvis is unaffected.
 - The only remaining `/admin` link on `/jarvis` is the explicit "Admin dashboard" item in the account menu. Settings opens the admin Hub re-themed; new customers are created with their first job (New Job), same as `/admin`.
 
 # 0.3 COMMAND CENTER UI (redesign, 2026-09-28)

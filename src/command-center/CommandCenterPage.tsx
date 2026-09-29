@@ -114,9 +114,16 @@ export function CommandCenterPage({ onLock }: { onLock: () => void }) {
   const askRef = useRef<((q: string, o?: { speak?: boolean }) => void) | null>(null);
   const voice = useLiveKitJarvis(text => {
     const local = parseLocalCommand(text, wsRef.current, { meta: screenMeta(), today: phoenixYmd(new Date()) });
-    if (local && local.type !== 'noop') dispatchWs(local);
-    else if (!local && isScreenFollowUp(text, wsRef.current)) askRef.current?.(text, { speak: false });
+    if (local && local.type !== 'noop') { dispatchWs(local); markHandledRef.current?.(text); }
+    else if (!local && isScreenFollowUp(text, wsRef.current)) {
+      // Typed Jarvis answers it (with the screen) and that answer is spoken;
+      // the voice agent stays quiet, so there's one reply and one LLM call.
+      markHandledRef.current?.(text);
+      askRef.current?.(text);
+    }
   }, applyScreenAction);
+  const markHandledRef = useRef<((t: string) => void) | null>(null);
+  markHandledRef.current = voice.markHandled;
 
   // Ops (default) vs SEO Mode. SEO answers from Jarvis switch modes and bring
   // the relevant panel into focus (structured ui_focus events).

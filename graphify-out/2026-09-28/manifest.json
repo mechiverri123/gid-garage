@@ -30,9 +30,9 @@
     "semantic_hash": "ce619fcfd1eeb9713d76458dbcb97c85"
   },
   "functions/admin-ai-chat.js": {
-    "mtime": 1790640435.242874,
-    "seen": 1790640624.702747,
-    "ast_hash": "869a78a199e42aae12813a0b184c6b07",
+    "mtime": 1790643911.619707,
+    "seen": 1790644103.8858974,
+    "ast_hash": "a30530be48e3e58d9e70964c3b499b93",
     "semantic_hash": ""
   },
   "functions/admin-api-data.js": {
@@ -186,9 +186,9 @@
     "semantic_hash": ""
   },
   "jarvis-agent/agent.py": {
-    "mtime": 1790643134.5363314,
-    "seen": 1790643144.2150426,
-    "ast_hash": "7eff4112c05234358c2859142b7e1fb4",
+    "mtime": 1790643911.6212454,
+    "seen": 1790644103.887862,
+    "ast_hash": "beb7f293fada6c2d6b4a11d200533047",
     "semantic_hash": ""
   },
   "jarvis_phase1_service_dictionary_fix.sql": {
@@ -750,9 +750,9 @@
     "semantic_hash": ""
   },
   "shared/business-metrics.js": {
-    "mtime": 1790638301.6182303,
-    "seen": 1790640059.0874343,
-    "ast_hash": "1ea45628fa2623696a2c27cddef4b5a4",
+    "mtime": 1790643873.5566092,
+    "seen": 1790644103.8882673,
+    "ast_hash": "bafa4947966eacbfde0bd79e81d1bdcb",
     "semantic_hash": ""
   },
   "skills-lock.json": {
@@ -1632,15 +1632,15 @@
     "semantic_hash": ""
   },
   "shared/jarvis-workspace.d.ts": {
-    "mtime": 1790642720.3529322,
-    "seen": 1790642966.0101147,
-    "ast_hash": "70391713b91b61d39693132c34b2d8c1",
+    "mtime": 1790643911.6189487,
+    "seen": 1790644103.888418,
+    "ast_hash": "96e2a2a0bb6795fcfdc655de6edde58a",
     "semantic_hash": ""
   },
   "shared/jarvis-workspace.js": {
-    "mtime": 1790643083.7507954,
-    "seen": 1790643144.2165406,
-    "ast_hash": "33cc3f21f0fbc6681af18d379be2d707",
+    "mtime": 1790643990.2495856,
+    "seen": 1790644103.8884194,
+    "ast_hash": "880cf6ee0a2df647cc15befe8d1e413f",
     "semantic_hash": ""
   },
   "src/command-center/workspace/AnalyticsView.tsx": {
@@ -1674,9 +1674,9 @@
     "semantic_hash": ""
   },
   "src/command-center/workspace/JobsView.tsx": {
-    "mtime": 1790639161.9718535,
-    "seen": 1790640059.097495,
-    "ast_hash": "6e4db88e4a1afc1aac4bd38b2f977e00",
+    "mtime": 1790643911.6189487,
+    "seen": 1790644103.8937013,
+    "ast_hash": "cc5335922d6e4cc817dd7d02de4919c2",
     "semantic_hash": ""
   },
   "src/command-center/workspace/jobMeta.ts": {
@@ -1686,21 +1686,21 @@
     "semantic_hash": ""
   },
   "src/command-center/workspace/jobStore.ts": {
-    "mtime": 1790639498.458126,
-    "seen": 1790640059.097498,
-    "ast_hash": "0d3fae6611718ff342ca8d6a6cf15b89",
+    "mtime": 1790643911.6162963,
+    "seen": 1790644103.8937693,
+    "ast_hash": "b3249f3b026625af8718ffdcd191c6b5",
     "semantic_hash": ""
   },
   "tests/jarvis-workspace.test.js": {
-    "mtime": 1790643103.5016682,
-    "seen": 1790643144.2336433,
-    "ast_hash": "56949bf40f0a3293b4f4aa626c66447a",
+    "mtime": 1790643990.2495856,
+    "seen": 1790644103.895456,
+    "ast_hash": "b9b5eb9f7c1cc16fd029b94d7f965cd9",
     "semantic_hash": ""
   },
   "functions/_lib/jarvis-screen.js": {
-    "mtime": 1790640444.981855,
-    "seen": 1790640624.7022626,
-    "ast_hash": "2afe6237b0cf4621b4514da3d2e313e6",
+    "mtime": 1790643990.2495856,
+    "seen": 1790644103.8854105,
+    "ast_hash": "907aa0cc18d077981facec08e3d9c073",
     "semantic_hash": ""
   }
 }

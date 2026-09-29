@@ -152,6 +152,38 @@ async def send_brevo_email(to_email: str, to_name: str, subject: str, body_html:
             raise RuntimeError(f"Brevo rejected the email ({response.status_code}): {response.text[:300]}")
 
 
+# ---- LiveKit Inference quota / rate limits --------------------------------
+# STT, LLM and TTS all run on LiveKit Inference (one account). When it answers
+# 429 / quota exceeded, voice is switched off cleanly: log which component and
+# model failed (never credentials), tell the page, and leave the room, instead
+# of retrying against an empty quota or letting the session crash.
+VOICE_LLM_MAX_TOKENS = int(os.getenv("JARVIS_LLM_MAX_TOKENS", "220"))  # spoken replies are 1-2 sentences
+
+
+def normalize_utterance(text: str) -> str:
+    return re.sub(r"[^a-z0-9 ]+", "", str(text or "").lower()).strip()
+
+
+def describe_voice_error(ev: Any) -> dict[str, Any]:
+    err = getattr(ev, "error", None)
+    inner = getattr(err, "error", None)
+    component = {"stt_error": "stt", "llm_error": "llm", "tts_error": "tts"}.get(getattr(err, "type", ""), "other")
+    model = {"stt": STT_MODEL, "llm": LLM_MODEL, "tts": TTS_MODEL}.get(component, "")
+    status = getattr(inner, "status_code", None)
+    text = f"{inner or ''} {getattr(inner, 'body', '') or ''}".lower()
+    quota = status == 429 or "quota" in text or "too many requests" in text
+    return {
+        "component": component,
+        "provider": "livekit-inference",
+        "model": model,
+        "status": status if isinstance(status, int) and status > 0 else None,
+        "quota": quota,
+        "recoverable": bool(getattr(err, "recoverable", False)),
+        # First line of the provider's own message only (no headers, no keys).
+        "detail": str(inner or err or "")[:160].split("\n")[0],
+    }
+
+
 SCREEN_VIEWS = {"show_jobs", "show_revenue", "show_calendar", "show_job_list", "show_customers"}
 
 
@@ -159,6 +191,9 @@ class GIDJarvis(Agent):
     def __init__(self, ui_room: Any = None) -> None:
         # The LiveKit room, so show_on_screen can hand views to the /jarvis page.
         self._ui_room = ui_room
+        # Sentences the page already handled as screen commands ("payment",
+        # "close jobs"), reported on gid.handled: those skip the LLM and TTS.
+        self.page_handled: dict[str, float] = {}
         today = datetime.now(ARIZONA).strftime("%A, %B %d, %Y").replace(" 0", " ")
         super().__init__(
             instructions=f"""You are JARVIS, Michael's private realtime operating assistant for GID Garage, a mobile mechanic business in Flagstaff, Arizona.
@@ -180,7 +215,7 @@ VOICE STYLE:
 SCREEN (visual-first):
 - Michael is looking at the /jarvis screen. When he asks to pull up, show, open or see something that can be shown (a customer's jobs, "the brake job", a job's estimate/payment/inspection, the calendar or a day, revenue or net profit for any period, the jobs list, customers), call show_on_screen and speak ONE short sentence. If the result has "say", speak exactly that. Never read out what the screen shows unless he asks.
 - For revenue and net profit use show_on_screen with show_revenue (not get_revenue_summary) so the spoken number matches the chart.
-- Commands about what is already on screen (close, close jobs, exit, go back, back to overview, next, the middle one, the Sep 26 job, the brake one, payment, inspection, estimate, notes, a number of days, tomorrow, day/week/month, and on the jobs list: all, active, unpaid, paid, cancelled, in progress, "find <name>", clear search) are handled by the screen itself. Do not call any tool for them; say nothing more than "Done."
+- Commands about what is already on screen (close, close jobs, exit, go back, back to overview, next, the middle one, the Sep 26 job, the brake one, payment, inspection, estimate, notes, a number of days, tomorrow, day/week/month, and on the jobs list: all, active, unpaid, paid, cancelled, in progress, "find <name>", clear search) are handled by the screen itself. Do not call any tool for them. Usually you will not even see them; if you do, reply with at most one word.
 
 BUSINESS DATA:
 - You have one live GID Garage dispatcher tool named gid_business for jobs, customers, leads, calls, marketing, pricing, owner pay, and email.
@@ -220,6 +255,16 @@ BUSINESS DATA:
         """Deterministically intercept pasted lead forms before the LLM can improvise."""
         raw_text = (new_message.text_content or "").strip()
         low = raw_text.lower()
+
+        # Screen commands the page already carried out cost no LLM/TTS credits.
+        # The page's notice can trail the end of turn by a moment, so wait briefly.
+        key = normalize_utterance(raw_text)
+        if key:
+            for _ in range(4):
+                if self.page_handled.pop(key, None) is not None:
+                    print(f"GID_VOICE page_handled skip chars={len(raw_text)}")
+                    raise StopResponse()
+                await asyncio.sleep(0.12)
 
         lead_markers = (
             "email:",
@@ -1451,7 +1496,7 @@ async def gid_jarvis(ctx: JobContext):
 
     session = AgentSession(
         stt=inference.STT(model=STT_MODEL, language="en"),
-        llm=inference.LLM(model=LLM_MODEL, extra_kwargs={"max_completion_tokens": 512}),
+        llm=inference.LLM(model=LLM_MODEL, extra_kwargs={"max_completion_tokens": VOICE_LLM_MAX_TOKENS}),
         tts=inference.TTS(
             model=TTS_MODEL,
             voice=TTS_VOICE,
@@ -1469,8 +1514,40 @@ async def gid_jarvis(ctx: JobContext):
     # The website's existing text/business agent remains authoritative for
     # Quick Commands. It sends the final answer on this private text topic and
     # this handler speaks it through the SAME Cartesia voice, without another LLM call.
+    voice_disabled = {"reason": None}
+
+    async def _disable_voice(info: dict[str, Any]) -> None:
+        """Quota/rate limit: tell the page voice is unavailable, then leave the room."""
+        try:
+            await ctx.room.local_participant.send_text(
+                json.dumps({"voice": "unavailable", **{k: info[k] for k in ("component", "model", "status", "quota")}}),
+                topic="gid.status",
+            )
+        except Exception as exc:
+            print(f"GID_VOICE status publish failed: {type(exc).__name__}")
+        await asyncio.sleep(1.5)
+        ctx.shutdown(reason=f"voice unavailable: {info['component']} {info['status'] or ''} quota={info['quota']}")
+
+    @session.on("error")
+    def _on_voice_error(ev) -> None:
+        info = describe_voice_error(ev)
+        print(
+            f"GID_VOICE_ERROR component={info['component']} provider={info['provider']} model={info['model']} "
+            f"status={info['status']} quota={info['quota']} recoverable={info['recoverable']} detail={info['detail']!r}"
+        )
+        if info["quota"] and voice_disabled["reason"] is None:
+            voice_disabled["reason"] = info["component"]
+            # Keep the session from crashing/looping; we shut down deliberately instead.
+            try:
+                ev.error.recoverable = True
+            except Exception:
+                pass
+            asyncio.create_task(_disable_voice(info))
+
     async def _speak_stream(reader, participant_identity: str) -> None:
         if participant_identity != participant.identity:
+            return
+        if voice_disabled["reason"]:
             return
         try:
             text = await reader.read_all()
@@ -1501,6 +1578,25 @@ async def gid_jarvis(ctx: JobContext):
     )
     print(f"GID_DIAG session_started linked={getattr(session.room_io.linked_participant, 'identity', None)}")
     ctx.room.register_text_stream_handler("gid.speak", _handle_speak_stream)
+
+    agent_ref = session.current_agent
+
+    async def _handled_stream(reader, participant_identity: str) -> None:
+        if participant_identity != participant.identity:
+            return
+        try:
+            text = await reader.read_all()
+            if isinstance(text, list):
+                text = "".join(str(part) for part in text)
+            key = normalize_utterance(text)
+            if key and isinstance(agent_ref, GIDJarvis):
+                now = asyncio.get_event_loop().time()
+                agent_ref.page_handled = {k: t for k, t in agent_ref.page_handled.items() if now - t < 10}
+                agent_ref.page_handled[key] = now
+        except Exception as exc:
+            print(f"gid.handled handler error: {type(exc).__name__}")
+
+    ctx.room.register_text_stream_handler("gid.handled", lambda reader, pid: asyncio.create_task(_handled_stream(reader, pid)))
 
 
 

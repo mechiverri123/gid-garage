@@ -24,6 +24,20 @@ export type VoiceDiagnostics = {
   dispatchId: string | null;
 };
 
+// Voice runs on LiveKit Inference (STT + LLM + TTS on one account). Every
+// minute the mic streams costs STT credits, so the session stops itself when
+// nobody is talking, and a quota error pauses voice instead of retrying.
+const IDLE_STOP_MS = 4 * 60_000;      // no speech from either side
+const HIDDEN_STOP_MS = 60_000;        // tab in the background
+const QUOTA_PAUSE_MS = 30 * 60_000;   // LiveKit quota exhausted
+const RATE_PAUSE_MS = 2 * 60_000;     // plain 429 (burst rate limit)
+const PAUSE_KEY = 'gid.voicePausedUntil';
+const readPause = (): { until: number; reason: string } | null => {
+  try { const v = JSON.parse(localStorage.getItem(PAUSE_KEY) || 'null'); return v && v.until > Date.now() ? v : null; } catch { return null; }
+};
+const writePause = (ms: number, reason: string) => { try { localStorage.setItem(PAUSE_KEY, JSON.stringify({ until: Date.now() + ms, reason })); } catch { /* private mode */ } };
+const clock = (ms: number) => new Date(ms).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+
 const EMPTY_DIAGNOSTICS: VoiceDiagnostics = {
   room: false,
   agent: false,
@@ -134,8 +148,25 @@ export function useLiveKitJarvis(onUserTranscript?: (text: string) => void, onSc
     setState('off');
   }, [removeAudioNodes, stopMicMeter]);
 
+  // Stop voice but keep the reason on screen (typed Jarvis is unaffected).
+  const stopWith = useCallback(async (message: string) => {
+    await disconnect();
+    setError(message);
+    setState('error');
+  }, [disconnect]);
+  const lastActivity = useRef(Date.now());
+
   const connect = useCallback(async () => {
     if (roomRef.current || state === 'connecting') return;
+    const paused = readPause();
+    if (paused) {
+      // No token request = no agent dispatch = no credits spent on a known-dead quota.
+      setError(`Voice is paused until ${clock(paused.until)} (${paused.reason}). Typed Jarvis still works.`);
+      setState('error');
+      return;
+    }
+    lastActivity.current = Date.now();
+    agentLeftExpected.current = false;
 
     setError(null);
     setDiagnostics(EMPTY_DIAGNOSTICS);
@@ -193,6 +224,18 @@ export function useLiveKitJarvis(onUserTranscript?: (text: string) => void, onSc
         } catch { /* not a screen message */ }
       };
       liveRoom.registerTextStreamHandler('gid.ui', async (reader, participant) => applyScreen(await reader.readAll(), participant.identity));
+      // The agent reports LiveKit Inference quota/rate limits here, then leaves.
+      liveRoom.registerTextStreamHandler('gid.status', async reader => {
+        try {
+          const msg = JSON.parse(await reader.readAll()) as { voice?: string; component?: string; status?: number | null; quota?: boolean };
+          if (msg.voice !== 'unavailable') return;
+          const part = msg.component === 'stt' ? 'speech recognition' : msg.component === 'tts' ? 'voice output' : msg.component === 'llm' ? 'the voice model' : 'voice';
+          const reason = msg.quota ? `LiveKit usage limit reached for ${part}` : `LiveKit ${part} unavailable`;
+          writePause(msg.quota ? QUOTA_PAUSE_MS : RATE_PAUSE_MS, reason);
+          agentLeftExpected.current = true;
+          await stopWith(`Voice unavailable: ${reason}. Typed Jarvis still works.`);
+        } catch { /* ignore malformed status */ }
+      });
       liveRoom.on(RoomEvent.DataReceived, (payload, participant, _kind, topic) => {
         if (topic === 'gid.ui') applyScreen(new TextDecoder().decode(payload), participant?.identity);
       });
@@ -247,6 +290,7 @@ export function useLiveKitJarvis(onUserTranscript?: (text: string) => void, onSc
       });
 
       room.on(RoomEvent.ActiveSpeakersChanged, speakers => {
+        if (speakers.length) lastActivity.current = Date.now();
         const remoteSpeaking = speakers.some(
           p => p.identity !== room?.localParticipant.identity,
         );
@@ -328,7 +372,37 @@ export function useLiveKitJarvis(onUserTranscript?: (text: string) => void, onSc
     }
   }, [patchDiagnostics, removeAudioNodes, startMicMeter, state, stopMicMeter]);
 
+  // Agent left mid-session (crash, deploy, quota): stop cleanly, no reconnect loop.
+  const agentLeftExpected = useRef(false);
+  useEffect(() => {
+    const room = roomRef.current;
+    if (!room || (state !== 'listening' && state !== 'speaking')) return;
+    const onLeave = () => {
+      if (room.remoteParticipants.size === 0 && !agentLeftExpected.current) {
+        void stopWith('Jarvis voice stopped (the voice agent left). Typed Jarvis still works. Press Start to try again.');
+      }
+    };
+    room.on(RoomEvent.ParticipantDisconnected, onLeave);
+    return () => { room.off(RoomEvent.ParticipantDisconnected, onLeave); };
+  }, [state, stopWith]);
+
+  // Save credits: stop after a stretch of silence or while the tab is hidden.
+  useEffect(() => {
+    if (state !== 'listening' && state !== 'speaking') return;
+    let hiddenTimer: number | null = null;
+    const idle = window.setInterval(() => {
+      if (Date.now() - lastActivity.current > IDLE_STOP_MS) void stopWith('Voice stopped after 4 minutes of silence to save LiveKit credits. Press Start to talk again.');
+    }, 15_000);
+    const onVisibility = () => {
+      if (document.hidden) hiddenTimer = window.setTimeout(() => { void stopWith('Voice stopped while this tab was in the background. Press Start to talk again.'); }, HIDDEN_STOP_MS);
+      else if (hiddenTimer) { window.clearTimeout(hiddenTimer); hiddenTimer = null; }
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => { window.clearInterval(idle); if (hiddenTimer) window.clearTimeout(hiddenTimer); document.removeEventListener('visibilitychange', onVisibility); };
+  }, [state, stopWith]);
+
   const speakText = useCallback(async (text: string) => {
+    lastActivity.current = Date.now();
     const room = roomRef.current;
     const value = text.trim();
 
@@ -349,6 +423,14 @@ export function useLiveKitJarvis(onUserTranscript?: (text: string) => void, onSc
       setError(err?.message || 'Could not send speech to JARVIS.');
       return false;
     }
+  }, []);
+
+  // Tell the agent the page already handled this spoken sentence, so it skips
+  // its own LLM + TTS turn (saves LiveKit Inference credits).
+  const markHandled = useCallback((text: string) => {
+    const room = roomRef.current;
+    if (!room || room.state !== ConnectionState.Connected || !text.trim()) return;
+    void room.localParticipant.sendText(text, { topic: 'gid.handled' }).catch(() => {});
   }, []);
 
   const testVoice = useCallback(async () => {
@@ -374,6 +456,7 @@ export function useLiveKitJarvis(onUserTranscript?: (text: string) => void, onSc
     disconnect,
     toggle,
     speakText,
+    markHandled,
     testVoice,
   };
 }
