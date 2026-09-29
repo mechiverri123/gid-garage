@@ -27,6 +27,12 @@ const PREROLL_FRAMES = 15;      // 300 ms kept before speech starts
 const END_SILENCE_FRAMES = 35;  // 700 ms of quiet ends an utterance
 const BARGE_IN_FRAMES = 6;      // 120 ms of clear speech interrupts Jarvis
 const MAX_RECONNECTS = 3;
+// Click-free playback: every reply fades in/out, and the speaker side sleeps
+// between replies (an always-open output device hisses on many speakers and
+// Bluetooth headsets).
+const FADE_S = 0.012;       // 12 ms edge fades: inaudible, removes the "pop"
+const LEAD_S = 0.08;        // first-chunk buffer so streamed audio never gaps (gaps crackle)
+const OUT_SLEEP_MS = 1500;  // suspend the speaker side this long after he stops
 
 const readPause = (): { until: number; reason: string } | null => {
   try { const v = JSON.parse(localStorage.getItem(PAUSE_KEY) || 'null'); return v && v.until > Date.now() ? v : null; } catch { return null; }
@@ -84,6 +90,7 @@ export function useDirectVoice({ onUtterance, onBargeIn }: { onUtterance: (text:
     finals: [] as string[], awaitingFinal: false, committed: false,
     // playback
     sources: new Set<AudioBufferSourceNode>(), nextTime: 0, ttsContext: null as string | null, ttsChars: 0, speakingOut: false,
+    out: null as AudioContext | null, gain: null as GainNode | null, carry: new Uint8Array(0), sleepTimer: 0 as number | 0,
     // timings
     tSpeechEnd: 0, tFinal: 0, tFirstText: 0, tFirstAudio: 0,
     lastActivity: Date.now(), reconnects: 0, keepAlive: 0 as number | 0, usageTimer: 0 as number | 0,
@@ -97,9 +104,38 @@ export function useDirectVoice({ onUtterance, onBargeIn }: { onUtterance: (text:
   }, [r]);
 
   // ---- playback ---------------------------------------------------------------------
+  // Speaker output: its own AudioContext (sleeps between replies) and one gain
+  // node that shapes the start and end of every reply.
+  const ensureOut = useCallback((): AudioContext => {
+    if (!r.out) {
+      r.out = new AudioContext({ latencyHint: 'interactive' });
+      r.gain = r.out.createGain();
+      r.gain.connect(r.out.destination);
+    }
+    if (r.sleepTimer) { window.clearTimeout(r.sleepTimer); r.sleepTimer = 0; }
+    if (r.out.state === 'suspended') void r.out.resume();
+    return r.out;
+  }, [r]);
+  const sleepOutSoon = useCallback(() => {
+    if (r.sleepTimer) window.clearTimeout(r.sleepTimer);
+    r.sleepTimer = window.setTimeout(() => { r.sleepTimer = 0; if (!r.sources.size && r.out?.state === 'running') void r.out.suspend(); }, OUT_SLEEP_MS);
+  }, [r]);
+  // Fade out right where the queued speech ends (Cartesia said "done").
+  const fadeOutAtEnd = useCallback(() => {
+    const out = r.out; const g = r.gain?.gain;
+    if (!out || !g || r.nextTime <= out.currentTime) return;
+    const end = r.nextTime;
+    g.setValueAtTime(1, Math.max(out.currentTime, end - FADE_S * 2));
+    g.linearRampToValueAtTime(0, end);
+  }, [r]);
+
   const stopPlayback = useCallback(() => {
-    for (const s of r.sources) { try { s.stop(); } catch { /* already ended */ } }
-    r.sources.clear();
+    const out = r.out; const g = r.gain?.gain;
+    const t = out ? out.currentTime : 0;
+    if (out && g) { g.cancelScheduledValues(t); g.setValueAtTime(g.value, t); g.linearRampToValueAtTime(0, t + 0.02); }
+    for (const s of r.sources) { try { s.stop(t + 0.025); } catch { /* already ended */ } }
+    r.sources.clear(); r.carry = new Uint8Array(0);
+    sleepOutSoon();
     r.nextTime = 0;
     if (r.ttsContext && r.tts?.readyState === WebSocket.OPEN) {
       // Stop Cartesia generating audio nobody will hear.
@@ -107,19 +143,27 @@ export function useDirectVoice({ onUtterance, onBargeIn }: { onUtterance: (text:
     }
     r.ttsContext = null; r.speakingOut = false;
     patch({ remoteAudio: false });
-  }, [r]);
+  }, [r, sleepOutSoon]);
 
   const playChunk = useCallback((b64: string) => {
-    const ctx = r.ctx; if (!ctx) return;
-    const bin = atob(b64); const bytes = new Uint8Array(bin.length);
-    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-    const samples = new Float32Array(bytes.buffer, 0, Math.floor(bytes.length / 4));
-    if (!samples.length) return;
+    if (!r.active) return;
+    const ctx = ensureOut(); const g = r.gain!.gain;
+    const bin = atob(b64);
+    // A 4-byte float sample may straddle two chunks: carry the remainder over.
+    const bytes = new Uint8Array(r.carry.length + bin.length);
+    bytes.set(r.carry, 0);
+    for (let i = 0; i < bin.length; i++) bytes[r.carry.length + i] = bin.charCodeAt(i);
+    const whole = bytes.length - (bytes.length % 4);
+    r.carry = bytes.slice(whole);
+    if (!whole) return;
+    const samples = new Float32Array(bytes.buffer.slice(0, whole));
     const buf = ctx.createBuffer(1, samples.length, 24000);
     buf.copyToChannel(samples, 0);
     const src = ctx.createBufferSource();
-    src.buffer = buf; src.connect(ctx.destination);
-    const at = Math.max(ctx.currentTime + 0.03, r.nextTime);
+    src.buffer = buf; src.connect(r.gain!);
+    const fresh = r.nextTime < ctx.currentTime + 0.005; // nothing queued: a new phrase (or a gap)
+    const at = fresh ? ctx.currentTime + LEAD_S : r.nextTime;
+    if (fresh) { g.cancelScheduledValues(at); g.setValueAtTime(0, at); g.linearRampToValueAtTime(1, at + FADE_S); }
     src.start(at); r.nextTime = at + buf.duration;
     r.sources.add(src);
     if (!r.tFirstAudio) {
@@ -141,12 +185,13 @@ export function useDirectVoice({ onUtterance, onBargeIn }: { onUtterance: (text:
     patch({ remoteAudio: true });
     src.onended = () => {
       r.sources.delete(src);
-      if (!r.sources.size && r.ctx && r.ctx.currentTime >= r.nextTime - 0.02) {
+      if (!r.sources.size && r.out && r.out.currentTime >= r.nextTime - 0.02) {
         r.speakingOut = false; patch({ remoteAudio: false });
         if (stateRef.current === 'speaking') setState('listening');
+        sleepOutSoon();
       }
     };
-  }, [r]);
+  }, [r, ensureOut, sleepOutSoon]);
 
   const openTts = useCallback((): Promise<WebSocket> => {
     if (r.tts && r.tts.readyState === WebSocket.OPEN) return Promise.resolve(r.tts);
@@ -162,6 +207,7 @@ export function useDirectVoice({ onUtterance, onBargeIn }: { onUtterance: (text:
         try { m = JSON.parse(String(ev.data)); } catch { return; }
         if (m.context_id && m.context_id !== r.ttsContext) return; // cancelled context
         if (m.type === 'chunk' && m.data) playChunk(m.data);
+        if (m.type === 'done' || (m as { done?: boolean }).done) fadeOutAtEnd();
         else if (m.type === 'error') {
           const quota = m.status_code === 402 || m.status_code === 429 || /quota|credit|limit/i.test(String(m.message || m.error));
           console.warn(`GID_VOICE_ERROR provider=cartesia status=${m.status_code ?? '-'} quota=${quota} ${m.message || m.error || ''}`);
@@ -173,7 +219,7 @@ export function useDirectVoice({ onUtterance, onBargeIn }: { onUtterance: (text:
     });
     r.ttsReady.catch(() => { r.ttsReady = null; });
     return r.ttsReady;
-  }, [r, playChunk]);
+  }, [r, playChunk, fadeOutAtEnd]);
 
   // Streamed speech: begin -> chunk(s) -> end. Each chunk is one sentence.
   const speakChunk = useCallback(async (text: string, { last = false }: { last?: boolean } = {}) => {
@@ -314,7 +360,9 @@ export function useDirectVoice({ onUtterance, onBargeIn }: { onUtterance: (text:
     try { r.node?.disconnect(); } catch { /* gone */ }
     r.stream?.getTracks().forEach(t => t.stop());
     try { await r.ctx?.close(); } catch { /* closed */ }
-    r.node = null; r.stream = null; r.ctx = null; r.session = null;
+    try { await r.out?.close(); } catch { /* closed */ }
+    if (r.sleepTimer) window.clearTimeout(r.sleepTimer);
+    r.node = null; r.stream = null; r.ctx = null; r.session = null; r.out = null; r.gain = null; r.sleepTimer = 0;
     r.speaking = false; r.finals = []; r.preroll = [];
     setPartial('');
     await reportUsage();
@@ -334,9 +382,14 @@ export function useDirectVoice({ onUtterance, onBargeIn }: { onUtterance: (text:
       const b = r.session.budget;
       setBudgetNote(b?.state === 'warn' || b?.state === 'conscious' ? `${Math.round(b.pct || 0)}% of monthly Jarvis AI budget used` : null);
       r.stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 } });
-      r.ctx = new AudioContext();
+      // Mic side: no output device at all (sinkId none), so it can't hiss or pop.
+      try { r.ctx = new AudioContext({ sinkId: { type: 'none' } } as AudioContextOptions); } catch { r.ctx = new AudioContext(); }
       await r.ctx.resume();
-      patch({ mic: true, audioUnlocked: r.ctx.state === 'running' });
+      // Speaker side: unlocked now (this click is the user gesture), then asleep until he speaks.
+      const out = ensureOut();
+      await out.resume();
+      patch({ mic: true, audioUnlocked: out.state === 'running' });
+      void out.suspend();
       const url = URL.createObjectURL(new Blob([WORKLET], { type: 'text/javascript' }));
       await r.ctx.audioWorklet.addModule(url);
       URL.revokeObjectURL(url);
@@ -359,7 +412,7 @@ export function useDirectVoice({ onUtterance, onBargeIn }: { onUtterance: (text:
         : e instanceof Error ? e.message : 'Could not start voice.';
       await disconnectInner(msg, name !== 'NotAllowedError' && name !== 'NotFoundError');
     }
-  }, [r, openStt, openTts, onFrame, reportUsage, disconnectInner]);
+  }, [r, openStt, openTts, onFrame, reportUsage, disconnectInner, ensureOut]);
 
   const disconnect = useCallback(() => disconnectInner(null), [disconnectInner]);
   const toggle = useCallback(() => { if (r.active || stateRef.current === 'connecting') void disconnect(); else void connect(); }, [r, connect, disconnect]);
