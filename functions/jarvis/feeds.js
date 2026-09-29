@@ -1,7 +1,8 @@
 // Cloudflare Pages Function — /jarvis/feeds  (owner only)
 // Under /jarvis/* so it inherits the Cloudflare Access app (CLAUDE.md §0); the
 // Access JWT is verified here too (verifyAccess).
-// GET  ?action=status|brief|reviews|social|ads|mail[&force=1]   ?action=message&id=&folder=
+// GET  ?action=status|brief|reviews|social|ads|mail|messages[&force=1]   ?action=message&id=&folder=   ?action=thread&id=
+// POST { action: 'send_messenger', psid, text, reviewed: true, confirmed: true, leadId? }
 // POST { action: 'connect_meta', token, appId?, appSecret? }   { action: 'check_leads' }
 //      { action: 'connect_zoho', clientId, clientSecret, code }
 //      { action: 'disconnect', which: 'meta' | 'zoho' }
@@ -9,7 +10,7 @@
 // Meta and Zoho: nothing here posts, replies or sends anything.
 import { verifyAccess } from '../_lib/access-auth.js';
 import { createBusinessOps } from '../_lib/business-data.js';
-import { reviewsFeed, socialFeed, adsFeed, mailFeed, mailMessage, feedStatus, loadBrief, connectMeta, connectZoho, disconnectFeed, pollMetaLeads, leadSyncStatus } from '../_lib/jarvis-feeds.js';
+import { reviewsFeed, socialFeed, adsFeed, mailFeed, mailMessage, feedStatus, loadBrief, connectMeta, connectZoho, disconnectFeed, pollMetaLeads, leadSyncStatus, messengerFeed, messengerThread, sendMessenger } from '../_lib/jarvis-feeds.js';
 
 const json = (body, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' } });
 
@@ -23,6 +24,11 @@ export async function handleFeeds({ request, env, verify = verifyAccess, fetchIm
   const headers = { apikey: key, Authorization: `Bearer ${key}` };
   const sbGet = async (table, params) => {
     const res = await fetchImpl(`${supabaseUrl}/rest/v1/${table}?${new URLSearchParams(params)}`, { headers });
+    if (!res.ok) throw new Error(await res.text());
+    return res.json();
+  };
+  const sbPatch = async (table, filter, fields) => {
+    const res = await fetchImpl(`${supabaseUrl}/rest/v1/${table}?${filter}`, { method: 'PATCH', headers: { ...headers, 'Content-Type': 'application/json', Prefer: 'return=representation' }, body: JSON.stringify(fields) });
     if (!res.ok) throw new Error(await res.text());
     return res.json();
   };
@@ -42,6 +48,8 @@ export async function handleFeeds({ request, env, verify = verifyAccess, fetchIm
         case 'social': return json(await socialFeed(args));
         case 'ads': return json(await adsFeed(args));
         case 'mail': return json(await mailFeed(args));
+        case 'messages': return json(await messengerFeed(args));
+        case 'thread': return json(await messengerThread({ env, bucket, id: url.searchParams.get('id'), fetchImpl }));
         case 'message': return json(await mailMessage({ bucket, id: url.searchParams.get('id'), folderId: url.searchParams.get('folder'), fetchImpl }));
         case 'brief': {
           const ops = createBusinessOps({ sbGet, sbPatch: async () => { throw new Error('read only'); } });
@@ -65,6 +73,9 @@ export async function handleFeeds({ request, env, verify = verifyAccess, fetchIm
           return json({ error: e.message, status: await leadSyncStatus(bucket) });
         }
       }
+      // Messenger reply as the page — only after the page's two confirmations (reviewed + confirmed).
+      case 'send_messenger':
+        return json(await sendMessenger({ env, bucket, psid: s(body.psid), text: String(body.text ?? ''), reviewed: body.reviewed === true, confirmed: body.confirmed === true, leadId: s(body.leadId) || null, sbGet, sbPatch, fetchImpl }));
       case 'disconnect': return json(await disconnectFeed({ bucket, which: s(body.which) }));
       default: return json({ error: 'Unknown action' }, 400);
     }

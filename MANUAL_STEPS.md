@@ -18,6 +18,11 @@ All free, and there's nothing to set in Cloudflare. Tokens are stored in the R2 
   - The token needs `leads_retrieval`, `pages_manage_ads` and `pages_manage_metadata` (use case "Capture & manage ad leads").
   - Status and errors are shown in the Facebook panel.
   - No Meta webhook or App Review is needed.
+- **Leads + Messenger replies.** Say "Jarvis, show me my leads" or "any Facebook messages".
+  - Replies go out as the page on Messenger, only after two confirmations: review the exact text, then "Send now?".
+  - Needs `pages_messaging` on the Facebook token.
+  - Facebook allows page replies within 24 hours of the person's last message. Older chats get an "Open in Business Suite" button.
+  - A lead's chat is matched only on its exact full name. Otherwise you pick the chat yourself.
 - **Zoho Mail**, one time: say "Jarvis, check my email". The panel has the steps.
   - api-console.zoho.com → Self Client.
   - Scope `ZohoMail.accounts.READ,ZohoMail.messages.READ`.

@@ -3155,7 +3155,7 @@
       "file_type": "code",
       "norm_label": "briefview()",
       "source_file": "src/command-center/workspace/FeedViews.tsx",
-      "source_location": "L367"
+      "source_location": "L383"
     },
     {
       "id": "src_command_center_workspace_feedviews_connectmeta",
@@ -3227,7 +3227,7 @@
       "file_type": "code",
       "norm_label": "mailbody()",
       "source_file": "src/command-center/workspace/FeedViews.tsx",
-      "source_location": "L299"
+      "source_location": "L315"
     },
     {
       "id": "src_command_center_workspace_feedviews_mailview",
@@ -3239,7 +3239,7 @@
       "file_type": "code",
       "norm_label": "mailview()",
       "source_file": "src/command-center/workspace/FeedViews.tsx",
-      "source_location": "L319"
+      "source_location": "L335"
     },
     {
       "id": "src_command_center_workspace_feedviews_muted",
@@ -3335,7 +3335,7 @@
       "file_type": "code",
       "norm_label": "row()",
       "source_file": "src/command-center/workspace/FeedViews.tsx",
-      "source_location": "L362"
+      "source_location": "L378"
     },
     {
       "id": "src_command_center_workspace_feedviews_socialview",
@@ -13562,30 +13562,6 @@
       "source_location": "L132"
     },
     {
-      "id": "functions_lib_jarvis_context_guardfinaltext",
-      "label": "guardFinalText()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 4,
-      "community_name": "jarvis-context.js",
-      "file_type": "code",
-      "norm_label": "guardfinaltext()",
-      "source_file": "functions/_lib/jarvis-context.js",
-      "source_location": "L362"
-    },
-    {
-      "id": "functions_lib_jarvis_context_issuccessfulwrite",
-      "label": "isSuccessfulWrite()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 4,
-      "community_name": "jarvis-context.js",
-      "file_type": "code",
-      "norm_label": "issuccessfulwrite()",
-      "source_file": "functions/_lib/jarvis-context.js",
-      "source_location": "L258"
-    },
-    {
       "id": "functions_lib_jarvis_context_label",
       "label": "label()",
       "_callable": true,
@@ -13596,18 +13572,6 @@
       "norm_label": "label()",
       "source_file": "functions/_lib/jarvis-context.js",
       "source_location": "L104"
-    },
-    {
-      "id": "functions_lib_jarvis_context_okresult",
-      "label": "okResult()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 4,
-      "community_name": "jarvis-context.js",
-      "file_type": "code",
-      "norm_label": "okresult()",
-      "source_file": "functions/_lib/jarvis-context.js",
-      "source_location": "L257"
     },
     {
       "id": "functions_lib_jarvis_context_personlabel",
@@ -14054,6 +14018,42 @@
       "source_location": "L357"
     },
     {
+      "id": "functions_lib_jarvis_context_guardfinaltext",
+      "label": "guardFinalText()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 42,
+      "community_name": "admin-ai-chat.js",
+      "file_type": "code",
+      "norm_label": "guardfinaltext()",
+      "source_file": "functions/_lib/jarvis-context.js",
+      "source_location": "L362"
+    },
+    {
+      "id": "functions_lib_jarvis_context_issuccessfulwrite",
+      "label": "isSuccessfulWrite()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 42,
+      "community_name": "admin-ai-chat.js",
+      "file_type": "code",
+      "norm_label": "issuccessfulwrite()",
+      "source_file": "functions/_lib/jarvis-context.js",
+      "source_location": "L258"
+    },
+    {
+      "id": "functions_lib_jarvis_context_okresult",
+      "label": "okResult()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 42,
+      "community_name": "admin-ai-chat.js",
+      "file_type": "code",
+      "norm_label": "okresult()",
+      "source_file": "functions/_lib/jarvis-context.js",
+      "source_location": "L257"
+    },
+    {
       "id": "functions_lib_jarvis_fastpath_fastline",
       "label": "fastLine()",
       "_callable": true,
@@ -14267,7 +14267,7 @@
       "file_type": "code",
       "norm_label": "onrequest()",
       "source_file": "functions/jarvis/feeds.js",
-      "source_location": "L62"
+      "source_location": "L76"
     },
     {
       "id": "functions_lib_jarvis_feeds_adddays",
@@ -37812,7 +37812,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "functions/jarvis/feeds.js",
-      "source_location": "L27",
+      "source_location": "L40",
       "weight": 1.0
     },
     {
@@ -37824,7 +37824,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "functions/jarvis/feeds.js",
-      "source_location": "L28",
+      "source_location": "L41",
       "weight": 1.0
     },
     {
@@ -37836,7 +37836,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "functions/jarvis/feeds.js",
-      "source_location": "L29",
+      "source_location": "L42",
       "weight": 1.0
     },
     {
@@ -37848,7 +37848,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "functions/jarvis/feeds.js",
-      "source_location": "L30",
+      "source_location": "L43",
       "weight": 1.0
     },
     {
@@ -37860,7 +37860,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "functions/jarvis/feeds.js",
-      "source_location": "L31",
+      "source_location": "L44",
       "weight": 1.0
     },
     {
@@ -37872,7 +37872,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "functions/jarvis/feeds.js",
-      "source_location": "L32",
+      "source_location": "L45",
       "weight": 1.0
     },
     {
@@ -37884,7 +37884,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "functions/jarvis/feeds.js",
-      "source_location": "L42",
+      "source_location": "L47",
       "weight": 1.0
     },
     {
@@ -37896,7 +37896,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "functions/jarvis/feeds.js",
-      "source_location": "L43",
+      "source_location": "L48",
       "weight": 1.0
     },
     {
@@ -37908,7 +37908,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "functions/jarvis/feeds.js",
-      "source_location": "L52",
+      "source_location": "L57",
       "weight": 1.0
     },
     {
@@ -37920,7 +37920,31 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "functions/jarvis/feeds.js",
-      "source_location": "L53",
+      "source_location": "L58",
+      "weight": 1.0
+    },
+    {
+      "source": "functions_jarvis_feeds_handlefeeds",
+      "target": "functions_lib_jarvis_feeds_pollmetaleads",
+      "relation": "calls",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "call",
+      "source_file": "functions/jarvis/feeds.js",
+      "source_location": "L62",
+      "weight": 1.0
+    },
+    {
+      "source": "functions_jarvis_feeds_handlefeeds",
+      "target": "functions_lib_jarvis_feeds_leadsyncstatus",
+      "relation": "calls",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "call",
+      "source_file": "functions/jarvis/feeds.js",
+      "source_location": "L63",
       "weight": 1.0
     },
     {
@@ -37932,7 +37956,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "functions/jarvis/feeds.js",
-      "source_location": "L54",
+      "source_location": "L68",
       "weight": 1.0
     },
     {
@@ -37944,7 +37968,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "functions/jarvis/feeds.js",
-      "source_location": "L62",
+      "source_location": "L76",
       "weight": 1.0
     },
     {
@@ -54132,7 +54156,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/command-center/workspace/FeedViews.tsx",
-      "source_location": "L368",
+      "source_location": "L384",
       "weight": 1.0
     },
     {
@@ -54144,7 +54168,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/command-center/workspace/FeedViews.tsx",
-      "source_location": "L369",
+      "source_location": "L385",
       "weight": 1.0
     },
     {
@@ -54156,7 +54180,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/command-center/workspace/FeedViews.tsx",
-      "source_location": "L370",
+      "source_location": "L386",
       "weight": 1.0
     },
     {
@@ -54168,7 +54192,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/command-center/workspace/FeedViews.tsx",
-      "source_location": "L386",
+      "source_location": "L402",
       "weight": 1.0
     },
     {
@@ -54180,7 +54204,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/command-center/workspace/FeedViews.tsx",
-      "source_location": "L389",
+      "source_location": "L405",
       "weight": 1.0
     },
     {
@@ -54192,7 +54216,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/command-center/workspace/FeedViews.tsx",
-      "source_location": "L391",
+      "source_location": "L407",
       "weight": 1.0
     },
     {
@@ -54204,7 +54228,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/command-center/workspace/FeedViews.tsx",
-      "source_location": "L391",
+      "source_location": "L407",
       "weight": 1.0
     },
     {
@@ -54216,7 +54240,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/command-center/workspace/FeedViews.tsx",
-      "source_location": "L392",
+      "source_location": "L408",
       "weight": 1.0
     },
     {
@@ -54228,7 +54252,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/command-center/workspace/FeedViews.tsx",
-      "source_location": "L400",
+      "source_location": "L416",
       "weight": 1.0
     },
     {
@@ -54240,7 +54264,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/command-center/workspace/FeedViews.tsx",
-      "source_location": "L415",
+      "source_location": "L431",
       "weight": 1.0
     },
     {
@@ -54252,7 +54276,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/command-center/workspace/FeedViews.tsx",
-      "source_location": "L415",
+      "source_location": "L431",
       "weight": 1.0
     },
     {
@@ -54264,7 +54288,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/command-center/workspace/FeedViews.tsx",
-      "source_location": "L438",
+      "source_location": "L454",
       "weight": 1.0
     },
     {
@@ -54348,7 +54372,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/command-center/workspace/FeedViews.tsx",
-      "source_location": "L289",
+      "source_location": "L301",
       "weight": 1.0
     },
     {
@@ -54360,7 +54384,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/command-center/workspace/FeedViews.tsx",
-      "source_location": "L292",
+      "source_location": "L308",
       "weight": 1.0
     },
     {
@@ -54372,7 +54396,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/command-center/workspace/FeedViews.tsx",
-      "source_location": "L312",
+      "source_location": "L328",
       "weight": 1.0
     },
     {
@@ -54384,7 +54408,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/command-center/workspace/FeedViews.tsx",
-      "source_location": "L312",
+      "source_location": "L328",
       "weight": 1.0
     },
     {
@@ -54396,7 +54420,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/command-center/workspace/FeedViews.tsx",
-      "source_location": "L320",
+      "source_location": "L336",
       "weight": 1.0
     },
     {
@@ -54408,7 +54432,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/command-center/workspace/FeedViews.tsx",
-      "source_location": "L323",
+      "source_location": "L339",
       "weight": 1.0
     },
     {
@@ -54420,7 +54444,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/command-center/workspace/FeedViews.tsx",
-      "source_location": "L324",
+      "source_location": "L340",
       "weight": 1.0
     },
     {
@@ -54432,7 +54456,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/command-center/workspace/FeedViews.tsx",
-      "source_location": "L325",
+      "source_location": "L341",
       "weight": 1.0
     },
     {
@@ -54444,7 +54468,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/command-center/workspace/FeedViews.tsx",
-      "source_location": "L325",
+      "source_location": "L341",
       "weight": 1.0
     },
     {
@@ -54456,7 +54480,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/command-center/workspace/FeedViews.tsx",
-      "source_location": "L330",
+      "source_location": "L346",
       "weight": 1.0
     },
     {
@@ -54468,7 +54492,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/command-center/workspace/FeedViews.tsx",
-      "source_location": "L331",
+      "source_location": "L347",
       "weight": 1.0
     },
     {
@@ -54480,7 +54504,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/command-center/workspace/FeedViews.tsx",
-      "source_location": "L344",
+      "source_location": "L360",
       "weight": 1.0
     },
     {
@@ -54492,7 +54516,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/command-center/workspace/FeedViews.tsx",
-      "source_location": "L353",
+      "source_location": "L369",
       "weight": 1.0
     },
     {
@@ -65072,6 +65096,18 @@
     },
     {
       "source": "functions_jarvis_feeds",
+      "target": "functions_lib_jarvis_feeds_leadsyncstatus",
+      "relation": "imports",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "import",
+      "source_file": "functions/jarvis/feeds.js",
+      "source_location": "L12",
+      "weight": 1.0
+    },
+    {
+      "source": "functions_jarvis_feeds",
       "target": "functions_lib_jarvis_feeds_loadbrief",
       "relation": "imports",
       "_origin": "ast",
@@ -65097,6 +65133,18 @@
     {
       "source": "functions_jarvis_feeds",
       "target": "functions_lib_jarvis_feeds_mailmessage",
+      "relation": "imports",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "import",
+      "source_file": "functions/jarvis/feeds.js",
+      "source_location": "L12",
+      "weight": 1.0
+    },
+    {
+      "source": "functions_jarvis_feeds",
+      "target": "functions_lib_jarvis_feeds_pollmetaleads",
       "relation": "imports",
       "_origin": "ast",
       "confidence": "EXTRACTED",
@@ -90230,7 +90278,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "functions/jarvis/feeds.js",
-      "source_location": "L62",
+      "source_location": "L76",
       "weight": 1.0
     },
     {
@@ -102649,7 +102697,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/command-center/workspace/FeedViews.tsx",
-      "source_location": "L299",
+      "source_location": "L315",
       "weight": 1.0
     },
     {
@@ -102660,29 +102708,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/command-center/workspace/FeedViews.tsx",
-      "source_location": "L319",
-      "weight": 1.0
-    },
-    {
-      "source": "src_command_center_workspace_feedviews",
-      "target": "src_command_center_workspace_feedviews_row",
-      "relation": "contains",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "source_file": "src/command-center/workspace/FeedViews.tsx",
-      "source_location": "L362",
-      "weight": 1.0
-    },
-    {
-      "source": "src_command_center_workspace_feedviews",
-      "target": "src_command_center_workspace_feedviews_briefview",
-      "relation": "contains",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "source_file": "src/command-center/workspace/FeedViews.tsx",
-      "source_location": "L367",
+      "source_location": "L335",
       "weight": 1.0
     },
     {
@@ -102694,6 +102720,28 @@
       "confidence_score": 1.0,
       "source_file": "src/command-center/workspace/FeedViews.tsx",
       "source_location": "L37",
+      "weight": 1.0
+    },
+    {
+      "source": "src_command_center_workspace_feedviews",
+      "target": "src_command_center_workspace_feedviews_row",
+      "relation": "contains",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "src/command-center/workspace/FeedViews.tsx",
+      "source_location": "L378",
+      "weight": 1.0
+    },
+    {
+      "source": "src_command_center_workspace_feedviews",
+      "target": "src_command_center_workspace_feedviews_briefview",
+      "relation": "contains",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "src/command-center/workspace/FeedViews.tsx",
+      "source_location": "L383",
       "weight": 1.0
     },
     {
@@ -112175,5 +112223,5 @@
       "source_file": "public/website_logo.png"
     }
   ],
-  "built_at_commit": "9f1f5d5d37ae57887c36fb8157adeb29b20594f7"
+  "built_at_commit": "7b0e042f6582accf7a9d59fea1a5f96192f133f0"
 }

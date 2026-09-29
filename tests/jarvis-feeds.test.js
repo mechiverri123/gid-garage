@@ -3,7 +3,7 @@
 // the request grammar that opens them, and the free "Jarvis" wake word.
 import { test, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
-import { pollMetaLeads, newLeadAlert, newReviewCount, reviewsFeed, socialDeltas, snapshotBefore, briefLine, reviewsLine, mailLine, htmlToText, isPartsEmail, connectZoho, mailFeed, feedStatus } from '../functions/_lib/jarvis-feeds.js';
+import { pollMetaLeads, newLeadAlert, messengerFeed, sendMessenger, conversationForLead, messagesLine, leadsLine, newReviewCount, reviewsFeed, socialDeltas, snapshotBefore, briefLine, reviewsLine, mailLine, htmlToText, isPartsEmail, connectZoho, mailFeed, feedStatus } from '../functions/_lib/jarvis-feeds.js';
 import { parsePanelRequest, workspaceReduce, INITIAL_WORKSPACE } from '../shared/jarvis-workspace.js';
 import { matchFastPath } from '../functions/_lib/jarvis-fastpath.js';
 import { afterWakeWord } from '../shared/voice-text.js';
@@ -197,4 +197,48 @@ test('lead forms: first run backfills quietly, later leads alert once, duplicate
   await assert.rejects(pollMetaLeads({ env: {}, bucket, sbGet, sbInsert, now: NOW + 600_000, fetchImpl: bad }), /leads_retrieval/);
   assert.match(JSON.parse(bucket.store.get('private/jarvis-meta-leads.json')).lastError, /leads_retrieval/);
   assert.equal((await pollMetaLeads({ env: {}, bucket: fakeBucket(), sbGet, sbInsert, fetchImpl })).connected, false);
+});
+
+test('messenger: inbox read, exact-name lead match, lines', async () => {
+  const bucket = fakeBucket({ 'private/jarvis-connections.json': { meta: { pageId: 'P1', pageToken: 'pt' } } });
+  const fetchImpl = async url => {
+    assert.match(String(url), /\/P1\/conversations\?.*platform=messenger/);
+    return jsonRes({ data: [
+      { id: 't_1', updated_time: daysAgo(0.1), unread_count: 1, link: '/GID/inbox/1', participants: { data: [{ id: '555', name: 'Emma Yazzie' }, { id: 'P1', name: 'GID Garage' }] }, messages: { data: [{ message: 'Is Friday ok?', from: { id: '555' }, created_time: daysAgo(0.1) }] } },
+      { id: 't_2', updated_time: daysAgo(3), unread_count: 0, participants: { data: [{ id: '777', name: 'Bob Ray' }, { id: 'P1' }] }, messages: { data: [{ message: 'Thanks', from: { id: 'P1' } }] } },
+    ] });
+  };
+  const f = await messengerFeed({ env: {}, bucket, now: NOW, fetchImpl });
+  assert.deepEqual(f.conversations.map(c => [c.psid, c.name, c.unread, c.lastFromPage]), [['555', 'Emma Yazzie', 1, false], ['777', 'Bob Ray', 0, true]]);
+  assert.equal(f.conversations[0].link, 'https://www.facebook.com/GID/inbox/1');
+  assert.equal(messagesLine(f), 'One unread conversation, sir — the latest from Emma Yazzie.');
+  assert.equal(conversationForLead({ fname: 'Emma', lname: 'Yazzie' }, f.conversations).psid, '555');
+  assert.equal(conversationForLead({ fname: 'Emma', lname: '' }, f.conversations), null, 'first name alone never matches');
+  assert.equal(leadsLine([{ status: 'new', fname: 'Emma', lname: 'Yazzie' }, { status: 'new', fname: 'Trace', lname: 'D' }, { status: 'booked' }]), 'Two new leads, sir — the newest is Emma Yazzie.');
+  assert.equal(parsePanelRequest('show me my leads').panel, 'leads');
+  assert.equal(parsePanelRequest('any facebook messages').panel, 'messages');
+});
+
+test('messenger send: refuses without both confirmations, replies as the page, marks the lead contacted', async () => {
+  const bucket = fakeBucket({ 'private/jarvis-connections.json': { meta: { pageId: 'P1', pageToken: 'pt' } } });
+  const posts = [];
+  const patches = [];
+  const sbGet = async () => [{ id: 'L1', status: 'new', notes: 'Issue answer: squeal' }];
+  const sbPatch = async (_t, filter, fields) => { patches.push([filter, fields]); return [{}]; };
+  const ok = async (url, init) => { posts.push({ url: String(url), init, body: JSON.parse(init.body) }); return jsonRes({ message_id: 'm1' }); };
+  assert.equal((await sendMessenger({ env: {}, bucket, psid: '555', text: 'Hi', reviewed: true, confirmed: false, fetchImpl: ok })).needs_confirmation, true);
+  assert.equal(posts.length, 0, 'nothing sent without the second confirmation');
+  const r = await sendMessenger({ env: {}, bucket, psid: '555', text: 'Hi Emma', reviewed: true, confirmed: true, leadId: 'L1', sbGet, sbPatch, now: NOW, fetchImpl: ok });
+  assert.deepEqual([r.ok, r.leadStatus], [true, 'contacted']);
+  assert.equal(posts[0].init.method, 'POST');
+  assert.match(posts[0].url, /\/P1\/messages\?access_token=pt/);
+  assert.deepEqual(posts[0].body, { recipient: { id: '555' }, message: { text: 'Hi Emma' }, messaging_type: 'RESPONSE' });
+  assert.equal(patches[0][1].status, 'contacted');
+  assert.match(patches[0][1].notes, /squeal\nMessaged on Messenger 2026-09-28/);
+  // Outside 24 h: tries the human-agent tag, then explains plainly.
+  const tries = [];
+  const late = async (url, init) => { const b = JSON.parse(init.body); tries.push(b.messaging_type); return jsonRes({ error: { message: '(#10) This message is sent outside of allowed window.' } }, 400); };
+  await assert.rejects(sendMessenger({ env: {}, bucket, psid: '555', text: 'Hi', reviewed: true, confirmed: true, fetchImpl: late }), /within 24 hours.*nothing was sent/);
+  assert.deepEqual(tries, ['RESPONSE', 'MESSAGE_TAG']);
+  await assert.rejects(sendMessenger({ env: {}, bucket, psid: 'abc', text: 'Hi', reviewed: true, confirmed: true, fetchImpl: ok }), /No Messenger conversation/);
 });

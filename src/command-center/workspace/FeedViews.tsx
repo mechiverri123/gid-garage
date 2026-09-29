@@ -162,7 +162,7 @@ export function ConnectMeta({ onDone }: { onDone: () => void }) {
     <div className="flex flex-col gap-3 text-[14px]" style={{ color: C.text2 }}>
       <ol className="list-decimal pl-5 flex flex-col gap-1">
         <li>Open <a className="underline" style={{ color: C.cyan }} href="https://developers.facebook.com/tools/explorer/" target="_blank" rel="noreferrer">Graph API Explorer</a> and pick your Meta app (App ID and secret are under App settings → Basic).</li>
-        <li>Add permissions: pages_show_list, pages_read_engagement, instagram_basic, ads_read, business_management, and for lead forms leads_retrieval, pages_manage_ads, pages_manage_metadata. Click <b>Generate Access Token</b> and approve your GID page.</li>
+        <li>Add permissions: pages_show_list, pages_read_engagement, instagram_basic, ads_read, business_management, and for lead forms leads_retrieval, pages_manage_ads, pages_manage_metadata, and for Messenger pages_messaging. Click <b>Generate Access Token</b> and approve your GID page.</li>
         <li>Paste the token below. With the app ID and secret, Jarvis turns it into a page token that doesn’t expire.</li>
       </ol>
       <div className="grid gap-3 sm:grid-cols-2">
@@ -448,6 +448,14 @@ export function BriefView({ dispatch }: { dispatch: Dispatch }) {
           </> : <Muted>{m?.error || "Connect Zoho Mail to see new email and O'Reilly orders here."}</Muted>}
         </Panel>
 
+        {data.messenger?.connected && (
+          <Panel icon={Facebook} title="Messenger" right={<button type="button" className="text-[13.5px] hover:underline" style={{ color: C.cyan }} onClick={() => open('messages')}>Open</button>}>
+            {data.messenger.error ? <Muted>{/permission|pages_messaging/i.test(data.messenger.error) ? 'Needs the pages_messaging permission (Facebook → Update permissions).' : data.messenger.error}</Muted> : (() => {
+              const un = (data.messenger.conversations as Any[] || []).filter(c => c.unread);
+              return un.length ? un.slice(0, 4).map(c => <Row key={c.id} onClick={() => dispatch({ type: 'open', view: { type: 'messages', open: c.id } })}><span className="font-semibold shrink-0">{c.name}</span><span className="truncate" style={{ color: C.text2 }}>{c.snippet}</span></Row>) : <Muted>No unread messages.</Muted>;
+            })()}
+          </Panel>
+        )}
         {a?.connected && (
           <Panel icon={Megaphone} title="Meta ads" tone={C.purple}>
             {a.error ? <Muted>{a.error}</Muted> : <>

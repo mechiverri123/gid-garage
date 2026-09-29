@@ -121,7 +121,7 @@ export function CommandCenterPage({ onLock }: { onLock: () => void }) {
     const range = (a.view as { range?: { from?: string; to?: string } } | undefined)?.range;
     if (a.data && range?.from && range?.to) revenuePrefetch.set(`${range.from}|${range.to}`, a.data);
     const vt = (a.view as { type?: string } | undefined)?.type;
-    if (a.data && vt && ['brief', 'reviews', 'social', 'mail'].includes(vt)) feedPrefetch.set(vt, a.data);
+    if (a.data && vt && ['brief', 'reviews', 'social', 'mail', 'messages', 'leads'].includes(vt)) feedPrefetch.set(vt, a.data);
     dispatchWs(a);
   };
   const screenHooks = useMemo(() => ({
@@ -324,6 +324,8 @@ export function CommandCenterPage({ onLock }: { onLock: () => void }) {
     { id: 'reviews', label: 'Google reviews', run: () => openView({ type: 'reviews' }) },
     { id: 'social', label: 'Facebook & Instagram', run: () => openView({ type: 'social' }) },
     { id: 'mail', label: 'Email inbox', run: () => openView({ type: 'mail' }) },
+    { id: 'leads-view', label: 'Leads (reply on Messenger)', run: () => openView({ type: 'leads' }) },
+    { id: 'messages', label: 'Facebook messages', run: () => openView({ type: 'messages' }) },
     { id: 'refresh', label: 'Refresh dashboard', run: () => loadSummary() },
   ]);
 

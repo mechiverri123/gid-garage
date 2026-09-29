@@ -30,6 +30,6 @@ export function jobFamily(list: { id: string; customerId?: string | null; fname?
 export function spokenDate(text: string): { month: string | null; day: string } | null;
 export function spokenYmd(text: string, today: string, prefer?: 'future' | 'past'): string | null;
 export function parseRevenueRequest(text: string, today: string): Record<string, unknown> | null;
-export function parsePanelRequest(text: string): { panel: 'brief' | 'reviews' | 'social' | 'mail' } | null;
+export function parsePanelRequest(text: string): { panel: 'brief' | 'reviews' | 'social' | 'mail' | 'leads' | 'messages' } | null;
 export function parseScheduleRequest(text: string, today: string): { when: string; date: string; mode: CalendarMode } | null;
 export function parseCustomerJobsRequest(text: string): { customer: string; count: number | null } | null;

@@ -48,8 +48,10 @@ export function normalizeView(v) {
       return { type: 'settings' };
     // Feed panels (functions/_lib/jarvis-feeds.js): the daily brief, Google
     // reviews, Facebook/Instagram, email. `open` picks one email in the mail panel.
-    case 'brief': case 'reviews': case 'social': case 'mail':
-      return { type: v.type, ...(v.type === 'mail' && v.open ? { open: String(v.open).slice(0, 80) } : {}) };
+    case 'brief': case 'reviews': case 'social': case 'mail': case 'messages':
+      return { type: v.type, ...((v.type === 'mail' || v.type === 'messages') && v.open ? { open: String(v.open).slice(0, 80) } : {}) };
+    case 'leads':
+      return { type: 'leads', query: String(v.query || '').slice(0, 80), status: String(v.status || 'open'), ...(v.open ? { open: String(v.open).slice(0, 80) } : {}) };
     default:
       return null;
   }
@@ -105,7 +107,7 @@ export function workspaceReduce(state, action) {
       if (t?.type !== 'calendar') return state;
       return replaceTop(state, { ...t, ...(action.date ? { date: action.date } : {}), ...(CALENDAR_MODES.includes(action.mode) ? { mode: action.mode } : {}) });
     case 'filter':
-      if (t?.type !== 'jobList' && t?.type !== 'customers') return state;
+      if (t?.type !== 'jobList' && t?.type !== 'customers' && t?.type !== 'leads') return state;
       return replaceTop(state, { ...t, ...('query' in action ? { query: String(action.query || '') } : {}), ...('status' in action ? { status: String(action.status) } : {}) });
     default:
       return state;
@@ -395,7 +397,7 @@ export function parseLocalCommand(text, state, { meta = [], today } = {}) {
 
   // Jobs list: the same chips as the screen (Active / Unpaid / Paid / Cancelled / All),
   // pipeline stages, and search ("find Jill", "search Acura", "clear search").
-  if (view.type === 'jobList' || view.type === 'customers') {
+  if (view.type === 'jobList' || view.type === 'customers' || view.type === 'leads') {
     if (/^(?:clear|reset)(?: the)? (?:search|filters?)$|^(?:show )?(?:everyone|everybody)$/.test(t)) return { type: 'filter', query: '' };
     if (view.type === 'jobList') {
       const status = LIST_STATUS[c];
@@ -522,6 +524,8 @@ const PANEL_ASKS = [
   ['brief', new RegExp(String.raw`^(?:brief me|(?:give me |show me |pull up |what's )?(?:the |my |a |today's )?(?:daily |morning |evening )?(?:brief|briefing|rundown|run down)(?: for today)?|good (?:morning|afternoon|evening)|what's (?:going on|happening|the plan) today|catch me up|morning report|daily report)$`)],
   ['reviews', new RegExp(String.raw`^${PANEL_VERB}(?:my |our |the )?(?:google )?reviews?$|^(?:any|do i have any|did i get any|did we get any|have i (?:gotten|got) any|have we (?:gotten|got) any) new (?:google )?reviews$|^how (?:are|is) (?:my|our) (?:google )?(?:reviews|rating)$|^(?:what's|what is) (?:my|our) (?:google )?rating$`)],
   ['social', new RegExp(String.raw`^${PANEL_VERB}(?:my |our |the )?(?:facebook|instagram|insta|ig|social media|socials|social|fb)(?: page| account| stats| insights)?(?: and (?:my |our )?(?:facebook|instagram|insta))?$|^(?:any|do i have any|did i get any|how many) new (?:followers|likes|follows)(?: on (?:facebook|instagram|insta|social media))?(?: overnight| today| this week)?$|^how(?:'s| is| are) (?:my|our) (?:facebook|instagram|social media|socials|page) doing$`)],
+  ['leads', new RegExp(String.raw`^${PANEL_VERB}(?:my |our |the |all )?(?:new |recent |latest |facebook |fb |meta )?leads$|^(?:any|do i have any|did i get any|have i (?:gotten|got) any) new leads$`)],
+  ['messages', new RegExp(String.raw`^${PANEL_VERB}(?:my |our |the )?(?:new |unread )?(?:facebook |fb |page )?(?:messages|messenger|dms|inbox messages)$|^(?:any|do i have any|did i get any) (?:new |unread )?(?:facebook |fb |messenger |page )(?:messages|dms)$|^(?:open|check) messenger$`)],
   ['mail', new RegExp(String.raw`^${PANEL_VERB}(?:my |our |the )?(?:new )?(?:e-?mails?|inbox|mail)$|^(?:any|do i have any|did i get any|have i (?:gotten|got) any) new (?:e-?mails?|mail)$|^check (?:my )?(?:e-?mail|inbox|mail)$|^(?:any|did i get an?|is there an?) (?:o'?reilly(?:'s)?|parts) (?:order|receipt|email)s?$`)],
 ];
 

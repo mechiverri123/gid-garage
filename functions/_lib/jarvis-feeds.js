@@ -251,6 +251,100 @@ export function newLeadAlert(lead) {
   return `New Facebook lead, sir: ${name}${bits ? ` — ${bits}` : ''}. It's in your leads.`;
 }
 
+// ---- Messenger: page conversations + replies ---------------------------------------------------
+// Reads the page inbox (Conversations API) and replies as the page (Send API),
+// with the connected page token (needs pages_messaging). Lead-form leads show
+// up here when Facebook opened a Messenger thread for them (as in Business Suite).
+const BUSINESS_INBOX = 'https://business.facebook.com/latest/inbox/messenger';
+
+export async function messengerFeed({ env, bucket, now = Date.now(), force = false, fetchImpl = (...a) => fetch(...a) }) {
+  const m = (await readJson(bucket, CONN_KEY))?.meta;
+  if (!m?.pageId || !m?.pageToken) return { connected: false };
+  const data = await cached(bucket, 'cache/jarvis-messenger.json', 60_000, async () => {
+    const r = await graph(env, `${m.pageId}/conversations`, m.pageToken, fetchImpl, {
+      platform: 'messenger', limit: '25',
+      fields: 'id,updated_time,unread_count,link,participants,messages.limit(1){message,from,created_time}',
+    });
+    return (r.data || []).map(c => {
+      const them = (c.participants?.data || []).find(p => String(p.id) !== String(m.pageId)) || {};
+      const last = c.messages?.data?.[0] || {};
+      return {
+        id: c.id, psid: them.id || null, name: them.name || 'Facebook user', updated: c.updated_time, unread: Number(c.unread_count) || 0,
+        snippet: String(last.message || '').slice(0, 200), lastFromPage: String(last.from?.id) === String(m.pageId), lastAt: last.created_time || c.updated_time,
+        link: c.link ? `https://www.facebook.com${c.link}` : BUSINESS_INBOX,
+      };
+    });
+  }, { now, force });
+  return { connected: true, inboxUrl: BUSINESS_INBOX, unreadCount: data.reduce((t, c) => t + (c.unread ? 1 : 0), 0), conversations: data };
+}
+
+export async function messengerThread({ env, bucket, id, fetchImpl = (...a) => fetch(...a) }) {
+  const m = (await readJson(bucket, CONN_KEY))?.meta;
+  if (!m?.pageToken) return { connected: false };
+  if (!/^t_[\w-]+$/.test(String(id))) throw new Error('Bad conversation id.');
+  const r = await graph(env, id, m.pageToken, fetchImpl, { fields: 'messages.limit(25){message,from,created_time}' });
+  const messages = (r.messages?.data || []).map(x => ({ text: x.message || '', fromPage: String(x.from?.id) === String(m.pageId), from: x.from?.name || '', at: x.created_time })).reverse();
+  return { connected: true, id, messages };
+}
+
+// Lead <-> conversation: only an exact full-name match (never a first name alone).
+export function conversationForLead(lead, conversations = []) {
+  const norm = s => String(s || '').toLowerCase().replace(/[^a-z ]/g, '').replace(/\s+/g, ' ').trim();
+  const full = norm(`${lead.fname || ''} ${lead.lname || ''}`);
+  if (!full.includes(' ')) return null;
+  const hits = conversations.filter(c => norm(c.name) === full);
+  return hits.length === 1 ? hits[0] : null;
+}
+
+// Sends as the page. The page shows the exact text twice (review, then "send now?");
+// the server still refuses without both confirmations. Inside Facebook's 24-hour
+// window it's a normal reply; after that it tries the human-agent tag (7 days),
+// which Facebook may refuse without approval — then the owner uses Business Suite.
+export async function sendMessenger({ env, bucket, psid, text, reviewed, confirmed, leadId = null, sbGet, sbPatch, now = Date.now(), fetchImpl = (...a) => fetch(...a) }) {
+  if (reviewed !== true || confirmed !== true) return { needs_confirmation: true, error: 'Review the message and confirm twice before sending.' };
+  const m = (await readJson(bucket, CONN_KEY))?.meta;
+  if (!m?.pageToken || !m?.pageId) throw new Error('Facebook is not connected.');
+  const msg = String(text || '').trim();
+  if (!msg) throw new Error('The message is empty.');
+  if (msg.length > 2000) throw new Error('Messenger messages are limited to 2,000 characters.');
+  if (!/^\d+$/.test(String(psid))) throw new Error('No Messenger conversation for this person.');
+  const post = body => graph(env, `${m.pageId}/messages`, m.pageToken, (url, init) => fetchImpl(url, { ...init, method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }));
+  const base = { recipient: { id: String(psid) }, message: { text: msg } };
+  let sent;
+  try {
+    sent = await post({ ...base, messaging_type: 'RESPONSE' });
+  } catch (e) {
+    if (!/24|window|outside|allowed|policy/i.test(e.message)) throw e;
+    try { sent = await post({ ...base, messaging_type: 'MESSAGE_TAG', tag: 'HUMAN_AGENT' }); } catch {
+      throw new Error('Facebook only allows page replies within 24 hours of their last message. Reply in Business Suite instead — nothing was sent.');
+    }
+  }
+  await writeJson(bucket, 'cache/jarvis-messenger.json', null).catch(() => {}); // next read shows the reply
+  let lead = null;
+  if (leadId && sbGet && sbPatch) {
+    [lead] = await sbGet('leads', { select: 'id,status,notes', id: `eq.${leadId}`, limit: '1' });
+    if (lead) await markLeadContacted({ sbPatch, lead, note: `Messaged on Messenger ${new Date(now).toISOString().slice(0, 10)}`, now });
+  }
+  return { ok: true, messageId: sent?.message_id || null, leadStatus: lead ? (['new', 'no_response'].includes(lead.status) ? 'contacted' : lead.status) : null };
+}
+
+export function messagesLine(f) {
+  if (!f?.connected) return "Facebook isn't connected yet, sir.";
+  if (f.error) return /permission|pages_messaging/i.test(f.error) ? "I need the pages_messaging permission to read your Facebook messages, sir. The steps are on screen." : "I couldn't reach Facebook just now, sir.";
+  const unread = (f.conversations || []).filter(c => c.unread);
+  if (!unread.length) return 'No unread Facebook messages, sir.';
+  return `${cap(count(unread.length, 'unread conversation'))}, sir — the latest from ${unread[0].name}.`;
+}
+
+// After a reply: new / no-response leads become "contacted" (same fields as the
+// admin status change); later stages are left alone. The reply is noted on the lead.
+export async function markLeadContacted({ sbPatch, lead, note, now = Date.now() }) {
+  const fields = { last_contacted_at: new Date(now).toISOString(), notes: [lead.notes, note].filter(Boolean).join('\n') };
+  if (['new', 'no_response'].includes(lead.status)) fields.status = 'contacted';
+  await sbPatch('leads', `id=eq.${encodeURIComponent(lead.id)}`, fields);
+  return fields;
+}
+
 // ---- Zoho Mail ----------------------------------------------------------------------------
 
 const ZOHO_DCS = ['com', 'eu', 'in', 'com.au', 'jp', 'ca', 'sa', 'com.cn'];
@@ -367,8 +461,8 @@ const safe = p => p.catch(e => ({ connected: true, error: e?.message || String(e
 // business: ops.ownerBriefing() (functions/_lib/business-data.js); weather: weatherToday() shape.
 export async function buildBrief({ env, bucket, business, weather = null, now = Date.now(), fetchImpl }) {
   const args = { env, bucket, now, fetchImpl };
-  const [reviews, social, mail, ads] = await Promise.all([safe(reviewsFeed(args)), safe(socialFeed(args)), safe(mailFeed(args)), safe(adsFeed(args))]);
-  return { at: new Date(now).toISOString(), business, weather, reviews, social, mail, ads };
+  const [reviews, social, mail, ads, messenger] = await Promise.all([safe(reviewsFeed(args)), safe(socialFeed(args)), safe(mailFeed(args)), safe(adsFeed(args)), safe(messengerFeed(args))]);
+  return { at: new Date(now).toISOString(), business, weather, reviews, social, mail, ads, messenger };
 }
 
 // Everything the brief needs, from one call: ops = createBusinessOps(...), sbGet(table, params).
@@ -411,6 +505,8 @@ export function briefLine(b, hour = 9) {
     const followers = (c.fbFollowers > 0 ? c.fbFollowers : 0) + (c.igFollowers > 0 ? c.igFollowers : 0);
     if (likes || followers) parts.push(`Overnight: ${[likes && count(likes, 'new like'), followers && count(followers, 'new follower')].filter(Boolean).join(' and ')}.`);
   }
+  const fbUnread = b.messenger?.connected && !b.messenger.error ? (b.messenger.conversations || []).filter(c => c.unread) : [];
+  if (fbUnread.length) parts.push(`${cap(count(fbUnread.length, 'unread Facebook message'))}${fbUnread.length === 1 ? `, from ${fbUnread[0].name}` : ''}.`);
   const m = b.mail;
   if (m?.connected && !m.error) {
     if (m.unreadCount) parts.push(`${cap(count(m.unreadCount, 'unread email'))}${m.partsEmails?.length ? `, including ${m.partsEmails.length === 1 ? "one from O'Reilly" : `${count(m.partsEmails.length, "O'Reilly email")}`}` : ''}.`);
@@ -443,4 +539,11 @@ export function mailLine(m) {
   if (!m.unreadCount) return 'No unread email, sir.';
   const parts = m.partsEmails?.length ? `, ${m.partsEmails.length === 1 ? "one from O'Reilly" : `${count(m.partsEmails.length, "from O'Reilly", "from O'Reilly")}`}` : '';
   return `${cap(count(m.unreadCount, 'unread email'))}${parts}, sir.`;
+}
+
+export function leadsLine(leads = []) {
+  const open = leads.filter(l => ['new', 'no_response'].includes(l.status));
+  if (!open.length) return leads.length ? 'No new leads waiting, sir.' : 'No leads yet, sir.';
+  const first = open[0]; const name = `${first.fname || ''} ${first.lname || ''}`.trim() || 'someone';
+  return `${cap(count(open.length, 'new lead'))}, sir${open.length > 1 ? ` — the newest is ${name}` : `: ${name}`}.`;
 }
