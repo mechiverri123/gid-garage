@@ -40,3 +40,10 @@ export function ownerTakeHome(
   jobMargin: number; stripeFees: number; overhead: number; businessNet: number;
   inDeficit: boolean; taxReserve: number; takeHome: number;
 };
+
+export interface DayRange { from: string; to: string; days: number; key: string }
+export function dayRangeWindow(from: string, to: string): PeriodWindow & { from: string; to: string };
+export function resolveDayRange(spec?: Record<string, unknown> | string, now?: Date): DayRange;
+export function collectedByDay(jobs: MetricJob[], dayOf: (iso: string) => string): Map<string, number>;
+export function addDaysYmd(ymd: string, days: number): string;
+export function phoenixYmd(date: Date): string;

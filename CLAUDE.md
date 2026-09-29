@@ -28,6 +28,29 @@ Treat all business data, customer data, schedules, payments, outbound messages, 
   Never point a webhook, cron job or agent at a `/jarvis*` path.
 - Preserve this rule in every future architecture change or refactor.
 
+# 0.4 JARVIS VISUAL-FIRST INTERACTION RULE (permanent)
+
+Jarvis is the interactive command interface for GID Garage, not primarily a chatbot.
+
+- **Show, don't narrate.** When an answer can be shown with a real interface, Jarvis opens it on `/jarvis`. That covers jobs, one job's estimate/payment/inspection/notes/parts, the calendar, revenue for any period, the jobs list and customers.
+  - Voice/text gives one short sentence; the screen carries the detail.
+  - Examples: "Pull Jill's jobs" opens the job cards. "Revenue this month" opens the chart. "Show the last 13 days" redraws it for exactly today and the 12 days before.
+- **One workspace, never stacked modals.** Every view goes through one state machine, `shared/jarvis-workspace.js` (tested in `tests/jarvis-workspace.test.js`):
+  - it renders in the lazy overlay `src/command-center/workspace/`;
+  - the backend opens views by streaming `{type:'ui', action}` events from the `UI_TOOLS` in `admin-ai-chat.js` (`show_jobs`, `show_revenue`, `show_calendar`, `show_job_list`, `show_customers`, `control_screen`).
+  - UI tools are offered only when the request carries `ui.enabled` (the `/jarvis` page), never on Telegram.
+- **Context follow-ups.** Each question sends what's on screen (`describeScreen`), so "open the middle one", "its payment" and "close it" act on the visible content.
+  - Clear screen commands are handled on the page with no AI round trip (`parseLocalCommand`): close, tabs, positions, day counts, calendar words.
+  - Spoken ones work through the LiveKit user transcript.
+- **Reuse /admin logic, never redirect or copy data.** Jarvis views read and write the same bookings rows through the same calls as `/admin` (`get-booking`, `list-bookings`, `patch-booking`).
+  - Editing reuses the admin panels themselves (`EstimatePanel`, `PaymentPanel`, `InspectionPanel`, `PartsCostPanel`, `JobDetailPanel` as "Full editor", `ExternalLeadModal` as New Job). They're re-themed by the `.jv-skin` CSS, which is scoped so `/admin` looks unchanged.
+  - Status clicks use the shared `statusChangeFields` in `shared/business-rules.js`.
+  - Don't modify `/admin` for a Jarvis feature unless a truly shared backend abstraction needs a safe refactor.
+- **Money on screen is canonical.** `revenueRange` (business-data.js) uses inclusive Arizona day ranges (`resolveDayRange`/`dayRangeWindow`) and the canonical collected / net-profit math.
+  - On `/jarvis` the spoken number comes from the same `show_revenue` result as the chart.
+  - Test: `revenueRange` this month equals `revenueSummary` this month.
+- **Still to do:** "New Customer" and Settings still link to `/admin`. Voice-initiated "open" requests ("pull Jill's jobs" said aloud) need the LiveKit agent to emit ui events. Today only on-screen commands work by voice.
+
 # 0.3 COMMAND CENTER UI (redesign, 2026-09-28)
 
 - Design system: `src/command-center/ui/` (`theme.ts` palette, `primitives.tsx`, `charts.tsx` custom SVG, `JarvisOrb.tsx`, `useMapLibre.ts`, `command-center.css` scoped to `.cc-root`). Shell in `shell/`, dashboard sections in `dashboard/`, SEO in `seo/`.

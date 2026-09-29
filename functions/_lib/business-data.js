@@ -6,7 +6,7 @@
 
 import {
   resolvePeriodWindow, collectedRevenue, netProfit, jobFromRow, ownerPaySettings, ownerTakeHome,
-  revenueContributions, compareRevenuePeriods,
+  revenueContributions, compareRevenuePeriods, collectedByDay, resolveDayRange, dayRangeWindow, addDaysYmd, phoenixYmd,
 } from '../../shared/business-metrics.js';
 import {
   planPayment, dataHealthIssues, buildActionQueue, unpaidJobs, leadFollowUpReason,
@@ -84,7 +84,7 @@ export function createBusinessOps({ sbGet, sbPatch, sbInsert = null, now = () =>
   // Same rows the Schedule dashboard loads (list-bookings: all statuses,
   // newest 2000). Errors propagate — a failed load must not read as $0.
   const loadMetricJobs = () => sbGet('bookings', {
-    select: 'id,fname,lname,vehicle,date,job_status,status,paid_at,amount_paid,invoice_amount,tax_amount,parts_cost,payments',
+    select: 'id,fname,lname,vehicle,date,job_status,status,paid_at,amount_paid,invoice_amount,estimate_amount,tax_amount,parts_cost,payments',
     order: 'date.desc,time.desc',
     limit: '2000',
   });
@@ -114,6 +114,75 @@ export function createBusinessOps({ sbGet, sbPatch, sbInsert = null, now = () =>
         .sort((a, b) => b.c.collected - a.c.collected).slice(0, 60).map(({ job, c }) => contributionRow(job, c));
     }
     return out;
+  }
+
+  // Revenue for an exact Arizona day range (Jarvis analytics overlay): the same
+  // canonical collected/net-profit math as the dashboard, plus a per-day series,
+  // the same-length period before it, and what's still owed. spec: see resolveDayRange.
+  async function revenueRange(spec = {}) {
+    const n = now();
+    const r = resolveDayRange(spec, n);
+    const win = dayRangeWindow(r.from, r.to);
+    const prevWin = dayRangeWindow(addDaysYmd(r.from, -r.days), addDaysYmd(r.from, -1));
+    const jobs = (await loadMetricJobs()).map(jobFromRow);
+    const rev = collectedRevenue(jobs, win.inWindow);
+    const prev = collectedRevenue(jobs, prevWin.inWindow);
+    const perDay = collectedByDay(jobs, iso => phoenixYmd(new Date(iso)));
+    const series = [];
+    for (let d = r.from; d <= r.to; d = addDaysYmd(d, 1)) series.push({ date: d, collected: Math.round((perDay.get(d) || 0) * 100) / 100 });
+    const owed = unpaidJobs(jobs);
+    const round = x => Math.round(x * 100) / 100;
+    return {
+      from: r.from, to: r.to, days: r.days, key: r.key,
+      collected: round(rev.total),
+      netProfit: round(netProfit(jobs, win.inWindow)),
+      jobsPaid: rev.jobCount,
+      averageTicket: rev.jobCount ? round(rev.total / rev.jobCount) : null,
+      previous: { from: prevWin.from, to: prevWin.to, collected: round(prev.total) },
+      changePct: prev.total > 0 ? Math.round(((rev.total - prev.total) / prev.total) * 1000) / 10 : null,
+      outstanding: { count: owed.length, total: round(owed.reduce((t, u) => t + u.balance, 0)) },
+      series,
+      definition: 'Collected = customer money received on these Arizona calendar days (dashboard logic). Net profit = paid minus sales tax minus parts, for jobs closed out in the range. Outstanding = all completed/invoiced jobs with a balance, as of now.',
+    };
+  }
+
+  // Jobs to show as cards on /jarvis: "Jill's last three jobs", "the Acura brake
+  // job", or explicit ids. Newest `count` matches, laid out oldest -> newest
+  // (left to right) unless newest_first.
+  async function jobsForView({ customer, vehicle, service, job_ids, count, newest_first = false, include_cancelled = false } = {}) {
+    const ids = (Array.isArray(job_ids) ? job_ids : []).map(String).filter(Boolean).slice(0, 12);
+    let evidence; let subject = null;
+    if (ids.length) {
+      evidence = (await sbGet('bookings', { select: CONTEXT_COLUMNS, id: `in.(${ids.join(',')})` })).map(r => jobEvidence(r));
+    } else if (customer) {
+      const ctx = await customerContext({ query: customer });
+      if (ctx.status !== 'resolved') return { ...ctx, jobs: [] };
+      subject = ctx.customer.name;
+      evidence = ctx.jobsChronological;
+      if (vehicle) evidence = evidence.filter(j => vehicleMatches(j.vehicle, String(vehicle)));
+    } else if (vehicle) {
+      const vj = await vehicleJobs({ vehicle });
+      evidence = vj.jobs; subject = vj.vehicleQuery;
+    } else {
+      throw new Error('Name a customer, a vehicle, or job ids.');
+    }
+    const words = cleanSearchText(service).toLowerCase().split(' ').filter(w => w.length >= 3);
+    const describe = j => [j.serviceCategory?.label, ...(j.lineItems || []).map(li => li?.label ?? li), j.scopeOfWork, j.technicianNotes, j.bookingRequest?.text].filter(Boolean).join(' ').toLowerCase();
+    const matched = evidence
+      .filter(j => ids.length || include_cancelled || !j.cancelled)
+      .filter(j => !words.length || words.every(w => describe(j).includes(w.replace(/s$/, ''))))
+      .sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')));
+    const shown = matched.slice(0, Math.min(Math.max(Number(count) || 6, 1), 12));
+    if (!newest_first) shown.reverse();
+    const title = j => {
+      const items = (j.lineItems || []).map(li => li?.label ?? li).filter(l => l && !/mobile service fee/i.test(l));
+      return items.slice(0, 2).join(' + ') || j.serviceCategory?.label || 'Job';
+    };
+    return {
+      status: shown.length ? 'ok' : 'no_matching_jobs',
+      subject, totalMatching: matched.length, shown: shown.length, order: newest_first ? 'newest_first' : 'oldest_to_newest',
+      jobs: shown.map(j => ({ id: j.id, date: j.date, time: j.time || null, customer: j.customer || null, vehicle: j.vehicle, title: title(j), status: j.status, cancelled: !!j.cancelled, total: j.money ? (j.money.invoiceTotal ?? j.money.estimateTotal) : null })),
+    };
   }
 
   // Exact job-by-job reason two periods differ (e.g. last_30_days vs this_month).
@@ -506,7 +575,7 @@ export function createBusinessOps({ sbGet, sbPatch, sbInsert = null, now = () =>
 
   return {
     noteLinkFor, planNoteLinks, applyNoteLinks,
-    loadMetricJobs, patch, revenueSummary, comparePeriods, ownerPaySummary, findPeople, customerContext, vehicleJobs,
+    loadMetricJobs, patch, revenueSummary, revenueRange, jobsForView, comparePeriods, ownerPaySummary, findPeople, customerContext, vehicleJobs,
     resultSetDetails, jobDetail, cancelJob, reopenJob, actionCenter, unpaidSummary, dataHealth, businessSummary,
     ownerBriefing, recordPayment,
   };

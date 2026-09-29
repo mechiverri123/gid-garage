@@ -1,21 +1,21 @@
 // Left navigation. Expanded on wide screens, icon rail on laptops, drawer on
 // tablets/phones. Items link to real destinations: dashboard sections, SEO
-// mode, and the /admin tabs where jobs, customers and the schedule live.
+// mode, and Jarvis workspace views (jobs, customers, calendar, revenue).
 import { LayoutDashboard, Briefcase, Users, CalendarDays, Map as MapIcon, Megaphone, SearchCheck, BarChart3, Bot, Settings, Lock, X , type LucideIcon } from 'lucide-react';
 import { C } from '../ui/theme';
 
-export type NavTarget = { kind: 'mode'; mode: 'ops' | 'seo' } | { kind: 'section'; id: string } | { kind: 'href'; href: string };
+export type NavTarget = { kind: 'mode'; mode: 'ops' | 'seo' } | { kind: 'section'; id: string } | { kind: 'href'; href: string } | { kind: 'view'; view: { type: string; [k: string]: unknown } };
 export interface NavItem { key: string; label: string; icon: LucideIcon; target: NavTarget }
 
 export const NAV: NavItem[] = [
   { key: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, target: { kind: 'mode', mode: 'ops' } },
-  { key: 'jobs', label: 'Jobs', icon: Briefcase, target: { kind: 'href', href: '/admin?tab=jobs' } },
-  { key: 'customers', label: 'Customers', icon: Users, target: { kind: 'href', href: '/admin?tab=customers' } },
-  { key: 'calendar', label: 'Calendar', icon: CalendarDays, target: { kind: 'href', href: '/admin?tab=schedule' } },
+  { key: 'jobs', label: 'Jobs', icon: Briefcase, target: { kind: 'view', view: { type: 'jobList', status: 'active' } } },
+  { key: 'customers', label: 'Customers', icon: Users, target: { kind: 'view', view: { type: 'customers' } } },
+  { key: 'calendar', label: 'Calendar', icon: CalendarDays, target: { kind: 'view', view: { type: 'calendar', mode: 'week' } } },
   { key: 'map', label: 'Map', icon: MapIcon, target: { kind: 'section', id: 'cc-route' } },
   { key: 'marketing', label: 'Marketing', icon: Megaphone, target: { kind: 'section', id: 'cc-marketing' } },
   { key: 'seo', label: 'SEO', icon: SearchCheck, target: { kind: 'mode', mode: 'seo' } },
-  { key: 'reports', label: 'Reports', icon: BarChart3, target: { kind: 'href', href: '/admin?tab=pay' } },
+  { key: 'reports', label: 'Reports', icon: BarChart3, target: { kind: 'view', view: { type: 'analytics', range: { period: 'this_month' } } } },
   { key: 'jarvis', label: 'Jarvis', icon: Bot, target: { kind: 'section', id: 'cc-jarvis' } },
   { key: 'settings', label: 'Settings', icon: Settings, target: { kind: 'href', href: '/admin?tab=hub' } },
 ];

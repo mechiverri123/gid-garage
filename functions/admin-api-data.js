@@ -44,12 +44,14 @@
 //   delete-mileage        { id }                  -> { ok }
 //   get-tax-rate             {}                     -> { taxRate }
 //   set-tax-rate             { taxRate }            -> { ok }
+//   revenue-range           { range: {period|last_days|month|from,to} } -> canonical revenue for an Arizona day range
 //   get-owner-pay-settings   {}                     -> { taxReservePct, payAnchorDate, overheadItems, stripeFeePct }
 //   set-owner-pay-settings   { taxReservePct, payAnchorDate, overheadItems, stripeFeePct } -> { ok }
 
 import { runBackup, readBackupStatus, listBackups, restoreBackup, inspectBackupBookings } from './_lib/backup.js';
 import { reportError } from './_lib/sentry.js';
 import { trendSeries, activityFeed, todayRoute, weatherToday, monthStats, collectedTotals } from './_lib/command-center-extras.js';
+import { createBusinessOps } from './_lib/business-data.js';
 
 const GBP_REVIEW_URL = 'https://g.page/r/CdERSypGqVdlEBM/review';
 
@@ -949,6 +951,23 @@ export async function onRequestPost({ request, env }) {
         });
         if (!res.ok) return json({ error: await res.text() }, 502);
         return json({ ok: true, taxReservePct, payAnchorDate, overheadItems, stripeFeePct });
+      }
+
+      // Jarvis analytics overlay: canonical collected revenue for an exact
+      // Arizona day range (same function the /jarvis chat's show_revenue uses).
+      case 'revenue-range': {
+        const sbGet = async (table, params) => {
+          const r = await fetch(`${base}/${table}?${new URLSearchParams(params)}`, { headers });
+          if (!r.ok) throw new Error(await r.text());
+          return r.json();
+        };
+        const ops = createBusinessOps({ sbGet, sbPatch: () => { throw new Error('read-only'); } });
+        const range = payload.range && typeof payload.range === 'object' ? payload.range : { period: 'this_month' };
+        try {
+          return json(await ops.revenueRange(range));
+        } catch (e) {
+          return json({ error: e.message }, 400);
+        }
       }
 
       case 'paid-bookings': {

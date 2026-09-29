@@ -56,7 +56,7 @@ function NewLeadDialog({ onClose, onSaved }: { onClose: () => void; onSaved: () 
   );
 }
 
-export function QuickActionHero({ onLeadSaved }: { onLeadSaved: () => void }) {
+export function QuickActionHero({ onLeadSaved, onNewJob, onPickJob }: { onLeadSaved: () => void; onNewJob: () => void; onPickJob: () => void }) {
   const [newLead, setNewLead] = useState(false);
   return (
     <CommandCard variant="primary" className="p-5 overflow-hidden">
@@ -69,10 +69,10 @@ export function QuickActionHero({ onLeadSaved }: { onLeadSaved: () => void }) {
         </div>
       </div>
       <div className="relative grid grid-cols-2 gap-2.5">
-        <CommandButton icon={PlusCircle} label="New Job" hint="Jobs → New" href="/admin?tab=jobs" />
+        <CommandButton icon={PlusCircle} label="New Job" hint="Contact → date → estimate" onClick={onNewJob} />
         <CommandButton icon={UserPlus} label="New Lead" hint="Add it here" tone="purple" onClick={() => setNewLead(true)} />
         <CommandButton icon={Users} label="Add Customer" hint="Customers" tone="green" href="/admin?tab=customers" />
-        <CommandButton icon={FileText} label="Send Estimate" hint="From a job" tone="amber" href="/admin?tab=jobs" />
+        <CommandButton icon={FileText} label="Send Estimate" hint="Pick a job" tone="amber" onClick={onPickJob} />
       </div>
       {newLead && <NewLeadDialog onClose={() => setNewLead(false)} onSaved={onLeadSaved} />}
     </CommandCard>
@@ -176,7 +176,7 @@ export function RecentActivity({ summary }: { summary: CommandCenterSummary }) {
 
 // ---- upcoming jobs -------------------------------------------------------------------------------
 
-export function UpcomingJobsTable({ jobs, onSelect }: { jobs: UpcomingJob[]; onSelect: (id: string) => void }) {
+export function UpcomingJobsTable({ jobs, onSelect, onCalendar }: { jobs: UpcomingJob[]; onSelect: (id: string) => void; onCalendar: () => void }) {
   const cols: Column<UpcomingJob>[] = [
     { key: 'date', header: 'Date', width: '17%', render: j => <span className="font-medium">{shortDay(j.date)}</span> },
     { key: 'time', header: 'Time', width: '12%', render: j => <span className="tabular-nums" style={{ color: C.text2 }}>{clock(j.time)}</span> },
@@ -188,7 +188,7 @@ export function UpcomingJobsTable({ jobs, onSelect }: { jobs: UpcomingJob[]; onS
   ];
   return (
     <CommandCard className="p-5 h-full">
-      <SectionHeader icon={CalendarRange} title="Upcoming jobs" subtitle="Today and the next 7 days" right={<ActionButton size="sm" href="/admin?tab=schedule">Full schedule</ActionButton>} />
+      <SectionHeader icon={CalendarRange} title="Upcoming jobs" subtitle="Today and the next 7 days" right={<ActionButton size="sm" onClick={onCalendar}>Calendar</ActionButton>} />
       <DataTable columns={cols} rows={jobs} rowKey={j => j.id} onRowClick={j => onSelect(j.id)}
         empty={<EmptyState icon={CalendarRange} title="Nothing on the books">No jobs in the next 7 days.</EmptyState>} />
     </CommandCard>

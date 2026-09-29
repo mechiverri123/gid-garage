@@ -5,7 +5,15 @@ import type { UiModeEvent } from '../seo/uiMode';
 const SUCCESS_PULSE_MS = 500;
 const ERROR_PULSE_MS = 600;
 
-export function useAdminAI(onWriteLikelyHappened: () => void, onFinalText?: (text: string) => void | Promise<void>, onUiEvent?: (e: UiModeEvent) => void) {
+// Screen hooks for /jarvis: `getScreen` describes what's open (sent with each
+// question so "the brake one" resolves); `onWorkspace` applies the `ui` actions
+// the backend streams (shared/jarvis-workspace.js). Telegram never sends these.
+export interface ScreenHooks {
+  getScreen?: () => unknown;
+  onWorkspace?: (action: unknown, data?: unknown) => void;
+}
+
+export function useAdminAI(onWriteLikelyHappened: () => void, onFinalText?: (text: string) => void | Promise<void>, onUiEvent?: (e: UiModeEvent) => void, screen?: ScreenHooks) {
   const [chatMessages, setChatMessages] = useState<ChatMsg[]>([]);
   const [asking, setAsking] = useState(false);
   const [liveActivity, setLiveActivity] = useState<ActivityItem[]>([]);
@@ -34,7 +42,7 @@ export function useAdminAI(onWriteLikelyHappened: () => void, onFinalText?: (tex
       const res = await fetch('/admin-ai-chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: nextMessages, context: contextRef.current }),
+        body: JSON.stringify({ messages: nextMessages, context: contextRef.current, ...(screen ? { ui: { enabled: true, screen: screen.getScreen?.() ?? null } } : {}) }),
       });
       if (!res.ok) throw new Error(await res.text());
       if (!res.body) throw new Error('No response stream.');
@@ -73,6 +81,8 @@ export function useAdminAI(onWriteLikelyHappened: () => void, onFinalText?: (tex
             // Trusted UI state from the backend: ui_focus brings an SEO panel to the
             // center; ui_mode (every turn) switches between SEO and operations.
             onUiEvent?.(event as UiModeEvent);
+          } else if (event.type === 'ui') {
+            screen?.onWorkspace?.(event.action, event.data);
           } else if (event.type === 'context') {
             contextRef.current = event.context ?? null;
           } else if (event.type === 'data') {
@@ -107,7 +117,13 @@ export function useAdminAI(onWriteLikelyHappened: () => void, onFinalText?: (tex
     } finally {
       setAsking(false);
     }
-  }, [asking, chatMessages, onWriteLikelyHappened, onFinalText, onUiEvent, pulse]);
+  }, [asking, chatMessages, onWriteLikelyHappened, onFinalText, onUiEvent, pulse, screen]);
+
+  // A screen command handled on the page (close, tabs, "53 days") — shown in
+  // the transcript so the history stays honest, without a server round trip.
+  const addLocal = useCallback((question: string, reply: string) => {
+    setChatMessages(prev => [...prev, { role: 'user', content: question }, { role: 'assistant', content: reply }]);
+  }, []);
 
   const clear = useCallback(() => {
     setChatMessages([]);
@@ -116,5 +132,5 @@ export function useAdminAI(onWriteLikelyHappened: () => void, onFinalText?: (tex
     setJarvisState('idle');
   }, []);
 
-  return { chatMessages, asking, liveActivity, jarvisState, ask, clear };
+  return { chatMessages, asking, liveActivity, jarvisState, ask, clear, addLocal };
 }

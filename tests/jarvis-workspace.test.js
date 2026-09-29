@@ -1,0 +1,164 @@
+// Jarvis visual workspace: overlay state, on-screen commands, calendar words,
+// and the exact day ranges the analytics overlay uses.
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { workspaceReduce, parseLocalCommand, resolveCalendarWhen, describeScreen, INITIAL_WORKSPACE, workspaceTop } from '../shared/jarvis-workspace.js';
+import { resolveDayRange, dayRangeWindow } from '../shared/business-metrics.js';
+import { statusChangeFields } from '../shared/business-rules.js';
+
+const run = (actions, s = INITIAL_WORKSPACE) => actions.reduce(workspaceReduce, s);
+const three = { type: 'open', view: { type: 'jobs', jobIds: ['a', 'b', 'c'] } };
+const META = [{ label: 'Full Synthetic Oil Change 2015 Acura TLX', date: '2026-09-21' }, { label: 'Transmission Diagnostic 2015 Acura TLX', date: '2026-09-24' }, { label: 'Front Brake & Transmission Service 2015 Acura TLX', date: '2026-09-26' }];
+const cmd = (text, s, extra = {}) => parseLocalCommand(text, s, { meta: META, today: '2026-09-28', ...extra });
+
+test('Jill workflow: three cards -> middle -> inspection -> payment -> close it -> close jobs', () => {
+  let s = run([three]);
+  assert.deepEqual(workspaceTop(s), { type: 'jobs', jobIds: ['a', 'b', 'c'], focus: 1, expanded: false, tab: 'overview', title: null });
+  s = workspaceReduce(s, cmd('open the middle one', s));
+  assert.equal(workspaceTop(s).focus, 1); assert.equal(workspaceTop(s).expanded, true);
+  s = workspaceReduce(s, cmd('Show the inspection.', s));
+  assert.equal(workspaceTop(s).tab, 'inspection');
+  s = workspaceReduce(s, cmd('payment', s));
+  assert.equal(workspaceTop(s).tab, 'payment');
+  s = workspaceReduce(s, cmd('close it', s)); // back to the three cards
+  assert.equal(workspaceTop(s).expanded, false); assert.equal(s.stack.length, 1);
+  s = workspaceReduce(s, cmd('Jarvis close jobs', s));
+  assert.deepEqual(s, INITIAL_WORKSPACE);
+});
+
+test('close words: one level vs everything', () => {
+  const open = run([three, { type: 'focus', index: 2, expand: true }]);
+  for (const t of ['close', 'close it', 'close that', 'go back', 'back', 'close the job']) assert.deepEqual(cmd(t, open), { type: 'close' }, t);
+  for (const t of ['exit', 'Jarvis exit', 'close jobs', 'close all jobs', 'close everything', 'get rid of these', 'back to Jarvis', 'close these']) assert.deepEqual(cmd(t, open), { type: 'close_all' }, t);
+  assert.equal(cmd('close', INITIAL_WORKSPACE).type, 'noop');
+});
+
+test('picking a job by position, date or what it was', () => {
+  const s = run([three]);
+  assert.equal(cmd('open the first one', s).index, 0);
+  assert.equal(cmd('the last one', s).index, 2);
+  assert.equal(cmd('show the newest', s).index, 2);
+  assert.equal(cmd('oldest', s).index, 0);
+  assert.equal(cmd('open the brake one', s).index, 2);
+  assert.equal(cmd('the brake one', s).index, 2);
+  assert.equal(cmd('that oil change job', s).index, 0);
+  assert.equal(cmd('open the oil change', s).index, 0);
+  assert.equal(cmd('open the transmission one', s), null); // two match -> ask the AI with the screen context
+  assert.equal(cmd('number 2', s).index, 1);
+  assert.equal(cmd('what did jill pay for the brakes?', s), null); // a real question is not a screen command
+});
+
+test('focused tab words', () => {
+  const s = run([three]);
+  const tab = t => cmd(t, s)?.tab;
+  assert.equal(tab('show diagnostic notes'), 'notes');
+  assert.equal(tab('go to payment'), 'payment');
+  assert.equal(tab('estimate'), 'estimate');
+  assert.equal(tab('open parts'), 'parts');
+  assert.equal(tab('show me the overview'), 'overview');
+});
+
+test('analytics follow-ups resolve exact day counts', () => {
+  const s = run([{ type: 'open', view: { type: 'analytics', range: { period: 'this_month' } } }]);
+  assert.deepEqual(cmd('show me the last 13 days', s), { type: 'range', range: { last_days: 13 } });
+  assert.deepEqual(cmd('53 days', s), { type: 'range', range: { last_days: 53 } });
+  assert.deepEqual(cmd('graph the past 7 days', s), { type: 'range', range: { last_days: 7 } });
+  assert.deepEqual(cmd('last month', s), { type: 'range', range: { period: 'last_month' } });
+  const now = new Date('2026-09-28T19:00:00Z');
+  assert.deepEqual(resolveDayRange({ period: 'this_month' }, now), { from: '2026-09-01', to: '2026-09-28', days: 28, key: 'this_month' });
+  assert.deepEqual(resolveDayRange({ last_days: 13 }, now), { from: '2026-09-16', to: '2026-09-28', days: 13, key: 'last_13_days' });
+  assert.deepEqual(resolveDayRange({ last_days: 53 }, now), { from: '2026-08-07', to: '2026-09-28', days: 53, key: 'last_53_days' });
+  assert.equal(resolveDayRange({ month: 'October' }, now).from, '2025-10-01'); // the most recent October
+  assert.equal(resolveDayRange({ from: '2026-09-10', to: '2026-12-01' }, now).to, '2026-09-28'); // never into the future
+  assert.throws(() => resolveDayRange({ from: '2026-09-20', to: '2026-09-10' }, now));
+});
+
+test('Arizona day window: 11:30 PM Phoenix on the 30th is still the 30th', () => {
+  const w = dayRangeWindow('2026-09-01', '2026-09-30');
+  assert.equal(w.inWindow('2026-10-01T06:30:00Z'), true); // 11:30 PM MST Sep 30
+  assert.equal(w.inWindow('2026-10-01T07:30:00Z'), false); // 12:30 AM MST Oct 1
+  assert.equal(w.days, 30);
+});
+
+test('calendar words (today is Monday 2026-09-28)', () => {
+  assert.deepEqual(resolveCalendarWhen('tomorrow', '2026-09-28'), { date: '2026-09-29', mode: 'day' });
+  assert.deepEqual(resolveCalendarWhen('friday', '2026-09-28'), { date: '2026-10-02', mode: 'day' });
+  assert.deepEqual(resolveCalendarWhen('monday', '2026-09-28'), { date: '2026-09-28', mode: 'day' });
+  assert.deepEqual(resolveCalendarWhen('next monday', '2026-09-28'), { date: '2026-10-05', mode: 'day' });
+  assert.deepEqual(resolveCalendarWhen('next week', '2026-09-28'), { date: '2026-10-05', mode: 'week' });
+  const cal = run([{ type: 'open', view: { type: 'calendar', date: '2026-09-28', mode: 'week' } }]);
+  assert.deepEqual(cmd('what do I have friday', cal), { type: 'calendar', date: '2026-10-02', mode: 'day' });
+  assert.deepEqual(cmd('month view', cal), { type: 'calendar', mode: 'month' });
+});
+
+test('a job opened from the calendar closes back to the calendar', () => {
+  let s = run([{ type: 'open', view: { type: 'calendar', date: '2026-09-28', mode: 'week' } }, { type: 'open', view: { type: 'jobs', jobIds: ['x'] } }]);
+  assert.equal(s.stack.length, 2);
+  assert.equal(workspaceTop(s).expanded, true); // a single job opens straight to focus
+  s = workspaceReduce(s, { type: 'close' });
+  assert.equal(workspaceTop(s).type, 'calendar');
+  // A new answer replaces the screen instead of piling up modals.
+  s = workspaceReduce(s, { type: 'open', view: { type: 'analytics', range: { last_days: 7 } } });
+  assert.deepEqual(s.stack.map(v => v.type), ['analytics']);
+});
+
+test('bad views from the backend are ignored', () => {
+  assert.deepEqual(workspaceReduce(INITIAL_WORKSPACE, { type: 'open', view: { type: 'jobs', jobIds: [] } }), INITIAL_WORKSPACE);
+  assert.deepEqual(workspaceReduce(INITIAL_WORKSPACE, { type: 'open', view: { type: 'admin' } }), INITIAL_WORKSPACE);
+  assert.equal(workspaceTop(workspaceReduce(INITIAL_WORKSPACE, { type: 'open', view: { type: 'jobs', jobIds: ['a', 'b'], tab: 'nope', focus: 9 } })).focus, 1);
+});
+
+test('screen description gives the model real ids and positions', () => {
+  const d = describeScreen(run([three]), META);
+  assert.equal(d.focusedJobId, 'b');
+  assert.deepEqual(d.jobs.map(j => [j.position, j.id]), [[1, 'a'], [2, 'b'], [3, 'c']]);
+  assert.equal(describeScreen(INITIAL_WORKSPACE), null);
+});
+
+test('status clicks write the same fields in admin and Jarvis', () => {
+  assert.deepEqual(statusChangeFields('BOOKED', 'IN_PROGRESS'), { job_status: 'IN_PROGRESS' });
+  assert.deepEqual(statusChangeFields('BOOKED', 'CANCELLED'), { job_status: 'CANCELLED', status: 'cancelled' });
+  assert.deepEqual(statusChangeFields('CANCELLED', 'BOOKED'), { job_status: 'BOOKED', status: 'confirmed' });
+});
+
+// ---- backend: the chart and the spoken answer use the same numbers --------------
+import { createBusinessOps } from '../functions/_lib/business-data.js';
+
+const ROWS = [
+  { id: 'j1', fname: 'Jill', lname: 'Castle', vehicle: '2015 Acura TLX', date: '2026-09-21', job_status: 'PAID', status: 'completed', paid_at: '2026-09-21T20:00:00Z', amount_paid: 111.39, invoice_amount: 102, tax_amount: 9.39, parts_cost: 40, payments: [{ amount: 111.39, at: '2026-09-21T20:00:00Z', method: 'Card' }], line_items: [{ label: 'Full Synthetic Oil', amount: 102, type: 'fixed' }] },
+  { id: 'j2', fname: 'Jill', lname: 'Castle', vehicle: '2015 Acura TLX', date: '2026-09-26', job_status: 'PAID', status: 'completed', paid_at: '2026-09-27T06:30:00Z', amount_paid: 771.37, invoice_amount: 705.19, tax_amount: 66.18, parts_cost: 210, payments: [], line_items: [{ label: 'Front Pads', amount: 300, type: 'parts' }] },
+  { id: 'j3', fname: 'Bo', lname: 'Lee', vehicle: '2012 F-150', date: '2026-08-02', job_status: 'PAID', status: 'completed', paid_at: '2026-08-02T18:00:00Z', amount_paid: 50, invoice_amount: 46, tax_amount: 4, payments: [{ amount: 50, at: '2026-08-02T18:00:00Z' }] },
+  { id: 'j4', fname: 'Al', lname: 'Ray', vehicle: '2019 Civic', date: '2026-09-25', job_status: 'INVOICED', status: 'confirmed', invoice_amount: 200, tax_amount: 18.77, amount_paid: 0, payments: [] },
+];
+const fakeOps = () => createBusinessOps({
+  sbGet: async (table, params) => {
+    if (table !== 'bookings') return [];
+    if (params.id?.startsWith('in.(')) { const ids = params.id.slice(4, -1).split(','); return ROWS.filter(r => ids.includes(r.id)); }
+    return ROWS;
+  },
+  sbPatch: () => { throw new Error('read only'); },
+  now: () => new Date('2026-09-28T19:00:00Z'),
+});
+
+test('show_revenue (this month) equals get_revenue_summary (this month)', async () => {
+  const ops = fakeOps();
+  const r = await ops.revenueRange({ period: 'this_month' });
+  const s = await ops.revenueSummary({ period: 'this_month' });
+  assert.equal(`$${r.collected.toFixed(2)}`, s.grossCollected);
+  assert.equal(`$${r.netProfit.toFixed(2)}`, s.netProfit);
+  assert.equal(r.collected, 882.76); // paid-invoice fallback for j2 counted on Sep 26 in Arizona
+  assert.equal(r.series.length, 28);
+  assert.equal(r.series.find(d => d.date === '2026-09-26').collected, 771.37);
+  assert.equal(r.jobsPaid, 2);
+  assert.deepEqual(r.outstanding, { count: 1, total: 218.77 });
+  assert.equal(r.previous.from, '2026-08-04'); // the 28 days before Sep 1
+});
+
+test('show_jobs lays cards out oldest to newest, newest N kept', async () => {
+  const ops = fakeOps();
+  const v = await ops.jobsForView({ job_ids: ['j2', 'j1', 'j3'], count: 2 });
+  assert.deepEqual(v.jobs.map(j => j.id), ['j1', 'j2']);
+  assert.equal(v.jobs[1].total, 771.37);
+  const nf = await ops.jobsForView({ job_ids: ['j2', 'j1'], newest_first: true });
+  assert.deepEqual(nf.jobs.map(j => j.id), ['j2', 'j1']);
+});

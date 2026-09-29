@@ -102,6 +102,16 @@ export function reopenJobPlan(job) {
   return { fields: { job_status: 'BOOKED', status: 'confirmed' }, before: { job_status: job.jobStatus ?? null, status: job.status ?? null } };
 }
 
+// Fields a pipeline status click writes (admin Job Overview and Jarvis). The
+// booking's own `status` drives the calendar, so cancelling/reopening keeps
+// both columns in agreement.
+export function statusChangeFields(currentJobStatus, next) {
+  const fields = { job_status: next };
+  if (next === 'CANCELLED') fields.status = 'cancelled';
+  else if (currentJobStatus === 'CANCELLED') fields.status = 'confirmed';
+  return fields;
+}
+
 // Work is done but the job isn't PAID. Same set as the dashboard's "Unpaid / Due".
 export function isAwaitingPayment(job) {
   return !isCancelled(job) && (job.jobStatus === 'COMPLETED' || job.jobStatus === 'INVOICED');

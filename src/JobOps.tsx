@@ -6,7 +6,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { decodeVin, cleanVin, vinCheckDigitOk } from './vinDecode';
 import { resolvePeriodWindow, collectedRevenue, netProfit, cardRevenue, ownerTakeHome } from '../shared/business-metrics.js';
-import { isAwaitingPayment } from '../shared/business-rules.js';
+import { isAwaitingPayment, statusChangeFields } from '../shared/business-rules.js';
 
 // Emails now sent server-side — BREVO_API_KEY removed from client bundle
 const STRIPE_PK = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY as string;
@@ -148,6 +148,12 @@ function loadStripe(publishableKey: string): Promise<any> {
 // rate loads from Supabase (see initTaxRate()); editable in Hub → Taxes.
 let TAX_RATE = 0.09386; // 9.386%
 function setTaxRate(rate: number) { if (rate > 0 && rate < 1) TAX_RATE = rate; }
+// Other screens that reuse the job panels (/jarvis) load the live rate the
+// same way the Jobs tab does, so estimate math never runs on the fallback.
+export async function syncTaxRate() {
+  const data: any = await adminPost('get-tax-rate');
+  if (data?.taxRate) setTaxRate(Number(data.taxRate));
+}
 function taxRatePercentLabel(): string { return (TAX_RATE * 100).toFixed(3); }
 // AZ TPT does NOT apply to labor or the mobile service/travel fee. Everything else
 // (parts, flat service charges, misc add-on lines) is taxable. calcTax(subtotal) is a
@@ -671,7 +677,7 @@ export async function getJobByIdPublic(id: string): Promise<Job | null> {
 }
 
 // ADMIN mutations (behind Cloudflare Access)
-async function patchJob(id: string, fields: Record<string, any>) {
+export async function patchJob(id: string, fields: Record<string, any>) {
   await adminPostIdempotent('patch-booking', { id, fields });
 }
 
@@ -818,7 +824,7 @@ const AUDIO_LABELS: Record<string, string> = {
   full_system:           'Full Sound System',
 };
 
-function resolveServiceName(service: string, notes: string): string {
+export function resolveServiceName(service: string, notes: string): string {
   const base = SERVICE_NAMES[service] ?? service;
   if (service === 'brakes') {
     const match = notes.match(/Brake service: ([^|]+)/);
@@ -1530,7 +1536,7 @@ function AdminPhotoPanel({ entityId, onSave, initialPhotos, onPhotosChange }: {
   );
 }
 
-function PartsCostPanel({ job, onUpdate }: { job: Job; onUpdate: (j: Job) => void }) {
+export function PartsCostPanel({ job, onUpdate }: { job: Job; onUpdate: (j: Job) => void }) {
   const [costInput, setCostInput] = useState(job.partsCost != null ? String(job.partsCost) : '');
   const [savingCost, setSavingCost] = useState(false);
   const [costSaved, setCostSaved] = useState(false);
@@ -2161,7 +2167,7 @@ const TIRE_POSITIONS = [
   { key: 'rr', label: 'RR' },
 ] as const;
 
-function InspectionPanel({ job, onUpdate }: { job: Job; onUpdate: (j: Job) => void }) {
+export function InspectionPanel({ job, onUpdate }: { job: Job; onUpdate: (j: Job) => void }) {
   const init = job.inspectionData ?? { tirePressure: { ...EMPTY_TIRES }, tireTread: { ...EMPTY_TIRES }, dtcCodes: [] };
   const [pressure, setPressure] = useState<TireReading>({ ...init.tirePressure });
   const [tread, setTread] = useState<TireReading>({ ...init.tireTread });
@@ -2288,7 +2294,7 @@ function InspectionPanel({ job, onUpdate }: { job: Job; onUpdate: (j: Job) => vo
 
 // ── ESTIMATE PANEL (inside admin job detail) ──────────────────────────────────
 
-function EstimatePanel({ job, onUpdate }: { job: Job; onUpdate: (j: Job) => void }) {
+export function EstimatePanel({ job, onUpdate }: { job: Job; onUpdate: (j: Job) => void }) {
   const [lineItems, setLineItems] = useState<LineItem[]>(job.lineItems?.length ? job.lineItems : [
     { id: 'mobile', label: 'Mobile Service Fee', amount: MOBILE_FEE, type: 'mobile' },
   ]);
@@ -2685,7 +2691,7 @@ function ReviewStatusToggle({ job, onUpdate }: { job: Job; onUpdate: (j: Job) =>
   );
 }
 
-function PaymentPanel({ job, onUpdate, onRequote }: { job: Job; onUpdate: (j: Job) => void; onRequote?: () => void }) {
+export function PaymentPanel({ job, onUpdate, onRequote }: { job: Job; onUpdate: (j: Job) => void; onRequote?: () => void }) {
   const [invoiceAmt, setInvoiceAmt] = useState(job.invoiceAmount?.toString() ?? job.estimateAmount?.toString() ?? '');
   const [stripeId, setStripeId] = useState(job.stripeTransactionId);
   const [saving, setSaving] = useState(false);
@@ -3924,7 +3930,7 @@ function JobMileageBox({ job }: { job: Job }) {
 
 
 
-const JOB_PIPELINE: JobStatus[] = ['BOOKED', 'ESTIMATE_SENT', 'SIGNED', 'IN_PROGRESS', 'COMPLETED', 'INVOICED', 'PAID'];
+export const JOB_PIPELINE: JobStatus[] = ['BOOKED', 'ESTIMATE_SENT', 'SIGNED', 'IN_PROGRESS', 'COMPLETED', 'INVOICED', 'PAID'];
 
 export function JobDetailPanel({ job: initialJob, onClose, onJobUpdate, backLabel = 'Back', allJobs = [], onSelectJob }: {
   job: Job;
@@ -4113,10 +4119,7 @@ export function JobDetailPanel({ job: initialJob, onClose, onJobUpdate, backLabe
     // this tab would still show up as a live "confirmed" appointment on the
     // calendar. Keep both fields in sync no matter which side you cancel
     // from, so the appointment and the job always agree.
-    const fields: Record<string, any> = { job_status: s };
-    if (s === 'CANCELLED') fields.status = 'cancelled';
-    else if (job.jobStatus === 'CANCELLED') fields.status = 'confirmed';
-    await patchJob(job.id, fields);
+    await patchJob(job.id, statusChangeFields(job.jobStatus, s));
     handleUpdate({ ...job, jobStatus: s });
   }
 
@@ -5059,7 +5062,7 @@ const SERVICE_ICONS: Record<string, string> = {
 // External leads are, by definition, unsigned — nothing has been agreed to yet,
 // so this flow only ever produces an Estimate. Invoicing happens later, through
 // the normal job pipeline (Payment tab), once the customer has actually signed.
-function ExternalLeadModal({ onClose, onAdded, jobs }: { onClose: () => void; onAdded: (job: Job) => void; jobs: Job[] }) {
+export function ExternalLeadModal({ onClose, onAdded, jobs }: { onClose: () => void; onAdded: (job: Job) => void; jobs: Job[] }) {
   // Step 1: contact + vehicle (with previous-customer search/autofill). Step 2:
   // service date. Step 3: line item builder (same math as EstimatePanel).
   // Step 4: done — copy link or send.

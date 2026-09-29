@@ -35,6 +35,7 @@ import { isInsideServiceArea } from '../shared/seo/service-area.js';
 import { ownerPaySettings } from '../shared/business-metrics.js';
 import { SETTABLE_JOB_STATUSES, PAYMENT_METHODS, leadStatusUpdate, leadFollowUpReason, isValidYmd, isValidApptTime, noteContactKey } from '../shared/business-rules.js';
 import { jobEvidence } from '../shared/job-context.js';
+import { JOB_TABS, CALENDAR_MODES, resolveCalendarWhen } from '../shared/jarvis-workspace.js';
 
 const CLAUDE_MODEL = 'claude-haiku-4-5-20251001';
 const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
@@ -292,6 +293,83 @@ OWNER ASSISTANT BEHAVIOR:
 - CRITICAL: For relative reminders like 'in 2 minutes', 'in 3 hours', or 'in 2 days', NEVER calculate a clock time yourself. Use create_reminder with due_in_minutes (2 minutes = 2, 3 hours = 180, 2 days = 2880). Use due_at_local only when Michael gives a calendar/clock time like 'tomorrow at 9 AM' or 'Friday at 3'.
 
 Today's date context is provided in each request — use it for "today", "this week", "next Tuesday" type questions.`;
+
+// ---- /jarvis screen tools (visual-first) -----------------------------------
+// Only offered when the request comes from the /jarvis page (payload.ui), never
+// Telegram. Each opens a view through the page's workspace (shared/jarvis-workspace.js)
+// via a `ui` NDJSON event; the tool result gives the model the facts for a
+// one-sentence reply. The screen shows the detail.
+const UI_TOOLS = [
+  {
+    name: 'show_jobs',
+    description: "Open job cards on the owner's screen; the screen is the answer. Use for 'pull/show/open <customer>'s jobs', 'Jill's last three jobs', 'show me the brake job', 'open Robert's estimate' (tab estimate), 'show the inspection from Jill's Acura' (tab inspection), 'show yesterday's F-150'. Give customer and/or vehicle and/or service words, or job_ids from earlier results. It finds the customer itself: call it directly, never look the customer up first. Cards read oldest to newest, left to right, unless newest_first.",
+    input_schema: {
+      type: 'object',
+      properties: {
+        customer: { type: 'string', description: 'Customer name as the owner said it.' },
+        vehicle: { type: 'string', description: 'Vehicle words, e.g. "Acura", "F-150".' },
+        service: { type: 'string', description: 'Work words to narrow to, e.g. "brake".' },
+        job_ids: { type: 'array', items: { type: 'string' } },
+        count: { type: 'number', description: 'How many of the most recent matches ("last three" = 3). Omit for all (max 12).' },
+        newest_first: { type: 'boolean', description: 'Only when the owner literally asks for newest first / newest to oldest. "Last three" or "most recent" means the three newest jobs, still laid out oldest to newest: leave this false.' },
+        tab: { type: 'string', enum: JOB_TABS, description: 'Open straight to this tab (estimate, payment, inspection, notes, parts).' },
+        focus: { type: 'string', enum: ['oldest', 'middle', 'newest'], description: 'Which card to center. Default middle.' },
+      },
+    },
+  },
+  {
+    name: 'show_revenue',
+    description: "Open the revenue chart for an exact period and get its numbers: collected, net profit, jobs paid, average ticket, change vs the previous same-length period, and outstanding balances. On this screen use it for EVERY revenue / sales / collected / net profit / 'how much have we done' question, including follow-ups like '13 days'. Give exactly one of: period, last_days, month, or from (+ to). last_days N = today and the N-1 days before it. Never compute dates yourself.",
+    input_schema: {
+      type: 'object',
+      properties: {
+        period: { type: 'string', enum: ['today', 'yesterday', 'this_week', 'this_month', 'last_month', 'this_year'] },
+        last_days: { type: 'number' },
+        month: { type: 'string', description: 'Month name or YYYY-MM, e.g. "september".' },
+        from: { type: 'string', description: 'YYYY-MM-DD, only when the owner states a date ("since September 10").' },
+        to: { type: 'string', description: 'YYYY-MM-DD; defaults to today.' },
+      },
+    },
+  },
+  {
+    name: 'show_calendar',
+    description: "Open the calendar (the same appointments as the admin schedule). Use for 'open calendar', 'show today/tomorrow/this week/next week', 'what do I have Friday'. Appointments on it open their job.",
+    input_schema: {
+      type: 'object',
+      properties: {
+        when: { type: 'string', description: 'today, tomorrow, this week, next week, this month, next month, a weekday ("friday", "next monday"), or YYYY-MM-DD.' },
+        mode: { type: 'string', enum: CALENDAR_MODES },
+      },
+    },
+  },
+  {
+    name: 'show_job_list',
+    description: 'Open the searchable jobs list. status: active (default), unpaid, all, or a pipeline status like BOOKED.',
+    input_schema: { type: 'object', properties: { query: { type: 'string' }, status: { type: 'string' } } },
+  },
+  {
+    name: 'show_customers',
+    description: 'Open the customer list (optionally filtered by a name/phone/vehicle query).',
+    input_schema: { type: 'object', properties: { query: { type: 'string' } } },
+  },
+  {
+    name: 'control_screen',
+    description: "Change what is on screen, using the SCREEN context: close (one level: a focused job back to the cards, or the current view), close_all (back to the normal Jarvis screen), focus a job card (job_id, or 1-based position), or tab (switch the focused job to overview/estimate/payment/inspection/notes/parts; give job_id too to focus it first).",
+    input_schema: {
+      type: 'object',
+      properties: {
+        action: { type: 'string', enum: ['close', 'close_all', 'focus', 'tab'] },
+        job_id: { type: 'string' },
+        position: { type: 'number' },
+        tab: { type: 'string', enum: JOB_TABS },
+      },
+      required: ['action'],
+    },
+  },
+];
+const UI_TOOL_NAMES = new Set(UI_TOOLS.map(t => t.name));
+
+const VISUAL_FIRST = "VISUAL-FIRST: The owner is looking at the /jarvis screen. When the answer can be shown (jobs, one job or its estimate/payment/inspection/notes/parts, the calendar, revenue or net profit for any period, the jobs list, customers), call the matching show_* tool first (no lookups before it; show_* tools resolve names and dates themselves) and reply in ONE short sentence, e.g. \"Pulling up Jill's three jobs.\" or \"September revenue is $4,439.02 so far.\" Never list or describe what the screen shows (no dates, services or amounts per job) unless asked to read it out. When a tool result has `say`, reply with exactly that. For money on this screen use show_revenue (not get_revenue_summary) so the spoken number matches the chart. For what is already on screen (\"the brake one\", \"its payment\", \"close it\", \"53 days\") use control_screen or show_revenue with the SCREEN context. Writes still use the normal tools and confirmations.";
 
 // SEO tool -> SEO Mode panel the Command Center should bring to the center.
 const SEO_FOCUS = {
@@ -830,6 +908,8 @@ export async function onRequestPost({ request, env }) {
   const latestUserText = typeof latestUserMessage?.content === 'string' ? latestUserMessage.content : '';
   const forceNaturalNoteCapture = isLikelyNaturalBusinessNote(latestUserText);
   const priorContext = payload.context && typeof payload.context === 'object' ? payload.context : null;
+  // Present only from the /jarvis page: it can render views (see UI_TOOLS).
+  const uiScreen = payload.ui && typeof payload.ui === 'object' && payload.ui.enabled === true ? payload.ui : null;
   const focusedIntent = forceNaturalNoteCapture ? null : classifyWithContext(latestUserText, priorContext);
   if (isPastedLeadForm(latestUserText)) {
     const fields = parseRawLeadForm(latestUserText);
@@ -1387,6 +1467,55 @@ export async function onRequestPost({ request, env }) {
       case 'update_seo_recommendation':
         return await seo().updateRecommendation({ id: String(input.id || ''), action: String(input.action || ''), reason: String(input.reason || ''), note: String(input.note || '') });
 
+      case 'show_jobs': {
+        const r = await ops.jobsForView({
+          customer: input.customer, vehicle: input.vehicle, service: input.service, job_ids: input.job_ids,
+          count: input.count, newest_first: input.newest_first === true,
+        });
+        if (!r.jobs?.length) return r;
+        const n = r.jobs.length;
+        const newestIdx = r.order === 'newest_first' ? 0 : n - 1;
+        const focus = input.focus === 'newest' ? newestIdx : input.focus === 'oldest' ? n - 1 - newestIdx : undefined;
+        const who = r.subject ? `${r.subject.split(' ')[0]}'s` : 'the';
+        const say = input.tab ? `Opening the ${input.tab}.` : `Pulling up ${who} ${n === 1 ? 'job' : `${n} jobs`}.`;
+        return { ...r, onScreen: true, say, __ui: [{ type: 'open', view: { type: 'jobs', jobIds: r.jobs.map(j => j.id), tab: input.tab, focus, title: r.subject } }] };
+      }
+      case 'show_revenue': {
+        const spec = input.from ? { from: input.from, to: input.to } : input.month ? { month: input.month } : input.last_days ? { last_days: input.last_days } : { period: input.period || 'this_month' };
+        const r = await ops.revenueRange(spec);
+        const { series, ...facts } = r;
+        return { ...facts, onScreen: true, __ui: [{ type: 'open', view: { type: 'analytics', range: { from: r.from, to: r.to, key: r.key } }, data: r }] };
+      }
+      case 'show_calendar': {
+        const today = phoenixDateString();
+        const r = resolveCalendarWhen(input.when || 'this week', today) || { date: today, mode: 'week' };
+        const mode = CALENDAR_MODES.includes(input.mode) ? input.mode : r.mode;
+        return { date: r.date, mode, onScreen: true, __ui: [{ type: 'open', view: { type: 'calendar', date: r.date, mode } }] };
+      }
+      case 'show_job_list':
+        return { onScreen: true, __ui: [{ type: 'open', view: { type: 'jobList', query: String(input.query || ''), status: String(input.status || 'active') } }] };
+      case 'show_customers':
+        return { onScreen: true, __ui: [{ type: 'open', view: { type: 'customers', query: String(input.query || '') } }] };
+      case 'control_screen': {
+        if (!uiScreen?.screen) return { ok: false, error: 'Nothing is open on the screen.' };
+        const jobs = Array.isArray(uiScreen.screen.jobs) ? uiScreen.screen.jobs : [];
+        const idx = input.job_id ? jobs.findIndex(j => j.id === input.job_id) : Number(input.position) - 1;
+        const actions = [];
+        if (input.action === 'close' || input.action === 'close_all') actions.push({ type: input.action });
+        else {
+          if (input.job_id || input.position) {
+            if (!(idx >= 0 && idx < jobs.length)) return { ok: false, error: 'That job is not on the screen.' };
+            actions.push({ type: 'focus', index: idx, expand: true });
+          }
+          if (input.action === 'tab') {
+            if (!JOB_TABS.includes(input.tab)) return { ok: false, error: `tab must be one of ${JOB_TABS.join(', ')}.` };
+            actions.push({ type: 'tab', tab: input.tab });
+          }
+          if (!actions.length) return { ok: false, error: 'Say which job (job_id or position).' };
+        }
+        return { ok: true, onScreen: true, __ui: actions };
+      }
+
       case 'send_customer_email': {
         if (!input.confirmed) {
           return {
@@ -1437,6 +1566,12 @@ export async function onRequestPost({ request, env }) {
   if (plan.prefetch && !toolsForTurn.some(t => t.name === plan.prefetch.tool)) {
     toolsForTurn = [...toolsForTurn, ...TOOLS.filter(t => t.name === plan.prefetch.tool)];
   }
+  if (uiScreen && !forceNaturalNoteCapture) {
+    toolsForTurn = [...toolsForTurn.filter(t => !UI_TOOL_NAMES.has(t.name)), ...UI_TOOLS];
+    const last = messages[messages.length - 1];
+    const screen = uiScreen.screen ? JSON.stringify(uiScreen.screen).slice(0, 3000) : 'nothing open (normal Jarvis screen)';
+    messages[messages.length - 1] = { ...last, content: `${last.content}\n\n[SCREEN: ${screen}]\n[${VISUAL_FIRST}]` };
+  }
 
 
   const { readable, writable } = new TransformStream();
@@ -1452,9 +1587,14 @@ export async function onRequestPost({ request, env }) {
   async function execTool(name, input) {
     await send({ type: 'tool_call', tool: name, input });
     try {
-      const result = await runTool(name, input);
+      const raw = await runTool(name, input);
+      // __ui = workspace actions for the /jarvis page; never shown to the model.
+      const isObj = raw && typeof raw === 'object' && !Array.isArray(raw);
+      const { __ui: uiActions = [], ...rest } = isObj ? raw : {};
+      const result = isObj ? rest : raw;
       turnCalls.push({ name, input, ok: true, result });
       await send({ type: 'tool_result', tool: name, ok: true });
+      for (const action of uiActions) await send({ type: 'ui', action });
       if (SEO_FOCUS[name]) await send({ type: 'ui_focus', mode: 'seo', target: SEO_FOCUS[name], tool: name });
       if (PRESENTABLE_TOOLS.has(name) && result && !result.needs_confirmation) {
         await send({ type: 'data', tool: name, payload: result });

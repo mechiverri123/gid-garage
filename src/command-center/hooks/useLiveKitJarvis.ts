@@ -35,7 +35,12 @@ const EMPTY_DIAGNOSTICS: VoiceDiagnostics = {
   dispatchId: null,
 };
 
-export function useLiveKitJarvis() {
+// onUserTranscript: each finished sentence the owner speaks (the agent's
+// lk.transcription text stream), so on-screen commands like "close jobs" or
+// "show payment" work by voice too.
+export function useLiveKitJarvis(onUserTranscript?: (text: string) => void) {
+  const transcriptRef = useRef(onUserTranscript);
+  transcriptRef.current = onUserTranscript;
   const [state, setState] = useState<RealtimeVoiceState>('off');
   const [error, setError] = useState<string | null>(null);
   const [roomName, setRoomName] = useState<string | null>(null);
@@ -169,6 +174,13 @@ export function useLiveKitJarvis() {
       });
 
       roomRef.current = room;
+      const liveRoom = room;
+      liveRoom.registerTextStreamHandler('lk.transcription', async (reader, participant) => {
+        if (participant.identity !== liveRoom.localParticipant.identity) return; // the agent's own words
+        const text = (await reader.readAll()).trim();
+        if (reader.info.attributes?.['lk.transcription_final'] === 'false' || !text) return;
+        transcriptRef.current?.(text);
+      });
       setRoomName(tokenBody.room_name || null);
       patchDiagnostics({
         roomName: tokenBody.room_name || null,

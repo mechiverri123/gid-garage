@@ -1,0 +1,55 @@
+/* Jarvis workspace overlay + the re-theme for admin panels reused inside it.
+   Everything is scoped (.jv-*) so /admin itself is never restyled. */
+
+.jv-overlay {
+  background:
+    radial-gradient(1100px 600px at 50% 0%, rgba(52, 214, 255, 0.10), transparent 70%),
+    rgba(2, 7, 12, 0.86);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  animation: jv-in 0.18s ease-out both;
+}
+@keyframes jv-in { from { opacity: 0; } to { opacity: 1; } }
+.jv-pop { animation: jv-pop 0.2s ease-out both; }
+@keyframes jv-pop { from { opacity: 0; transform: translateY(10px) scale(0.985); } to { opacity: 1; transform: none; } }
+
+.jv-glass {
+  border: 1px solid rgba(54, 211, 255, 0.24);
+  border-radius: 18px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0) 30%),
+    linear-gradient(160deg, rgba(13, 29, 41, 0.94), rgba(6, 15, 24, 0.95));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 24px 60px rgba(0, 0, 0, 0.55), 0 0 40px rgba(52, 214, 255, 0.06);
+}
+
+/* Job carousel: cards glide between side and center. */
+.jv-card { transition: flex-basis 0.24s ease, transform 0.24s ease, opacity 0.24s ease, border-color 0.2s ease, box-shadow 0.2s ease; }
+.jv-card--side { opacity: 0.62; transform: scale(0.95); }
+.jv-card--side:hover { opacity: 0.9; }
+.jv-card--center { border-color: rgba(52, 214, 255, 0.55); box-shadow: inset 0 1px 0 rgba(255,255,255,0.07), 0 26px 70px rgba(0,0,0,0.6), 0 0 46px rgba(52, 214, 255, 0.16); }
+
+/* ---- reused admin panels (EstimatePanel, PaymentPanel, InspectionPanel,
+   PartsCostPanel, and the full job editor) re-themed for Jarvis ---------- */
+.jv-skin { color: #F5F8FA; font-size: 15px; }
+.jv-skin .text-\[9px\], .jv-skin .text-\[10px\] { font-size: 12px !important; }
+.jv-skin .text-\[11px\] { font-size: 12.5px !important; }
+.jv-skin .text-xs { font-size: 13px !important; }
+.jv-skin .text-sm { font-size: 15px !important; }
+.jv-skin .text-gray-500 { color: #A7B5C2 !important; }
+.jv-skin .text-gray-600, .jv-skin .text-gray-700 { color: #8494A3 !important; }
+.jv-skin .text-gray-400 { color: #C3CED8 !important; }
+.jv-skin .text-red-500, .jv-skin .text-red-400, .jv-skin .hover\:text-red-400:hover { color: #34D6FF !important; }
+.jv-skin .bg-red-600, .jv-skin .hover\:bg-red-500:hover { background: #34D6FF !important; color: #031018 !important; }
+.jv-skin .border-red-600, .jv-skin .hover\:border-red-600:hover, .jv-skin .focus\:border-red-600:focus { border-color: #34D6FF !important; }
+.jv-skin [class*="border-gray-7"], .jv-skin [class*="border-gray-8"], .jv-skin [class*="border-white\/"] { border-color: rgba(54, 211, 255, 0.2) !important; }
+.jv-skin .bg-gray-900 { background: rgba(3, 10, 17, 0.6) !important; }
+.jv-skin .bg-gray-800, .jv-skin .bg-gray-700 { background: rgba(13, 29, 41, 0.95) !important; }
+.jv-skin .bg-gray-950, .jv-skin .bg-black { background: transparent !important; }
+.jv-skin input, .jv-skin textarea, .jv-skin select { border-radius: 8px; color-scheme: dark; }
+.jv-skin button { border-radius: 8px; }
+.jv-skin input:focus, .jv-skin textarea:focus, .jv-skin select:focus { outline: none; border-color: #34D6FF !important; box-shadow: 0 0 0 3px rgba(52, 214, 255, 0.15); }
+/* The full editor is admin's slide-in drawer; give its sheet a solid Jarvis surface. */
+.jv-skin--drawer .bg-gray-950 { background: #07111B !important; }
+.jv-skin--drawer .fixed.inset-0 { background: rgba(2, 7, 12, 0.55); backdrop-filter: blur(4px); }
+.jv-skin--drawer .bg-\[\#0f0f0f\], .jv-skin--drawer .bg-\[\#111\] { background: linear-gradient(160deg, #0D1D29, #07111B) !important; border-radius: 18px; box-shadow: 0 24px 60px rgba(0, 0, 0, 0.6), 0 0 40px rgba(52, 214, 255, 0.08); }
+.jv-skin--drawer .bg-black\/80 { background: rgba(2, 7, 12, 0.7) !important; backdrop-filter: blur(6px); }

@@ -262,3 +262,89 @@ export function ownerTakeHome(jobs, window, settings) {
     takeHome: inDeficit ? 0 : businessNet - taxReserve,
   };
 }
+
+// ---- inclusive Arizona calendar-day ranges (Jarvis analytics overlay) ------
+// Same semantics as the admin Revenue panel's Custom Range: every day from
+// `from` through `to`, inclusive, on the Arizona calendar. "Last 13 days" is
+// today and the 12 days before it. The server resolves these; the model never
+// computes dates.
+
+const ymdOf = date => { const p = phoenixDateParts(date); return `${p.year}-${String(p.month).padStart(2, '0')}-${String(p.day).padStart(2, '0')}`; };
+const shiftYmd = (ymd, days) => { const [y, m, d] = ymd.split('-').map(Number); return new Date(Date.UTC(y, m - 1, d + days, 12)).toISOString().slice(0, 10); };
+const validYmd = s => { if (!/^\d{4}-\d{2}-\d{2}$/.test(String(s || ''))) return false; const [y, m, d] = s.split('-').map(Number); const t = new Date(Date.UTC(y, m - 1, d)); return t.getUTCFullYear() === y && t.getUTCMonth() === m - 1 && t.getUTCDate() === d; };
+const spanDays = (from, to) => Math.round((Date.parse(`${to}T12:00:00Z`) - Date.parse(`${from}T12:00:00Z`)) / DAY_MS) + 1;
+const MONTH_NAMES = ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december'];
+const MAX_RANGE_DAYS = 1100;
+
+export function dayRangeWindow(from, to) {
+  return {
+    key: 'range', from, to, days: spanDays(from, to),
+    inWindow: iso => {
+      if (!iso) return false;
+      const d = new Date(iso);
+      if (Number.isNaN(d.getTime())) return false;
+      const day = ymdOf(d);
+      return day >= from && day <= to;
+    },
+  };
+}
+
+function monthRange(spec, today) {
+  const s = String(spec).trim().toLowerCase();
+  let y; let m;
+  const iso = s.match(/^(\d{4})-(\d{1,2})$/);
+  if (iso) { y = Number(iso[1]); m = Number(iso[2]); }
+  else {
+    const idx = MONTH_NAMES.findIndex(n => s.startsWith(n.slice(0, 3)));
+    if (idx < 0) return null;
+    m = idx + 1;
+    const yr = s.match(/\b(\d{4})\b/);
+    const [ty, tm] = today.split('-').map(Number);
+    y = yr ? Number(yr[1]) : (m > tm ? ty - 1 : ty); // "September" = the most recent September
+  }
+  if (!(m >= 1 && m <= 12)) return null;
+  const from = `${y}-${String(m).padStart(2, '0')}-01`;
+  const last = shiftYmd(`${m === 12 ? y + 1 : y}-${String(m === 12 ? 1 : m + 1).padStart(2, '0')}-01`, -1);
+  return { from, to: last < today ? last : today };
+}
+
+// spec: { period } | { last_days } | { month } | { from, to? } (or a period string).
+// period: today, yesterday, this_week (= last 7 days), last_7_days, last_30_days,
+// last_90_days, last_N_days, this_month, last_month, this_year.
+// Returns { from, to, days, key } or throws on an invalid range.
+export function resolveDayRange(spec = {}, now = new Date()) {
+  const s = typeof spec === 'string' ? { period: spec } : (spec || {});
+  const today = ymdOf(now);
+  const [ty, tm] = today.split('-').map(Number);
+  let from; let to = today; let key;
+  const period = String(s.period || '').toLowerCase().trim();
+  const lastN = Number(s.last_days) || Number((period.match(/^last_(\d+)_days$/) || [])[1]) || (period === 'this_week' ? 7 : 0);
+  if (s.from) {
+    from = String(s.from); to = s.to ? String(s.to) : today; key = 'custom';
+  } else if (s.month) {
+    const r = monthRange(s.month, today);
+    if (!r) throw new Error(`Unknown month "${s.month}".`);
+    ({ from, to } = r); key = `month:${from.slice(0, 7)}`;
+  } else if (lastN >= 1) {
+    const n = Math.min(Math.round(lastN), MAX_RANGE_DAYS);
+    from = shiftYmd(today, -(n - 1)); key = `last_${n}_days`;
+  } else if (period === 'today') {
+    from = today; key = 'today';
+  } else if (period === 'yesterday') {
+    from = to = shiftYmd(today, -1); key = 'yesterday';
+  } else if (period === 'last_month') {
+    ({ from, to } = monthRange(`${tm === 1 ? ty - 1 : ty}-${tm === 1 ? 12 : tm - 1}`, today)); key = 'last_month';
+  } else if (period === 'this_year') {
+    from = `${ty}-01-01`; key = 'this_year';
+  } else {
+    from = `${today.slice(0, 7)}-01`; key = 'this_month';
+  }
+  if (!validYmd(from) || !validYmd(to)) throw new Error('Dates must be YYYY-MM-DD.');
+  if (to > today) to = today; // no revenue exists in the future
+  if (from > to) throw new Error('The start date is after the end date.');
+  if (spanDays(from, to) > MAX_RANGE_DAYS) throw new Error('That range is too long (3 years max).');
+  return { from, to, days: spanDays(from, to), key };
+}
+
+export const addDaysYmd = shiftYmd;
+export const phoenixYmd = ymdOf;

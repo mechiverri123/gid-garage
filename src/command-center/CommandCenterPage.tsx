@@ -9,13 +9,12 @@
 //   jarvis-livekit-token.js — realtime voice
 // ─────────────────────────────────────────────────────────────────────────
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import type { Lead, NeedsAttentionItem, JarvisState } from './types';
 import { useBusinessSummary } from './hooks/useBusinessSummary';
 import { useAdminAI } from './hooks/useAdminAI';
 import { useLiveKitJarvis, type RealtimeVoiceState } from './hooks/useLiveKitJarvis';
 import { RealtimeVoiceControl } from './components/RealtimeVoiceControl';
-import { JobDetailPanel } from './components/JobDetailPanel';
 import { LeadDetailPanel } from './components/LeadDetailPanel';
 import { LeadPipeline } from './components/LeadPipeline';
 import { MarketingPanel } from './components/MarketingPanel';
@@ -34,6 +33,25 @@ import { Skeleton, ErrorState } from './ui/primitives';
 import type { OrbState } from './ui/JarvisOrb';
 import { C } from './ui/theme';
 import './ui/command-center.css';
+import { workspaceReduce, parseLocalCommand, describeScreen, workspaceTop, INITIAL_WORKSPACE } from '../../shared/jarvis-workspace.js';
+import { phoenixYmd } from '../../shared/business-metrics.js';
+import { jobMeta, revenuePrefetch } from './workspace/jobMeta';
+
+// Jobs, calendar, revenue and lists open here, over the dashboard (never /admin).
+const JarvisWorkspace = lazy(() => import('./workspace/JarvisWorkspace'));
+
+type WsAction = { type: string; [k: string]: unknown };
+const TAB_WORD: Record<string, string> = { overview: 'Overview', estimate: 'Estimate', payment: 'Payment', inspection: 'Inspection', notes: 'Notes', parts: 'Parts' };
+// Short acknowledgement for a screen command handled on the page.
+function ackFor(a: WsAction) {
+  if (a.type === 'close') return 'Closed.';
+  if (a.type === 'close_all') return 'Back to Jarvis.';
+  if (a.type === 'tab') return `${TAB_WORD[String(a.tab)] ?? 'Done'}.`;
+  if (a.type === 'focus' || a.type === 'step') return 'Opened.';
+  if (a.type === 'range') { const r = a.range as Record<string, unknown>; return r.last_days ? `Showing the last ${r.last_days} days.` : 'Updated.'; }
+  if (a.type === 'calendar') return 'Calendar updated.';
+  return 'Done.';
+}
 
 // Real state only: the typed agent's stream wins while it's working,
 // otherwise the realtime voice session's state.
@@ -65,7 +83,29 @@ export function CommandCenterPage({ onLock }: { onLock: () => void }) {
     updateLeadStatus, submitSpend,
   } = useBusinessSummary();
 
-  const voice = useLiveKitJarvis();
+  // Visual workspace (shared/jarvis-workspace.js): one stack of views that Jarvis,
+  // the sidebar and on-screen commands all drive.
+  const [ws, dispatchWs] = useReducer(workspaceReduce, INITIAL_WORKSPACE);
+  const wsRef = useRef(ws);
+  wsRef.current = ws;
+  const screenMeta = () => { const t = workspaceTop(wsRef.current); return t?.type === 'jobs' ? t.jobIds.map((id: string) => jobMeta.get(id) ?? { label: '', date: '' }) : []; };
+  const openView = useCallback((view: Record<string, unknown>) => dispatchWs({ type: 'open', view }), []);
+  const openJob = useCallback((id: string) => dispatchWs({ type: 'open', view: { type: 'jobs', jobIds: [id] } }), []);
+  const screenHooks = useMemo(() => ({
+    getScreen: () => describeScreen(wsRef.current, screenMeta()),
+    onWorkspace: (action: unknown, data?: unknown) => {
+      const a = action as WsAction;
+      const range = (a?.view as { range?: { from?: string; to?: string } } | undefined)?.range;
+      if (data && range?.from && range?.to) revenuePrefetch.set(`${range.from}|${range.to}`, data);
+      dispatchWs(a);
+    },
+  }), []);
+
+  // Spoken on-screen commands ("close jobs", "show payment") via the voice transcript.
+  const voice = useLiveKitJarvis(text => {
+    const local = parseLocalCommand(text, wsRef.current, { meta: screenMeta(), today: phoenixYmd(new Date()) });
+    if (local && local.type !== 'noop') dispatchWs(local);
+  });
 
   // Ops (default) vs SEO Mode. SEO answers from Jarvis switch modes and bring
   // the relevant panel into focus (structured ui_focus events).
@@ -75,12 +115,41 @@ export function CommandCenterPage({ onLock }: { onLock: () => void }) {
   const setSeoFocus = useCallback((v: SeoView) => setUi(s => applyUiEvent(s, { type: 'ui_focus', mode: 'seo', target: v })), []);
   const { mode, seoFocus } = ui;
 
-  const { chatMessages, asking, liveActivity, jarvisState, ask, clear } = useAdminAI(() => {
+  const { chatMessages, asking, liveActivity, jarvisState, ask, clear, addLocal } = useAdminAI(() => {
     loadSummary();
     loadLeads(leadStatusFilter || undefined);
   }, async (text) => {
     if (voice.connected) await voice.speakText(text);
-  }, onUiEvent);
+  }, onUiEvent, screenHooks);
+
+  // Every typed command: things about what's on screen are handled instantly
+  // here (deterministic parser); everything else goes to Jarvis with the
+  // screen context so it can answer with a view.
+  const command = useCallback((q: string) => {
+    const local = parseLocalCommand(q, wsRef.current, { meta: screenMeta(), today: phoenixYmd(new Date()) });
+    if (local) {
+      if (local.type !== 'noop') dispatchWs(local);
+      addLocal(q, local.type === 'noop' ? String(local.reply) : ackFor(local));
+      return;
+    }
+    ask(q);
+  }, [ask, addLocal]);
+
+  // Browser Back closes the workspace one level instead of leaving /jarvis.
+  const depth = ws.stack.length;
+  const pushedDepth = useRef(0);
+  useEffect(() => {
+    if (depth > pushedDepth.current) { for (let i = pushedDepth.current; i < depth; i++) window.history.pushState({ jarvisView: i + 1 }, ''); pushedDepth.current = depth; }
+    else if (depth < pushedDepth.current) { const n = pushedDepth.current - depth; pushedDepth.current = depth; window.history.go(-n); }
+  }, [depth]);
+  useEffect(() => {
+    const onPop = () => {
+      if (pushedDepth.current > 0 && wsRef.current.stack.length === pushedDepth.current) { pushedDepth.current -= 1; dispatchWs({ type: 'close' }); }
+    };
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+  }, []);
+  const lastReply = [...chatMessages].reverse().find(m => m.role === 'assistant')?.content ?? null;
 
   // Voice actions change the same records as the typed agent: refresh quietly
   // while a realtime session is open.
@@ -92,7 +161,6 @@ export function CommandCenterPage({ onLock }: { onLock: () => void }) {
 
   const orb = orbStateFor(asking, jarvisState, voice.state);
 
-  const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [drawer, setDrawer] = useState(false);
   const jarvisInput = useRef<HTMLInputElement>(null);
@@ -100,11 +168,13 @@ export function CommandCenterPage({ onLock }: { onLock: () => void }) {
 
   const scrollTo = (id: string) => window.setTimeout(() => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 60);
   const askAndShow = useCallback((q: string) => {
-    ask(q);
-    if (mode === 'ops') scrollTo('cc-jarvis');
-  }, [ask, mode]);
+    command(q);
+    if (mode === 'ops' && !wsRef.current.stack.length) scrollTo('cc-jarvis');
+  }, [command, mode]);
 
   const onGo = (t: NavTarget) => {
+    if (t.kind === 'view') { dispatchWs({ type: 'close_all' }); openView(t.view); return; }
+    if (wsRef.current.stack.length) dispatchWs({ type: 'close_all' });
     if (t.kind === 'mode') { setMode(t.mode); main.current?.scrollTo({ top: 0, behavior: 'smooth' }); return; }
     if (t.kind === 'section') {
       if (mode !== 'ops') setMode('ops');
@@ -113,7 +183,7 @@ export function CommandCenterPage({ onLock }: { onLock: () => void }) {
     }
   };
   const openAttention = (a: NeedsAttentionItem) => {
-    if (a.bookingId) { setSelectedJobId(a.bookingId); return; }
+    if (a.bookingId) { openJob(a.bookingId); return; }
     const lead = a.leadId ? leads.find(l => l.id === a.leadId) : null;
     if (lead) { setSelectedLead(lead); return; }
     askAndShow(a.type === 'missed_call' ? `Who called from ${a.label} and did we call them back?` : `Tell me about ${a.label}`);
@@ -121,6 +191,10 @@ export function CommandCenterPage({ onLock }: { onLock: () => void }) {
 
   const palette = useCommandPalette([
     { id: 'today', label: "Today's jobs", run: () => askAndShow("what's scheduled today") },
+    { id: 'calendar', label: 'Open calendar', run: () => openView({ type: 'calendar', mode: 'week' }) },
+    { id: 'jobs', label: 'All jobs', run: () => openView({ type: 'jobList', status: 'active' }) },
+    { id: 'customers', label: 'Customers', run: () => openView({ type: 'customers' }) },
+    { id: 'revenue-month', label: 'Revenue this month', run: () => openView({ type: 'analytics', range: { period: 'this_month' } }) },
     { id: 'attention', label: 'Needs attention', run: () => askAndShow('what needs my attention') },
     { id: 'revenue', label: 'Revenue today', run: () => askAndShow('how much revenue have we made today') },
     { id: 'leads', label: 'Show leads', run: () => askAndShow('show me recent leads') },
@@ -138,13 +212,17 @@ export function CommandCenterPage({ onLock }: { onLock: () => void }) {
   return (
     <div className="cc-root cc-grid-bg flex h-screen overflow-hidden">
       <CommandPalette open={palette.open} onClose={() => palette.setOpen(false)} commands={palette.commands} />
-      <JobDetailPanel jobId={selectedJobId} onClose={() => setSelectedJobId(null)} />
       <LeadDetailPanel lead={selectedLead} onClose={() => setSelectedLead(null)} />
+      {ws.stack.length > 0 && (
+        <Suspense fallback={<div className="jv-overlay fixed inset-0 z-40" style={{ background: 'rgba(2,7,12,0.86)' }} />}>
+          <JarvisWorkspace state={ws} dispatch={dispatchWs} onAsk={command} asking={asking} reply={lastReply} />
+        </Suspense>
+      )}
 
       <AppSidebar active={mode === 'seo' ? 'seo' : 'dashboard'} onGo={onGo} onLock={onLock} systemOk={!error} voiceLabel={VOICE_LABEL[voice.state]} drawerOpen={drawer} onCloseDrawer={() => setDrawer(false)} />
 
       <div className="flex-1 flex flex-col min-w-0">
-        <CommandTopBar title={title} attention={summary?.needsAttention ?? []} onSearch={q => askAndShow(`Find jobs, customers or vehicles matching "${q}"`)}
+        <CommandTopBar title={title} attention={summary?.needsAttention ?? []} onSearch={q => openView({ type: 'jobList', query: q, status: 'all' })}
           onOpenMenu={() => setDrawer(true)} onRefresh={loadSummary} onLock={onLock} onAttention={openAttention} refreshing={loading} />
 
         <main ref={main} className="flex-1 overflow-y-auto overflow-x-hidden">
@@ -160,23 +238,23 @@ export function CommandCenterPage({ onLock }: { onLock: () => void }) {
 
               <div className="grid gap-4 sm:gap-5 xl:grid-cols-12 items-stretch">
                 <div className="xl:col-span-4 2xl:col-span-3 flex flex-col gap-4 sm:gap-5 min-w-0">
-                  <TodaysJobs summary={summary} onSelectJob={setSelectedJobId} />
+                  <TodaysJobs summary={summary} onSelectJob={openJob} />
                   <AttentionCard items={summary.needsAttention} onOpen={openAttention} />
                 </div>
-                <div className="xl:col-span-8 2xl:col-span-5 min-w-0"><TodayRoute summary={summary} onSelectJob={setSelectedJobId} /></div>
+                <div className="xl:col-span-8 2xl:col-span-5 min-w-0"><TodayRoute summary={summary} onSelectJob={openJob} /></div>
                 <div className="xl:col-span-12 2xl:col-span-4 min-w-0">
-                  <JarvisPanel summary={summary} state={orb} asking={asking} liveActivity={liveActivity} messages={chatMessages} onAsk={ask} onClear={clear} voiceControl={voiceControl} inputRef={jarvisInput} />
+                  <JarvisPanel summary={summary} state={orb} asking={asking} liveActivity={liveActivity} messages={chatMessages} onAsk={command} onClear={clear} voiceControl={voiceControl} inputRef={jarvisInput} />
                 </div>
               </div>
 
               <div className="grid gap-4 sm:gap-5 lg:grid-cols-2 xl:grid-cols-12">
-                <div className="xl:col-span-4 min-w-0"><QuickActionHero onLeadSaved={() => { loadSummary(); loadLeads(leadStatusFilter || undefined); }} /></div>
+                <div className="xl:col-span-4 min-w-0"><QuickActionHero onLeadSaved={() => { loadSummary(); loadLeads(leadStatusFilter || undefined); }} onNewJob={() => openView({ type: 'newJob' })} onPickJob={() => openView({ type: 'jobList', status: 'active' })} /></div>
                 <div className="xl:col-span-5 min-w-0"><ThisMonth summary={summary} /></div>
                 <div className="lg:col-span-2 xl:col-span-3 min-w-0"><LeadsBySource summary={summary} /></div>
               </div>
 
               <div className="grid gap-4 sm:gap-5 xl:grid-cols-12 items-start">
-                <div className="xl:col-span-8 min-w-0"><UpcomingJobsTable jobs={summary.upcomingJobs} onSelect={setSelectedJobId} /></div>
+                <div className="xl:col-span-8 min-w-0"><UpcomingJobsTable jobs={summary.upcomingJobs} onSelect={openJob} onCalendar={() => openView({ type: 'calendar', mode: 'week' })} /></div>
                 <div className="xl:col-span-4 min-w-0"><RecentActivity summary={summary} /></div>
               </div>
 
@@ -199,7 +277,7 @@ export function CommandCenterPage({ onLock }: { onLock: () => void }) {
         {/* SEO Mode keeps Jarvis one keystroke away at the bottom; the dashboard has its own Jarvis panel. */}
         {mode === 'seo' && (
           <div className="border-t px-4 sm:px-6 lg:px-8 py-3" style={{ borderColor: C.border, background: 'rgba(5,13,21,0.9)', backdropFilter: 'blur(16px)' }}>
-            <CommandInput chatMessages={chatMessages} asking={asking} liveActivity={liveActivity} onAsk={ask} onClear={clear} />
+            <CommandInput chatMessages={chatMessages} asking={asking} liveActivity={liveActivity} onAsk={command} onClear={clear} />
           </div>
         )}
       </div>
