@@ -34,7 +34,11 @@ export const SERVICE_PAGES = [
       { label: 'Full service — pads, rotors + fluid flush (per axle)', detail: 'Starting at $319.99 · shops average $520–700/axle' },
     ],
     included: ['Pad replacement', 'Rotor replacement', 'Complete brake system service', 'Complimentary multi-point inspection with the job'],
-    photos: [{ src: '/photos/brake-rotor-before.webp', alt: 'Before: worn, rusted rotor' }, { src: '/photos/brake-rotor-after.webp', alt: 'After: new rotor on the same wheel' }, { src: '/photos/brake-new-rotor-caliper.webp', alt: 'New rotor with the caliper back on' }, { src: '/photos/brake-pads-in-caliper.webp', alt: 'New pads seated in the caliper bracket' }],
+    photos: [{ src: '/photos/brake-rotor-before.webp', alt: 'Before: worn, rusted rotor' }, { src: '/photos/brake-rotor-after.webp', alt: 'After: new rotor on the same wheel' }, { src: '/photos/brake-new-rotor-caliper.webp', alt: 'New rotor with the caliper back on' }, { src: '/photos/brake-pads-in-caliper.webp', alt: 'New pads seated in the caliper bracket' },
+      { src: '/photos/brake-tundra-rotors.webp', alt: 'Toyota Tundra: old rotor next to the new one' }, { src: '/photos/brake-worn-pads.webp', alt: 'Worn pads off an Audi Q3' },
+      { src: '/photos/brake-sierra-pads.webp', alt: 'Worn front pads off a GMC Sierra' }, { src: '/photos/brake-rav4-worn-rotor.webp', alt: 'Toyota RAV4 rear rotor before replacement' },
+      { src: '/photos/brake-rav4-new-rotor.webp', alt: 'Toyota RAV4 new rear rotor installed' }, { src: '/photos/brake-acura-pads.webp', alt: 'New pads in the caliper bracket on an Acura RDX' },
+      { src: '/photos/brake-tacoma-drum.webp', alt: 'Toyota Tacoma rear drum brake with the drum off' }, { src: '/photos/brake-tacoma-cylinders.webp', alt: 'Tacoma drum brakes: old wheel cylinder vs new' }],
     faq: [{ q: 'How do I know if I need brakes?', a: 'Squealing or grinding when you stop, a pedal that feels soft or low, or the car pulling to one side are the usual signs. Book a visit and we will check pads and rotors and tell you straight what they need.' }],
   },
   {
@@ -45,7 +49,8 @@ export const SERVICE_PAGES = [
     intro: 'Full synthetic only, done in your driveway or parking lot. Most shops charge $110–140 for full synthetic — and you still have to drive there and wait. We come to you.',
     pricing: [{ label: 'Full synthetic oil change', detail: '$79.99 up to 5 quarts · +$10.99/qt after' }],
     included: ['Full synthetic oil', 'New oil filter', 'Fluid top-off', 'Tire pressure check', 'Multi-point inspection'],
-    photos: [{ src: '/photos/oil-old-filter.webp', alt: 'Old oil filter coming off' }, { src: '/photos/oil-new-filter.webp', alt: 'New oil filter installed' }, { src: '/photos/oil-fill.webp', alt: 'Filling with full synthetic oil' }, { src: '/photos/oil-life-reset.webp', alt: 'Oil life reset to 100% after the change' }],
+    photos: [{ src: '/photos/oil-old-filter.webp', alt: 'Old oil filter coming off' }, { src: '/photos/oil-new-filter.webp', alt: 'New oil filter installed' }, { src: '/photos/oil-fill.webp', alt: 'Filling with full synthetic oil' }, { src: '/photos/oil-life-reset.webp', alt: 'Oil life reset to 100% after the change' },
+      { src: '/photos/oil-draining.webp', alt: 'Old oil draining out' }, { src: '/photos/oil-acura-filter.webp', alt: 'New oil filter on an Acura RDX' }, { src: '/photos/oil-drain-plug.webp', alt: 'Drain plug on the oil pan' }],
     faq: [],
   },
   {
@@ -56,7 +61,10 @@ export const SERVICE_PAGES = [
     intro: '$89.99 flat. We come to you, pull and interpret your OBD2 codes, and give you a clear explanation of what\'s wrong and what it\'ll take to fix it — no dealer visit, no upselling.',
     pricing: [{ label: 'Diagnostic visit', detail: '$89.99 flat · includes a full visual inspection' }],
     included: ['OBD2 code scan and interpretation', 'Full visual inspection', 'A clear explanation of the problem and the fix', 'A written estimate before any repair'],
-    photos: [{ src: '/case/titan-coil-old-new.webp', alt: 'Failed coil pack found diagnosing a misfire, next to the new one' }, { src: '/case/blazer-old-vs-new.webp', alt: 'A battery that failed its health test, next to the replacement' }],
+    photos: [{ src: '/case/titan-coil-old-new.webp', alt: 'Failed coil pack found diagnosing a misfire, next to the new one' }, { src: '/case/blazer-old-vs-new.webp', alt: 'A battery that failed its health test, next to the replacement' },
+      { src: '/photos/diag-scan-waveform.webp', alt: 'Scan tool waveform while testing fuel injectors on a Jeep Wrangler' }, { src: '/photos/diag-injector-readings.webp', alt: 'Injector resistance readings: one injector dead (open circuit)' },
+      { src: '/photos/diag-failed-injector.webp', alt: 'The failed fuel injector, out of the Wrangler' }, { src: '/photos/diag-coolant-hose.webp', alt: 'New coolant hose on a Honda Civic after finding the leak' },
+      { src: '/photos/diag-oil-pan.webp', alt: 'Kia Soul oil pan off to fix a traced oil leak' }],
     faq: [{ q: 'Is the code reading the whole diagnosis?', a: 'No — a code tells you where to look, not always what failed. We read the codes and inspect the vehicle so the explanation you get is what actually needs fixing.' }],
   },
   {
@@ -73,7 +81,9 @@ export const SERVICE_PAGES = [
       { label: 'CV axles', detail: 'Starting at $249.99 + parts · shops average $500–750' },
     ],
     included: ['Free estimate when you book', 'Quality replacement parts', 'Complimentary multi-point inspection with the job'],
-    photos: [{ src: 'rav4shocks.jpg', alt: 'Front strut assembly, ready to install' }, { src: 'IMG_1292.jpeg', alt: 'Control arms — old vs. new' }, { src: 'magnaride.jpg', alt: 'Adaptive suspension strut' }],
+    photos: [{ src: 'rav4shocks.jpg', alt: 'Front strut assembly, ready to install' }, { src: 'IMG_1292.jpeg', alt: 'Control arms — old vs. new' }, { src: 'magnaride.jpg', alt: 'Adaptive suspension strut' },
+      { src: '/photos/susp-crv-old-strut.webp', alt: 'Honda CR-V: original front strut before replacement' }, { src: '/photos/susp-crv-new-strut.webp', alt: 'Honda CR-V: new front strut installed' },
+      { src: '/photos/susp-crv-struts.webp', alt: 'Old strut next to the new one' }],
     faq: [{ q: 'Do you do wheel alignments?', a: 'No — after suspension work that affects alignment we point you to a shop that specializes in it, no charge for the honesty.' }],
   },
   {
@@ -170,7 +180,7 @@ export const CASE_STUDIES = [
     repair: 'Removed the upper intake plenum, replaced all six spark plugs and all six ignition coils, and reinstalled the plenum with a new gasket set — about 4.5 hours, done where the Jeep was parked.',
     outcome: 'New plugs and coils in all six cylinders. We also flagged oil seepage at cylinder 5 (a valve cover gasket to watch) and a transmission code that showed on the before-and-after scans, so the owner knows what to keep an eye on.',
     lesson: 'On engines where half the plugs hide under the intake, doing all six at once means paying for that teardown only once.',
-    photos: [{ src: '/case/cherokee-plenum-off.webp', alt: 'Upper intake plenum removed, ports covered' }, { src: '/case/cherokee-intake-removed.webp', alt: 'Rear bank coils exposed with the intake off' }, { src: '/case/cherokee-old-plugs.webp', alt: 'All six old spark plugs removed' }],
+    photos: [{ src: '/case/cherokee-plenum-off.webp', alt: 'Upper intake plenum removed, ports covered' }, { src: '/case/cherokee-intake-removed.webp', alt: 'Rear bank coils exposed with the intake off' }, { src: '/case/cherokee-old-plugs.webp', alt: 'All six old spark plugs removed' }, { src: '/case/cherokee-plug-old-new.webp', alt: 'An old spark plug next to a new one' }],
   },
   {
     slug: '2021-chevrolet-blazer-no-start-battery-replacement', serviceId: 'diag', month: 'August 2026',
@@ -196,7 +206,9 @@ export const CASE_STUDIES = [
     repair: 'Replaced the front pads and rotors (caliper bracket bolts 99.6 ft-lb, slide pins 25 ft-lb, lug nuts 89 ft-lb), replaced the spark plugs (14 ft-lb), replaced the PCV valve and connector hose, and cleaned the MAF sensor and throttle body with the CRC cleaners made for each.',
     outcome: "Everything done in one visit at the owner's home with the owner's own parts, torqued to spec.",
     lesson: "Customer-supplied parts are welcome. And a throttle body can get dirty well before 60k miles — cleaning it is quick while you're already in there.",
-    photos: [{ src: '/case/outback-brakes-before.webp', alt: 'Front brake before: worn rotor and pads' }, { src: '/case/outback-brakes-after.webp', alt: 'Front brake after: new rotor and pads' }, { src: '/case/outback-throttle-before.webp', alt: 'Throttle body before cleaning' }, { src: '/case/outback-throttle-after.webp', alt: 'Throttle body after cleaning' }, { src: '/case/outback-spark-plugs.webp', alt: 'Old and new spark plugs' }],
+    photos: [{ src: '/case/outback-brakes-before.webp', alt: 'Front brake before: worn rotor and pads' }, { src: '/case/outback-brakes-after.webp', alt: 'Front brake after: new rotor and pads' }, { src: '/case/outback-throttle-before.webp', alt: 'Throttle body before cleaning' }, { src: '/case/outback-throttle-after.webp', alt: 'Throttle body after cleaning' }, { src: '/case/outback-spark-plugs.webp', alt: 'Old and new spark plugs' },
+      { src: '/case/outback-hub.webp', alt: 'Hub and dust shield with the old rotor off' }, { src: '/case/outback-caliper-bracket.webp', alt: 'Cleaning the caliper bracket before reassembly' },
+      { src: '/case/outback-new-pads.webp', alt: 'New pads in the caliper bracket' }, { src: '/case/outback-pcv.webp', alt: 'New PCV valve and connector hose' }, { src: '/case/outback-old-plugs.webp', alt: 'The old spark plugs' }],
   },
 ].map(c => ({ ...c, path: `/case-studies/${c.slug}`, canonical: `${SITE}/case-studies/${c.slug}` }));
 

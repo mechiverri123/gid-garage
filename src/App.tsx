@@ -540,8 +540,7 @@ function WhyUs() {
 }
 
 // Real close-up shots from actual jobs — honestly captioned by what's in
-// frame, not tied to a marketing claim. Nothing that shows a customer's home,
-// street, plate or face (/photos/home-* are cropped to the part).
+// frame, not tied to a marketing claim. Never a license plate, VIN or person.
 function RealJobsStrip() {
   const shots = [
     { src: 'rav4shocks.jpg', caption: 'Front strut assembly, ready to install' },
@@ -550,6 +549,7 @@ function RealJobsStrip() {
     { src: 'photo-audio.jpg', caption: 'Head unit setup after install' },
     { src: '/photos/home-oil-change.webp', caption: 'Full synthetic oil change' },
     { src: '/photos/home-radiator-hose.webp', caption: 'Radiator hose replacement' },
+    { src: 'IMG_1052.jpeg', caption: 'Brake pads — old vs. new' },
     { src: 'IMG_1100.jpeg', caption: 'New strut assembly installed' },
     { src: 'IMG_1179.jpeg', caption: 'Brake pads seated in caliper' },
     { src: 'IMG_1292.jpeg', caption: 'Control arms — old vs. new' },

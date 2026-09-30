@@ -1,7 +1,7 @@
 # Graph Report - gid-garage  (2026-09-29)
 
 ## Corpus Check
-- 287 files · ~1,364,755 words
+- 287 files · ~1,368,664 words
 - Verdict: corpus is large enough that graph structure adds value.
 - Unclassified: 16 file(s) not represented in the graph (top: (none) 7, .css 3, .toml 2)
 
@@ -11,7 +11,7 @@
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `bb202006`
+- Built from commit: `0f5bd7e9`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 

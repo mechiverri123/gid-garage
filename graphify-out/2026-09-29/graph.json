@@ -2301,7 +2301,7 @@
       "file_type": "code",
       "norm_label": "realjobsstrip()",
       "source_file": "src/App.tsx",
-      "source_location": "L544"
+      "source_location": "L545"
     },
     {
       "id": "src_app_reveal",
@@ -107335,7 +107335,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/App.tsx",
-      "source_location": "L544",
+      "source_location": "L545",
       "weight": 1.0
     },
     {
@@ -122155,5 +122155,5 @@
       "source_file": "public/website_logo.png"
     }
   ],
-  "built_at_commit": "bb202006eb5845e513f9c6e944f91ea1cce20032"
+  "built_at_commit": "0f5bd7e9fc839ce5c5ddb640713adc1a691a1b0b"
 }

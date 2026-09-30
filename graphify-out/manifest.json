@@ -222,9 +222,9 @@
     "semantic_hash": "861c63dd430d890bfbbd07dd2ef1013a"
   },
   "src/App.tsx": {
-    "mtime": 1790747070.3765495,
-    "seen": 1790747105.7802353,
-    "ast_hash": "9b8a62a0a15f61a4be1d541380508f24",
+    "mtime": 1790747687.00378,
+    "seen": 1790747721.6374052,
+    "ast_hash": "96e2364422b3f28c4c6f5ffd39282849",
     "semantic_hash": ""
   },
   "src/BookingWidget.tsx": {
@@ -1842,9 +1842,9 @@
     "semantic_hash": ""
   },
   "shared/site-pages.js": {
-    "mtime": 1790746828.5689976,
-    "seen": 1790746905.0335414,
-    "ast_hash": "49739eeb166463d911a99a31ac4be6f1",
+    "mtime": 1790747687.0027575,
+    "seen": 1790747721.6372192,
+    "ast_hash": "c352b60748d865fef61bc3ef1824ac58",
     "semantic_hash": ""
   },
   "src/ServicePages.tsx": {
@@ -2001,6 +2001,156 @@
     "mtime": 1790747054.580572,
     "seen": 1790747105.7961192,
     "ast_hash": "9a52a845da69e47254942e9e824b1004",
+    "semantic_hash": ""
+  },
+  "public/case/cherokee-plug-old-new.webp": {
+    "mtime": 1790747653.6245005,
+    "seen": 1790747721.6518922,
+    "ast_hash": "72d12352c0bdddfa5ebb4b96b007535f",
+    "semantic_hash": ""
+  },
+  "public/case/outback-caliper-bracket.webp": {
+    "mtime": 1790747652.94952,
+    "seen": 1790747721.6520176,
+    "ast_hash": "390dd2b2becb179ec151d2107dc3ede3",
+    "semantic_hash": ""
+  },
+  "public/case/outback-hub.webp": {
+    "mtime": 1790747652.7920103,
+    "seen": 1790747721.652019,
+    "ast_hash": "7dc72777c3a76b7b60f8b850a05ccafa",
+    "semantic_hash": ""
+  },
+  "public/case/outback-new-pads.webp": {
+    "mtime": 1790747653.1081693,
+    "seen": 1790747721.65202,
+    "ast_hash": "bf99ddb73c8326a74f1115ae97f17804",
+    "semantic_hash": ""
+  },
+  "public/case/outback-old-plugs.webp": {
+    "mtime": 1790747653.456746,
+    "seen": 1790747721.652021,
+    "ast_hash": "77379bd1c278f43374db7dc16adde937",
+    "semantic_hash": ""
+  },
+  "public/case/outback-pcv.webp": {
+    "mtime": 1790747653.277059,
+    "seen": 1790747721.6520221,
+    "ast_hash": "c951e9f63286dfa2d982e2e6657ca2c4",
+    "semantic_hash": ""
+  },
+  "public/photos/brake-acura-pads.webp": {
+    "mtime": 1790747650.9782965,
+    "seen": 1790747721.6528873,
+    "ast_hash": "caf6351cea43fa7c169f2fb81fc92b28",
+    "semantic_hash": ""
+  },
+  "public/photos/brake-rav4-new-rotor.webp": {
+    "mtime": 1790747650.808217,
+    "seen": 1790747721.6530163,
+    "ast_hash": "ea0eccadcff0f7c88c2fbdd22428e21d",
+    "semantic_hash": ""
+  },
+  "public/photos/brake-rav4-worn-rotor.webp": {
+    "mtime": 1790747650.6406953,
+    "seen": 1790747721.65303,
+    "ast_hash": "0190ef7bb30491f603737312b17cd179",
+    "semantic_hash": ""
+  },
+  "public/photos/brake-sierra-pads.webp": {
+    "mtime": 1790747649.952041,
+    "seen": 1790747721.6531584,
+    "ast_hash": "474cef53cff06e0374ee204cd1a0b5e4",
+    "semantic_hash": ""
+  },
+  "public/photos/brake-tacoma-cylinders.webp": {
+    "mtime": 1790747650.478299,
+    "seen": 1790747721.6531594,
+    "ast_hash": "d36b502a79fc620f62d15d8de9ecdef3",
+    "semantic_hash": ""
+  },
+  "public/photos/brake-tacoma-drum.webp": {
+    "mtime": 1790747650.3080084,
+    "seen": 1790747721.65316,
+    "ast_hash": "204fdf5f05d76a82476a2a0f0fcf78da",
+    "semantic_hash": ""
+  },
+  "public/photos/brake-tundra-rotors.webp": {
+    "mtime": 1790747650.1403997,
+    "seen": 1790747721.6531613,
+    "ast_hash": "7d38a60e3fb2e80b4c0784279e377ffa",
+    "semantic_hash": ""
+  },
+  "public/photos/brake-worn-pads.webp": {
+    "mtime": 1790747649.7909944,
+    "seen": 1790747721.6531622,
+    "ast_hash": "c1f54e44b4996de83c6bdd04b5525993",
+    "semantic_hash": ""
+  },
+  "public/photos/diag-coolant-hose.webp": {
+    "mtime": 1790747651.9159331,
+    "seen": 1790747721.6531632,
+    "ast_hash": "441ffc915d37ae80826c117e50e47755",
+    "semantic_hash": ""
+  },
+  "public/photos/diag-failed-injector.webp": {
+    "mtime": 1790747651.7816346,
+    "seen": 1790747721.6531644,
+    "ast_hash": "7ea08ad4cf4af96707b568c6837f41f4",
+    "semantic_hash": ""
+  },
+  "public/photos/diag-injector-readings.webp": {
+    "mtime": 1790747651.6239035,
+    "seen": 1790747721.653165,
+    "ast_hash": "ebff18e387520f0223e2394990b44c21",
+    "semantic_hash": ""
+  },
+  "public/photos/diag-oil-pan.webp": {
+    "mtime": 1790747652.093334,
+    "seen": 1790747721.653166,
+    "ast_hash": "bc62ecba6c8b8c927f339f27e18280a0",
+    "semantic_hash": ""
+  },
+  "public/photos/diag-scan-waveform.webp": {
+    "mtime": 1790747651.486947,
+    "seen": 1790747721.6531665,
+    "ast_hash": "014c899d60a3dca4e8881d6299516aa5",
+    "semantic_hash": ""
+  },
+  "public/photos/oil-acura-filter.webp": {
+    "mtime": 1790747651.3518176,
+    "seen": 1790747721.6533742,
+    "ast_hash": "585eac72164e5d2c1eb83d0404ac3a51",
+    "semantic_hash": ""
+  },
+  "public/photos/oil-drain-plug.webp": {
+    "mtime": 1790747651.103366,
+    "seen": 1790747721.6533751,
+    "ast_hash": "62ccf3368ccb24fa8d7a52a7e2c08885",
+    "semantic_hash": ""
+  },
+  "public/photos/oil-draining.webp": {
+    "mtime": 1790747651.209307,
+    "seen": 1790747721.6533763,
+    "ast_hash": "5a55d1b53ff9ed4cd109c982fc4b04af",
+    "semantic_hash": ""
+  },
+  "public/photos/susp-crv-new-strut.webp": {
+    "mtime": 1790747652.423611,
+    "seen": 1790747721.6537251,
+    "ast_hash": "ce5c4caa74298417a70abb0213232736",
+    "semantic_hash": ""
+  },
+  "public/photos/susp-crv-old-strut.webp": {
+    "mtime": 1790747652.2563715,
+    "seen": 1790747721.6537268,
+    "ast_hash": "641edf1fb31a94889acac088f588c178",
+    "semantic_hash": ""
+  },
+  "public/photos/susp-crv-struts.webp": {
+    "mtime": 1790747664.2925265,
+    "seen": 1790747721.653728,
+    "ast_hash": "8f1d352063a3c8cdd0ec57339f82558b",
     "semantic_hash": ""
   }
 }
