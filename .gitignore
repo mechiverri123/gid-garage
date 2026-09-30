@@ -30,3 +30,4 @@ jarvis-agent/.venv/
 jarvis-agent/__pycache__/
 
 jarvis-agent/secrets.env
+.wrangler/
