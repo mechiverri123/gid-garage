@@ -19,6 +19,9 @@ test('siteOf folds mirrors and subdomains into the site', () => {
   assert.equal(siteOf('https://business.flagstaffchamber.com/list'), 'flagstaffchamber.com');
   assert.equal(siteOf('https://wrench.com/x'), 'wrench.com');
   assert.equal(siteOf('not a url'), null);
+  assert.equal(siteOf('https://mechanic-usa.nears.me/x'), 'nears.me');
+  assert.equal(siteOf('https://nears.me/gid-garage-mobile-mechanic/'), 'nears.me');
+  assert.equal(siteOf('https://www.example.co.uk/a'), 'example.co.uk');
 });
 
 test('listings: known sites or 2+ competitors; own sites dropped; GID presence marked', () => {

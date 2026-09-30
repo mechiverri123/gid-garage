@@ -48,12 +48,15 @@ export const KNOWN_LISTINGS = {
   'yourmechanic.com': { name: 'YourMechanic', how: 'A competing mobile-mechanic platform.' },
 };
 
-// "lib.www.bbb.org", "ww2.aaa.com", "business.flagstaffchamber.com" -> the site.
+// "lib.www.bbb.org", "ww2.aaa.com", "mechanic-usa.nears.me" -> the site (registrable
+// domain); keeps three labels for country second levels like "co.uk" / "com.au".
 export function siteOf(url) {
   let host;
   try { host = new URL(url).hostname.toLowerCase(); } catch { return null; }
   const parts = host.split('.');
-  return parts.length > 2 && /^(com|org|net|gov|edu)$/.test(parts.at(-1)) ? parts.slice(-2).join('.') : host.replace(/^w+\d*\./, '');
+  if (parts.length <= 2) return host;
+  const n = parts.at(-1).length === 2 && /^(co|com|org|net|gov|edu|ac)$/.test(parts.at(-2)) ? 3 : 2;
+  return parts.slice(-n).join('.');
 }
 
 // Keep a site if it's a known listing site or lists 2+ competitors (the rest is search noise).
