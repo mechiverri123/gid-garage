@@ -8,7 +8,14 @@
 export const SITE = 'https://gidgarage.com';
 export const PHONE = '480-757-0476';
 
-const HOW_IT_WORKS = [
+// Homepage "Why Us" cards (src/App.tsx) — also pre-rendered on the homepage.
+export const WHY_US = [
+  { n: '01', title: 'We Come to You', desc: "Skip the shop, the waiting room, and the ride back. We show up at your door — home, work, side of the road, wherever you need us in the Flagstaff area." },
+  { n: '02', title: 'Honest Pricing', desc: "Clear estimates, no hidden fees, no pressure upsells. You always know exactly what you're paying for before we turn a wrench." },
+  { n: '03', title: 'Mountain-Tough Service', desc: 'We know what high altitude, hard winters, and mountain roads do to your vehicle. Our work is built to last up here.' },
+];
+
+export const HOW_IT_WORKS = [
   { title: 'Book or text', text: `Book online or call/text ${PHONE}. Tell us the vehicle and what's going on.` },
   { title: 'We come to you', text: 'Home, work, or wherever the vehicle is parked in the Flagstaff area — no shop, no waiting room, no ride back.' },
   { title: 'Clear price first', text: 'You get a clear estimate before any work starts. No hidden fees, no pressure upsells.' },
@@ -142,7 +149,7 @@ export const AREAS_PAGE = {
 
 export const HOME_PAGE = {
   path: '/', canonical: `${SITE}/`,
-  title: 'Mobile Mechanic in Flagstaff, AZ — We Come to You | GID Garage',
+  title: 'Mobile Mechanic Flagstaff, AZ — We Come to You | GID Garage',
   description: "Flagstaff's mobile mechanic — we come to your home or work. Full synthetic oil change $79.99, brakes from $149.99/axle, diagnostics $89.99. Call 480-757-0476.",
   h1: 'Flagstaff Mobile Mechanic',
   intro: 'We come to you — Flagstaff, Bellemont, Kachina, Fort Valley & beyond. Honest pricing, expert work, no shop wait. Car care at 7,000 feet.',

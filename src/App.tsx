@@ -4,7 +4,7 @@ import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import Lenis from 'lenis';
 import GameRedeem from './GameRedeem';
-import { pageForPath, caseStudyForPath, SERVICE_PAGES } from '../shared/site-pages.js';
+import { pageForPath, caseStudyForPath, SERVICE_PAGES, WHY_US } from '../shared/site-pages.js';
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -492,11 +492,7 @@ function Services({ onBookService }: { onBookService: (id: string) => void }) {
 }
 
 function WhyUs() {
-  const reasons = [
-    { n: '01', title: 'We Come to You', desc: "Skip the shop, the waiting room, and the ride back. We show up at your door — home, work, side of the road, wherever you need us in the Flagstaff area." },
-    { n: '02', title: 'Honest Pricing', desc: "Clear estimates, no hidden fees, no pressure upsells. You always know exactly what you're paying for before we turn a wrench." },
-    { n: '03', title: 'Mountain-Tough Service', desc: 'We know what high altitude, hard winters, and mountain roads do to your vehicle. Our work is built to last up here.' },
-  ];
+  const reasons = WHY_US;
   return (
     <section id="why" className="pt-4 pb-20 md:pb-28 bg-dark">
       <div className="max-w-7xl mx-auto px-5 md:px-8">

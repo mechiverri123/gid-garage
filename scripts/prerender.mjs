@@ -13,7 +13,7 @@
 // Content comes from shared/site-pages.js (the same data the React pages render).
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
-import { SERVICE_PAGES, AREAS, AREAS_PAGE, HOME_PAGE, PRIVACY_PAGE, CASE_STUDIES, CASE_STUDIES_PAGE, PHONE, SITE } from '../shared/site-pages.js';
+import { SERVICE_PAGES, AREAS, AREAS_PAGE, HOME_PAGE, PRIVACY_PAGE, CASE_STUDIES, CASE_STUDIES_PAGE, PHONE, SITE, WHY_US, HOW_IT_WORKS } from '../shared/site-pages.js';
 
 const DIST = new URL('../dist/', import.meta.url);
 // Run as the build step; imported by tests for its helpers only.
@@ -86,7 +86,11 @@ const pages = [];
 
 pages.push(['index.html', withRoot(withHead(template, HOME_PAGE), [
   h1(HOME_PAGE.h1), `<p>${esc(HOME_PAGE.intro)}</p>`, callLine,
-  h2('Services'), serviceLinks(), `<p><a style="color:#f87171" href="/service-area">Areas we serve around Flagstaff</a></p>`,
+  h2('Services'), list(SERVICE_PAGES.map(s => `<a style="color:#f87171" href="${s.path}">${esc(s.h1)}</a> — ${esc(s.intro)}`)),
+  `<p><a style="color:#f87171" href="/service-area">Areas we serve around Flagstaff</a></p>`,
+  h2('Why GID Garage'), WHY_US.map(w => `<h3 style="color:#fff;margin:14px 0 4px">${esc(w.title)}</h3><p>${esc(w.desc)}</p>`).join(''),
+  h2('How a mobile visit works'), `<ol>${HOW_IT_WORKS.map(s => `<li><strong>${esc(s.title)}.</strong> ${esc(s.text)}</li>`).join('')}</ol>`,
+  h2('Real jobs'), list(CASE_STUDIES.map(c => `<a style="color:#f87171" href="${c.path}">${esc(c.h1)}</a>`)),
 ].join(''))]);
 
 for (const p of SERVICE_PAGES) {

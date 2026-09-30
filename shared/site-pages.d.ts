@@ -10,6 +10,8 @@ export interface Area { name: string; slug: string; miles: number; blurb: string
 export interface SimplePage { path: string; canonical: string; title: string; description: string; h1: string; intro?: string; label?: string }
 export const SITE: string;
 export const PHONE: string;
+export const WHY_US: { n: string; title: string; desc: string }[];
+export const HOW_IT_WORKS: { title: string; text: string }[];
 export const SERVICE_PAGES: ServicePageData[];
 export const AREAS: Area[];
 export const AREAS_PAGE: SimplePage;
