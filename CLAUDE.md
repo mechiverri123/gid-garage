@@ -100,6 +100,8 @@ Jarvis is the interactive command interface for GID Garage, not primarily a chat
   - Net = revenue − sales tax collected − expenses + interest.
   - Owner's equity out (Venmo, SoFi, anything marked "Personal") and TPT payments never count as expenses.
 - **Decisions:** the owner's choices (`decide`) are kept separately from the uploads.
+- **Owner's equity totals come from the admin Owner's Equity ledger** (`equity_entries`, Hub → Banking & Credit). Bank transfers are only matched against it (same amount, ±5 days), and ones missing from the ledger are shown separately. Never compute equity from bank transfers or Zoho funding.
+- **"Why net profit isn't your bank balance" card:** net + sales tax still owed + equity net = what the business should have. The remainder beyond the bank balance is cash/Stripe/Venmo in transit or spending after the last upload.
 
 # 0.3 COMMAND CENTER UI (redesign, 2026-09-28)
 

@@ -44,13 +44,17 @@ export async function handleMoney({ request, env, verify = verifyAccess, fetchIm
     const res = await fetchImpl(`${supabaseUrl}/rest/v1/bookings?select=*`, { headers: { apikey: env.SUPABASE_SERVICE_KEY, Authorization: `Bearer ${env.SUPABASE_SERVICE_KEY}` } });
     if (!res.ok) return json({ error: `Jobs: ${res.status}` }, 502);
     const jobs = (await res.json()).map(jobFromRow);
+    // The owner's own Owner's Equity ledger (admin Hub → Banking & Credit) is the equity source of truth.
+    const eqRes = await fetchImpl(`${supabaseUrl}/rest/v1/equity_entries?select=entry_type,amount,entry_date,note&order=entry_date.asc`, { headers: { apikey: env.SUPABASE_SERVICE_KEY, Authorization: `Bearer ${env.SUPABASE_SERVICE_KEY}` } });
+    const equity = eqRes.ok ? await eqRes.json() : [];
     const { bv, zb, decisions } = await load();
-    const { entries, bankStart } = buildLedger({ bank: bv.rows, zoho: zb.rows, overrides: decisions });
+    const { entries, bankStart } = buildLedger({ bank: bv.rows, zoho: zb.rows, overrides: decisions, equity });
     const latest = bv.rows.find(r => r.balance != null) || null; // rows are newest first
     return json({
       from, to, categories: EXPENSE_CATEGORIES, kinds: KINDS,
-      summary: summarize(entries, from, to, revenueFor(jobs, from, to)),
-      allTime: summarize(entries, '2000-01-01', '2999-12-31', revenueFor(jobs, '2000-01-01', '2999-12-31')),
+      summary: summarize(entries, from, to, revenueFor(jobs, from, to), equity),
+      allTime: summarize(entries, '2000-01-01', '2999-12-31', revenueFor(jobs, '2000-01-01', '2999-12-31'), equity),
+      equityLedger: { ok: eqRes.ok, rows: equity.length },
       entries: entries.filter(e => e.date >= from && e.date <= to),
       reviewAll: entries.filter(e => e.review).length,
       sources: {

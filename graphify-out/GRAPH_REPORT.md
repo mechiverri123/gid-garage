@@ -1,7 +1,7 @@
 # Graph Report - gid-garage  (2026-09-30)
 
 ## Corpus Check
-- 295 files · ~1,477,190 words
+- 295 files · ~1,477,930 words
 - Verdict: corpus is large enough that graph structure adds value.
 - Unclassified: 16 file(s) not represented in the graph (top: (none) 7, .css 3, .toml 2)
 
@@ -11,7 +11,7 @@
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `224cdf59`
+- Built from commit: `e4ba9f37`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -837,8 +837,8 @@ _Questions this graph is uniquely positioned to answer:_
   _High betweenness centrality (0.081) - this node is a cross-community bridge._
 - **Why does `createBusinessOps()` connect `createBusinessOps` to `business-rules.js`, `jobFromRow`, `job-context.js`, `business-metrics.js`, `business-threads.test.js`, `admin-api-data.js`, `admin-ai-chat.js`, `jarvis-feeds.js`, `jarvis-workspace.js`, `link-notes.mjs`, `JobFocus.tsx`, `jarvis-business.js`?**
   _High betweenness centrality (0.019) - this node is a cross-community bridge._
-- **Why does `isInsideServiceArea()` connect `local-intent.js` to `kpis.js`, `providers.js`, `admin-ai-chat.js`, `agent-ops.js`, `seo-data.js`, `seo-agent.test.js`, `jarvis-business.js`, `detectors.js`?**
-  _High betweenness centrality (0.016) - this node is a cross-community bridge._
+- **Why does `Third pass (2026-09-27): Telegram production bugs` connect `createBusinessOps` to `business-rules.js`, `job-context.js`, `jarvis-context.js`, `business-metrics.js`, `RunContext`, `.list_jobs`?**
+  _High betweenness centrality (0.018) - this node is a cross-community bridge._
 - **Are the 3 inferred relationships involving `onRequestPost()` (e.g. with `sbGet()` and `sbInsert()`) actually correct?**
   _`onRequestPost()` has 3 INFERRED edges - model-reasoned connections that need verification._
 - **Are the 21 inferred relationships involving `createBusinessOps()` (e.g. with `actionCenter()` and `applyNoteLinks()`) actually correct?**

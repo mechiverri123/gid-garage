@@ -61,7 +61,8 @@ test('bank classification: customer money, owner equity, tax, refunds, ambiguous
 
 test('ledger: every bank row and Zoho expense lands exactly once; totals', () => {
   const bank = parseBluevine(BV); const zoho = parseZoho(ZB);
-  const { entries } = buildLedger({ bank, zoho });
+  const equity = [{ entry_date: '2026-09-26', entry_type: 'draw', amount: 550 }, { entry_date: '2026-09-02', entry_type: 'contribution', amount: 300 }];
+  const { entries } = buildLedger({ bank, zoho, equity });
   const bankIds = entries.flatMap(e => [e.bankId, ...(e.bankIds || [])].filter(Boolean));
   assert.equal(new Set(bankIds).size, bankIds.length, 'no bank row twice');
   assert.equal(bankIds.length, bank.length, 'every bank row');
@@ -76,12 +77,16 @@ test('ledger: every bank row and Zoho expense lands exactly once; totals', () =>
   assert.equal(by('zb:6').funding, 'outside');                      // cash or personal card?
   assert.ok(by('zb:6').review);
 
-  const s = summarize(entries, '2026-09-01', '2026-09-30', { collected: 1000, salesTax: 80 });
+  const s = summarize(entries, '2026-09-01', '2026-09-30', { collected: 1000, salesTax: 80 }, equity);
   // expenses: insurance 80.80 + parts 147.66 + tools 89.63 + meta 49 + cash parts 40 + walmart 64.30 + tools 20 − autozone refund 24.06
   assert.equal(s.expenses, 467.33);
   assert.equal(s.salesTaxPaid, 112.25);
+  // Owner's equity totals are the admin ledger's; bank transfers only get matched against it.
   assert.equal(s.ownerPaidBack, 550);
-  assert.equal(s.ownerPutIn, 180.8);                                // 100 deposit + 80.80 paid personally
+  assert.equal(s.ownerPutIn, 300);
+  assert.equal(entries.find(e => /VENMO/.test(e.desc)).inLedger, true);
+  assert.equal(s.bankDrawsNotInLedger, 0);
+  assert.equal(s.bankContributionsNotInLedger, 100);              // the $100 owner deposit isn't in the ledger
   assert.equal(s.interest, 0.78);
   assert.equal(s.revenue, 1000);                                    // from the jobs, not bank deposits
   assert.equal(s.deposits, 788.06);
@@ -93,8 +98,8 @@ test("the owner's decisions win: personal purchase, include a flagged twin, paid
   const wm = bank.find(r => /WM SUPER/.test(r.desc)).id;
   const { entries } = buildLedger({ bank, zoho, overrides: { [wm]: { kind: 'owner_out' }, 'zb:4': { kind: 'expense' }, 'zb:6': { funding: 'personal' } } });
   const s = summarize(entries, '2026-09-01', '2026-09-30');
-  assert.equal(s.ownerPaidBack, 614.3);
-  assert.equal(s.ownerPutIn, 220.8);
+  assert.equal(s.bankDrawsNotInLedger, 614.3);                     // no ledger given: Venmo + the Walmart marked Personal
+  assert.equal(entries.find(e => e.id === 'zb:6').funding, 'personal');
   assert.equal(s.expenses, Math.round((467.33 - 64.3 + 89.63) * 100) / 100);
   assert.equal(entries.find(e => e.id === wm).category, 'Personal purchase (owner equity)');
 });
@@ -117,10 +122,11 @@ test('/jarvis/money: Access verified, uploads merge by id, revenue from jobs, de
   await handleMoney({ request: req('POST', { action: 'decide', id: 'zb:6', funding: 'personal' }), env, verify: ok });
   assert.equal(JSON.parse(m.get(MONEY_KEYS.decisions))['zb:6'].funding, 'personal');
   const jobs = [{ id: 'j1', job_status: 'PAID', paid_at: '2026-09-10T18:00:00Z', amount_paid: 108, invoice_amount: 100, tax_amount: 8, payments: [{ amount: 108, at: '2026-09-10T18:00:00Z', method: 'Cash' }] }];
-  const fetchImpl = async () => new Response(JSON.stringify(jobs));
+  const fetchImpl = async url => new Response(JSON.stringify(String(url).includes('equity_entries') ? [{ entry_type: 'draw', amount: 550, entry_date: '2026-09-26' }] : jobs));
   const g = await (await handleMoney({ request: req('GET', null, '?from=2026-09-01&to=2026-09-30'), env, verify: ok, fetchImpl })).json();
   assert.equal(g.summary.revenue, 108);
   assert.equal(g.summary.salesTaxCollected, 8);
   assert.equal(g.sources.bluevine.balance, 500);
+  assert.equal(g.summary.ownerPaidBack, 550);
   assert.ok(g.entries.every(e => e.date >= '2026-09-01' && e.date <= '2026-09-30'));
 });

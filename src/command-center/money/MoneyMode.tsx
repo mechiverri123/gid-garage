@@ -93,6 +93,7 @@ function Row({ e, categories, onDone }: { e: Any; categories: string[]; onDone: 
             <span className="sm:hidden">{shortDay(e.date)} · </span>{e.kind === 'expense' ? e.category : KIND_LABEL[e.kind]}
             {e.source === 'both' ? ' · bank + Zoho receipt' : e.source === 'zoho' ? ' · Zoho only' : e.noReceipt ? ' · no Zoho receipt' : ''}
             {e.funding === 'personal' ? ' · paid personally' : e.funding === 'business_cash' ? ' · business cash' : ''}
+            {e.notInLedger ? ' · not in your equity ledger' : e.inLedger ? ' · in your equity ledger' : ''}
           </span>
         </span>
         <span className="hidden sm:block">{e.review ? <StatusBadge tone="amber">review</StatusBadge> : <StatusBadge tone={KIND_TONE[e.kind]}>{KIND_LABEL[e.kind]}</StatusBadge>}</span>
@@ -148,7 +149,7 @@ export function MoneyMode({ summary, onOpenView }: { summary: CommandCenterSumma
   const rows = useMemo(() => {
     const list: Any[] = data?.entries || [];
     const f = list.filter(e => filter === 'all' ? true : filter === 'review' ? !!e.review : filter === 'equity' ? e.kind === 'owner_out' || e.kind === 'owner_in' || e.funding === 'personal' : filter === 'deposit' ? e.kind === 'deposit' || e.kind === 'income' : e.kind === filter);
-    const s = q.trim().toLowerCase();
+    const s = q.trim().toLowerCase().replace(/[$,]/g, '');
     return s ? f.filter(e => `${e.desc} ${e.category} ${e.zohoAccount || ''} ${e.bankDesc || ''} ${Math.abs(e.amount).toFixed(2)}`.toLowerCase().includes(s)) : f;
   }, [data, filter, q]);
 
@@ -212,16 +213,47 @@ export function MoneyMode({ summary, onOpenView }: { summary: CommandCenterSumma
             </CommandCard>
 
             <CommandCard className="p-5">
-              <SectionHeader icon={PiggyBank} tone="purple" title="Owner's equity (all time)" subtitle="Money you put into GID vs what the business has paid you back" />
+              <SectionHeader icon={PiggyBank} tone="purple" title="Owner's equity (all time)" subtitle="From your Owner's Equity ledger in admin (Hub → Banking & Credit)" />
               <div className="grid grid-cols-3 gap-2 text-center">
                 <div><div className="text-[12px] uppercase tracking-wider" style={{ color: C.muted }}>You put in</div><div className="text-[18px] font-bold tabular-nums" style={{ color: C.text }}>{money(all?.ownerPutIn, 2)}</div></div>
                 <div><div className="text-[12px] uppercase tracking-wider" style={{ color: C.muted }}>Paid back</div><div className="text-[18px] font-bold tabular-nums" style={{ color: C.text }}>{money(all?.ownerPaidBack, 2)}</div></div>
                 <div><div className="text-[12px] uppercase tracking-wider" style={{ color: C.muted }}>{(all?.ownerEquityNet ?? 0) >= 0 ? 'Still owed to you' : 'Paid back beyond'}</div><div className="text-[18px] font-bold tabular-nums" style={{ color: C.purple }}>{money(Math.abs(all?.ownerEquityNet ?? 0), 2)}</div></div>
               </div>
-              <p className="text-[13px] mt-3" style={{ color: C.text2 }}>"You put in" counts your deposits and expenses you paid personally (Zoho receipts from before the Bluevine account, and any you mark "My personal card"). Earlier money you put in that isn't in Zoho isn't counted yet.</p>
+              {data.equityLedger && !data.equityLedger.ok && <p className="text-[13px] mt-3" style={{ color: C.amber }}>Couldn't read the admin equity ledger.</p>}
+              {(all?.bankDrawsNotInLedger > 0 || all?.bankContributionsNotInLedger > 0) && (
+                <p className="text-[13px] mt-3" style={{ color: C.amber }}>
+                  In Bluevine but not in your ledger: {all.bankDrawsNotInLedger > 0 && <>{money(all.bankDrawsNotInLedger, 2)} paid to you</>}{all.bankDrawsNotInLedger > 0 && all.bankContributionsNotInLedger > 0 && ' · '}{all.bankContributionsNotInLedger > 0 && <>{money(all.bankContributionsNotInLedger, 2)} you deposited</>}.
+                  {' '}If those were draws or contributions, add them in admin; otherwise tap them below (filter "Owner's equity") and pick what they were.
+                </p>)}
             </CommandCard>
           </div>
         </div>
+
+        {all && src?.bluevine?.balance != null && (() => {
+          const taxHeld = Math.max(0, all.salesTaxOwed);
+          const shouldHave = all.net + taxHeld + all.ownerEquityNet;
+          const rest = shouldHave - src.bluevine.balance;
+          const line = (label: string, v: number, bold = false) => (
+            <div className="flex justify-between gap-3 py-1" style={{ borderTop: bold ? `1px solid ${C.border}` : undefined }}>
+              <span style={{ color: bold ? C.text : C.text2, fontWeight: bold ? 700 : 400 }}>{label}</span>
+              <span className="tabular-nums" style={{ color: C.text, fontWeight: bold ? 700 : 500 }}>{v < 0 ? '−' : ''}{money(Math.abs(v), 2)}</span>
+            </div>
+          );
+          return (
+            <CommandCard className="p-5">
+              <SectionHeader icon={Landmark} title="Why net profit isn't your bank balance (all time)" subtitle="Profit is what the business earned. The bank only holds part of it at any moment." />
+              <div className="text-[14px] max-w-[640px]">
+                {line('Net profit (everything uploaded)', all.net)}
+                {line('+ Sales tax collected, not yet paid to AZ', taxHeld)}
+                {line(`${all.ownerEquityNet >= 0 ? '+' : '−'} You put in more than you took out (equity ledger)`, Math.abs(all.ownerEquityNet))}
+                {line('= Money the business should have somewhere', shouldHave, true)}
+                {line(`Bluevine balance on ${src.bluevine.balanceDate}`, src.bluevine.balance)}
+                {line('= Not in the bank on that date', rest, true)}
+              </div>
+              <p className="text-[13px] mt-2" style={{ color: C.text2 }}>That last line is money that's real but somewhere else: Stripe payouts still on the way, cash customers paid you that never went into Bluevine, Venmo transfers still pending, and anything spent after {src.bluevine.balanceDate} (upload a newer Bluevine export to include it).</p>
+            </CommandCard>
+          );
+        })()}
 
         {data.reviewAll > 0 && (
           <div className="rounded-xl px-4 py-3 text-[14px] flex flex-wrap items-center gap-2" role="status" style={{ color: C.amber, background: 'rgba(255,184,77,0.07)', border: '1px solid rgba(255,184,77,0.35)' }}>

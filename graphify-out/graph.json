@@ -3421,7 +3421,7 @@
       "file_type": "code",
       "norm_label": "onrequest()",
       "source_file": "functions/jarvis/money.js",
-      "source_location": "L98"
+      "source_location": "L102"
     },
     {
       "id": "shared_money_buildledger",
@@ -3433,7 +3433,7 @@
       "file_type": "code",
       "norm_label": "buildledger()",
       "source_file": "shared/money.js",
-      "source_location": "L138"
+      "source_location": "L141"
     },
     {
       "id": "shared_money_cents",
@@ -3445,7 +3445,7 @@
       "file_type": "code",
       "norm_label": "cents()",
       "source_file": "shared/money.js",
-      "source_location": "L50"
+      "source_location": "L52"
     },
     {
       "id": "shared_money_classifybank",
@@ -3457,7 +3457,7 @@
       "file_type": "code",
       "norm_label": "classifybank()",
       "source_file": "shared/money.js",
-      "source_location": "L120"
+      "source_location": "L122"
     },
     {
       "id": "shared_money_daynum",
@@ -3469,7 +3469,7 @@
       "file_type": "code",
       "norm_label": "daynum()",
       "source_file": "shared/money.js",
-      "source_location": "L133"
+      "source_location": "L135"
     },
     {
       "id": "shared_money_detectkind",
@@ -3481,7 +3481,7 @@
       "file_type": "code",
       "norm_label": "detectkind()",
       "source_file": "shared/money.js",
-      "source_location": "L54"
+      "source_location": "L56"
     },
     {
       "id": "shared_money_hash",
@@ -3493,7 +3493,7 @@
       "file_type": "code",
       "norm_label": "hash()",
       "source_file": "shared/money.js",
-      "source_location": "L52"
+      "source_location": "L54"
     },
     {
       "id": "shared_money_mergerows",
@@ -3505,7 +3505,7 @@
       "file_type": "code",
       "norm_label": "mergerows()",
       "source_file": "shared/money.js",
-      "source_location": "L85"
+      "source_location": "L87"
     },
     {
       "id": "shared_money_parsebluevine",
@@ -3517,7 +3517,7 @@
       "file_type": "code",
       "norm_label": "parsebluevine()",
       "source_file": "shared/money.js",
-      "source_location": "L63"
+      "source_location": "L65"
     },
     {
       "id": "shared_money_parsecsv",
@@ -3529,7 +3529,7 @@
       "file_type": "code",
       "norm_label": "parsecsv()",
       "source_file": "shared/money.js",
-      "source_location": "L28"
+      "source_location": "L30"
     },
     {
       "id": "shared_money_parsezoho",
@@ -3541,7 +3541,7 @@
       "file_type": "code",
       "norm_label": "parsezoho()",
       "source_file": "shared/money.js",
-      "source_location": "L76"
+      "source_location": "L78"
     },
     {
       "id": "shared_money_r2",
@@ -3553,7 +3553,7 @@
       "file_type": "code",
       "norm_label": "r2()",
       "source_file": "shared/money.js",
-      "source_location": "L239"
+      "source_location": "L251"
     },
     {
       "id": "shared_money_summarize",
@@ -3565,7 +3565,7 @@
       "file_type": "code",
       "norm_label": "summarize()",
       "source_file": "shared/money.js",
-      "source_location": "L241"
+      "source_location": "L253"
     },
     {
       "id": "shared_money_ymd",
@@ -3577,7 +3577,7 @@
       "file_type": "code",
       "norm_label": "ymd()",
       "source_file": "shared/money.js",
-      "source_location": "L51"
+      "source_location": "L53"
     },
     {
       "id": "shared_money_zohocategory",
@@ -3589,7 +3589,7 @@
       "file_type": "code",
       "norm_label": "zohocategory()",
       "source_file": "shared/money.js",
-      "source_location": "L99"
+      "source_location": "L101"
     },
     {
       "id": "shared_business_rules_statuschangefields",
@@ -11641,7 +11641,7 @@
       "file_type": "code",
       "norm_label": "moneymode()",
       "source_file": "src/command-center/money/MoneyMode.tsx",
-      "source_location": "L114"
+      "source_location": "L115"
     },
     {
       "id": "src_command_center_money_moneymode_post",
@@ -24188,7 +24188,7 @@
       "file_type": "code",
       "norm_label": "bank_rules",
       "source_file": "shared/money.js",
-      "source_location": "L102"
+      "source_location": "L104"
     },
     {
       "id": "shared_money_expense_categories",
@@ -24199,7 +24199,7 @@
       "file_type": "code",
       "norm_label": "expense_categories",
       "source_file": "shared/money.js",
-      "source_location": "L18"
+      "source_location": "L20"
     },
     {
       "id": "shared_money_kinds",
@@ -24210,7 +24210,7 @@
       "file_type": "code",
       "norm_label": "kinds",
       "source_file": "shared/money.js",
-      "source_location": "L24"
+      "source_location": "L26"
     },
     {
       "id": "shared_money_zoho_account",
@@ -24221,7 +24221,7 @@
       "file_type": "code",
       "norm_label": "zoho_account",
       "source_file": "shared/money.js",
-      "source_location": "L94"
+      "source_location": "L96"
     },
     {
       "id": "tests_money_test",
@@ -42379,7 +42379,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "functions/jarvis/money.js",
-      "source_location": "L48",
+      "source_location": "L51",
       "weight": 1.0
     },
     {
@@ -42391,7 +42391,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "functions/jarvis/money.js",
-      "source_location": "L52",
+      "source_location": "L55",
       "weight": 1.0
     },
     {
@@ -42403,7 +42403,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "functions/jarvis/money.js",
-      "source_location": "L52",
+      "source_location": "L55",
       "weight": 1.0
     },
     {
@@ -42415,7 +42415,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "functions/jarvis/money.js",
-      "source_location": "L68",
+      "source_location": "L72",
       "weight": 1.0
     },
     {
@@ -42427,7 +42427,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "functions/jarvis/money.js",
-      "source_location": "L70",
+      "source_location": "L74",
       "weight": 1.0
     },
     {
@@ -42439,7 +42439,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "functions/jarvis/money.js",
-      "source_location": "L70",
+      "source_location": "L74",
       "weight": 1.0
     },
     {
@@ -42451,7 +42451,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "functions/jarvis/money.js",
-      "source_location": "L74",
+      "source_location": "L78",
       "weight": 1.0
     },
     {
@@ -42463,7 +42463,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "functions/jarvis/money.js",
-      "source_location": "L76",
+      "source_location": "L80",
       "weight": 1.0
     },
     {
@@ -42475,7 +42475,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "functions/jarvis/money.js",
-      "source_location": "L98",
+      "source_location": "L102",
       "weight": 1.0
     },
     {
@@ -42487,7 +42487,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "functions/jarvis/money.js",
-      "source_location": "L98",
+      "source_location": "L102",
       "weight": 1.0
     },
     {
@@ -53083,7 +53083,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "shared/money.js",
-      "source_location": "L146",
+      "source_location": "L149",
       "weight": 1.0
     },
     {
@@ -53095,7 +53095,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "shared/money.js",
-      "source_location": "L150",
+      "source_location": "L153",
       "weight": 1.0
     },
     {
@@ -53107,7 +53107,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "shared/money.js",
-      "source_location": "L150",
+      "source_location": "L153",
       "weight": 1.0
     },
     {
@@ -53119,7 +53119,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "shared/money.js",
-      "source_location": "L168",
+      "source_location": "L171",
       "weight": 1.0
     },
     {
@@ -53131,7 +53131,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "shared/money.js",
-      "source_location": "L65",
+      "source_location": "L67",
       "weight": 1.0
     },
     {
@@ -53143,7 +53143,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "shared/money.js",
-      "source_location": "L66",
+      "source_location": "L68",
       "weight": 1.0
     },
     {
@@ -53155,7 +53155,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "shared/money.js",
-      "source_location": "L69",
+      "source_location": "L71",
       "weight": 1.0
     },
     {
@@ -53167,7 +53167,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "shared/money.js",
-      "source_location": "L77",
+      "source_location": "L79",
       "weight": 1.0
     },
     {
@@ -53179,7 +53179,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "shared/money.js",
-      "source_location": "L78",
+      "source_location": "L80",
       "weight": 1.0
     },
     {
@@ -53191,7 +53191,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "shared/money.js",
-      "source_location": "L258",
+      "source_location": "L276",
       "weight": 1.0
     },
     {
@@ -58735,7 +58735,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/command-center/money/MoneyMode.tsx",
-      "source_location": "L115",
+      "source_location": "L116",
       "weight": 1.0
     },
     {
@@ -58747,7 +58747,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/command-center/money/MoneyMode.tsx",
-      "source_location": "L117",
+      "source_location": "L118",
       "weight": 1.0
     },
     {
@@ -58759,7 +58759,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/command-center/money/MoneyMode.tsx",
-      "source_location": "L140",
+      "source_location": "L141",
       "weight": 1.0
     },
     {
@@ -58771,7 +58771,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/command-center/money/MoneyMode.tsx",
-      "source_location": "L162",
+      "source_location": "L163",
       "weight": 1.0
     },
     {
@@ -58783,7 +58783,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/command-center/money/MoneyMode.tsx",
-      "source_location": "L163",
+      "source_location": "L164",
       "weight": 1.0
     },
     {
@@ -58795,7 +58795,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/command-center/money/MoneyMode.tsx",
-      "source_location": "L164",
+      "source_location": "L165",
       "weight": 1.0
     },
     {
@@ -58807,7 +58807,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/command-center/money/MoneyMode.tsx",
-      "source_location": "L167",
+      "source_location": "L168",
       "weight": 1.0
     },
     {
@@ -58819,7 +58819,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/command-center/money/MoneyMode.tsx",
-      "source_location": "L168",
+      "source_location": "L169",
       "weight": 1.0
     },
     {
@@ -58831,7 +58831,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/command-center/money/MoneyMode.tsx",
-      "source_location": "L171",
+      "source_location": "L172",
       "weight": 1.0
     },
     {
@@ -58843,7 +58843,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/command-center/money/MoneyMode.tsx",
-      "source_location": "L171",
+      "source_location": "L172",
       "weight": 1.0
     },
     {
@@ -58855,7 +58855,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/command-center/money/MoneyMode.tsx",
-      "source_location": "L178",
+      "source_location": "L179",
       "weight": 1.0
     },
     {
@@ -58867,7 +58867,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/command-center/money/MoneyMode.tsx",
-      "source_location": "L179",
+      "source_location": "L180",
       "weight": 1.0
     },
     {
@@ -58879,7 +58879,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/command-center/money/MoneyMode.tsx",
-      "source_location": "L183",
+      "source_location": "L184",
       "weight": 1.0
     },
     {
@@ -58891,7 +58891,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/command-center/money/MoneyMode.tsx",
-      "source_location": "L192",
+      "source_location": "L193",
       "weight": 1.0
     },
     {
@@ -58903,7 +58903,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/command-center/money/MoneyMode.tsx",
-      "source_location": "L241",
+      "source_location": "L275",
       "weight": 1.0
     },
     {
@@ -58915,7 +58915,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/command-center/money/MoneyMode.tsx",
-      "source_location": "L246",
+      "source_location": "L280",
       "weight": 1.0
     },
     {
@@ -58932,6 +58932,18 @@
     },
     {
       "source": "src_command_center_money_moneymode_row",
+      "target": "src_command_center_ui_theme_money",
+      "relation": "calls",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "call",
+      "source_file": "src/command-center/money/MoneyMode.tsx",
+      "source_location": "L100",
+      "weight": 1.0
+    },
+    {
+      "source": "src_command_center_money_moneymode_row",
       "target": "src_command_center_money_moneymode_decide",
       "relation": "calls",
       "_origin": "ast",
@@ -58939,7 +58951,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/command-center/money/MoneyMode.tsx",
-      "source_location": "L107",
+      "source_location": "L108",
       "weight": 1.0
     },
     {
@@ -58957,18 +58969,6 @@
     {
       "source": "src_command_center_money_moneymode_row",
       "target": "src_command_center_ui_primitives_statusbadge",
-      "relation": "calls",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "context": "call",
-      "source_file": "src/command-center/money/MoneyMode.tsx",
-      "source_location": "L98",
-      "weight": 1.0
-    },
-    {
-      "source": "src_command_center_money_moneymode_row",
-      "target": "src_command_center_ui_theme_money",
       "relation": "calls",
       "_origin": "ast",
       "confidence": "EXTRACTED",
@@ -103629,6 +103629,17 @@
     },
     {
       "source": "functions_jarvis_money",
+      "target": "functions_jarvis_money_onrequest",
+      "relation": "contains",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "functions/jarvis/money.js",
+      "source_location": "L102",
+      "weight": 1.0
+    },
+    {
+      "source": "functions_jarvis_money",
       "target": "functions_jarvis_money_json",
       "relation": "contains",
       "_origin": "ast",
@@ -103691,17 +103702,6 @@
       "confidence_score": 1.0,
       "source_file": "functions/jarvis/money.js",
       "source_location": "L28",
-      "weight": 1.0
-    },
-    {
-      "source": "functions_jarvis_money",
-      "target": "functions_jarvis_money_onrequest",
-      "relation": "contains",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "source_file": "functions/jarvis/money.js",
-      "source_location": "L98",
       "weight": 1.0
     },
     {
@@ -110691,13 +110691,24 @@
     },
     {
       "source": "shared_money",
+      "target": "shared_money_zohocategory",
+      "relation": "contains",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "shared/money.js",
+      "source_location": "L101",
+      "weight": 1.0
+    },
+    {
+      "source": "shared_money",
       "target": "shared_money_bank_rules",
       "relation": "contains",
       "_origin": "ast",
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "shared/money.js",
-      "source_location": "L102",
+      "source_location": "L104",
       "weight": 1.0
     },
     {
@@ -110708,7 +110719,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "shared/money.js",
-      "source_location": "L120",
+      "source_location": "L122",
       "weight": 1.0
     },
     {
@@ -110719,7 +110730,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "shared/money.js",
-      "source_location": "L133",
+      "source_location": "L135",
       "weight": 1.0
     },
     {
@@ -110730,7 +110741,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "shared/money.js",
-      "source_location": "L138",
+      "source_location": "L141",
       "weight": 1.0
     },
     {
@@ -110741,7 +110752,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "shared/money.js",
-      "source_location": "L18",
+      "source_location": "L20",
       "weight": 1.0
     },
     {
@@ -110752,18 +110763,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "shared/money.js",
-      "source_location": "L239",
-      "weight": 1.0
-    },
-    {
-      "source": "shared_money",
-      "target": "shared_money_kinds",
-      "relation": "contains",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "source_file": "shared/money.js",
-      "source_location": "L24",
+      "source_location": "L251",
       "weight": 1.0
     },
     {
@@ -110774,7 +110774,18 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "shared/money.js",
-      "source_location": "L241",
+      "source_location": "L253",
+      "weight": 1.0
+    },
+    {
+      "source": "shared_money",
+      "target": "shared_money_kinds",
+      "relation": "contains",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "shared/money.js",
+      "source_location": "L26",
       "weight": 1.0
     },
     {
@@ -110785,7 +110796,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "shared/money.js",
-      "source_location": "L28",
+      "source_location": "L30",
       "weight": 1.0
     },
     {
@@ -110796,7 +110807,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "shared/money.js",
-      "source_location": "L50",
+      "source_location": "L52",
       "weight": 1.0
     },
     {
@@ -110807,7 +110818,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "shared/money.js",
-      "source_location": "L51",
+      "source_location": "L53",
       "weight": 1.0
     },
     {
@@ -110818,7 +110829,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "shared/money.js",
-      "source_location": "L52",
+      "source_location": "L54",
       "weight": 1.0
     },
     {
@@ -110829,7 +110840,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "shared/money.js",
-      "source_location": "L54",
+      "source_location": "L56",
       "weight": 1.0
     },
     {
@@ -110840,7 +110851,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "shared/money.js",
-      "source_location": "L63",
+      "source_location": "L65",
       "weight": 1.0
     },
     {
@@ -110851,7 +110862,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "shared/money.js",
-      "source_location": "L76",
+      "source_location": "L78",
       "weight": 1.0
     },
     {
@@ -110862,7 +110873,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "shared/money.js",
-      "source_location": "L85",
+      "source_location": "L87",
       "weight": 1.0
     },
     {
@@ -110873,18 +110884,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "shared/money.js",
-      "source_location": "L94",
-      "weight": 1.0
-    },
-    {
-      "source": "shared_money",
-      "target": "shared_money_zohocategory",
-      "relation": "contains",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "source_file": "shared/money.js",
-      "source_location": "L99",
+      "source_location": "L96",
       "weight": 1.0
     },
     {
@@ -115581,7 +115581,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/command-center/money/MoneyMode.tsx",
-      "source_location": "L114",
+      "source_location": "L115",
       "weight": 1.0
     },
     {
@@ -128646,5 +128646,5 @@
       "source_file": "public/website_logo.png"
     }
   ],
-  "built_at_commit": "224cdf594511fb025d5e49905e6fda3070d13b07"
+  "built_at_commit": "e4ba9f3720d68496093985b7b3d7b5d8c9f0d45b"
 }

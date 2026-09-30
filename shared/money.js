@@ -6,8 +6,10 @@
 //     before the account existed). Bank-only charges get a category from the
 //     merchant, or go to review when the merchant is ambiguous (Walmart, Amazon…).
 //   - Owner's equity (owner decision, CLAUDE.md §9): transfers to the owner
-//     (Venmo, SoFi) are REPAYMENT of owner's equity, never expense or pay;
-//     the owner's own deposits and expenses he paid personally are contributions.
+//     (Venmo, SoFi) are REPAYMENT of owner's equity, never expense or pay.
+//     The TOTALS come from the owner's own Owner's Equity ledger in admin
+//     (equity_entries: contribution / draw); bank transfers are only matched
+//     against it so ones missing from the ledger are pointed out.
 //   - Customer money (Stripe payouts, cash/check deposits) is NOT revenue here:
 //     revenue is the canonical collected figure from the jobs (business-metrics.js);
 //     deposits are only used to reconcile.
@@ -135,7 +137,8 @@ const dayNum = s => Math.round(Date.parse(`${s}T12:00:00Z`) / 86400000);
 // ---- the ledger ---------------------------------------------------------------------------------
 
 // overrides: { [entryId]: { kind?, category?, funding? } }  (the owner's decisions)
-export function buildLedger({ bank = [], zoho = [], overrides = {} }) {
+// equity: rows of the admin Owner's Equity ledger { entry_date, entry_type: contribution|draw, amount }.
+export function buildLedger({ bank = [], zoho = [], overrides = {}, equity = [] }) {
   const bankStart = bank.length ? bank.reduce((m, r) => (r.date < m ? r.date : m), bank[0].date) : null;
   const debits = bank.filter(r => r.amount < 0);
   const used = new Set();
@@ -231,6 +234,15 @@ export function buildLedger({ bank = [], zoho = [], overrides = {} }) {
     if (o.kind === 'owner_out' && !o.category) e.category = 'Personal purchase (owner equity)';
     e.reviewed = true; delete e.review;
   }
+
+  // Owner transfers vs the Owner's Equity ledger: same amount, within 5 days.
+  const usedEq = new Set();
+  for (const e of entries.filter(x => x.kind === 'owner_out' || x.kind === 'owner_in').sort((a, b) => a.date.localeCompare(b.date))) {
+    const type = e.kind === 'owner_out' ? 'draw' : 'contribution';
+    const want = cents(Math.abs(e.amount)); const d = dayNum(e.date);
+    const hit = equity.find((q, i) => !usedEq.has(i) && q.entry_type === type && cents(q.amount) === want && Math.abs(dayNum(String(q.entry_date).slice(0, 10)) - d) <= 5);
+    if (hit) { usedEq.add(equity.indexOf(hit)); e.inLedger = true; } else e.notInLedger = true;
+  }
   return { entries: entries.sort((a, b) => b.date.localeCompare(a.date) || a.id.localeCompare(b.id)), bankStart };
 }
 
@@ -238,7 +250,7 @@ export function buildLedger({ bank = [], zoho = [], overrides = {} }) {
 
 const r2 = n => Math.round(n * 100) / 100;
 // revenue: { collected, salesTax } for the same window (canonical, from the jobs).
-export function summarize(entries, from, to, revenue = { collected: 0, salesTax: 0 }) {
+export function summarize(entries, from, to, revenue = { collected: 0, salesTax: 0 }, equity = []) {
   const inR = e => e.date >= from && e.date <= to;
   const list = entries.filter(inR);
   const byCat = {};
@@ -247,13 +259,19 @@ export function summarize(entries, from, to, revenue = { collected: 0, salesTax:
     if (e.review) review++;
     if (e.kind === 'expense') {
       expenses += e.amount; byCat[e.category] = (byCat[e.category] || 0) + e.amount;
-      if (e.funding === 'personal') ownerIn += e.amount; // paid personally = contribution
       if (e.funding === 'outside') outside += e.amount;
     } else if (e.kind === 'tax_paid') taxPaid += e.amount;
-    else if (e.kind === 'owner_out') ownerOut += e.amount;
-    else if (e.kind === 'owner_in') ownerIn += -e.amount; // deposits are negative outflows
+    else if (e.kind === 'owner_out') { if (e.notInLedger) ownerOut += e.amount; }
+    else if (e.kind === 'owner_in') { if (e.notInLedger) ownerIn += -e.amount; } // deposits are negative outflows
     else if (e.kind === 'deposit') deposits += -e.amount;
     else if (e.kind === 'income') income += -e.amount;
+  }
+  // Owner's equity totals come from the admin ledger; bank transfers missing from it are reported separately.
+  let putIn = 0, paidBack = 0;
+  for (const q of equity) {
+    const day = String(q.entry_date).slice(0, 10);
+    if (day < from || day > to) continue;
+    if (q.entry_type === 'contribution') putIn += Number(q.amount) || 0; else if (q.entry_type === 'draw') paidBack += Number(q.amount) || 0;
   }
   const collected = r2(revenue.collected || 0); const salesTax = r2(revenue.salesTax || 0);
   const net = r2(collected - salesTax - expenses + income);
@@ -261,7 +279,8 @@ export function summarize(entries, from, to, revenue = { collected: 0, salesTax:
     from, to, revenue: collected, salesTaxCollected: salesTax, salesTaxPaid: r2(taxPaid), salesTaxOwed: r2(salesTax - taxPaid),
     expenses: r2(expenses), byCategory: Object.fromEntries(Object.entries(byCat).map(([k, v]) => [k, r2(v)]).sort((a, b) => b[1] - a[1])),
     interest: r2(income), net,
-    ownerPaidBack: r2(ownerOut), ownerPutIn: r2(ownerIn), ownerEquityNet: r2(ownerIn - ownerOut),
+    ownerPaidBack: r2(paidBack), ownerPutIn: r2(putIn), ownerEquityNet: r2(putIn - paidBack),
+    bankDrawsNotInLedger: r2(ownerOut), bankContributionsNotInLedger: r2(ownerIn),
     deposits: r2(deposits), paidOutsideBank: r2(outside), needsReview: review, count: list.length,
   };
 }

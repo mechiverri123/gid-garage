@@ -276,9 +276,9 @@
     "semantic_hash": "a33ab1cd5b7348688a6ddcd64664307f"
   },
   "src/command-center/CommandCenterPage.tsx": {
-    "mtime": 1790711157.3389044,
-    "seen": 1790711396.0873091,
-    "ast_hash": "1120e445eece615a874e122be7327954",
+    "mtime": 1790758787.3228128,
+    "seen": 1790758848.1939893,
+    "ast_hash": "0347e1c96052e23ea857d5ea9725a0a5",
     "semantic_hash": ""
   },
   "src/command-center/api.ts": {
@@ -570,9 +570,9 @@
     "semantic_hash": "a643d83b7626b709e8beeda21099b3f0"
   },
   "CLAUDE.md": {
-    "mtime": 1790757249.7380881,
-    "seen": 1790757274.7916174,
-    "ast_hash": "bd4c8db03fac5530f138537b80e2765a",
+    "mtime": 1790758839.997545,
+    "seen": 1790758848.2060041,
+    "ast_hash": "a833aebab7d7415c8dcc6b278dcf5c2f",
     "semantic_hash": ""
   },
   "CODEBASE.md": {
@@ -1392,9 +1392,9 @@
     "semantic_hash": ""
   },
   "src/command-center/seo/uiMode.ts": {
-    "mtime": 1790583478.4258592,
-    "seen": 1790583732.869762,
-    "ast_hash": "8c065655c64beb5bdef424e4245b0ed2",
+    "mtime": 1790758787.4039826,
+    "seen": 1790758848.1964667,
+    "ast_hash": "fc9fa21ef99263ae805e5bb327fd7643",
     "semantic_hash": ""
   },
   "tests/seo-auth.test.js": {
@@ -1404,9 +1404,9 @@
     "semantic_hash": ""
   },
   "tests/seo-routing-mode.test.js": {
-    "mtime": 1790583534.522285,
-    "seen": 1790583732.8716505,
-    "ast_hash": "494fc3525099ad6b0f2897ce2b726bc9",
+    "mtime": 1790758812.018252,
+    "seen": 1790758848.2008228,
+    "ast_hash": "acb17115063ecb1ec931f7126fa73018",
     "semantic_hash": ""
   },
   "tests/seo-services.test.js": {
@@ -1560,9 +1560,9 @@
     "semantic_hash": ""
   },
   "src/command-center/shell/AppSidebar.tsx": {
-    "mtime": 1790640545.4059732,
-    "seen": 1790640624.70926,
-    "ast_hash": "95e9401e0797239262cc0b9a571a3a9b",
+    "mtime": 1790758787.2761588,
+    "seen": 1790758848.1965353,
+    "ast_hash": "744a87faf865f733736471ed8102f085",
     "semantic_hash": ""
   },
   "src/command-center/shell/CommandTopBar.tsx": {
@@ -1638,9 +1638,9 @@
     "semantic_hash": ""
   },
   "shared/jarvis-workspace.js": {
-    "mtime": 1790757143.4815702,
-    "seen": 1790757274.777979,
-    "ast_hash": "097081933d75a6a0fd0ca63121b551f8",
+    "mtime": 1790758770.692992,
+    "seen": 1790758848.1920419,
+    "ast_hash": "2003725adeec648edc0e2f821076cd40",
     "semantic_hash": ""
   },
   "src/command-center/workspace/AnalyticsView.tsx": {
@@ -1692,9 +1692,9 @@
     "semantic_hash": ""
   },
   "tests/jarvis-workspace.test.js": {
-    "mtime": 1790757143.4820757,
-    "seen": 1790757274.7856855,
-    "ast_hash": "fedae9c9fe9a4d7c99a219472ac9d2af",
+    "mtime": 1790758770.692992,
+    "seen": 1790758848.199936,
+    "ast_hash": "98b7c216f2267b1e6fcbedcb1e664c11",
     "semantic_hash": ""
   },
   "functions/_lib/jarvis-screen.js": {
@@ -2181,6 +2181,30 @@
     "mtime": 1790753404.0269043,
     "seen": 1790757274.7863958,
     "ast_hash": "e28ebad2f914b4b01e9d9b7d0aa11eca",
+    "semantic_hash": ""
+  },
+  "functions/jarvis/money.js": {
+    "mtime": 1790758616.573642,
+    "seen": 1790758848.1908126,
+    "ast_hash": "3178e5e8b25f6cd39562a3c3604ba530",
+    "semantic_hash": ""
+  },
+  "shared/money.js": {
+    "mtime": 1790758564.489311,
+    "seen": 1790758848.192108,
+    "ast_hash": "9bf48ae51bada68fc2619c4f067e8217",
+    "semantic_hash": ""
+  },
+  "src/command-center/money/MoneyMode.tsx": {
+    "mtime": 1790758735.3211029,
+    "seen": 1790758848.1960523,
+    "ast_hash": "3058ac9c53258b436206b81c7a0d3967",
+    "semantic_hash": ""
+  },
+  "tests/money.test.js": {
+    "mtime": 1790758654.6937828,
+    "seen": 1790758848.2000053,
+    "ast_hash": "e1732d3d7193e44301828f11041c31e7",
     "semantic_hash": ""
   }
 }
