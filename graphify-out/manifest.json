@@ -222,9 +222,9 @@
     "semantic_hash": "861c63dd430d890bfbbd07dd2ef1013a"
   },
   "src/App.tsx": {
-    "mtime": 1790744898.3999565,
-    "seen": 1790744927.5640018,
-    "ast_hash": "45955f6bd189645a6228522262039d2a",
+    "mtime": 1790745526.2921138,
+    "seen": 1790745633.2098968,
+    "ast_hash": "b182dc27cee265db9db5250e65cd6576",
     "semantic_hash": ""
   },
   "src/BookingWidget.tsx": {
@@ -612,9 +612,9 @@
     "semantic_hash": "d64dacd95675737d6ca07775d01ab26d"
   },
   "index.html": {
-    "mtime": 1790744898.3984046,
-    "seen": 1790744927.5774753,
-    "ast_hash": "516df51526fc824eca908764862d2b2a",
+    "mtime": 1790745498.885515,
+    "seen": 1790745633.2231262,
+    "ast_hash": "a9d0897e3f26a67b7e4216d58fd6182e",
     "semantic_hash": ""
   },
   "jarvis-agent/README.md": {
@@ -1242,9 +1242,9 @@
     "semantic_hash": ""
   },
   "functions/_lib/seo/providers.js": {
-    "mtime": 1790710525.425056,
-    "seen": 1790711396.0764382,
-    "ast_hash": "f557ccf1428577f32ca720cd38b6cf63",
+    "mtime": 1790745083.0224862,
+    "seen": 1790745633.2057397,
+    "ast_hash": "f21225d5c24c4ce49d7ab40e680e6aa8",
     "semantic_hash": ""
   },
   "functions/_lib/seo/store.js": {
@@ -1818,9 +1818,9 @@
     "semantic_hash": ""
   },
   "src/command-center/seo/SeoAgent.tsx": {
-    "mtime": 1790711121.268754,
-    "seen": 1790711396.092399,
-    "ast_hash": "fb2d46ea4ce466b9efedb9013ff023f6",
+    "mtime": 1790745076.1432467,
+    "seen": 1790745633.2125535,
+    "ast_hash": "c3491d90dab88e207200e5c8974b32ff",
     "semantic_hash": ""
   },
   "tests/seo-agent.test.js": {
@@ -1829,76 +1829,112 @@
     "ast_hash": "feddb27dd86572f6debd6f5504a630a5",
     "semantic_hash": ""
   },
-  ".wrangler/tmp/bundle-EPTFBv/middleware-insertion-facade.js": {
-    "mtime": 1790744566.3925765,
-    "seen": 1790744927.558108,
-    "ast_hash": "efbd7374f8428d545d477a9125c6d7ac",
-    "semantic_hash": ""
-  },
-  ".wrangler/tmp/bundle-EPTFBv/middleware-loader.entry.ts": {
-    "mtime": 1790744566.3976283,
-    "seen": 1790744927.55811,
-    "ast_hash": "07c3f11f090a0f0ef4256a5d194e37c8",
-    "semantic_hash": ""
-  },
-  ".wrangler/tmp/bundle-Gyk7Qn/middleware-insertion-facade.js": {
-    "mtime": 1790744565.3800807,
-    "seen": 1790744927.5581114,
-    "ast_hash": "c0c47f6e5f4fb1310716bfe274b4f4ce",
-    "semantic_hash": ""
-  },
-  ".wrangler/tmp/bundle-Gyk7Qn/middleware-loader.entry.ts": {
-    "mtime": 1790744565.3810928,
-    "seen": 1790744927.5581126,
-    "ast_hash": "1720bf0c1ba8d037d9e4d0228dd5294b",
-    "semantic_hash": ""
-  },
-  ".wrangler/tmp/dev-i3M7VM/functionsWorker-0.2859988145658393.js": {
-    "mtime": 1790744566.5818777,
-    "seen": 1790744927.5581136,
-    "ast_hash": "cee566f8bd69ce3ed024d2fa8d54c253",
-    "semantic_hash": ""
-  },
-  ".wrangler/tmp/pages-66ME6d/functionsRoutes-0.02290724145297174.mjs": {
-    "mtime": 1790744565.3785603,
-    "seen": 1790744927.5581145,
-    "ast_hash": "a81d487df4130dbbc8b54dd289e45b90",
-    "semantic_hash": ""
-  },
-  ".wrangler/tmp/pages-66ME6d/functionsWorker-0.2859988145658393.mjs": {
-    "mtime": 1790744566.1350613,
-    "seen": 1790744927.5581155,
-    "ast_hash": "02a8d2bd463ac9783488aa675f6d5801",
-    "semantic_hash": ""
-  },
   "scripts/prerender.mjs": {
-    "mtime": 1790744854.785069,
-    "seen": 1790744927.5623348,
-    "ast_hash": "2586a3f9e4dd6a66d0cd4a64b397cd22",
+    "mtime": 1790745573.1597164,
+    "seen": 1790745633.208341,
+    "ast_hash": "27d044cecc7adfff19dba52ca7510542",
     "semantic_hash": ""
   },
   "shared/site-pages.d.ts": {
-    "mtime": 1790744364.6658885,
-    "seen": 1790744927.5638032,
-    "ast_hash": "97e109806dfb4d0003cdd9996bcc9eb5",
+    "mtime": 1790745493.0701983,
+    "seen": 1790745633.2097087,
+    "ast_hash": "834bc374b77f4d036b22dc9efd915633",
     "semantic_hash": ""
   },
   "shared/site-pages.js": {
-    "mtime": 1790744385.7786784,
-    "seen": 1790744927.5638044,
-    "ast_hash": "e4584c902b818a834434dce5c4c78b60",
+    "mtime": 1790745493.068681,
+    "seen": 1790745633.20971,
+    "ast_hash": "39307e7d80cae390bcb3467ea4f40089",
     "semantic_hash": ""
   },
   "src/ServicePages.tsx": {
-    "mtime": 1790744414.9351892,
-    "seen": 1790744927.5645518,
-    "ast_hash": "f1dbd56212d0e68f6492943d76d8976d",
+    "mtime": 1790745526.291099,
+    "seen": 1790745633.2104132,
+    "ast_hash": "1c313be6e8ba2666451f107810113999",
     "semantic_hash": ""
   },
   "tests/site-pages.test.js": {
-    "mtime": 1790744793.1176903,
-    "seen": 1790744927.5722158,
-    "ast_hash": "a8768ef5fd8bbf191b2a16cfc8a0dc52",
+    "mtime": 1790745601.9895773,
+    "seen": 1790745633.2175667,
+    "ast_hash": "67f5361617b69f73e5d98d5c458d9446",
+    "semantic_hash": ""
+  },
+  "public/case/blazer-new-battery.webp": {
+    "mtime": 1790745406.358832,
+    "seen": 1790745633.2239802,
+    "ast_hash": "94b9e20f340a2b8618685ccce50b3290",
+    "semantic_hash": ""
+  },
+  "public/case/blazer-old-battery.webp": {
+    "mtime": 1790745406.1938448,
+    "seen": 1790745633.2239819,
+    "ast_hash": "055db63e2965419a2257abc07f3a9b9d",
+    "semantic_hash": ""
+  },
+  "public/case/blazer-old-vs-new.webp": {
+    "mtime": 1790745406.5397105,
+    "seen": 1790745633.2239826,
+    "ast_hash": "63a6677bb5892b658dd085f5903507f8",
+    "semantic_hash": ""
+  },
+  "public/case/cherokee-intake-removed.webp": {
+    "mtime": 1790745405.8533223,
+    "seen": 1790745633.2239835,
+    "ast_hash": "1c5c57c12917479b70767553363665e9",
+    "semantic_hash": ""
+  },
+  "public/case/cherokee-old-plugs.webp": {
+    "mtime": 1790745406.0191064,
+    "seen": 1790745633.223985,
+    "ast_hash": "d3e2f3fa8180360a7abd1cea359dcc73",
+    "semantic_hash": ""
+  },
+  "public/case/cherokee-plenum-off.webp": {
+    "mtime": 1790745405.6916008,
+    "seen": 1790745633.223986,
+    "ast_hash": "4625352aa62daacfaec095652199f4fe",
+    "semantic_hash": ""
+  },
+  "public/case/outback-brakes-after.webp": {
+    "mtime": 1790745406.8771875,
+    "seen": 1790745633.2239866,
+    "ast_hash": "c37881a0814622ef48f91b64c52e993c",
+    "semantic_hash": ""
+  },
+  "public/case/outback-brakes-before.webp": {
+    "mtime": 1790745406.7133265,
+    "seen": 1790745633.2239878,
+    "ast_hash": "3b167aa4c2e66686a07e13f93cb3c1f1",
+    "semantic_hash": ""
+  },
+  "public/case/outback-spark-plugs.webp": {
+    "mtime": 1790745407.3269572,
+    "seen": 1790745633.2239888,
+    "ast_hash": "e7119c43d41a56b205394a0fe594def4",
+    "semantic_hash": ""
+  },
+  "public/case/outback-throttle-after.webp": {
+    "mtime": 1790745407.1539855,
+    "seen": 1790745633.2239897,
+    "ast_hash": "70fc7792bd5a4de290d7aec1672af10c",
+    "semantic_hash": ""
+  },
+  "public/case/outback-throttle-before.webp": {
+    "mtime": 1790745407.0188782,
+    "seen": 1790745633.2239907,
+    "ast_hash": "d8c5f520b4023dbdc0be359c24f5bc34",
+    "semantic_hash": ""
+  },
+  "public/case/titan-coil-installed.webp": {
+    "mtime": 1790745405.5247288,
+    "seen": 1790745633.2239916,
+    "ast_hash": "05ad30b5437db5d0a7a54b2849eba33a",
+    "semantic_hash": ""
+  },
+  "public/case/titan-coil-old-new.webp": {
+    "mtime": 1790745405.3142197,
+    "seen": 1790745633.2239923,
+    "ast_hash": "54aa7c1b8468a593e1f6600647c75c0b",
     "semantic_hash": ""
   }
 }

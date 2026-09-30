@@ -107,8 +107,7 @@ export const SERVICE_PAGES = [
   },
 ].map(p => ({ ...p, canonical: `${SITE}${p.path}`, howItWorks: HOW_IT_WORKS, faq: [...p.faq, ...COMMON_FAQ] }));
 
-// Towns served (the same list as the homepage map). Winslow stays listed until
-// the owner decides whether it's served (it's beyond the ~30-mile radius).
+// Towns served (the same list as the homepage map), all within ~30 miles.
 export const AREAS = [
   { name: 'Flagstaff', slug: 'flagstaff', miles: 0, blurb: 'Home base. Same-day and next-day mobile appointments are usually available anywhere in town.' },
   { name: 'Fort Valley', slug: 'fort-valley', miles: 2.7, blurb: 'Just northwest of downtown — one of our quickest response areas.' },
@@ -120,7 +119,6 @@ export const AREAS = [
   { name: 'Winona', slug: 'winona', miles: 13.9, blurb: 'East on old Route 66 near Walnut Canyon — we make it out this way regularly.' },
   { name: 'Parks', slug: 'parks', miles: 17.0, blurb: 'Out I-40 west, past Bellemont — a familiar drive for us.' },
   { name: 'Sedona', slug: 'sedona', miles: 28.0, blurb: 'Down 89A through Oak Creek Canyon — mobile repair without the drive up to Flagstaff.' },
-  { name: 'Winslow', slug: 'winslow', miles: 58.0, blurb: 'Further east off I-40 — reach out ahead of time so we can build it into the schedule.' },
 ];
 
 export const AREAS_PAGE = {
@@ -142,3 +140,71 @@ export const HOME_PAGE = {
 export const PRIVACY_PAGE = { path: '/privacy', canonical: `${SITE}/privacy`, title: 'Privacy Policy | GID Garage', description: 'How GID Garage collects, uses and protects your information.', h1: 'Privacy Policy' };
 
 export const pageForPath = path => SERVICE_PAGES.find(p => p.path === String(path).replace(/\/+$/, '')) || null;
+
+// Real completed jobs, written only from the job record (symptom, what was
+// confirmed, what was replaced, outcome). No customer names, contacts or
+// addresses; photos cropped to the parts, metadata stripped (public/case/).
+export const CASE_STUDIES = [
+  {
+    slug: '2005-nissan-titan-cylinder-6-misfire-coil-pack', serviceId: 'diag', month: 'July 2026',
+    vehicle: '2005 Nissan Titan 5.6L V8', mileage: '251,225 miles',
+    title: '2005 Nissan Titan Cylinder 6 Misfire: Bad Coil Pack | GID Garage Case Study',
+    description: 'A 2005 Nissan Titan with 251k miles developed a cylinder 6 misfire right after new spark plugs. We confirmed a failed coil pack and fixed it on site.',
+    h1: '2005 Nissan Titan: Cylinder 6 Misfire After a Spark Plug Job',
+    complaint: 'The truck started misfiring on cylinder 6 shortly after its spark plugs were replaced.',
+    diagnosis: 'We scanned the truck on site and confirmed the cylinder 6 misfire was caused by a bad ignition coil pack — not the new plugs.',
+    repair: 'Replaced the cylinder 6 coil pack, then rescanned the truck.',
+    outcome: 'The rescan came back clean — the misfire was resolved, and the truck never had to go to a shop.',
+    lesson: "A misfire that shows up right after a tune-up isn't always the new parts. On a high-mileage engine, the coil feeding that cylinder can be the real failure — testing first saves replacing parts that are fine.",
+    photos: [{ src: '/case/titan-coil-old-new.webp', alt: 'Failed coil pack next to the new replacement' }, { src: '/case/titan-coil-installed.webp', alt: 'Coil pack area on the 5.6L V8' }],
+  },
+  {
+    slug: '2014-jeep-cherokee-misfire-spark-plugs-coils-plenum-gasket', serviceId: 'diag', month: 'July 2026',
+    vehicle: '2014 Jeep Cherokee 3.2L V6 Latitude', mileage: '213,402 miles',
+    title: '2014 Jeep Cherokee 3.2L Misfire: Plugs, Coils & Plenum Gasket | GID Garage Case Study',
+    description: 'Cylinder 5 misfire on a 2014 Jeep Cherokee 3.2L. All six spark plugs and coils replaced on site, including intake plenum removal and a new gasket.',
+    h1: '2014 Jeep Cherokee 3.2L: Misfire on Cylinder 5',
+    complaint: 'A misfire on cylinder 5. The owner wanted the ignition refreshed rather than chasing one cylinder at a time.',
+    diagnosis: "On the 3.2L V6, the rear bank's plugs and coils sit under the upper intake plenum, so the plenum has to come off to reach them — and its gasket has to be replaced when it goes back on.",
+    repair: 'Removed the upper intake plenum, replaced all six spark plugs and all six ignition coils, and reinstalled the plenum with a new gasket set — about 4.5 hours, done where the Jeep was parked.',
+    outcome: 'New plugs and coils in all six cylinders. We also flagged oil seepage at cylinder 5 (a valve cover gasket to watch) and a transmission code that showed on the before-and-after scans, so the owner knows what to keep an eye on.',
+    lesson: 'On engines where half the plugs hide under the intake, doing all six at once means paying for that teardown only once.',
+    photos: [{ src: '/case/cherokee-plenum-off.webp', alt: 'Upper intake plenum removed, ports covered' }, { src: '/case/cherokee-intake-removed.webp', alt: 'Rear bank coils exposed with the intake off' }, { src: '/case/cherokee-old-plugs.webp', alt: 'All six old spark plugs removed' }],
+  },
+  {
+    slug: '2021-chevrolet-blazer-no-start-battery-replacement', serviceId: 'diag', month: 'August 2026',
+    vehicle: '2021 Chevrolet Blazer RS', mileage: null,
+    title: "2021 Chevy Blazer Won't Start: Battery Test & AGM Replacement | GID Garage Case Study",
+    description: "A 2021 Chevrolet Blazer RS wouldn't start. We tested it where it sat, a battery health report confirmed a failed battery, and we installed a new AGM battery.",
+    h1: "2021 Chevrolet Blazer RS: Won't Start",
+    complaint: "The Blazer wouldn't start, and the owner wanted to know why before spending money on parts.",
+    diagnosis: 'We came to the vehicle, scanned it, and ran a battery health test. The report confirmed the battery had failed.',
+    repair: 'Installed a new Duralast Platinum Elite AGM battery (group 94R / H7) and rescanned.',
+    outcome: 'The Blazer was back on the road without a tow, and the owner got the battery health report with the invoice.',
+    lesson: "A no-start isn't always the battery — a quick test on site tells you what failed before you buy anything.",
+    photos: [{ src: '/case/blazer-old-battery.webp', alt: 'Original battery before replacement' }, { src: '/case/blazer-new-battery.webp', alt: 'New Duralast AGM battery installed' }, { src: '/case/blazer-old-vs-new.webp', alt: 'Old battery next to the new AGM battery' }],
+  },
+  {
+    slug: '2020-subaru-outback-brakes-spark-plugs-throttle-body', serviceId: 'brakes', month: 'September 2026',
+    vehicle: '2020 Subaru Outback 2.5L Limited', mileage: '51,336 miles',
+    title: '2020 Subaru Outback: Brakes, Spark Plugs & Throttle Body Cleaning | GID Garage Case Study',
+    description: 'Front pads and rotors, spark plugs, PCV valve and a MAF and throttle body cleaning on a 2020 Subaru Outback, using genuine parts the owner supplied.',
+    h1: '2020 Subaru Outback: Brakes, Plugs & a Very Dirty Throttle Body',
+    complaint: 'The owner had already bought genuine Subaru parts and wanted the work done at home: front brake pads and rotors, spark plugs, PCV valve and hose, and a MAF sensor and throttle body cleaning.',
+    diagnosis: 'During the cleaning, the MAF sensor had only light debris — nothing concerning — but the throttle body was significantly dirty.',
+    repair: 'Replaced the front pads and rotors (caliper bracket bolts 99.6 ft-lb, slide pins 25 ft-lb, lug nuts 89 ft-lb), replaced the spark plugs (14 ft-lb), replaced the PCV valve and connector hose, and cleaned the MAF sensor and throttle body with the CRC cleaners made for each.',
+    outcome: "Everything done in one visit at the owner's home with the owner's own parts, torqued to spec.",
+    lesson: "Customer-supplied parts are welcome. And a throttle body can get dirty well before 60k miles — cleaning it is quick while you're already in there.",
+    photos: [{ src: '/case/outback-brakes-before.webp', alt: 'Front brake before: worn rotor and pads' }, { src: '/case/outback-brakes-after.webp', alt: 'Front brake after: new rotor and pads' }, { src: '/case/outback-throttle-before.webp', alt: 'Throttle body before cleaning' }, { src: '/case/outback-throttle-after.webp', alt: 'Throttle body after cleaning' }, { src: '/case/outback-spark-plugs.webp', alt: 'Old and new spark plugs' }],
+  },
+].map(c => ({ ...c, path: `/case-studies/${c.slug}`, canonical: `${SITE}/case-studies/${c.slug}` }));
+
+export const CASE_STUDIES_PAGE = {
+  path: '/case-studies', canonical: `${SITE}/case-studies`, label: 'Real Jobs',
+  title: 'Real Repair Jobs Around Flagstaff — Case Studies | GID Garage',
+  description: 'Real mobile repair jobs from around Flagstaff: the problem, how we found it, what we replaced, and how it turned out. No stock photos.',
+  h1: 'Real Jobs From Around Flagstaff',
+  intro: 'Real vehicles, real problems, fixed where they were parked. Customer details are left out; the photos are from the jobs.',
+};
+
+export const caseStudyForPath = path => CASE_STUDIES.find(c => c.path === String(path).replace(/\/+$/, '')) || null;

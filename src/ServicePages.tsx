@@ -3,14 +3,14 @@
 // into the HTML, so crawlers and people get the same page.
 import { useEffect, useState, lazy, Suspense } from 'react';
 import { Phone } from 'lucide-react';
-import { SERVICE_PAGES, AREAS, AREAS_PAGE, PHONE, type ServicePageData, type SimplePage } from '../shared/site-pages.js';
+import { SERVICE_PAGES, AREAS, AREAS_PAGE, CASE_STUDIES, CASE_STUDIES_PAGE, PHONE, type ServicePageData, type SimplePage, type CaseStudy } from '../shared/site-pages.js';
 
 const BookingWidget = lazy(() => import('./BookingWidget'));
 const R2 = (import.meta.env.VITE_R2_PUBLIC_URL as string | undefined)?.replace(/\/$/, '') ?? '';
 const img = (f: string) => (R2 ? `${R2}/${f}` : `/${f}`);
 
 // Title, description and canonical match the pre-rendered HTML exactly.
-function useHead(p: SimplePage | ServicePageData) {
+function useHead(p: SimplePage | ServicePageData | CaseStudy) {
   useEffect(() => {
     document.title = p.title;
     document.querySelector('meta[name="description"]')?.setAttribute('content', p.description);
@@ -41,7 +41,7 @@ function Shell({ children, onQuote }: { children: React.ReactNode; onQuote: () =
             <p className="text-white font-bold mb-2">GID Garage</p>
             <p>Mobile mechanic based in Flagstaff, AZ.</p>
             <p className="mt-1"><a href={`tel:${PHONE}`} className="hover:text-white">{PHONE}</a> · <a href="mailto:info@gidgarage.com" className="hover:text-white">info@gidgarage.com</a></p>
-            <p className="mt-1"><a href="/service-area" className="hover:text-white">Areas we serve</a> · <a href="/" className="hover:text-white">Home</a></p>
+            <p className="mt-1"><a href="/service-area" className="hover:text-white">Areas we serve</a> · <a href="/case-studies" className="hover:text-white">Real jobs</a> · <a href="/" className="hover:text-white">Home</a></p>
           </div>
         </div>
       </footer>
@@ -108,6 +108,15 @@ export function ServicePage({ page }: { page: ServicePageData }) {
         </section>
       )}
 
+      {CASE_STUDIES.some(c => c.serviceId === page.serviceId) && (
+        <section className="mt-12">
+          <h2 className="text-white font-bold text-2xl tracking-tight mb-4">Real jobs like this</h2>
+          <ul className="flex flex-col gap-2">{CASE_STUDIES.filter(c => c.serviceId === page.serviceId).map(c => (
+            <li key={c.slug}><a href={c.path} className="text-red-400 hover:text-red-300 underline underline-offset-4">{c.h1}</a></li>
+          ))}</ul>
+        </section>
+      )}
+
       <section className="mt-12">
         <h2 className="text-white font-bold text-2xl tracking-tight mb-4">Questions</h2>
         <div className="flex flex-col gap-3">{page.faq.map(f => (
@@ -146,6 +155,60 @@ export function AreasPage() {
         ))}
       </ul>
       <p className="text-white/50 text-sm mt-10">Services: {SERVICE_PAGES.map((s, i) => <span key={s.path}>{i ? ' · ' : ''}<a href={s.path} className="underline hover:text-white">{s.label}</a></span>)}</p>
+      {widget}
+    </Shell>
+  );
+}
+
+export function CaseStudyPage({ cs }: { cs: CaseStudy }) {
+  useHead(cs);
+  const service = SERVICE_PAGES.find(p => p.serviceId === cs.serviceId);
+  const { openBooking, widget } = useBooking(cs.serviceId);
+  const part = (title: string, text: string) => (
+    <section className="mt-8"><h2 className="text-white font-bold text-xl tracking-tight mb-2">{title}</h2><p className="text-white/70 leading-relaxed">{text}</p></section>
+  );
+  return (
+    <Shell onQuote={openBooking}>
+      <p className="text-red-400 text-xs font-bold uppercase tracking-[0.3em] mb-3"><a href="/case-studies" className="hover:underline">Real jobs</a> · {cs.month}</p>
+      <h1 className="text-white font-black tracking-tight leading-[1.05] text-3xl md:text-5xl">{cs.h1}</h1>
+      <p className="text-white/50 text-sm mt-3">{cs.vehicle}{cs.mileage ? ` · ${cs.mileage}` : ''} · mobile repair in the Flagstaff area</p>
+      {part('The problem', cs.complaint)}
+      {part('What we found', cs.diagnosis)}
+      {part('What we did', cs.repair)}
+      {part('The result', cs.outcome)}
+      <section className="mt-10">
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">{cs.photos.map(p => (
+          <figure key={p.src} className="bg-white/5"><img src={p.src} alt={p.alt} loading="lazy" decoding="async" className="w-full aspect-square object-cover" /><figcaption className="text-white/50 text-xs px-2 py-1.5">{p.alt}</figcaption></figure>
+        ))}</div>
+      </section>
+      <section className="mt-10 bg-white/5 border border-white/10 border-l-4 border-l-red-600 px-5 py-4">
+        <h2 className="text-white font-bold mb-1">The takeaway</h2><p className="text-white/70 leading-relaxed">{cs.lesson}</p>
+      </section>
+      <div className="flex flex-col sm:flex-row gap-3 mt-8">
+        <button onClick={openBooking} className="btn-primary text-sm px-8 py-4">Get a Quote</button>
+        {service && <a href={service.path} className="btn-outline text-sm px-8 py-4">{service.label} — pricing</a>}
+      </div>
+      <p className="text-white/50 text-sm mt-10">More real jobs: {CASE_STUDIES.filter(c => c.slug !== cs.slug).map((c, i) => <span key={c.slug}>{i ? ' · ' : ''}<a href={c.path} className="underline hover:text-white">{c.vehicle}</a></span>)}</p>
+      {widget}
+    </Shell>
+  );
+}
+
+export function CaseStudiesIndex() {
+  useHead(CASE_STUDIES_PAGE);
+  const { openBooking, widget } = useBooking();
+  return (
+    <Shell onQuote={openBooking}>
+      <h1 className="text-white font-black uppercase tracking-tight leading-[0.95] text-4xl md:text-6xl">{CASE_STUDIES_PAGE.h1}</h1>
+      <p className="text-white/70 text-base md:text-lg leading-relaxed mt-5 max-w-3xl">{CASE_STUDIES_PAGE.intro}</p>
+      <ul className="grid gap-4 sm:grid-cols-2 mt-10">{CASE_STUDIES.map(c => (
+        <li key={c.slug}>
+          <a href={c.path} className="block bg-white/5 border border-white/10 hover:border-red-600/50 transition-colors">
+            <img src={c.photos[0].src} alt={c.photos[0].alt} loading="lazy" decoding="async" className="w-full aspect-[4/3] object-cover" />
+            <div className="px-4 py-3"><h2 className="text-white font-bold leading-snug">{c.h1}</h2><p className="text-white/50 text-sm mt-1">{c.month} · {c.vehicle}</p></div>
+          </a>
+        </li>
+      ))}</ul>
       {widget}
     </Shell>
   );

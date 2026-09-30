@@ -11,9 +11,9 @@
 //                                       SPA catch-all; app routes are listed in
 //                                       public/_redirects)
 // Content comes from shared/site-pages.js (the same data the React pages render).
-import { readFileSync, writeFileSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
-import { SERVICE_PAGES, AREAS, AREAS_PAGE, HOME_PAGE, PRIVACY_PAGE, PHONE } from '../shared/site-pages.js';
+import { SERVICE_PAGES, AREAS, AREAS_PAGE, HOME_PAGE, PRIVACY_PAGE, CASE_STUDIES, CASE_STUDIES_PAGE, PHONE } from '../shared/site-pages.js';
 
 const DIST = new URL('../dist/', import.meta.url);
 // Run as the build step; imported by tests for its helpers only.
@@ -48,6 +48,8 @@ export function withRoot(html, inner) {
 }
 
 const faqSchema = faq => JSON.stringify({ '@context': 'https://schema.org', '@type': 'FAQPage', mainEntity: faq.map(f => ({ '@type': 'Question', name: f.q, acceptedAnswer: { '@type': 'Answer', text: f.a } })) });
+// The homepage FAQ schema only belongs on pages that show those questions.
+const withoutFaq = html => html.replace(/<script type="application\/ld\+json" id="faq-schema">[\s\S]*?<\/script>/, '');
 const withFaq = (html, faq) => html.replace(/(<script type="application\/ld\+json" id="faq-schema">)[\s\S]*?(<\/script>)/, (_, a, b) => `${a}${faqSchema(faq)}${b}`);
 
 export function buildPages(template) {
@@ -64,18 +66,37 @@ for (const p of SERVICE_PAGES) {
     h2('Pricing'), list(p.pricing.map(x => `<strong>${esc(x.label)}</strong> — ${esc(x.detail)}`)),
     h2("What's included"), list(p.included.map(esc)),
     h2('How a mobile visit works'), `<ol>${p.howItWorks.map(s => `<li><strong>${esc(s.title)}.</strong> ${esc(s.text)}</li>`).join('')}</ol>`,
+    CASE_STUDIES.some(c => c.serviceId === p.serviceId) ? h2('Real jobs like this') + list(CASE_STUDIES.filter(c => c.serviceId === p.serviceId).map(c => `<a style="color:#f87171" href="${c.path}">${esc(c.h1)}</a>`)) : '',
     h2('Questions'), p.faq.map(f => `<h3 style="color:#fff;margin:14px 0 4px">${esc(f.q)}</h3><p>${esc(f.a)}</p>`).join(''),
     h2('Other services'), serviceLinks(p.path),
   ].join('')), p.faq)]);
 }
 
-pages.push(['service-area.html', withRoot(withHead(template, AREAS_PAGE), [
+pages.push(['service-area.html', withoutFaq(withRoot(withHead(template, AREAS_PAGE), [
   h1(AREAS_PAGE.h1), `<p>${esc(AREAS_PAGE.intro)}</p>`,
   AREAS.map(a => `<h2 id="${a.slug}" style="color:#fff;font-size:20px;margin:20px 0 4px">${esc(a.name)}${a.miles ? ` · ~${a.miles} mi from Flagstaff` : ' · home base'}</h2><p>${esc(a.blurb)}</p>`).join(''),
   h2('Services'), serviceLinks(), callLine,
-].join(''))]);
+].join('')))]);
 
-pages.push(['privacy.html', withRoot(withHead(template, PRIVACY_PAGE), h1(PRIVACY_PAGE.h1) + `<p>${esc(PRIVACY_PAGE.description)}</p>`)]);
+pages.push(['privacy.html', withoutFaq(withRoot(withHead(template, PRIVACY_PAGE), h1(PRIVACY_PAGE.h1) + `<p>${esc(PRIVACY_PAGE.description)}</p>`))]);
+
+// Real-job case studies: /case-studies and /case-studies/<slug>.
+const caseLinks = (except = null) => list(CASE_STUDIES.filter(c => c.slug !== except).map(c => `<a style="color:#f87171" href="${c.path}">${esc(c.h1)}</a>`));
+pages.push(['case-studies.html', withoutFaq(withRoot(withHead(template, CASE_STUDIES_PAGE), [
+  h1(CASE_STUDIES_PAGE.h1), `<p>${esc(CASE_STUDIES_PAGE.intro)}</p>`, caseLinks(), callLine,
+].join('')))]);
+for (const c of CASE_STUDIES) {
+  const service = SERVICE_PAGES.find(p => p.serviceId === c.serviceId);
+  pages.push([`case-studies/${c.slug}.html`, withoutFaq(withRoot(withHead(template, c), [
+    h1(c.h1), `<p>${esc(c.vehicle)}${c.mileage ? ` · ${esc(c.mileage)}` : ''} · ${esc(c.month)} · mobile repair in the Flagstaff area</p>`,
+    h2('The problem'), `<p>${esc(c.complaint)}</p>`, h2('What we found'), `<p>${esc(c.diagnosis)}</p>`,
+    h2('What we did'), `<p>${esc(c.repair)}</p>`, h2('The result'), `<p>${esc(c.outcome)}</p>`,
+    c.photos.map(p => `<img src="${p.src}" alt="${esc(p.alt)}" width="300" loading="lazy" style="max-width:48%;margin:4px">`).join(''),
+    h2('The takeaway'), `<p>${esc(c.lesson)}</p>`,
+    service ? `<p><a style="color:#f87171" href="${service.path}">${esc(service.h1)} — pricing</a></p>` : '', callLine,
+    h2('More real jobs'), caseLinks(c.slug),
+  ].join('')))]);
+}
 
 // The app shell for app routes (/jarvis, /admin, /estimate …; see public/_redirects):
 // the plain build output — no homepage text flashing before those screens load.
@@ -96,7 +117,11 @@ pages.push(['404.html', `<!doctype html><html lang="en"><head><meta charset="UTF
 export function prerender(dist = DIST) {
   const tpl = readFileSync(new URL('index.html', dist), 'utf8').replace(/<!--prerender-->[\s\S]*?<!--\/prerender-->/, '');
   const pages = buildPages(tpl);
-  for (const [file, html] of pages) writeFileSync(new URL(file, dist), html);
+  for (const [file, html] of pages) {
+    const url = new URL(file, dist);
+    mkdirSync(new URL('.', url), { recursive: true });
+    writeFileSync(url, html);
+  }
   return pages.map(p => p[0]);
 }
 

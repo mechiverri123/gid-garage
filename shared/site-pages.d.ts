@@ -16,3 +16,11 @@ export const AREAS_PAGE: SimplePage;
 export const HOME_PAGE: SimplePage;
 export const PRIVACY_PAGE: SimplePage;
 export function pageForPath(path: string): ServicePageData | null;
+export interface CaseStudy {
+  slug: string; serviceId: string; month: string; vehicle: string; mileage: string | null; path: string; canonical: string;
+  title: string; description: string; h1: string; complaint: string; diagnosis: string; repair: string; outcome: string; lesson: string;
+  photos: { src: string; alt: string }[];
+}
+export const CASE_STUDIES: CaseStudy[];
+export const CASE_STUDIES_PAGE: SimplePage;
+export function caseStudyForPath(path: string): CaseStudy | null;

@@ -4,7 +4,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { SERVICE_PAGES, AREAS, HOME_PAGE, pageForPath } from '../shared/site-pages.js';
+import { SERVICE_PAGES, AREAS, HOME_PAGE, CASE_STUDIES, pageForPath, caseStudyForPath } from '../shared/site-pages.js';
 import { buildPages, withHead } from '../scripts/prerender.mjs';
 import { detectSiteStructure } from '../shared/seo/agent-detectors.js';
 
@@ -56,7 +56,7 @@ test('routing: app routes still load, town pages 301 to one Areas page, sitemap 
   assert.match(redirects, /^\/service-area\/\*\s+\/service-area\s+301$/m);
   assert.doesNotMatch(sitemap, /service-area\//);
   for (const p of SERVICE_PAGES) assert.match(sitemap, new RegExp(`<loc>https://gidgarage.com${p.path}</loc>`));
-  assert.ok(AREAS.some(a => a.slug === 'winslow'), 'Winslow stays listed until the owner decides');
+  assert.ok(!AREAS.some(a => a.slug === 'winslow'), 'Winslow was dropped (beyond the service radius)');
 });
 
 test('legal pages are not asked to mention Flagstaff in their title', async () => {
@@ -64,4 +64,24 @@ test('legal pages are not asked to mention Flagstaff in their title', async () =
   const html = '<title>Privacy Policy | GID Garage</title><meta name="viewport" content="x">';
   assert.ok(!auditPage('https://gidgarage.com/privacy', html).issues.some(i => i.code === 'title_no_location'));
   assert.ok(auditPage('https://gidgarage.com/brake-repair-flagstaff', '<title>Brakes</title>').issues.some(i => i.code === 'title_no_location'));
+});
+
+test('case studies: real jobs, anonymised, photos exist, pre-rendered and linked from their service', async () => {
+  const { existsSync } = await import('node:fs');
+  assert.ok(CASE_STUDIES.length >= 4);
+  for (const c of CASE_STUDIES) {
+    assert.ok(SERVICE_PAGES.some(p => p.serviceId === c.serviceId), c.slug);
+    for (const p of c.photos) assert.ok(existsSync(new URL(`../public${p.src}`, import.meta.url)), p.src);
+    const text = JSON.stringify(c);
+    assert.doesNotMatch(text, /\d{3}[-. ]?\d{3}[-. ]?\d{4}(?!.*480-757-0476)|@[a-z]+\.|GID-\d+/i, `${c.slug} contains contact details or a booking id`);
+    assert.equal(caseStudyForPath(c.path + '/').slug, c.slug);
+  }
+  const template = '<html><head><title>T</title><link rel="canonical" href="https://gidgarage.com/" /><meta name="description" content="d" /><script type="application/ld+json" id="faq-schema">{}</script></head><body><div id="root"><nav>b</nav></div></body></html>';
+  const pages = Object.fromEntries(buildPages(template));
+  const first = pages[`case-studies/${CASE_STUDIES[0].slug}.html`];
+  assert.match(first, new RegExp(`<link rel="canonical" href="https://gidgarage.com/case-studies/${CASE_STUDIES[0].slug}"`));
+  assert.doesNotMatch(first, /faq-schema/, 'no homepage FAQ schema on a case study');
+  assert.ok(pages['case-studies.html']);
+  assert.match(pages['car-diagnostics-flagstaff.html'], /Real jobs like this/);
+  assert.match(sitemap, /<loc>https:\/\/gidgarage.com\/case-studies<\/loc>/);
 });

@@ -4,7 +4,7 @@ import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import Lenis from 'lenis';
 import GameRedeem from './GameRedeem';
-import { pageForPath, SERVICE_PAGES } from '../shared/site-pages.js';
+import { pageForPath, caseStudyForPath, SERVICE_PAGES } from '../shared/site-pages.js';
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -22,6 +22,8 @@ const GamesPage = lazy(() => import('./GamesPage'));
 const JarvisPage = lazy(() => import('./JarvisPage'));
 const ServicePage = lazy(() => import('./ServicePages').then(m => ({ default: m.ServicePage })));
 const AreasPage = lazy(() => import('./ServicePages').then(m => ({ default: m.AreasPage })));
+const CaseStudyPage = lazy(() => import('./ServicePages').then(m => ({ default: m.CaseStudyPage })));
+const CaseStudiesIndex = lazy(() => import('./ServicePages').then(m => ({ default: m.CaseStudiesIndex })));
 
 // Cancel flow now validates server-side (secret lives in the worker, not here).
 async function apiPost(action: string, args: Record<string, any> = {}) {
@@ -775,8 +777,6 @@ const SERVICE_AREAS = [
     blurb: 'Out I-40 west, past Bellemont — a familiar drive for us.' },
   { name: 'Sedona',          slug: 'sedona',           lat: 34.8697, lng: -111.7610, isHome: false, miles: 28.0,
     blurb: 'Down 89A through Oak Creek Canyon — mobile repair without the drive up to Flagstaff.' },
-  { name: 'Winslow',         slug: 'winslow',          lat: 35.0242, lng: -110.6974, isHome: false, miles: 58.0,
-    blurb: 'Further east off I-40 — reach out ahead of time so we can build it into the schedule.' },
 ];
 
 function ServiceMap() {
@@ -1035,7 +1035,7 @@ function Footer() {
           <div>
             <img src={OPT_LOGO} width={192} height={192} alt="GID Garage" className="h-16 w-auto mb-4" />
             <p className="text-white/70 text-sm max-w-xs leading-relaxed">Mobile automotive repair and car audio in Flagstaff, AZ. Honest work. Fair prices. We come to you.</p>
-            <p className="text-white/50 text-xs mt-2 leading-relaxed">Based in Flagstaff, AZ · Serving Sedona, Munds Park, Parks, Bellemont, Kachina Village, Fort Valley, Doney Park, Winona, Mountainaire &amp; Winslow</p>
+            <p className="text-white/50 text-xs mt-2 leading-relaxed">Based in Flagstaff, AZ · Serving Sedona, Munds Park, Parks, Bellemont, Kachina Village, Fort Valley, Doney Park, Winona &amp; Mountainaire</p>
           </div>
           <div className="flex flex-col gap-3">
             <div className="text-white/50 text-xs uppercase tracking-widest font-semibold mb-1">Hours</div>
@@ -1059,6 +1059,7 @@ function Footer() {
             ))}
             {SERVICE_PAGES.map(p => <a key={p.path} href={p.path} className="text-white/60 hover:text-white text-sm transition-colors">{p.label}</a>)}
             <a href="/service-area" className="text-white/60 hover:text-white text-sm transition-colors">Areas We Serve</a>
+            <a href="/case-studies" className="text-white/60 hover:text-white text-sm transition-colors">Real Jobs</a>
             <a href="/admin" className="text-gray-700 hover:text-gray-500 text-xs transition-colors mt-2">Admin ↗</a>
           </div>
         </div>
@@ -1317,6 +1318,8 @@ export default function App() {
   const isGameRedeem = window.location.pathname === '/game-redeem';
   const isServiceArea = window.location.pathname === '/service-area' || window.location.pathname.startsWith('/service-area/');
   const servicePage = pageForPath(window.location.pathname);
+  const caseStudy = caseStudyForPath(window.location.pathname);
+  const isCaseStudies = window.location.pathname.replace(/\/+$/, '') === '/case-studies';
   const isPrivacy = window.location.pathname === '/privacy';
   const isReview = window.location.pathname === '/review';
 
@@ -1359,6 +1362,8 @@ export default function App() {
   if (isGameRedeem) return <GameRedeem />;
   if (isServiceArea) return <Suspense fallback={null}><AreasPage /></Suspense>;
   if (servicePage) return <Suspense fallback={null}><ServicePage page={servicePage} /></Suspense>;
+  if (caseStudy) return <Suspense fallback={null}><CaseStudyPage cs={caseStudy} /></Suspense>;
+  if (isCaseStudies) return <Suspense fallback={null}><CaseStudiesIndex /></Suspense>;
   if (isPrivacy) return <PrivacyPolicyPage />;
   if (isReview) return <ReviewRedirect />;
   if (cancelId && cancelToken) return <CancelPage bookingId={cancelId} token={cancelToken} />;
