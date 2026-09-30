@@ -18,11 +18,11 @@ import { boundFetch, subrequestBudget, SubrequestBudgetExceeded } from './http.j
 const RUNNABLE = new Set(['connected', 'ready_limited']);
 const BACKFILL_CHUNK_DAYS = 30;
 // How often snapshot-style providers refresh on the cron.
-const CADENCE_DAYS = { pagespeed: 7, site_audit: 7, places: 7, competitor_pages: 7, apple_business_connect: 30, weather_forecast: 1, instagram: 1, bing: 1 };
+const CADENCE_DAYS = { pagespeed: 7, site_audit: 7, places: 7, competitor_pages: 7, apple_business_connect: 30, weather_forecast: 1, instagram: 1, bing: 1, search_news: 1, indexnow: 7, ai_visibility: 7 };
 // Manual "Sync now" may re-pull a snapshot provider once it's an hour old.
 const MANUAL_PROVIDER_COOLDOWN_MS = 60 * 60 * 1000;
 // Worst-case external fetches for one provider run (token calls included).
-const EXTERNAL_COST = { search_console: 4, business_profile: 3, ga4: 3, places: 4, bing: 1, instagram: 3, google_ads: 3, meta_ads: 1, weather_forecast: 2, weather_history: 1, apple_business_connect: 0 };
+const EXTERNAL_COST = { search_news: 3, indexnow: 2, ai_visibility: 3, search_console: 4, business_profile: 3, ga4: 3, places: 10, bing: 1, instagram: 3, google_ads: 3, meta_ads: 1, weather_forecast: 2, weather_history: 1, apple_business_connect: 0 };
 // Batched providers: external fetches per item (page / competitor).
 const BATCH_COST = { pagespeed: 2, site_audit: 1, competitor_pages: 1 };
 // Supabase calls per provider run: status row + run log + its own writes.

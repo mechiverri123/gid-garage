@@ -7,7 +7,9 @@
 // Tests: tests/seo-agent.test.js
 
 import { actionQueue, blueprint as buildBlueprint, categoryLearning, top5Gap, changesSince, jobContentCandidates, dueHorizons, horizonVerdict, playbookFor, parseRankCsv, rankGrid, OUTCOME_DAYS } from '../../../shared/seo/agent.js';
-import { detectSiteStructure, detectReviewGap, detectJobContent, detectKnowledgeChanges, currentCrawl } from '../../../shared/seo/agent-detectors.js';
+import { detectSiteStructure, detectReviewGap, detectJobContent, detectKnowledgeChanges, detectSearchUpdates, detectAiVisibility, currentCrawl } from '../../../shared/seo/agent-detectors.js';
+import { readJson } from '../jarvis-feeds.js';
+import { NEWS_KEY, AI_KEY, ongoingUpdates } from './monitors.js';
 import { KNOWLEDGE, withStoredStatus, pageFingerprint } from '../../../shared/seo/knowledge.js';
 import { annotateGsc } from '../../../shared/seo/kpis.js';
 import { serviceClusters } from '../../../shared/seo/demand.js';
@@ -43,14 +45,27 @@ export function createAgentOps({ store, env = {}, now = new Date(), h }) {
     return currentCrawl(await safe(store.select('seo_page_audits', { select: '*', order: 'fetched_at.desc', limit: '120' })));
   };
 
+  // Outside-world monitors (monitors.js) keep their state in R2.
+  const bucket = env.GID_PHOTOS;
+  const newsItems = async () => (await readJson(bucket, NEWS_KEY))?.items || [];
+  const aiRuns = async () => (await readJson(bucket, AI_KEY))?.runs || [];
+  async function news() {
+    const doc = await readJson(bucket, NEWS_KEY);
+    const items = doc?.items || [];
+    return { checkedAt: doc?.checkedAt || null, ongoing: ongoingUpdates(items), items: items.filter(i => i.relevance !== 'info').slice(0, 40) };
+  }
+  async function aiVisibility() { return { runs: await aiRuns() }; }
+
   // Extra recommendations for analyze() (they pass the same service/content gates).
   async function detections(c) {
-    const [audits, own, comps, jobs, kb] = await Promise.all([latestAudits(), ownReviews(), competitorRows(), recentJobs(), knowledge()]);
+    const [audits, own, comps, jobs, kb, items, runs] = await Promise.all([latestAudits(), ownReviews(), competitorRows(), recentJobs(), knowledge(), newsItems().catch(() => []), aiRuns().catch(() => [])]);
     return [
       ...detectSiteStructure(audits, { services: c.services, clusters: c.clusters }),
       ...detectReviewGap(own, comps),
       ...detectJobContent(jobContentCandidates(jobs)),
       ...detectKnowledgeChanges(kb.entries),
+      ...detectSearchUpdates(items, now),
+      ...detectAiVisibility(runs[0]),
     ];
   }
 
@@ -153,7 +168,7 @@ export function createAgentOps({ store, env = {}, now = new Date(), h }) {
 
   // ---- views --------------------------------------------------------------------------------
   async function actions() {
-    const [recs, kb, hist] = await Promise.all([safe(store.selectAll('seo_recommendations', { select: '*' })), knowledge(), history().catch(() => ({ changes: [], snapshots: [] }))]);
+    const [recs, kb, hist, items] = await Promise.all([safe(store.selectAll('seo_recommendations', { select: '*' })), knowledge(), history().catch(() => ({ changes: [], snapshots: [] })), newsItems().catch(() => [])]);
     const q = actionQueue(recs, categoryLearning(recs), kb.entries);
     const top = q.high[0] || q.medium[0] || null;
     const problem = [...q.high, ...q.medium].find(c => ['REVIEWS', 'TECHNICAL SEO'].includes(c.category) || /gap/i.test(c.title)) || top;
@@ -165,6 +180,7 @@ export function createAgentOps({ store, env = {}, now = new Date(), h }) {
         biggestOpportunity: top ? { title: top.title, score: top.opportunityScore } : null,
         biggestProblem: problem ? { title: problem.title, category: problem.category } : null,
         changes: hist.changes || [],
+        searchUpdates: ongoingUpdates(items).map(i => ({ title: i.title, started: i.date, url: i.url })),
         lastAnalysis: hist.snapshots?.[0]?.at || null, baselineAt: hist.snapshots?.length ? hist.snapshots[hist.snapshots.length - 1].at : null,
       },
       ...q,
@@ -179,6 +195,7 @@ export function createAgentOps({ store, env = {}, now = new Date(), h }) {
       safe(store.select('seo_authority_opportunities', { select: 'id' })), safe(store.select('seo_provider_status', { select: 'provider,status' })),
       recentJobs(), safe(store.select('seo_review_snapshots', { select: 'review_count,captured_at', subject: 'eq.own', order: 'captured_at.asc', limit: '1000' })),
     ]);
+    const ai = (await aiRuns().catch(() => []))[0] || null;
     const q = actionQueue(recs, categoryLearning(recs), kb.entries);
     const offered = c.services.filter(s => s.offered === true).map(s => s.id);
     const audits = await latestAudits();
@@ -197,7 +214,7 @@ export function createAgentOps({ store, env = {}, now = new Date(), h }) {
       coreQueries, gbpConnected: conn.some(p => p.provider === 'business_profile' && p.status === 'connected'),
       rankObservations: ranks.length, citations: citations.length, authority: authority.length,
       reviewVelocity: sinceDays ? { ours: Number(last.review_count) - Number(first.review_count), sinceDays } : null,
-      caseStudies: 0, jobCandidates: jobContentCandidates(jobs).filter(j => j.score >= 40).length,
+      caseStudies: 4, jobCandidates: jobContentCandidates(jobs).filter(j => j.score >= 40).length, ai,
     });
     return { ...gap, actions: q.high.slice(0, 4).map(x => ({ id: x.id, title: x.title, category: x.category })) };
   }
@@ -264,5 +281,5 @@ export function createAgentOps({ store, env = {}, now = new Date(), h }) {
     return { ok: true, id, status };
   }
 
-  return { detections, measureHorizons, recordSnapshot, history, actions, blueprint: blueprintView, top5, jobs, knowledge, ranks, addRank, importRanks, knowledgeDue, refreshKnowledge, setKnowledgeStatus };
+  return { detections, measureHorizons, recordSnapshot, history, actions, blueprint: blueprintView, top5, jobs, knowledge, ranks, addRank, importRanks, knowledgeDue, refreshKnowledge, setKnowledgeStatus, news, aiVisibility };
 }

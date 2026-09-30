@@ -13,7 +13,7 @@
 // Content comes from shared/site-pages.js (the same data the React pages render).
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
-import { SERVICE_PAGES, AREAS, AREAS_PAGE, HOME_PAGE, PRIVACY_PAGE, CASE_STUDIES, CASE_STUDIES_PAGE, PHONE } from '../shared/site-pages.js';
+import { SERVICE_PAGES, AREAS, AREAS_PAGE, HOME_PAGE, PRIVACY_PAGE, CASE_STUDIES, CASE_STUDIES_PAGE, PHONE, SITE } from '../shared/site-pages.js';
 
 const DIST = new URL('../dist/', import.meta.url);
 // Run as the build step; imported by tests for its helpers only.
@@ -47,6 +47,35 @@ export function withRoot(html, inner) {
   return html.slice(0, at + 6) + '<!--prerender-->' + wrap(inner) + '<!--/prerender-->' + html.slice(at + 6);
 }
 
+// Per-service structured data: what it is, who provides it, where, and the starting price.
+export function serviceSchema(p) {
+  const prices = p.pricing.map(x => Number((x.detail.match(/\$([\d,]+\.\d\d)/) || [])[1]?.replace(/,/g, ''))).filter(Number.isFinite);
+  return JSON.stringify({
+    '@context': 'https://schema.org', '@type': 'Service', name: p.h1, serviceType: p.label, url: p.canonical, description: p.description,
+    provider: { '@type': 'AutoRepair', name: 'GID Garage', telephone: '+14807570476', url: `${SITE}/` },
+    areaServed: AREAS.map(a => ({ '@type': 'City', name: `${a.name}, AZ` })),
+    ...(prices.length ? { offers: { '@type': 'Offer', priceCurrency: 'USD', price: Math.min(...prices).toFixed(2), description: p.pricing[0].detail } } : {}),
+  });
+}
+const withServiceSchema = (html, p) => html.replace('</head>', `<script type="application/ld+json">${serviceSchema(p)}</script></head>`);
+
+// llms.txt: a plain summary of the business for AI assistants and their crawlers.
+export function llmsTxt() {
+  const lines = [
+    '# GID Garage', '',
+    `> Mobile mechanic based in Flagstaff, Arizona. We come to the customer's home, work or roadside — no shop. Call or text ${PHONE}, book at ${SITE}/bookings, email info@gidgarage.com.`, '',
+    '## Hours', '- Monday to Friday: 1:30 PM to 8:00 PM', '- Saturday and Sunday: 5:00 AM to 8:00 PM (by appointment)', '- Appointments required; same-day subject to availability.', '',
+    '## Service area (about 30 miles around Flagstaff)', ...AREAS.map(a => `- ${a.name}${a.miles ? ` (~${a.miles} mi)` : ' (home base)'}`), '',
+    '## Services and prices',
+    ...SERVICE_PAGES.flatMap(p => [`- [${p.h1}](${p.canonical}): ${p.intro}`, ...p.pricing.map(x => `  - ${x.label}: ${x.detail}`)]), '',
+    '## Not offered (referred to specialty shops)', '- Wheel alignments, A/C system work, transmission overhauls, welding', '',
+    '## Real jobs (case studies)', ...CASE_STUDIES.map(c => `- [${c.h1}](${c.canonical})`), '',
+    '## Payment', '- Card on file, tap-to-pay in person, or a secure payment link.', '',
+    '## Pages', `- [Home](${SITE}/)`, `- [Areas we serve](${SITE}/service-area)`, `- [Real jobs](${SITE}/case-studies)`, `- [Book online](${SITE}/bookings)`, '',
+  ];
+  return lines.join('\n');
+}
+
 const faqSchema = faq => JSON.stringify({ '@context': 'https://schema.org', '@type': 'FAQPage', mainEntity: faq.map(f => ({ '@type': 'Question', name: f.q, acceptedAnswer: { '@type': 'Answer', text: f.a } })) });
 // The homepage FAQ schema only belongs on pages that show those questions.
 const withoutFaq = html => html.replace(/<script type="application\/ld\+json" id="faq-schema">[\s\S]*?<\/script>/, '');
@@ -61,7 +90,7 @@ pages.push(['index.html', withRoot(withHead(template, HOME_PAGE), [
 ].join(''))]);
 
 for (const p of SERVICE_PAGES) {
-  pages.push([`${p.path.slice(1)}.html`, withFaq(withRoot(withHead(template, p), [
+  pages.push([`${p.path.slice(1)}.html`, withServiceSchema(withFaq(withRoot(withHead(template, p), [
     h1(p.h1), `<p>${esc(p.intro)}</p>`, callLine,
     h2('Pricing'), list(p.pricing.map(x => `<strong>${esc(x.label)}</strong> — ${esc(x.detail)}`)),
     h2("What's included"), list(p.included.map(esc)),
@@ -69,7 +98,7 @@ for (const p of SERVICE_PAGES) {
     CASE_STUDIES.some(c => c.serviceId === p.serviceId) ? h2('Real jobs like this') + list(CASE_STUDIES.filter(c => c.serviceId === p.serviceId).map(c => `<a style="color:#f87171" href="${c.path}">${esc(c.h1)}</a>`)) : '',
     h2('Questions'), p.faq.map(f => `<h3 style="color:#fff;margin:14px 0 4px">${esc(f.q)}</h3><p>${esc(f.a)}</p>`).join(''),
     h2('Other services'), serviceLinks(p.path),
-  ].join('')), p.faq)]);
+  ].join('')), p.faq), p)]);
 }
 
 pages.push(['service-area.html', withoutFaq(withRoot(withHead(template, AREAS_PAGE), [
@@ -104,6 +133,8 @@ for (const c of CASE_STUDIES) {
 const shell = template.replace(/<head[^>]*>/, m => `${m}<meta name="robots" content="noindex" />`);
 if (!shell.includes('content="noindex"')) throw new Error('app shell: <head> not found');
 pages.push(['app-shell.html', shell]);
+
+pages.push(['llms.txt', llmsTxt()]);
 
 // A real 404: its own small page (no app), not indexable.
 pages.push(['404.html', `<!doctype html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex"><title>Page not found | GID Garage</title><link rel="icon" href="/favicon.ico"></head>

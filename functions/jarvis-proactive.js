@@ -27,7 +27,7 @@ import { resolvePeriodWindow, collectedRevenue, jobFromRow } from '../shared/bus
 import { leadFollowUpReason, unpaidJobs, isCancelled } from '../shared/business-rules.js';
 import { createSeoStore } from './_lib/seo/store.js';
 import { createSeoOps } from './_lib/seo/ops.js';
-import { pollMetaLeads, newLeadAlert } from './_lib/jarvis-feeds.js';
+import { pollMetaLeads, newLeadAlert, readJson, writeJson } from './_lib/jarvis-feeds.js';
 
 const TZ = 'America/Phoenix';
 const HISTORY_TEXT_LIMIT = 12000;
@@ -589,6 +589,27 @@ export async function onRequestPost({ request, env }) {
       // Logged and shown in the Facebook panel; not a cron failure (reminders etc. still ran).
       console.error('jarvis-proactive meta leads error:', error);
       actions.push(`meta_leads_error: ${String(error?.message || error).slice(0, 200)}`);
+    }
+  }
+
+  // A new Google ranking update (from the SEO search_news monitor): one Telegram
+  // note when it starts, checked twice an hour in the daytime. Isolated like the leads.
+  if (Number(parts.minute) % 30 === 0 && hourNow >= 7 && hourNow < 21 && env.GID_PHOTOS) {
+    try {
+      const items = (await readJson(env.GID_PHOTOS, 'private/seo-search-news.json'))?.items || [];
+      const sent = (await readJson(env.GID_PHOTOS, 'private/seo-news-alerted.json'))?.ids || [];
+      const fresh = items.filter(i => i.source === 'google_status' && i.kind && i.kind !== 'incident' && !sent.includes(i.id) && now - new Date(i.date) < 7 * 86400000);
+      for (const i of fresh) {
+        const text = `Google started the ${i.title} on ${String(i.date).slice(0, 10)}. Search positions can move for up to two weeks while it rolls out; nothing to do unless GID's numbers are still down after it ends. ${i.url}`;
+        await sendTelegramText(botToken, chatId, text);
+        await saveAssistantHistory(env, chatId, text);
+      }
+      if (fresh.length) {
+        await writeJson(env.GID_PHOTOS, 'private/seo-news-alerted.json', { ids: [...sent, ...fresh.map(i => i.id)].slice(-100) });
+        actions.push(`search_update_alert:${fresh.length}`);
+      }
+    } catch (error) {
+      actions.push(`search_update_alert_error: ${String(error?.message || error).slice(0, 200)}`);
     }
   }
 

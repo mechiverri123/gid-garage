@@ -4,7 +4,7 @@
 // Data: /jarvis/seo-data?action=actions|top5|blueprint|ranks|knowledge|history
 // (functions/_lib/seo/agent-ops.js). Status changes use the existing
 // update_recommendation actions. Nothing here edits the website.
-import { useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { Target, ChevronDown, ChevronRight, ExternalLink, Copy, Check, TrendingUp, TrendingDown, MapPin, History, ListChecks, Upload } from 'lucide-react';
 import { C, timeAgo, type Tone } from '../ui/theme';
 import { CommandCard, SectionHeader, StatusBadge, Skeleton, ActionButton } from '../ui/primitives';
@@ -44,6 +44,11 @@ export function AgentStatus({ a, onOpen }: { a: Any | undefined; onOpen: () => v
         {cell('Biggest opportunity', s.biggestOpportunity ? <>{s.biggestOpportunity.title} <span style={{ color: C.muted }}>· {s.biggestOpportunity.score}</span></> : '—')}
         {cell('Biggest problem', s.biggestProblem ? s.biggestProblem.title : '—')}
       </div>
+      {s.searchUpdates?.length > 0 && (
+        <div className="mt-3 rounded-xl px-4 py-3 text-[14px]" role="status" style={{ color: C.amber, background: 'rgba(255,184,77,0.07)', border: '1px solid rgba(255,184,77,0.35)' }}>
+          {s.searchUpdates.map((u: Any) => <div key={u.title}><b>Google {u.title}</b> rolling out since {String(u.started).slice(0, 10)} — positions can move for every site; judge results after it ends. <a href={u.url} target="_blank" rel="noreferrer" className="underline">Details</a></div>)}
+        </div>
+      )}
       {s.changes?.length > 0 && (
         <ul className="mt-3 flex flex-col gap-1 text-[14px]" style={{ color: C.text2 }}>
           <li className="text-[12px] font-bold uppercase tracking-[0.14em]" style={{ color: C.muted }}>Changes since last analysis</li>
@@ -276,10 +281,65 @@ export function RankingsView({ r, post }: { r: Any | undefined; post: Post }) {
 // ---- research / knowledge base ------------------------------------------------------------------
 
 const TIER_TONE: Record<string, Tone> = { google_confirmed: 'green', strong_industry: 'cyan', experimental: 'amber', speculation: 'muted' };
+// Read-only JSON from /jarvis/seo-data (news, ai) for the Research tab.
+function useSeoRead(action: string) {
+  const [data, setData] = useState<Any | null>(null);
+  useEffect(() => { let live = true; fetch(`/jarvis/seo-data?action=${action}`).then(r => r.json()).then(d => { if (live) setData(d); }, () => {}); return () => { live = false; }; }, [action]);
+  return data;
+}
+
+const REL_TONE: Record<string, Tone> = { high: 'red', medium: 'amber', low: 'cyan', info: 'muted' };
+function SearchNews() {
+  const n = useSeoRead('news');
+  if (!n) return <Skeleton className="h-[160px]" />;
+  return (
+    <section className="flex flex-col gap-2">
+      <h3 className="font-semibold text-[15px]" style={{ color: C.text }}>Search engine updates <span className="text-[12.5px] font-normal" style={{ color: C.muted }}>{n.checkedAt ? `checked ${timeAgo(n.checkedAt)} · Google status, Google & Bing blogs` : 'first check runs on the next daily sync'}</span></h3>
+      {n.items?.length ? (
+        <ul className="flex flex-col gap-1.5">{n.items.slice(0, 15).map((i: Any) => (
+          <li key={i.id} className="text-[14px] flex flex-wrap items-baseline gap-x-2" style={{ color: C.text2 }}>
+            <StatusBadge tone={REL_TONE[i.relevance] || 'muted'}>{i.relevance}</StatusBadge>
+            <span className="tabular-nums" style={{ color: C.muted }}>{String(i.date || '').slice(0, 10)}</span>
+            <a href={i.url} target="_blank" rel="noreferrer" className="underline" style={{ color: C.text }}>{i.title}</a>
+            {i.source === 'google_status' && !i.end && i.kind !== 'incident' && <StatusBadge tone="amber">rolling out</StatusBadge>}
+            <span className="w-full text-[13px]" style={{ color: C.muted }}>{i.why}</span>
+          </li>
+        ))}</ul>
+      ) : <Muted>No items yet.</Muted>}
+    </section>
+  );
+}
+
+function AiAnswers() {
+  const a = useSeoRead('ai');
+  const run = a?.runs?.[0];
+  if (!a) return <Skeleton className="h-[120px]" />;
+  return (
+    <section className="flex flex-col gap-2">
+      <h3 className="font-semibold text-[15px]" style={{ color: C.text }}>AI assistant answers <span className="text-[12.5px] font-normal" style={{ color: C.muted }}>{run ? `checked ${timeAgo(run.at)} · ${run.model}` : 'first check runs on the next weekly sync'}</span></h3>
+      {run ? run.results.map((r: Any) => (
+        <details key={r.question} className="rounded-xl p-3" style={box}>
+          <summary className="cursor-pointer text-[14px]" style={{ color: C.text }}>
+            <StatusBadge tone={r.mentioned ? 'green' : 'red'}>{r.mentioned ? `named${r.rank ? ` #${r.rank}` : ''}` : 'not named'}</StatusBadge> {r.question}
+          </summary>
+          <div className="text-[13.5px] mt-2 flex flex-col gap-1" style={{ color: C.text2 }}>
+            {r.businesses?.length > 0 && <div><b style={{ color: C.text }}>Recommended:</b> {r.businesses.join(', ')}</div>}
+            {r.sources?.length > 0 && <div><b style={{ color: C.text }}>Sources it read:</b> {r.sources.join(', ')}{r.gidCited ? ' (gidgarage.com cited)' : ''}</div>}
+            <div className="whitespace-pre-line">{r.answer}</div>
+          </div>
+        </details>
+      )) : <Muted>People ask ChatGPT, Gemini, Copilot and Claude for local recommendations. Each week Jarvis asks an AI assistant with live web search your customers' questions and records whether GID Garage is named.</Muted>}
+    </section>
+  );
+}
+
 export function ResearchView({ k, post }: { k: Any | undefined; post: Post }) {
   if (!k) return <Skeleton className="h-[300px]" />;
   return (
     <div className="flex flex-col gap-3">
+      <SearchNews />
+      <AiAnswers />
+      <h3 className="font-semibold text-[15px] mt-2" style={{ color: C.text }}>Guidance the recommendations cite</h3>
       {!k.ready && <NotSetUp what="Weekly re-checking of Google's documents" />}
       <p className="text-[14px]" style={{ color: C.text2 }}>What the recommendations are allowed to cite. Google's pages are re-checked weekly; a changed page is flagged for review, and superseded guidance stops being cited.</p>
       <ul className="flex flex-col gap-2.5">

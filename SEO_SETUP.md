@@ -248,3 +248,33 @@ It's layered on the sync above; nothing here edits the website.
 - **Setup (once).** Run `seo_agent_migration.sql` in the Supabase SQL editor. It's additive: `seo_snapshots`, `seo_knowledge` and `seo_rank_observations`.
   - Until it's run, the queue and Top-5 gap work, while History, Rankings and the weekly research check say "not set up".
   - The next analysis after the migration saves **Baseline #1**.
+
+
+---
+
+## Outside-world monitors (search engine changes, competitors, AI assistants)
+
+All of these run inside the existing sync (`functions/_lib/seo/monitors.js`). Their state lives in R2 under `private/`, and tests are in `tests/seo-monitors.test.js`.
+
+| Monitor | Cadence | What it does |
+|---|---|---|
+| `search_news` | daily | Reads the Google Search Status Dashboard (core, spam and ranking updates, with start and end dates), the Google Search Central blog and the Bing Webmaster blog. Each item is classified as high, medium, low or info for a local mobile-mechanic site. |
+| `indexnow` | weekly | Submits the sitemap pages to IndexNow (Bing, Yandex and others; Bing feeds ChatGPT search and Copilot). The key file is `public/<key>.txt`. Google doesn't use IndexNow. |
+| `ai_visibility` | weekly | Asks Claude Haiku with live web search (location set to Flagstaff) 3 questions local customers ask. It records whether GID Garage is named, at what position, who else is named, and which sources were cited. Cost is about $0.05 a week, recorded in the Jarvis AI budget. |
+| `places` (extended) | weekly | Looks up up to 6 competitor websites per run (Places Details `website`), so `competitor_pages` can monitor their pages. `website = 'none'` means checked, has none. |
+
+**Where it shows up:**
+- **Banner:** on the SEO status strip while a Google update is rolling out.
+- **Research tab:** "Search engine updates" and "AI assistant answers".
+- **Top-5 gap:** an "AI assistants" section.
+- **Recommendations:** `search_update` (informational) and `ai_visibility`.
+- **Telegram:** one message when a new Google ranking update starts (checked every 30 minutes, 7 AM to 9 PM).
+- **Jarvis brief:** a line while an update is rolling out.
+
+**What the site gives AI crawlers:**
+- **Pre-rendered HTML**, since AI crawlers don't run JavaScript.
+- **`/llms.txt`:** services, prices, hours, area and pages, generated from `shared/site-pages.js`.
+- **Service JSON-LD** on each service page.
+- **Opening hours and service URLs** in the AutoRepair schema.
+- **Crawler access:** every AI crawler user-agent was checked and gets 200.
+- **Owner check:** in Cloudflare → Security → Bots, keep "Block AI bots" / AI Crawl Control off (allow).

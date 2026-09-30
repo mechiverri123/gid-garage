@@ -12,6 +12,7 @@ import { classifyQuery, gscLocality, cityLocality } from '../../../shared/seo/lo
 import { classifyCompetitor, parsePublicPage } from '../../../shared/seo/competitors.js';
 import { isInsideServiceArea, SERVICE_AREA, findPlaces } from '../../../shared/seo/service-area.js';
 import { aiAssistant, contentGuard } from '../../../shared/seo/demand.js';
+import { MONITOR_PROVIDERS } from './monitors.js';
 
 const missing = (env, keys) => keys.filter(k => !env[k]);
 const ymd = d => new Date(d).toISOString().slice(0, 10);
@@ -282,7 +283,21 @@ export const places = {
       await ctx.store.upsert('seo_competitors', rows, 'id');
       await ctx.store.insert('seo_review_snapshots', rows.map(r => ({ subject: r.id, rating: r.rating, review_count: r.review_count })));
     }
-    return { rows: written + rows.length, detail: `${rows.length} local businesses found (${rows.filter(r => r.tier === 'primary').length} mobile)` };
+    // Text search doesn't return websites, so competitor page monitoring had
+    // nothing to fetch. Look them up for the competitors that matter (in the
+    // area, relevant, most-reviewed first), a few per run.
+    const needSite = await ctx.store.select('seo_competitors', { select: 'id,name', website: 'is.null', inside_service_area: 'eq.true', weight: 'gt.0', status: 'eq.active', order: 'review_count.desc.nullslast', limit: '6' }).catch(() => []);
+    let sites = 0;
+    for (const c of needSite) {
+      const d = await get(`https://maps.googleapis.com/maps/api/place/details/json?place_id=${encodeURIComponent(c.id)}&fields=website&key=${key}`).catch(() => null);
+      const website = d?.result?.website || null;
+      let domain = null;
+      try { domain = website ? new URL(website).hostname.replace(/^www\./, '') : null; } catch { /* bad url */ }
+      // No website on Google: remember that ('none') so it isn't looked up every week.
+      await ctx.store.patch('seo_competitors', { id: `eq.${c.id}` }, { website: website || 'none', domain });
+      if (website) sites += 1;
+    }
+    return { rows: written + rows.length, detail: `${rows.length} local businesses found (${rows.filter(r => r.tier === 'primary').length} mobile); ${sites} competitor website${sites === 1 ? '' : 's'} found` };
   },
 };
 
@@ -292,7 +307,8 @@ export const competitorPages = {
   status() { return { status: 'connected', missing: [], note: 'Fetches each competitor homepage/service page (public HTML only) to detect changes.' }; },
   async sync(ctx) {
     // Capped at 15 per weekly pass; stable order so batches resume deterministically.
-    const comps = await ctx.store.select('seo_competitors', { select: 'id,name,website,tier', status: 'eq.active', kind: 'eq.business', website: 'not.is.null', order: 'id.asc', limit: '15' });
+    // Real websites only ('none' = checked, has no site), most relevant local competitors first.
+    const comps = await ctx.store.select('seo_competitors', { select: 'id,name,website,tier', status: 'eq.active', kind: 'eq.business', website: 'like.http*', order: 'review_count.desc.nullslast', limit: '15' });
     const rows = [];
     const b = batchOf(ctx, comps.slice(0, 15));
     for (const c of b.slice) {
@@ -460,7 +476,7 @@ export const weatherHistory = {
   },
 };
 
-export const PROVIDERS = [searchConsole, businessProfile, ga4, places, pageSpeed, siteAudit, competitorPages, bing, instagram, googleAds, metaAds, weatherForecast, weatherHistory, appleBusinessConnect];
+export const PROVIDERS = [searchConsole, businessProfile, ga4, places, pageSpeed, siteAudit, competitorPages, bing, instagram, googleAds, metaAds, weatherForecast, weatherHistory, appleBusinessConnect, ...MONITOR_PROVIDERS];
 
 export function providerStatuses(env) {
   return PROVIDERS.map(p => ({ id: p.id, label: p.label, category: p.category, docs: p.docs, ...p.status(env) }));

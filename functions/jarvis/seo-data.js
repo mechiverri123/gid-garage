@@ -5,7 +5,7 @@
 // functions/_lib/access-auth.js), not mere header presence.
 // Missing token -> 401, invalid -> 403.
 // GET  ?action=overview|opportunities|demand|competitors|seasonality|geography|authority|connections|briefing|queries|technical
-//            |actions|top5|blueprint|history|knowledge|ranks|jobs   (Local SEO agent)
+//            |actions|top5|blueprint|history|knowledge|ranks|jobs|news|ai   (Local SEO agent)
 // POST { action, ...args }  — allowlisted writes only:
 //   update_recommendation { id, action: accept|reject|dismiss|mark_applied|reopen, reason?, note? }
 //   add_competitor { name, website }            set_competitor_status { id, status: active|ignored }
@@ -55,6 +55,8 @@ export async function handleSeoData({ request, env, store, now = new Date(), run
       knowledge: () => ops.agent().knowledge(),
       ranks: () => ops.agent().ranks(),
       jobs: () => ops.agent().jobs(),
+      news: () => ops.agent().news(),
+      ai: () => ops.agent().aiVisibility(),
     };
     if (!reads[action]) return json({ error: `Unknown action. Use one of: ${Object.keys(reads).join(', ')}` }, 400);
     return json(await reads[action]());

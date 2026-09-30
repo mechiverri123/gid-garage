@@ -112,6 +112,13 @@ Jarvis is the interactive command interface for GID Garage, not primarily a chat
   - `dist/404.html` turns off Cloudflare's SPA fallback, so **every client route must be listed in `public/_redirects`** (rewritten to `/app-shell`), or it will 404. Add new app routes there.
   - Old `/service-area/<town>` URLs 301 to `/service-area`.
   - Tests: `tests/site-pages.test.js`.
+- **Monitors** (`functions/_lib/seo/monitors.js`, see `SEO_SETUP.md`):
+  - `search_news`: daily; Google status plus the Google and Bing blogs.
+  - `indexnow`: weekly.
+  - `ai_visibility`: weekly; Claude plus web search, ~$0.05 a week in the AI budget.
+  - Places also looks up competitor websites.
+  - State is kept in R2 `private/`.
+  - The site serves `/llms.txt` and per-service JSON-LD, both from `scripts/prerender.mjs`.
 - **SEO routes:**
   - `/jarvis/seo-data` (`functions/jarvis/seo-data.js`): admin API, Access plus verified JWT; also runs "Sync now".
   - `/seo-sync`: cron only.

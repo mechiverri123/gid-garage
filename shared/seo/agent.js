@@ -13,7 +13,7 @@ import { KNOWLEDGE } from './knowledge.js';
 import { reviewRivals } from './agent-detectors.js';
 import { SERVICE_CATALOG } from './services.js';
 
-export const CATEGORIES = ['GBP', 'REVIEWS', 'WEBSITE', 'TECHNICAL SEO', 'CONTENT', 'LOCAL AUTHORITY', 'CITATIONS', 'BACKLINKS', 'COMPETITOR GAP', 'CONVERSION', 'OTHER'];
+export const CATEGORIES = ['GBP', 'REVIEWS', 'WEBSITE', 'TECHNICAL SEO', 'CONTENT', 'LOCAL AUTHORITY', 'CITATIONS', 'BACKLINKS', 'COMPETITOR GAP', 'AI VISIBILITY', 'CONVERSION', 'OTHER'];
 const IMPACT = { very_high: 1, high: 0.82, moderate: 0.6, low: 0.35 };
 const CONF = { high: 1, medium: 0.8, low: 0.55 };
 const EFFORT = { very_low: 1, low: 1.1, moderate: 1.35, high: 1.7 };
@@ -69,6 +69,12 @@ const T = {
     why: 'Real completed jobs show first-hand experience that generic competitor pages can\'t. A few strong ones beat many thin ones.',
     action: 'Pick one candidate below, write a short case study: vehicle, the symptom, how you diagnosed it, what you replaced, before/after photos, and the outcome. No customer names or addresses. Link it from the matching service page.', sources: ['real_job_content', 'spam_scaled'] }),
   nonlocal_traffic_growth: () => ({ category: 'OTHER', impact: 'low', effort: 'very_low', blueprint: 'long', why: 'Growth from outside the service area can\'t become jobs.', action: 'No action — keep the local service pages as the priority.', sources: [] }),
+  search_update: () => ({ category: 'OTHER', impact: 'low', effort: 'very_low', blueprint: 'now',
+    why: 'Google is rolling out a ranking update. Positions can swing for every site until it finishes, so changes measured during it are unreliable.',
+    action: "Don't make big site changes because of day-to-day ranking moves while it rolls out. Keep doing the basics (reviews, real content). After it ends, compare GID's local impressions and positions with before it started.", sources: ['spam_scaled'] }),
+  ai_visibility: () => ({ category: 'AI VISIBILITY', impact: 'high', effort: 'low', blueprint: '7d',
+    why: 'People now ask AI assistants for local recommendations. Assistants search the web and name businesses they can find and verify: consistent listings, reviews, and pages that state services, prices and area plainly.',
+    action: 'Claim/complete Bing Places (Copilot and ChatGPT search use Bing), Apple Business Connect and Yelp with the same name, phone and website; keep collecting Google reviews; the site already serves llms.txt, full HTML and structured data. Re-check next week.', sources: ['local_ranking_factors', 'schema_local'] }),
   knowledge_update: () => ({ category: 'OTHER', impact: 'moderate', effort: 'very_low', blueprint: 'now',
     why: 'A Google document the recommendations rely on changed.', action: 'Open the source, read what changed, then keep, update or mark the guidance superseded on the Research tab.', sources: [] }),
 };
@@ -300,6 +306,13 @@ export function top5Gap(x) {
 
   add('distance', 'Distance limitations', 'info',
     'Local rank depends on where the searcher is. A mobile business with a hidden address is ranked from its verified base; shops near a searcher get a proximity edge GID can\'t remove. Measure rank from several parts of town (Rankings tab) instead of one number.', { rankObservations: x.rankObservations ?? 0 });
+
+  if (x.ai) {
+    const n = x.ai.results.filter(r => r.mentioned).length;
+    add('ai', 'AI assistants', n === x.ai.results.length ? 'competitive' : 'behind',
+      `An AI assistant with live web search named GID Garage in ${n} of ${x.ai.results.length} local questions (checked ${String(x.ai.at).slice(0, 10)}). ${x.ai.results.map(r => `"${r.question}": ${r.mentioned ? 'named' : `not named (${r.businesses.slice(0, 3).join(', ') || 'no businesses listed'})`}`).join(' ')}`,
+      { checkedAt: x.ai.at, results: x.ai.results.map(({ answer, ...r }) => r) });
+  } else add('ai', 'AI assistants', 'unknown', 'Not checked yet: the weekly AI-answer check runs on the next sync.', {});
 
   const unknown = [];
   if (!x.gbpConnected) unknown.push('Business Profile performance (calls, direction requests, search keywords) — waiting on Google API approval');

@@ -127,6 +127,30 @@ export function detectJobContent(candidates = []) {
   })];
 }
 
+// Google ranking updates rolling out now (from the search_news monitor). Informational:
+// rankings can move for every site; the advice is to wait for the rollout to end.
+export function detectSearchUpdates(items = [], now = new Date()) {
+  return items.filter(i => i.source === 'google_status' && i.kind && i.kind !== 'incident' && !i.end && now - new Date(i.date) < 30 * 86400000)
+    .map(i => rec('search_update', i.id, {
+      title: `Google ${i.title} is rolling out`,
+      detail: `Started ${String(i.date).slice(0, 10)}. ${i.summary || ''} Rankings can move for every site until it finishes; compare GID's numbers after the rollout ends rather than reacting mid-way.`,
+      evidence: { url: i.url, started: i.date, kind: i.kind }, score: 30, confidence: 'high', informational: true,
+    }));
+}
+
+// AI assistants (weekly check): recommend the work that makes GID citable when it isn't named.
+export function detectAiVisibility(run) {
+  if (!run?.results?.length) return [];
+  const named = run.results.filter(r => r.mentioned).length;
+  if (named === run.results.length) return [];
+  const others = [...new Set(run.results.flatMap(r => r.businesses).filter(b => !/gid\s*garage/i.test(b)))].slice(0, 6);
+  return [rec('ai_visibility', 'assistants', {
+    title: `AI assistants named GID Garage in ${named} of ${run.results.length} local questions`,
+    detail: `Asked: ${run.results.map(r => `"${r.question}" → ${r.mentioned ? `named${r.rank ? ` (#${r.rank})` : ''}` : 'not named'}`).join('; ')}.${others.length ? ` Named instead: ${others.join(', ')}.` : ''} Sources they cited: ${[...new Set(run.results.flatMap(r => r.sources))].slice(0, 8).join(', ') || 'none'}.`,
+    evidence: { checkedAt: run.at, results: run.results.map(({ answer, ...r }) => r) }, score: 60, confidence: 'medium',
+  })];
+}
+
 // knowledge: entries with stored status; changed ones need the owner to review.
 export function detectKnowledgeChanges(knowledge = []) {
   return knowledge.filter(k => k.status === 'changed').map(k => rec('knowledge_update', k.id, {

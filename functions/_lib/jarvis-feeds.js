@@ -472,7 +472,11 @@ export async function loadBrief({ env, ops, sbGet, now = Date.now(), fetchImpl }
     ops.ownerBriefing().catch(e => ({ error: e.message })),
     sbGet('seo_weather_forecast', { select: 'date,tmin_f,tmax_f,short_forecast', date: `gte.${today}`, order: 'date.asc', limit: '5' }).catch(() => []),
   ]);
-  return buildBrief({ env, bucket: env.GID_PHOTOS, business, weather: weatherToday(forecast, new Date(now)), now, fetchImpl });
+  const brief = await buildBrief({ env, bucket: env.GID_PHOTOS, business, weather: weatherToday(forecast, new Date(now)), now, fetchImpl });
+  // Google ranking updates rolling out now (written by the SEO search_news monitor).
+  const news = (await readJson(env.GID_PHOTOS, 'private/seo-search-news.json'))?.items || [];
+  brief.searchUpdates = news.filter(i => i.source === 'google_status' && i.kind && i.kind !== 'incident' && !i.end).map(i => ({ title: i.title, started: i.date }));
+  return brief;
 }
 
 const WORDS = ['no', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten'];
@@ -511,6 +515,8 @@ export function briefLine(b, hour = 9) {
   if (m?.connected && !m.error) {
     if (m.unreadCount) parts.push(`${cap(count(m.unreadCount, 'unread email'))}${m.partsEmails?.length ? `, including ${m.partsEmails.length === 1 ? "one from O'Reilly" : `${count(m.partsEmails.length, "O'Reilly email")}`}` : ''}.`);
   }
+  const up = (b.searchUpdates || [])[0];
+  if (up) parts.push(`Google's ${up.title} is still rolling out, so search positions may wobble this week.`);
   const a = b.ads;
   if (a?.connected && !a.error && a.yesterday?.spend > 0) parts.push(`Ads spent $${a.yesterday.spend.toFixed(2)} yesterday${a.yesterday.leads ? ` for ${count(a.yesterday.leads, 'lead')}` : ''}.`);
   return [greet, ...parts].join(' ');
