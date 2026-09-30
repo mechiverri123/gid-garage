@@ -124,3 +124,12 @@ test('Zoho send: plain text from the connected mailbox; read-only connection get
   assert.equal(ok.from, 'info@gidgarage.com');
   await assert.rejects(sendZohoMail({ bucket, to: 'hi@x.org', subject: 'S', text: 'B', now: NOW, fetchImpl: async () => jsonRes({ data: { errorCode: 'INVALID_OAUTHSCOPE' } }, 400) }), /ZohoMail\.messages\.CREATE/);
 });
+
+test('listings the owner recorded count as listed, even when search missed them', async () => {
+  const bucket = fakeBucket({ [LISTINGS_KEY]: { sites: [{ site: 'yelp.com', gidListed: false }, { site: 'bbb.org', gidListed: false }] } });
+  const store = { select: async () => [{ platform: 'Yelp', url: 'https://www.yelp.com/biz/gid-garage-flagstaff' }] };
+  const { listingsState } = await import('../functions/_lib/seo/outreach.js');
+  const s = await listingsState(bucket, store);
+  assert.deepEqual(s.sites.map(x => [x.site, x.gidListed]), [['yelp.com', true], ['bbb.org', false]]);
+  assert.equal(s.sites[0].yourUrl, 'https://www.yelp.com/biz/gid-garage-flagstaff');
+});

@@ -348,6 +348,24 @@ function RunNow({ id, label, onDone }: { id: string; label: string; onDone: () =
   return <span className="inline-flex items-center gap-2 flex-wrap"><ActionButton size="sm" variant="secondary" disabled={busy} onClick={run}>{busy ? 'Working… (up to a minute)' : label}</ActionButton>{msg && <span className="text-[13px]" style={{ color: C.muted }}>{msg}</span>}</span>;
 }
 
+// "I'm on this": records the owner's listing (seo_citations) so it counts as listed.
+function MarkListed({ name, site, onDone }: { name: string; site: string; onDone: () => void }) {
+  const [open, setOpen] = useState(false); const [url, setUrl] = useState(''); const [err, setErr] = useState('');
+  const ok = (() => { try { const h = new URL(url).hostname; return h === site || h.endsWith(`.${site}`); } catch { return false; } })();
+  const save = async () => { setErr(''); try { await seoPost({ action: 'add_citation', platform: name, url, observed_name: 'GID Garage' }); onDone(); } catch (e) { setErr(e instanceof Error ? e.message : String(e)); } };
+  if (!open) return <div><button type="button" className="text-[13px] underline" style={{ color: C.cyan }} onClick={() => setOpen(true)}>I'm on this — add my listing link</button></div>;
+  return (
+    <div className="flex flex-wrap items-center gap-2 mt-1">
+      <input value={url} onChange={e => setUrl(e.target.value.trim())} placeholder={`https://${site}/…  (your GID Garage page)`} aria-label={`Your ${name} listing link`}
+        className="flex-1 min-w-[200px] rounded-lg px-2.5 py-1.5 text-[13.5px] outline-none" style={{ background: 'rgba(3,10,17,0.9)', border: `1px solid ${C.borderStrong}`, color: C.text }} />
+      <ActionButton size="sm" variant="primary" disabled={!ok} onClick={save}>Save</ActionButton>
+      <ActionButton size="sm" variant="ghost" onClick={() => setOpen(false)}>Cancel</ActionButton>
+      {url && !ok && <span className="text-[12.5px] w-full" style={{ color: C.amber }}>Paste the link to your page on {site}.</span>}
+      {err && <span className="text-[12.5px] w-full" style={{ color: C.amber }}>{err}</span>}
+    </div>
+  );
+}
+
 function CompetitorListings() {
   const [n, setN] = useState(0);
   const l = useSeoRead(`listings&n=${n}`);
@@ -366,7 +384,9 @@ function CompetitorListings() {
               <span style={{ color: C.muted }}>{s.competitors.length} competitor{s.competitors.length === 1 ? '' : 's'}</span>
             </div>
             <div className="text-[13px]" style={{ color: C.text2 }}>{s.competitors.join(', ')}</div>
-            {s.how && <div className="text-[13px]" style={{ color: C.muted }}>{s.how}</div>}
+            {s.yourUrl && <div className="text-[13px]"><a href={s.yourUrl} target="_blank" rel="noreferrer" className="underline" style={{ color: C.green }}>Your listing</a></div>}
+            {!s.gidListed && s.how && <div className="text-[13px]" style={{ color: C.muted }}>{s.how}</div>}
+            {!s.gidListed && <MarkListed name={s.name} site={s.site} onDone={() => setN(x => x + 1)} />}
           </li>
         ))}</ul>
       ) : <Muted>No listing sites recorded yet.</Muted>}

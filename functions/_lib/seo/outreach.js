@@ -218,7 +218,14 @@ export async function outreachState(bucket, now = Date.now()) {
   };
 }
 
-export async function listingsState(bucket) { return (await readJson(bucket, LISTINGS_KEY)) || { sites: [] }; }
+// The web search index misses many real listings (it barely knows gidgarage.com), so
+// listings the owner recorded (seo_citations, "I'm on this") count as listed.
+export async function listingsState(bucket, store) {
+  const l = (await readJson(bucket, LISTINGS_KEY)) || { sites: [] };
+  const mine = store ? await store.select('seo_citations', { select: 'platform,url' }).catch(() => []) : [];
+  const bySite = new Map(mine.filter(c => c.url).map(c => [siteOf(c.url), c.url]));
+  return { ...l, sites: (l.sites || []).map(s => (bySite.has(s.site) ? { ...s, gidListed: true, yourUrl: bySite.get(s.site) } : s)) };
+}
 
 async function decide(bucket, site, record) {
   const decisions = (await readJson(bucket, DECISIONS_KEY)) || {};

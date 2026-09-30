@@ -63,7 +63,7 @@ export async function handleSeoData({ request, env, store, now = new Date(), run
       jobs: () => ops.agent().jobs(),
       news: () => ops.agent().news(),
       ai: () => ops.agent().aiVisibility(),
-      listings: () => listingsState(env.GID_PHOTOS),
+      listings: () => listingsState(env.GID_PHOTOS, store),
       outreach: () => outreachState(env.GID_PHOTOS, now.getTime()),
     };
     if (!reads[action]) return json({ error: `Unknown action. Use one of: ${Object.keys(reads).join(', ')}` }, 400);
