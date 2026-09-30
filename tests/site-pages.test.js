@@ -86,3 +86,14 @@ test('case studies: real jobs, anonymised, photos exist, pre-rendered and linked
   assert.match(pages['car-diagnostics-flagstaff.html'], /Real jobs like this/);
   assert.match(sitemap, /<loc>https:\/\/gidgarage.com\/case-studies<\/loc>/);
 });
+
+test('service page photos: local files exist, and no page reuses an unrelated repair photo', async () => {
+  const { existsSync } = await import('node:fs');
+  for (const p of SERVICE_PAGES) for (const ph of p.photos) {
+    if (ph.src.startsWith('/')) assert.ok(existsSync(new URL(`../public${ph.src}`, import.meta.url)), `${p.path}: ${ph.src}`);
+  }
+  const oil = SERVICE_PAGES.find(p => p.serviceId === 'oil');
+  assert.ok(oil.photos.every(ph => /oil/i.test(ph.src + ph.alt)), 'oil page shows only oil change photos');
+  assert.ok(!SERVICE_PAGES.some(p => p.photos.some(ph => /afba|cabin air/i.test(ph.src + ph.alt))), 'the cabin air filter photo is not on any service page');
+  assert.equal(SERVICE_PAGES.find(p => p.serviceId === 'full').photos.length, 0);
+});

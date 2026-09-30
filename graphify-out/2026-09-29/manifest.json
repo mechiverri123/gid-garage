@@ -1236,9 +1236,9 @@
     "semantic_hash": ""
   },
   "functions/_lib/seo/ops.js": {
-    "mtime": 1790710902.618902,
-    "seen": 1790711396.076436,
-    "ast_hash": "f7dece547ae7b1b50cb29f9953ed1390",
+    "mtime": 1790745736.6087642,
+    "seen": 1790745791.595366,
+    "ast_hash": "fe7136f2b2688f827bacf653104acde5",
     "semantic_hash": ""
   },
   "functions/_lib/seo/providers.js": {
@@ -1794,15 +1794,15 @@
     "semantic_hash": ""
   },
   "functions/_lib/seo/agent-ops.js": {
-    "mtime": 1790710902.618902,
-    "seen": 1790711396.0761213,
-    "ast_hash": "c6f16a7e87c6345087e22bcc3d800599",
+    "mtime": 1790745736.608259,
+    "seen": 1790745791.595225,
+    "ast_hash": "9735e034b1b887e9baecf619d4460ad1",
     "semantic_hash": ""
   },
   "shared/seo/agent-detectors.js": {
-    "mtime": 1790710987.1736498,
-    "seen": 1790711396.0839856,
-    "ast_hash": "fffc2bb9c79c1deb4e039756ef6c9b62",
+    "mtime": 1790745901.6503682,
+    "seen": 1790745919.6113164,
+    "ast_hash": "59a69af2aa6af01704e98d72b6e80336",
     "semantic_hash": ""
   },
   "shared/seo/agent.js": {
@@ -1824,9 +1824,9 @@
     "semantic_hash": ""
   },
   "tests/seo-agent.test.js": {
-    "mtime": 1790711247.4582908,
-    "seen": 1790711396.1021557,
-    "ast_hash": "feddb27dd86572f6debd6f5504a630a5",
+    "mtime": 1790745736.637326,
+    "seen": 1790745791.6062741,
+    "ast_hash": "dec45ef6020d5b85750abcf6c7ae5f2f",
     "semantic_hash": ""
   },
   "scripts/prerender.mjs": {
@@ -1842,9 +1842,9 @@
     "semantic_hash": ""
   },
   "shared/site-pages.js": {
-    "mtime": 1790745493.068681,
-    "seen": 1790745633.20971,
-    "ast_hash": "39307e7d80cae390bcb3467ea4f40089",
+    "mtime": 1790745756.4798467,
+    "seen": 1790745791.599604,
+    "ast_hash": "a42cec02fb8f7dcfd2c324f9576ab637",
     "semantic_hash": ""
   },
   "src/ServicePages.tsx": {
@@ -1854,9 +1854,9 @@
     "semantic_hash": ""
   },
   "tests/site-pages.test.js": {
-    "mtime": 1790745601.9895773,
-    "seen": 1790745633.2175667,
-    "ast_hash": "67f5361617b69f73e5d98d5c458d9446",
+    "mtime": 1790745756.6166875,
+    "seen": 1790745791.6070957,
+    "ast_hash": "355a2ffece2392ccdc7e479a5ce1ccdc",
     "semantic_hash": ""
   },
   "public/case/blazer-new-battery.webp": {

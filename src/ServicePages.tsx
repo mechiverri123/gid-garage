@@ -7,7 +7,8 @@ import { SERVICE_PAGES, AREAS, AREAS_PAGE, CASE_STUDIES, CASE_STUDIES_PAGE, PHON
 
 const BookingWidget = lazy(() => import('./BookingWidget'));
 const R2 = (import.meta.env.VITE_R2_PUBLIC_URL as string | undefined)?.replace(/\/$/, '') ?? '';
-const img = (f: string) => (R2 ? `${R2}/${f}` : `/${f}`);
+// Site photos live on the R2 asset host; job photos we published (/photos, /case) are local files.
+const img = (f: string) => (f.startsWith('/') ? f : R2 ? `${R2}/${f}` : `/${f}`);
 
 // Title, description and canonical match the pre-rendered HTML exactly.
 function useHead(p: SimplePage | ServicePageData | CaseStudy) {

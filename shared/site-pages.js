@@ -34,7 +34,7 @@ export const SERVICE_PAGES = [
       { label: 'Full service — pads, rotors + fluid flush (per axle)', detail: 'Starting at $319.99 · shops average $520–700/axle' },
     ],
     included: ['Pad replacement', 'Rotor replacement', 'Complete brake system service', 'Complimentary multi-point inspection with the job'],
-    photos: [{ src: 'IMG_1052.jpeg', alt: 'Brake pads — old vs. new' }, { src: 'IMG_1179.jpeg', alt: 'Brake pads seated in caliper' }],
+    photos: [{ src: '/photos/brake-rotor-before.webp', alt: 'Before: worn, rusted rotor' }, { src: '/photos/brake-rotor-after.webp', alt: 'After: new rotor on the same wheel' }, { src: '/photos/brake-new-rotor-caliper.webp', alt: 'New rotor with the caliper back on' }, { src: '/photos/brake-pads-in-caliper.webp', alt: 'New pads seated in the caliper bracket' }],
     faq: [{ q: 'How do I know if I need brakes?', a: 'Squealing or grinding when you stop, a pedal that feels soft or low, or the car pulling to one side are the usual signs. Book a visit and we will check pads and rotors and tell you straight what they need.' }],
   },
   {
@@ -45,7 +45,7 @@ export const SERVICE_PAGES = [
     intro: 'Full synthetic only, done in your driveway or parking lot. Most shops charge $110–140 for full synthetic — and you still have to drive there and wait. We come to you.',
     pricing: [{ label: 'Full synthetic oil change', detail: '$79.99 up to 5 quarts · +$10.99/qt after' }],
     included: ['Full synthetic oil', 'New oil filter', 'Fluid top-off', 'Tire pressure check', 'Multi-point inspection'],
-    photos: [{ src: 'IMG_0952.jpeg', alt: 'Full synthetic oil change' }, { src: 'afba.jpg', alt: 'Cabin air filter — old vs. new' }],
+    photos: [{ src: '/photos/oil-old-filter.webp', alt: 'Old oil filter coming off' }, { src: '/photos/oil-new-filter.webp', alt: 'New oil filter installed' }, { src: '/photos/oil-fill.webp', alt: 'Filling with full synthetic oil' }, { src: '/photos/oil-life-reset.webp', alt: 'Oil life reset to 100% after the change' }],
     faq: [],
   },
   {
@@ -56,7 +56,7 @@ export const SERVICE_PAGES = [
     intro: '$89.99 flat. We come to you, pull and interpret your OBD2 codes, and give you a clear explanation of what\'s wrong and what it\'ll take to fix it — no dealer visit, no upselling.',
     pricing: [{ label: 'Diagnostic visit', detail: '$89.99 flat · includes a full visual inspection' }],
     included: ['OBD2 code scan and interpretation', 'Full visual inspection', 'A clear explanation of the problem and the fix', 'A written estimate before any repair'],
-    photos: [{ src: 'IMG_0915.jpeg', alt: 'Coolant temp sensor — old vs. new' }, { src: 'IMG_1392.jpeg', alt: 'Spark plugs — old vs. new' }],
+    photos: [{ src: '/case/titan-coil-old-new.webp', alt: 'Failed coil pack found diagnosing a misfire, next to the new one' }, { src: '/case/blazer-old-vs-new.webp', alt: 'A battery that failed its health test, next to the replacement' }],
     faq: [{ q: 'Is the code reading the whole diagnosis?', a: 'No — a code tells you where to look, not always what failed. We read the codes and inspect the vehicle so the explanation you get is what actually needs fixing.' }],
   },
   {
@@ -102,7 +102,8 @@ export const SERVICE_PAGES = [
     intro: 'Know exactly what your vehicle needs before spending a dime. Our comprehensive multi-point inspection is complimentary with any mechanical service — standalone shops typically charge $120–160.',
     pricing: [{ label: 'Multi-point inspection', detail: 'Complimentary with any mechanical service · shops typically charge $120–160' }],
     included: ['Tire pressure and tread depth measured', 'Diagnostic trouble codes read', 'A visual look over the vehicle', 'A clear picture of what it needs before you spend anything'],
-    photos: [{ src: 'IMG_0964.jpeg', alt: 'Radiator hose replacement' }, { src: 'IMG_1248.jpeg', alt: 'Timing cover and oil pan' }],
+    // No photos until there's a genuine inspection photo (unrelated repair photos were removed).
+    photos: [],
     faq: [],
   },
 ].map(p => ({ ...p, canonical: `${SITE}${p.path}`, howItWorks: HOW_IT_WORKS, faq: [...p.faq, ...COMMON_FAQ] }));
@@ -147,9 +148,9 @@ export const pageForPath = path => SERVICE_PAGES.find(p => p.path === String(pat
 export const CASE_STUDIES = [
   {
     slug: '2005-nissan-titan-cylinder-6-misfire-coil-pack', serviceId: 'diag', month: 'July 2026',
-    vehicle: '2005 Nissan Titan 5.6L V8', mileage: '251,225 miles',
+    vehicle: '2005 Nissan Titan 5.6L V8', mileage: 'over 250,000 miles',
     title: '2005 Nissan Titan Misfire: Bad Coil Pack | GID Garage Flagstaff',
-    description: 'A 2005 Nissan Titan with 251k miles developed a cylinder 6 misfire right after new spark plugs. We confirmed a failed coil pack and fixed it on site.',
+    description: 'A 2005 Nissan Titan with over 250k miles developed a cylinder 6 misfire right after new spark plugs. We confirmed a failed coil pack and fixed it on site.',
     h1: '2005 Nissan Titan: Cylinder 6 Misfire After a Spark Plug Job',
     complaint: 'The truck started misfiring on cylinder 6 shortly after its spark plugs were replaced.',
     diagnosis: 'We scanned the truck on site and confirmed the cylinder 6 misfire was caused by a bad ignition coil pack — not the new plugs.',
@@ -160,7 +161,7 @@ export const CASE_STUDIES = [
   },
   {
     slug: '2014-jeep-cherokee-misfire-spark-plugs-coils-plenum-gasket', serviceId: 'diag', month: 'July 2026',
-    vehicle: '2014 Jeep Cherokee 3.2L V6 Latitude', mileage: '213,402 miles',
+    vehicle: '2014 Jeep Cherokee 3.2L V6', mileage: 'over 200,000 miles',
     title: '2014 Jeep Cherokee 3.2L Misfire Fix | GID Garage Flagstaff',
     description: 'Cylinder 5 misfire on a 2014 Jeep Cherokee 3.2L. All six spark plugs and coils replaced on site, including intake plenum removal and a new gasket.',
     h1: '2014 Jeep Cherokee 3.2L: Misfire on Cylinder 5',
@@ -186,7 +187,7 @@ export const CASE_STUDIES = [
   },
   {
     slug: '2020-subaru-outback-brakes-spark-plugs-throttle-body', serviceId: 'brakes', month: 'September 2026',
-    vehicle: '2020 Subaru Outback 2.5L Limited', mileage: '51,336 miles',
+    vehicle: '2020 Subaru Outback 2.5L', mileage: 'about 50,000 miles',
     title: '2020 Subaru Outback Brakes & Tune-Up | GID Garage Flagstaff',
     description: 'Front pads and rotors, spark plugs, PCV valve and a MAF and throttle body cleaning on a 2020 Subaru Outback, using genuine parts the owner supplied.',
     h1: '2020 Subaru Outback: Brakes, Plugs & a Very Dirty Throttle Body',
