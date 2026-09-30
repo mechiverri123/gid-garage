@@ -335,7 +335,9 @@ function MailBody({ m, onBack }: { m: Any; onBack: () => void }) {
 export function MailView({ open, dispatch }: { open?: string; dispatch: Dispatch }) {
   const { data, error, loading, reload } = useFeed('mail');
   const [sel, setSel] = useState<string | null>(open ?? null);
+  const [reconnect, setReconnect] = useState(false); // e.g. to add the send permission for SEO outreach
   useEffect(() => { setSel(open ?? null); }, [open]);
+  if (reconnect) return <div className="max-w-[900px] mx-auto jv-pop"><Panel icon={Mail} title="Reconnect Zoho Mail" right={<button type="button" className="text-[13.5px] hover:underline" style={{ color: C.cyan }} onClick={() => setReconnect(false)}>Cancel</button>}><ConnectZoho onDone={() => { setReconnect(false); reload(true); }} /></Panel></div>;
   if (error) return <div className="max-w-[1180px] mx-auto"><ErrorState message={`Couldn't load email: ${error}`} onRetry={() => reload()} /></div>;
   if (!data) return <div className="max-w-[1180px] mx-auto"><Skeleton className="h-[420px]" /></div>;
   if (!data.connected) return <div className="max-w-[900px] mx-auto jv-pop"><Panel icon={Mail} title="Connect Zoho Mail"><ConnectZoho onDone={() => reload(true)} /></Panel></div>;
@@ -343,7 +345,7 @@ export function MailView({ open, dispatch }: { open?: string; dispatch: Dispatch
   const current = sel ? msgs.find(m => m.id === sel) : null;
   return (
     <div className="max-w-[1000px] mx-auto jv-pop">
-      <Panel icon={Mail} title={`Inbox · ${data.email || 'Zoho Mail'}`} right={<Refresh onClick={() => reload(true)} loading={loading} />}>
+      <Panel icon={Mail} title={`Inbox · ${data.email || 'Zoho Mail'}`} right={<span className="flex items-center gap-3"><button type="button" className="text-[13.5px] hover:underline" style={{ color: C.cyan }} onClick={() => setReconnect(true)}>Reconnect</button><Refresh onClick={() => reload(true)} loading={loading} /></span>}>
         {current ? <MailBody m={current} onBack={() => { setSel(null); dispatch({ type: 'open', view: { type: 'mail' } }); }} /> : <>
           <div className="text-[14px] mb-3" style={{ color: C.text2 }}>{data.unreadCount ? `${data.unreadCount} unread` : 'All read'} · {data.last24} in the last 24 hours</div>
           {msgs.length ? (

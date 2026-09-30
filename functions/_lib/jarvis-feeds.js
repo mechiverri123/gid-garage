@@ -441,7 +441,7 @@ export async function sendZohoMail({ bucket, to, subject, text, now = Date.now()
   const body = await res.json().catch(() => ({}));
   if (!res.ok) {
     const code = String(body.data?.errorCode || body.status?.description || `HTTP ${res.status}`);
-    if (res.status === 401 || res.status === 403 || /scope|permission|INVALID_OAUTHSCOPE/i.test(code)) throw new Error('Zoho Mail can read but not send yet: reconnect Zoho Mail with the scope ZohoMail.accounts.READ,ZohoMail.messages.READ,ZohoMail.messages.CREATE.');
+    if (res.status === 401 || res.status === 403 || /scope|permission|INVALID_OAUTHSCOPE/i.test(code)) throw new Error('Zoho Mail can read but not send yet. In Jarvis say \"check my email\", click Reconnect, and use the scope ZohoMail.accounts.READ,ZohoMail.messages.READ,ZohoMail.messages.CREATE.');
     throw new Error(`Zoho Mail: ${code}`);
   }
   return { from: z.email, messageId: body.data?.messageId || null };
