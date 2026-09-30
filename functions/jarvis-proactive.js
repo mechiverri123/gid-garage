@@ -24,7 +24,7 @@
 // - Proactive business alerts are quiet overnight.
 
 import { resolvePeriodWindow, collectedRevenue, jobFromRow } from '../shared/business-metrics.js';
-import { leadFollowUpReason, unpaidJobs, isCancelled } from '../shared/business-rules.js';
+import { leadFollowUpReason, unpaidJobs, isCancelled, reminderRepeatDays, nextRepeatDue } from '../shared/business-rules.js';
 import { createSeoStore } from './_lib/seo/store.js';
 import { createSeoOps } from './_lib/seo/ops.js';
 import { pollMetaLeads, newLeadAlert, readJson, writeJson } from './_lib/jarvis-feeds.js';
@@ -398,6 +398,12 @@ async function deliverDueReminders(env, botToken, chatId, now, actions) {
       notified_at: notifiedAt,
       updated_at: notifiedAt,
     });
+    // Repeating reminder ("Repeats every 14 days" in the notes): open the next one.
+    const days = reminderRepeatDays(row.notes);
+    if (days) {
+      await sbRequest(env, 'jarvis_reminders', { method: 'POST', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({ title: row.title, notes: row.notes, due_at: nextRepeatDue(row.due_at, days, now), status: 'open' }) });
+      actions.push(`reminder_repeat:${days}d`);
+    }
   }
   actions.push(`reminders:${rows.length}`);
 }

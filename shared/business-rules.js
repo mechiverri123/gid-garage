@@ -422,3 +422,19 @@ export function buildActionQueue({ jobs = [], leads = [], reminders = [], notes 
     tomorrow_blockers,
   };
 }
+
+// Repeating reminders without a schema change: notes containing "Repeats every N days"
+// (or "every 2 weeks"). When one is delivered, the proactive worker opens the next one,
+// same title and notes, N days after the last due time (skipping any missed cycles).
+export function reminderRepeatDays(notes) {
+  const m = String(notes || '').match(/repeats? every (\d+) (day|week)s?/i);
+  if (!m) return null;
+  const n = Number(m[1]) * (m[2].toLowerCase() === 'week' ? 7 : 1);
+  return n >= 1 && n <= 366 ? n : null;
+}
+export function nextRepeatDue(dueIso, days, now = new Date()) {
+  const step = days * 86400000;
+  let t = new Date(dueIso).getTime() + step;
+  while (t <= now.getTime()) t += step;
+  return new Date(t).toISOString();
+}

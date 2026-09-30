@@ -10,6 +10,8 @@ export interface RuleJob extends MetricJob {
 export function isCancelled(job: RuleJob): boolean;
 export const PARTS_DONE_STATUSES: string[];
 export function needsPartsCost(job: RuleJob): boolean;
+export function reminderRepeatDays(notes: string | null | undefined): number | null;
+export function nextRepeatDue(dueIso: string, days: number, now?: Date): string;
 export function isAwaitingPayment(job: RuleJob): boolean;
 export function jobTotalDue(job: RuleJob): number;
 export function jobBalance(job: RuleJob): number;

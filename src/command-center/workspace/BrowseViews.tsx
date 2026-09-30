@@ -53,6 +53,12 @@ export function JobListView({ query, status, dispatch }: { query: string; status
     setSaving(j.id);
     try { const m = await jobOps(); await m.patchJob(j.id, { parts_cost: 0 }); putJob({ ...j, partsCost: 0 }); } finally { setSaving(null); }
   };
+  // "All of these were labor / diagnostic only": two taps, one job at a time through the same patch.
+  const [confirmAll, setConfirmAll] = useState(false);
+  const allNoParts = async () => {
+    setConfirmAll(false);
+    for (const j of rows) { if (needsPartsCost(j)) await noParts(j); }
+  };
 
   return (
     <div className="jv-glass jv-pop max-w-[1180px] mx-auto p-4 sm:p-6 flex flex-col gap-4">
@@ -73,7 +79,12 @@ export function JobListView({ query, status, dispatch }: { query: string; status
       </div>
       {error ? <ErrorState message={`Couldn't load jobs: ${error}`} /> : !jobs ? <Skeleton className="h-[360px]" /> : !rows.length ? <EmptyState icon={Briefcase} title="No jobs match">Try another name or filter.</EmptyState> : (
         <div className="flex flex-col gap-2">
-          {partsMode && <p className="text-[14px]" style={{ color: C.text2 }}>Done jobs with no parts cost entered. Net profit counts these as $0 parts. Open one to enter the cost from your receipt, or mark it "No parts".</p>}
+          {partsMode && <div className="flex flex-wrap items-center gap-2">
+            <p className="text-[14px] flex-1 min-w-[240px]" style={{ color: C.text2 }}>Done jobs with no parts cost entered. Net profit counts these as $0 parts. Open one to enter the cost from your receipt, or mark it "No parts".</p>
+            {rows.length > 1 && (confirmAll
+              ? <span className="flex items-center gap-2"><span className="text-[13.5px]" style={{ color: C.amber }}>Save $0 parts on all {rows.length}?</span><ActionButton size="sm" variant="primary" disabled={!!saving} onClick={allNoParts}>Yes, all labor only</ActionButton><ActionButton size="sm" variant="ghost" onClick={() => setConfirmAll(false)}>Cancel</ActionButton></span>
+              : <ActionButton size="sm" variant="secondary" disabled={!!saving} onClick={() => setConfirmAll(true)}>{saving ? 'Saving…' : `Mark all ${rows.length} as No parts`}</ActionButton>)}
+          </div>}
           {rows.slice(0, limit).map(j => {
             const m = jobMoney(j);
             const row = (

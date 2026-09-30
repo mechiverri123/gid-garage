@@ -451,7 +451,7 @@ const TOOLS = [
         title: { type: 'string' },
         due_at_local: { type: 'string', description: 'Use only for explicit calendar/clock times. America/Phoenix local time, YYYY-MM-DDTHH:mm' },
         due_in_minutes: { type: 'number', description: 'Use for relative times. Examples: in 2 minutes = 2, in 3 hours = 180, in 2 days = 2880.' },
-        notes: { type: 'string' },
+        notes: { type: 'string', description: "For a repeating reminder ('every two weeks', 'every 30 days'), end the notes with exactly: Repeats every N days. The proactive worker then re-opens it every N days after each delivery." },
         related_lead_id: { type: 'string' },
       },
       required: ['title'],

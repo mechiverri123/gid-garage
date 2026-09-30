@@ -214,3 +214,13 @@ test('parts checklist: done jobs with a blank parts cost; $0 means no parts; can
   const issues = dataHealthIssues({ jobs: [{ id: 'a', fname: 'Jill', jobStatus: 'PAID', paidAt: '2026-09-01T00:00:00Z', amountPaid: 100, invoiceAmount: 100, partsCost: null }] }, new Date('2026-09-30T12:00:00Z'));
   assert.ok(issues.some(i => i.type === 'parts_cost_missing' && i.id === 'a'));
 });
+
+test('repeating reminders: "Repeats every N days/weeks" in notes; next due skips missed cycles', async () => {
+  const { reminderRepeatDays, nextRepeatDue } = await import('../shared/business-rules.js');
+  assert.equal(reminderRepeatDays('Upload the files. Repeats every 14 days.'), 14);
+  assert.equal(reminderRepeatDays('repeats every 2 weeks'), 14);
+  assert.equal(reminderRepeatDays('call Jill'), null);
+  assert.equal(nextRepeatDue('2026-10-02T16:00:00.000Z', 14, new Date('2026-10-02T16:01:00Z')), '2026-10-16T16:00:00.000Z');
+  // Worker was down for a month: the next one is the first future cycle, not a backlog.
+  assert.equal(nextRepeatDue('2026-10-02T16:00:00.000Z', 14, new Date('2026-11-01T00:00:00Z')), '2026-11-13T16:00:00.000Z');
+});
