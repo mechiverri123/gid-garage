@@ -86,11 +86,14 @@ export const competitorListings = {
     // Mobile competitors first, then the most-reviewed shops.
     const comps = await ctx.store.select('seo_competitors', { select: 'name,domain', status: 'eq.active', weight: 'gt.0', inside_service_area: 'eq.true', order: 'weight.desc,review_count.desc.nullslast', limit: '6' });
     if (!comps.length) throw new ProviderError('error', 'No competitors yet (the places provider finds them).');
-    const usage = {}; const searches = [];
-    const search = name => claudeSearch(ctx, usage, { maxUses: 1, maxTokens: 20, prompt: `Search the web for exactly this query: "${name}" Flagstaff AZ\nThen reply with only: OK` }).then(searchResultUrls);
+    const usage = {}; const searches = []; const info = {};
+    // max_tokens must leave room for the search call itself (it is model output);
+    // a tiny cap ends the turn before any search runs.
+    const search = name => claudeSearch(ctx, usage, { maxUses: 1, maxTokens: 400, prompt: `Use the web_search tool once with exactly this query: "${name}" Flagstaff AZ\nThen reply with only: OK` }, info).then(searchResultUrls);
     for (const c of comps) searches.push({ name: c.name, urls: await search(c.name) });
     const gidUrls = await search(GID);
     await recordSearchCost(ctx, usage, comps.length + 1);
+    if (!searches.some(s => s.urls.length)) throw new ProviderError('error', `No search results came back (${usage.web_search_requests || 0} searches ran, stop: ${info.stopReason || '?'}). Nothing was changed.`);
     const sites = aggregateListings(searches, gidUrls, comps.map(c => c.domain));
     await writeJson(ctx.env.GID_PHOTOS, LISTINGS_KEY, { checkedAt: new Date(ctx.now).toISOString(), competitors: comps.map(c => c.name), gidFound: gidUrls.length, sites });
     const missing = sites.filter(s => !s.gidListed).length;

@@ -133,3 +133,13 @@ test('listings the owner recorded count as listed, even when search missed them'
   assert.deepEqual(s.sites.map(x => [x.site, x.gidListed]), [['yelp.com', true], ['bbb.org', false]]);
   assert.equal(s.sites[0].yourUrl, 'https://www.yelp.com/biz/gid-garage-flagstaff');
 });
+
+test('competitor_listings: leaves room for the search call, and an all-empty run changes nothing', async () => {
+  let maxTokens;
+  const bucket = fakeBucket({ [LISTINGS_KEY]: { sites: [{ site: 'yelp.com' }] } });
+  const fetch = async (url, init) => { maxTokens = JSON.parse(init.body).max_tokens; return jsonRes({ content: [{ type: 'text', text: 'OK' }], stop_reason: 'end_turn', usage: { input_tokens: 10, output_tokens: 2 } }); };
+  const store = { select: async () => [{ name: 'Heath', domain: null }], rpc: async () => {} };
+  await assert.rejects(competitorListings.sync({ env: { ANTHROPIC_API_KEY: 'k', GID_PHOTOS: bucket }, fetch, store, now: new Date(NOW) }), /No search results came back/);
+  assert.ok(maxTokens >= 200);
+  assert.equal(JSON.parse(bucket.m.get(LISTINGS_KEY)).sites.length, 1, 'previous results kept');
+});
