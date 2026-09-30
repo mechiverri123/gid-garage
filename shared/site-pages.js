@@ -148,7 +148,7 @@ export const CASE_STUDIES = [
   {
     slug: '2005-nissan-titan-cylinder-6-misfire-coil-pack', serviceId: 'diag', month: 'July 2026',
     vehicle: '2005 Nissan Titan 5.6L V8', mileage: '251,225 miles',
-    title: '2005 Nissan Titan Cylinder 6 Misfire: Bad Coil Pack | GID Garage Case Study',
+    title: '2005 Nissan Titan Misfire: Bad Coil Pack | GID Garage Flagstaff',
     description: 'A 2005 Nissan Titan with 251k miles developed a cylinder 6 misfire right after new spark plugs. We confirmed a failed coil pack and fixed it on site.',
     h1: '2005 Nissan Titan: Cylinder 6 Misfire After a Spark Plug Job',
     complaint: 'The truck started misfiring on cylinder 6 shortly after its spark plugs were replaced.',
@@ -161,7 +161,7 @@ export const CASE_STUDIES = [
   {
     slug: '2014-jeep-cherokee-misfire-spark-plugs-coils-plenum-gasket', serviceId: 'diag', month: 'July 2026',
     vehicle: '2014 Jeep Cherokee 3.2L V6 Latitude', mileage: '213,402 miles',
-    title: '2014 Jeep Cherokee 3.2L Misfire: Plugs, Coils & Plenum Gasket | GID Garage Case Study',
+    title: '2014 Jeep Cherokee 3.2L Misfire Fix | GID Garage Flagstaff',
     description: 'Cylinder 5 misfire on a 2014 Jeep Cherokee 3.2L. All six spark plugs and coils replaced on site, including intake plenum removal and a new gasket.',
     h1: '2014 Jeep Cherokee 3.2L: Misfire on Cylinder 5',
     complaint: 'A misfire on cylinder 5. The owner wanted the ignition refreshed rather than chasing one cylinder at a time.',
@@ -174,7 +174,7 @@ export const CASE_STUDIES = [
   {
     slug: '2021-chevrolet-blazer-no-start-battery-replacement', serviceId: 'diag', month: 'August 2026',
     vehicle: '2021 Chevrolet Blazer RS', mileage: null,
-    title: "2021 Chevy Blazer Won't Start: Battery Test & AGM Replacement | GID Garage Case Study",
+    title: "2021 Chevy Blazer Won't Start: Battery Fix | GID Garage Flagstaff",
     description: "A 2021 Chevrolet Blazer RS wouldn't start. We tested it where it sat, a battery health report confirmed a failed battery, and we installed a new AGM battery.",
     h1: "2021 Chevrolet Blazer RS: Won't Start",
     complaint: "The Blazer wouldn't start, and the owner wanted to know why before spending money on parts.",
@@ -187,7 +187,7 @@ export const CASE_STUDIES = [
   {
     slug: '2020-subaru-outback-brakes-spark-plugs-throttle-body', serviceId: 'brakes', month: 'September 2026',
     vehicle: '2020 Subaru Outback 2.5L Limited', mileage: '51,336 miles',
-    title: '2020 Subaru Outback: Brakes, Spark Plugs & Throttle Body Cleaning | GID Garage Case Study',
+    title: '2020 Subaru Outback Brakes & Tune-Up | GID Garage Flagstaff',
     description: 'Front pads and rotors, spark plugs, PCV valve and a MAF and throttle body cleaning on a 2020 Subaru Outback, using genuine parts the owner supplied.',
     h1: '2020 Subaru Outback: Brakes, Plugs & a Very Dirty Throttle Body',
     complaint: 'The owner had already bought genuine Subaru parts and wanted the work done at home: front brake pads and rotors, spark plugs, PCV valve and hose, and a MAF sensor and throttle body cleaning.',

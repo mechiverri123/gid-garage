@@ -10,6 +10,17 @@ import { isInsideServiceArea } from './service-area.js';
 const slug = s => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 60);
 const rec = (type, key, fields) => ({ id: `${type}:${slug(key)}`, type, status: 'open', ...fields });
 const HOME = 'https://gidgarage.com/';
+
+// The pages of the most recent crawl, one row per URL. A page removed from the
+// site (e.g. an old town page) drops out instead of producing findings forever.
+// rows: seo_page_audits rows with fetched_at; a crawl spans at most a few hours.
+export function currentCrawl(rows = [], windowHours = 12) {
+  const times = rows.map(r => Date.parse(r.fetched_at)).filter(Number.isFinite);
+  if (!times.length) return [...new Map(rows.map(r => [r.url, r])).values()];
+  const cutoff = Math.max(...times) - windowHours * 3600_000;
+  const recent = rows.filter(r => Date.parse(r.fetched_at) >= cutoff).sort((a, b) => Date.parse(a.fetched_at) - Date.parse(b.fetched_at));
+  return [...new Map(recent.map(r => [r.url, r])).values()];
+}
 const norm = u => String(u || '').replace(/\/+$/, '') || u;
 // URL path words that mean "this page is about that service".
 const PAGE_WORDS = { brakes: /brake/, oil: /oil/, diagnostics: /diagnos|check-engine/, suspension: /suspension|shocks|struts/, audio: /audio|stereo/, maintenance: /maintenance|full-service|inspection|tune/, battery: /battery|no-start/, inspection: /pre-purchase|inspection/ };

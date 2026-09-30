@@ -69,6 +69,7 @@ test('legal pages are not asked to mention Flagstaff in their title', async () =
 test('case studies: real jobs, anonymised, photos exist, pre-rendered and linked from their service', async () => {
   const { existsSync } = await import('node:fs');
   assert.ok(CASE_STUDIES.length >= 4);
+  for (const c of CASE_STUDIES) assert.ok(c.title.length <= 70 && /Flagstaff/.test(c.title), `${c.slug} title: ${c.title.length} chars`);
   for (const c of CASE_STUDIES) {
     assert.ok(SERVICE_PAGES.some(p => p.serviceId === c.serviceId), c.slug);
     for (const p of c.photos) assert.ok(existsSync(new URL(`../public${p.src}`, import.meta.url)), p.src);

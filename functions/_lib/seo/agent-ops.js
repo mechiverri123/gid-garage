@@ -7,7 +7,7 @@
 // Tests: tests/seo-agent.test.js
 
 import { actionQueue, blueprint as buildBlueprint, categoryLearning, top5Gap, changesSince, jobContentCandidates, dueHorizons, horizonVerdict, playbookFor, parseRankCsv, rankGrid, OUTCOME_DAYS } from '../../../shared/seo/agent.js';
-import { detectSiteStructure, detectReviewGap, detectJobContent, detectKnowledgeChanges } from '../../../shared/seo/agent-detectors.js';
+import { detectSiteStructure, detectReviewGap, detectJobContent, detectKnowledgeChanges, currentCrawl } from '../../../shared/seo/agent-detectors.js';
 import { KNOWLEDGE, withStoredStatus, pageFingerprint } from '../../../shared/seo/knowledge.js';
 import { annotateGsc } from '../../../shared/seo/kpis.js';
 import { serviceClusters } from '../../../shared/seo/demand.js';
@@ -40,8 +40,7 @@ export function createAgentOps({ store, env = {}, now = new Date(), h }) {
   const competitorRows = () => safe(store.select('seo_competitors', { select: 'id,name,tier,kind,weight,rating,review_count,inside_service_area,distance_miles', status: 'eq.active' }));
   const recentJobs = () => safe(store.select('bookings', { select: 'id,date,service,vehicle,job_status,has_photos,has_inspection,job_photos,pre_scan,post_scan,line_items', date: `gte.${addDays(now, -365)}`, order: 'date.desc', limit: '300' }));
   const latestAudits = async () => {
-    const rows = await safe(store.select('seo_page_audits', { select: '*', order: 'fetched_at.desc', limit: '120' }));
-    return [...new Map(rows.slice().reverse().map(r => [r.url, r])).values()];
+    return currentCrawl(await safe(store.select('seo_page_audits', { select: '*', order: 'fetched_at.desc', limit: '120' })));
   };
 
   // Extra recommendations for analyze() (they pass the same service/content gates).

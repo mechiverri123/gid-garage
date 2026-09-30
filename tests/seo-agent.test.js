@@ -211,3 +211,16 @@ test('analyze writes agent findings through the same gates and records a snapsho
   assert.ok(recs.some(r => r.id === 'site:service-page-gap-brakes'));
   assert.ok(out.snapshot.ok || /seo_snapshots/.test(out.snapshot.error || ''));
 });
+
+test('audits: only the latest crawl counts, so removed pages stop producing findings', async () => {
+  const { currentCrawl } = await import('../shared/seo/agent-detectors.js');
+  const rows = [
+    { url: 'https://gidgarage.com/service-area/winslow', fetched_at: '2026-09-28T09:00:00Z', advertised_places: ['Winslow'] },
+    { url: 'https://gidgarage.com/', fetched_at: '2026-09-28T09:00:00Z', title: 'old' },
+    { url: 'https://gidgarage.com/', fetched_at: '2026-09-30T05:00:00Z', title: 'new' },
+    { url: 'https://gidgarage.com/service-area', fetched_at: '2026-09-30T05:00:05Z' },
+  ];
+  const cur = currentCrawl(rows);
+  assert.deepEqual(cur.map(r => r.url).sort(), ['https://gidgarage.com/', 'https://gidgarage.com/service-area']);
+  assert.equal(cur.find(r => r.url === 'https://gidgarage.com/').title, 'new');
+});

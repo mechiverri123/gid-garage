@@ -15,6 +15,7 @@ import { SERVICE_AREA } from '../../../shared/seo/service-area.js';
 import { serviceEvidence, capacityFactor } from '../../../shared/seo/evidence.js';
 import { providerStatuses } from './providers.js';
 import { createAgentOps } from './agent-ops.js';
+import { currentCrawl } from '../../../shared/seo/agent-detectors.js';
 
 const DAY = 86400000;
 const ymd = d => new Date(d).toISOString().slice(0, 10);
@@ -227,7 +228,7 @@ export function createSeoOps({ store, env = {}, now = new Date() }) {
     const biz = await businessInputs();
     const latest = (rows, key) => [...new Map(rows.map(r => [key(r), r])).values()];
     const pagespeed = latest(ps.slice().reverse(), r => `${r.url}|${r.strategy}`);
-    const latestAudits = latest(audits.slice().reverse(), r => r.url);
+    const latestAudits = currentCrawl(audits);
     const services = resolveServices(s.services);
     const clusters = serviceClusters(gsc, [], services);
     const annotated = annotateGsc(gsc);
@@ -352,7 +353,7 @@ export function createSeoOps({ store, env = {}, now = new Date() }) {
     ]);
     const latest = (rows, key) => [...new Map(rows.slice().reverse().map(r => [key(r), r])).values()];
     const pagespeed = latest(runs, r => `${r.url}|${r.strategy}`);
-    const pages = latest(audits, r => r.url);
+    const pages = currentCrawl(audits);
     const issues = pages.flatMap(a => (a.issues || []).map(i => ({ ...i, url: a.url })));
     const has = codes => issues.filter(i => codes.includes(i.code));
     const check = (key, label, codes, measured) => ({ key, label, measured, issues: measured ? has(codes) : [] });
