@@ -56,9 +56,9 @@ function Decide({ e, categories, onDone }: { e: Any; categories: string[]; onDon
   const sel = { background: 'rgba(3,10,17,0.9)', border: `1px solid ${C.borderStrong}`, color: C.text };
   return (
     <div className="flex flex-wrap items-center gap-2 mt-2">
-      {e.amount > 0 && e.kind !== 'deposit' && (
+      {(e.kind === 'expense' || (e.amount > 0 && e.kind !== 'deposit')) && (
         <select aria-label="Category" disabled={busy} value={e.kind === 'expense' ? e.category : ''} onChange={x => go({ kind: 'expense', category: x.target.value })} className="h-9 rounded-lg px-2 text-[13.5px]" style={sel}>
-          <option value="" disabled>Business expense…</option>
+          <option value="" disabled>{e.amount < 0 ? 'Refund of…' : 'Business expense…'}</option>
           {categories.map(c => <option key={c} value={c}>{c}</option>)}
         </select>
       )}
@@ -237,7 +237,9 @@ export function MoneyMode({ summary, onOpenView }: { summary: CommandCenterSumma
             <input value={q} onChange={e => setQ(e.target.value)} placeholder="Search store, category, amount…" aria-label="Search transactions"
               className="flex-1 min-w-[200px] h-10 rounded-lg px-3 text-[14px] outline-none" style={{ background: 'rgba(3,10,17,0.8)', border: `1px solid ${C.borderStrong}`, color: C.text }} />
           </div>
-          {!rows.length ? <EmptyState icon={Receipt} title="Nothing here for this period" /> : (
+          {!rows.length ? (filter === 'review'
+            ? <EmptyState icon={Receipt} title="Nothing needs review" action={<ActionButton size="sm" onClick={() => setFilter('expense')}>Show expenses</ActionButton>}>Every transaction has a decision.</EmptyState>
+            : <EmptyState icon={Receipt} title="Nothing here for this period" />) : (
             <ul className="flex flex-col gap-2">{rows.map(e => <Row key={e.id} e={e} categories={data.categories} onDone={load} />)}</ul>
           )}
         </CommandCard>
