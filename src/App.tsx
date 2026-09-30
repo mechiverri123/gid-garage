@@ -540,20 +540,20 @@ function WhyUs() {
 }
 
 // Real close-up shots from actual jobs — honestly captioned by what's in
-// frame, not tied to a marketing claim.
+// frame, not tied to a marketing claim. Nothing that shows a customer's home,
+// street, plate or face (/photos/home-* are cropped to the part).
 function RealJobsStrip() {
   const shots = [
     { src: 'rav4shocks.jpg', caption: 'Front strut assembly, ready to install' },
     { src: 'magnaride.jpg', caption: 'Adaptive suspension strut' },
     { src: 'afba.jpg', caption: 'Cabin air filter — old vs. new' },
     { src: 'photo-audio.jpg', caption: 'Head unit setup after install' },
-    { src: 'IMG_0952.jpeg', caption: 'Full synthetic oil change' },
-    { src: 'IMG_0964.jpeg', caption: 'Radiator hose replacement' },
-    { src: 'IMG_1052.jpeg', caption: 'Brake pads — old vs. new' },
+    { src: '/photos/home-oil-change.webp', caption: 'Full synthetic oil change' },
+    { src: '/photos/home-radiator-hose.webp', caption: 'Radiator hose replacement' },
     { src: 'IMG_1100.jpeg', caption: 'New strut assembly installed' },
     { src: 'IMG_1179.jpeg', caption: 'Brake pads seated in caliper' },
     { src: 'IMG_1292.jpeg', caption: 'Control arms — old vs. new' },
-    { src: 'IMG_1392.jpeg', caption: 'Spark plugs — old vs. new' },
+    { src: '/photos/home-spark-plugs.webp', caption: 'Spark plugs — old vs. new' },
     { src: 'IMG_1193.jpeg', caption: 'Spark plugs — old vs. new' },
     { src: 'IMG_0915.jpeg', caption: 'Coolant temp sensor — old vs. new' },
     { src: 'IMG_1248.jpeg', caption: 'Timing cover and oil pan' },
@@ -567,7 +567,7 @@ function RealJobsStrip() {
             <Reveal key={s.src} delay={i * 80}>
               <div className="relative aspect-square overflow-hidden group bg-white/5">
                 <img
-                  src={img(s.src)}
+                  src={s.src.startsWith('/') ? s.src : img(s.src)}
                   alt={s.caption}
                   className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                   loading="lazy"

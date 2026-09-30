@@ -222,9 +222,9 @@
     "semantic_hash": "861c63dd430d890bfbbd07dd2ef1013a"
   },
   "src/App.tsx": {
-    "mtime": 1790745526.2921138,
-    "seen": 1790745633.2098968,
-    "ast_hash": "b182dc27cee265db9db5250e65cd6576",
+    "mtime": 1790747070.3765495,
+    "seen": 1790747105.7802353,
+    "ast_hash": "9b8a62a0a15f61a4be1d541380508f24",
     "semantic_hash": ""
   },
   "src/BookingWidget.tsx": {
@@ -1983,6 +1983,24 @@
     "mtime": 1790746780.979839,
     "seen": 1790746905.04831,
     "ast_hash": "b6772573383bfbdd90d4105f7a970f1a",
+    "semantic_hash": ""
+  },
+  "public/photos/home-oil-change.webp": {
+    "mtime": 1790747054.368538,
+    "seen": 1790747105.7961168,
+    "ast_hash": "c74ffa3972d146dbcc3ad89ac927da37",
+    "semantic_hash": ""
+  },
+  "public/photos/home-radiator-hose.webp": {
+    "mtime": 1790747054.4424024,
+    "seen": 1790747105.796118,
+    "ast_hash": "70947db33c54927855e6e22dbf917339",
+    "semantic_hash": ""
+  },
+  "public/photos/home-spark-plugs.webp": {
+    "mtime": 1790747054.580572,
+    "seen": 1790747105.7961192,
+    "ast_hash": "9a52a845da69e47254942e9e824b1004",
     "semantic_hash": ""
   }
 }

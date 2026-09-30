@@ -8853,7 +8853,7 @@
       "file_type": "code",
       "norm_label": "casestudyforpath()",
       "source_file": "shared/site-pages.js",
-      "source_location": "L210"
+      "source_location": "L211"
     },
     {
       "id": "shared_site_pages_pageforpath",
@@ -8865,7 +8865,7 @@
       "file_type": "code",
       "norm_label": "pageforpath()",
       "source_file": "shared/site-pages.js",
-      "source_location": "L142"
+      "source_location": "L143"
     },
     {
       "id": "src_app_photogallery",
@@ -9789,7 +9789,7 @@
       "file_type": "code",
       "norm_label": "areaspage()",
       "source_file": "src/ServicePages.tsx",
-      "source_location": "L141"
+      "source_location": "L142"
     },
     {
       "id": "src_servicepages_casestudiesindex",
@@ -9801,7 +9801,7 @@
       "file_type": "code",
       "norm_label": "casestudiesindex()",
       "source_file": "src/ServicePages.tsx",
-      "source_location": "L197"
+      "source_location": "L198"
     },
     {
       "id": "src_servicepages_casestudypage",
@@ -9813,7 +9813,7 @@
       "file_type": "code",
       "norm_label": "casestudypage()",
       "source_file": "src/ServicePages.tsx",
-      "source_location": "L163"
+      "source_location": "L164"
     },
     {
       "id": "src_servicepages_img",
@@ -9825,7 +9825,7 @@
       "file_type": "code",
       "norm_label": "img()",
       "source_file": "src/ServicePages.tsx",
-      "source_location": "L10"
+      "source_location": "L11"
     },
     {
       "id": "src_servicepages_servicepage",
@@ -9837,7 +9837,7 @@
       "file_type": "code",
       "norm_label": "servicepage()",
       "source_file": "src/ServicePages.tsx",
-      "source_location": "L60"
+      "source_location": "L61"
     },
     {
       "id": "src_servicepages_shell",
@@ -9849,7 +9849,7 @@
       "file_type": "code",
       "norm_label": "shell()",
       "source_file": "src/ServicePages.tsx",
-      "source_location": "L21"
+      "source_location": "L22"
     },
     {
       "id": "src_servicepages_usebooking",
@@ -9861,7 +9861,7 @@
       "file_type": "code",
       "norm_label": "usebooking()",
       "source_file": "src/ServicePages.tsx",
-      "source_location": "L52"
+      "source_location": "L53"
     },
     {
       "id": "src_servicepages_usehead",
@@ -9873,7 +9873,7 @@
       "file_type": "code",
       "norm_label": "usehead()",
       "source_file": "src/ServicePages.tsx",
-      "source_location": "L13"
+      "source_location": "L14"
     },
     {
       "id": "jarvis_agent_agent_gidjarvis_analyze_lead",
@@ -26169,7 +26169,7 @@
       "file_type": "code",
       "norm_label": "areas",
       "source_file": "shared/site-pages.js",
-      "source_location": "L111"
+      "source_location": "L112"
     },
     {
       "id": "shared_site_pages_case_studies",
@@ -26180,7 +26180,7 @@
       "file_type": "code",
       "norm_label": "case_studies",
       "source_file": "shared/site-pages.js",
-      "source_location": "L147"
+      "source_location": "L148"
     },
     {
       "id": "shared_site_pages_common_faq",
@@ -26202,7 +26202,7 @@
       "file_type": "code",
       "norm_label": "home_page",
       "source_file": "shared/site-pages.js",
-      "source_location": "L132"
+      "source_location": "L133"
     },
     {
       "id": "shared_site_pages_how_it_works",
@@ -26235,7 +26235,7 @@
       "file_type": "code",
       "norm_label": "privacy_page",
       "source_file": "shared/site-pages.js",
-      "source_location": "L140"
+      "source_location": "L141"
     },
     {
       "id": "shared_site_pages_service_pages",
@@ -26400,7 +26400,7 @@
       "file_type": "code",
       "norm_label": "areas_page",
       "source_file": "shared/site-pages.js",
-      "source_location": "L124"
+      "source_location": "L125"
     },
     {
       "id": "shared_site_pages_case_studies_page",
@@ -26411,7 +26411,7 @@
       "file_type": "code",
       "norm_label": "case_studies_page",
       "source_file": "shared/site-pages.js",
-      "source_location": "L202"
+      "source_location": "L203"
     },
     {
       "id": "src_servicepages",
@@ -65988,7 +65988,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/ServicePages.tsx",
-      "source_location": "L142",
+      "source_location": "L143",
       "weight": 1.0
     },
     {
@@ -66000,7 +66000,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/ServicePages.tsx",
-      "source_location": "L143",
+      "source_location": "L144",
       "weight": 1.0
     },
     {
@@ -66012,24 +66012,12 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/ServicePages.tsx",
-      "source_location": "L146",
+      "source_location": "L147",
       "weight": 1.0
     },
     {
       "source": "src_servicepages_casestudiesindex",
       "target": "src_servicepages_usehead",
-      "relation": "calls",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "context": "call",
-      "source_file": "src/ServicePages.tsx",
-      "source_location": "L198",
-      "weight": 1.0
-    },
-    {
-      "source": "src_servicepages_casestudiesindex",
-      "target": "src_servicepages_usebooking",
       "relation": "calls",
       "_origin": "ast",
       "confidence": "EXTRACTED",
@@ -66041,6 +66029,18 @@
     },
     {
       "source": "src_servicepages_casestudiesindex",
+      "target": "src_servicepages_usebooking",
+      "relation": "calls",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "call",
+      "source_file": "src/ServicePages.tsx",
+      "source_location": "L200",
+      "weight": 1.0
+    },
+    {
+      "source": "src_servicepages_casestudiesindex",
       "target": "src_servicepages_shell",
       "relation": "calls",
       "_origin": "ast",
@@ -66048,7 +66048,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/ServicePages.tsx",
-      "source_location": "L201",
+      "source_location": "L202",
       "weight": 1.0
     },
     {
@@ -66060,7 +66060,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/ServicePages.tsx",
-      "source_location": "L164",
+      "source_location": "L165",
       "weight": 1.0
     },
     {
@@ -66072,7 +66072,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/ServicePages.tsx",
-      "source_location": "L166",
+      "source_location": "L167",
       "weight": 1.0
     },
     {
@@ -66084,7 +66084,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/ServicePages.tsx",
-      "source_location": "L171",
+      "source_location": "L172",
       "weight": 1.0
     },
     {
@@ -66096,7 +66096,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/ServicePages.tsx",
-      "source_location": "L103",
+      "source_location": "L104",
       "weight": 1.0
     },
     {
@@ -66108,7 +66108,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/ServicePages.tsx",
-      "source_location": "L61",
+      "source_location": "L62",
       "weight": 1.0
     },
     {
@@ -66120,7 +66120,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/ServicePages.tsx",
-      "source_location": "L62",
+      "source_location": "L63",
       "weight": 1.0
     },
     {
@@ -66132,7 +66132,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/ServicePages.tsx",
-      "source_location": "L64",
+      "source_location": "L65",
       "weight": 1.0
     },
     {
@@ -66144,7 +66144,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/ServicePages.tsx",
-      "source_location": "L55",
+      "source_location": "L56",
       "weight": 1.0
     },
     {
@@ -106752,7 +106752,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "shared/site-pages.js",
-      "source_location": "L111",
+      "source_location": "L112",
       "weight": 1.0
     },
     {
@@ -106763,7 +106763,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "shared/site-pages.js",
-      "source_location": "L124",
+      "source_location": "L125",
       "weight": 1.0
     },
     {
@@ -106774,7 +106774,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "shared/site-pages.js",
-      "source_location": "L132",
+      "source_location": "L133",
       "weight": 1.0
     },
     {
@@ -106785,7 +106785,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "shared/site-pages.js",
-      "source_location": "L140",
+      "source_location": "L141",
       "weight": 1.0
     },
     {
@@ -106796,7 +106796,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "shared/site-pages.js",
-      "source_location": "L142",
+      "source_location": "L143",
       "weight": 1.0
     },
     {
@@ -106807,7 +106807,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "shared/site-pages.js",
-      "source_location": "L147",
+      "source_location": "L148",
       "weight": 1.0
     },
     {
@@ -106829,7 +106829,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "shared/site-pages.js",
-      "source_location": "L202",
+      "source_location": "L203",
       "weight": 1.0
     },
     {
@@ -106840,7 +106840,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "shared/site-pages.js",
-      "source_location": "L210",
+      "source_location": "L211",
       "weight": 1.0
     },
     {
@@ -116487,7 +116487,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/ServicePages.tsx",
-      "source_location": "L10",
+      "source_location": "L11",
       "weight": 1.0
     },
     {
@@ -116498,7 +116498,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/ServicePages.tsx",
-      "source_location": "L13",
+      "source_location": "L14",
       "weight": 1.0
     },
     {
@@ -116509,7 +116509,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/ServicePages.tsx",
-      "source_location": "L141",
+      "source_location": "L142",
       "weight": 1.0
     },
     {
@@ -116520,7 +116520,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/ServicePages.tsx",
-      "source_location": "L163",
+      "source_location": "L164",
       "weight": 1.0
     },
     {
@@ -116531,7 +116531,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/ServicePages.tsx",
-      "source_location": "L197",
+      "source_location": "L198",
       "weight": 1.0
     },
     {
@@ -116542,7 +116542,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/ServicePages.tsx",
-      "source_location": "L21",
+      "source_location": "L22",
       "weight": 1.0
     },
     {
@@ -116553,7 +116553,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/ServicePages.tsx",
-      "source_location": "L52",
+      "source_location": "L53",
       "weight": 1.0
     },
     {
@@ -116564,7 +116564,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/ServicePages.tsx",
-      "source_location": "L60",
+      "source_location": "L61",
       "weight": 1.0
     },
     {
@@ -122155,5 +122155,5 @@
       "source_file": "public/website_logo.png"
     }
   ],
-  "built_at_commit": "39edc43d69ab903d153681e0a4130de11df14c15"
+  "built_at_commit": "bb202006eb5845e513f9c6e944f91ea1cce20032"
 }

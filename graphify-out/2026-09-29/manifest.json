@@ -1842,21 +1842,21 @@
     "semantic_hash": ""
   },
   "shared/site-pages.js": {
-    "mtime": 1790745756.4798467,
-    "seen": 1790745791.599604,
-    "ast_hash": "a42cec02fb8f7dcfd2c324f9576ab637",
+    "mtime": 1790746828.5689976,
+    "seen": 1790746905.0335414,
+    "ast_hash": "49739eeb166463d911a99a31ac4be6f1",
     "semantic_hash": ""
   },
   "src/ServicePages.tsx": {
-    "mtime": 1790745526.291099,
-    "seen": 1790745633.2104132,
-    "ast_hash": "1c313be6e8ba2666451f107810113999",
+    "mtime": 1790746828.5695014,
+    "seen": 1790746905.0342758,
+    "ast_hash": "d2a89fabb905b554075b733cc3cde3d6",
     "semantic_hash": ""
   },
   "tests/site-pages.test.js": {
-    "mtime": 1790745756.6166875,
-    "seen": 1790745791.6070957,
-    "ast_hash": "355a2ffece2392ccdc7e479a5ce1ccdc",
+    "mtime": 1790746841.7206068,
+    "seen": 1790746905.0410862,
+    "ast_hash": "5b400862437d4d62ff3383e304b0d090",
     "semantic_hash": ""
   },
   "public/case/blazer-new-battery.webp": {
@@ -1935,6 +1935,54 @@
     "mtime": 1790745405.3142197,
     "seen": 1790745633.2239923,
     "ast_hash": "54aa7c1b8468a593e1f6600647c75c0b",
+    "semantic_hash": ""
+  },
+  "public/photos/brake-new-rotor-caliper.webp": {
+    "mtime": 1790746780.6794007,
+    "seen": 1790746905.0483036,
+    "ast_hash": "62a96cb035e23f81c248db4cc64c877d",
+    "semantic_hash": ""
+  },
+  "public/photos/brake-pads-in-caliper.webp": {
+    "mtime": 1790746780.814341,
+    "seen": 1790746905.0483048,
+    "ast_hash": "aea35f7ca3ae32d54eb38ed56f7ac742",
+    "semantic_hash": ""
+  },
+  "public/photos/brake-rotor-after.webp": {
+    "mtime": 1790746780.521056,
+    "seen": 1790746905.048306,
+    "ast_hash": "b98a2c8e54020ca04c38a439e20bd683",
+    "semantic_hash": ""
+  },
+  "public/photos/brake-rotor-before.webp": {
+    "mtime": 1790746780.325148,
+    "seen": 1790746905.0483067,
+    "ast_hash": "0b033b4b2b3402880a664ba23c05a5f4",
+    "semantic_hash": ""
+  },
+  "public/photos/oil-fill.webp": {
+    "mtime": 1790746781.3161504,
+    "seen": 1790746905.0483077,
+    "ast_hash": "22a28faa94ed6962bfbe4baf6e208376",
+    "semantic_hash": ""
+  },
+  "public/photos/oil-life-reset.webp": {
+    "mtime": 1790746781.4494388,
+    "seen": 1790746905.0483084,
+    "ast_hash": "c11f808add78ef6de54cbbc2319eab63",
+    "semantic_hash": ""
+  },
+  "public/photos/oil-new-filter.webp": {
+    "mtime": 1790746781.152423,
+    "seen": 1790746905.048309,
+    "ast_hash": "4878a14b01e45c43e2d10285e02d8c79",
+    "semantic_hash": ""
+  },
+  "public/photos/oil-old-filter.webp": {
+    "mtime": 1790746780.979839,
+    "seen": 1790746905.04831,
+    "ast_hash": "b6772573383bfbdd90d4105f7a970f1a",
     "semantic_hash": ""
   }
 }
