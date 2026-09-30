@@ -280,6 +280,7 @@ const LIST_STATUS = {
 // Global, deterministic commands (no AI tokens): modes and the main screens.
 const HOME_RE = /^(?:(?:go |switch |take me |head )?back (?:to )?|return to |go to |switch to |take me to |take me |open )?(?:jarvis|home|the dashboard|dashboard|the main screen|main screen|main|normal|ops|ops mode|operations)$|^(?:go home|home)$/;
 const SEO_RE = /^(?:(?:switch|go|jump|flip|change|head) (?:over )?(?:back )?to |open |show (?:me )?|enter |take me to |pull up )?(?:the )?(?:seo|local seo|local search|search console)(?: mode| page| dashboard| center| command center| screen| view| tab)?$/;
+const MONEY_RE = /^(?:(?:switch|go|jump|flip|change|head) (?:over )?(?:back )?to |open |show (?:me )?|take me to |pull up |bring up )?(?:the |my )?(?:money|finances|financials|books|bookkeeping|banking|expenses|money (?:page|tab|screen)|owner'?s equity)(?: mode| page| tab| screen| view)?$/;
 const OPEN_VERB = '(?:open|show|pull up|go to|bring up|take me to|switch to|view)(?: me)?(?: the| my)?';
 const GLOBAL_OPENS = [
   [new RegExp(`^${OPEN_VERB} (?:calendar|schedule)$|^(?:calendar|schedule)$`), { type: 'calendar', mode: 'week' }],
@@ -345,6 +346,7 @@ export function parseLocalCommand(text, state, { meta = [], today } = {}) {
 
   if (HOME_RE.test(t)) return { type: 'home' };
   if (SEO_RE.test(t)) return { type: 'mode', mode: 'seo' };
+  if (MONEY_RE.test(t)) return { type: 'mode', mode: 'money' };
   for (const [re, target] of GLOBAL_OPENS) if (re.test(t) && view?.type !== target.type) return { type: 'open', view: { ...target } };
 
   if (CLOSE_ALL.test(t) && !CLOSE_ONE.test(t)) return view ? { type: 'close_all' } : { type: 'noop', reply: 'Nothing is open.' };

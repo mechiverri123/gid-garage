@@ -307,6 +307,7 @@ test('global voice/typed commands need no AI: modes and main screens, from anywh
   const none = INITIAL_WORKSPACE;
   for (const q of ['switch to SEO', 'SEO mode', 'open the SEO dashboard', 'go to local search']) assert.deepEqual(cmd(q, none), { type: 'mode', mode: 'seo' }, q);
   for (const q of ['go back to Jarvis', 'back to Jarvis', 'Jarvis dashboard', 'go home', 'main screen']) assert.deepEqual(cmd(q, none), { type: 'home' }, q);
+  for (const q of ['money', 'open money', 'show me my finances', 'open the books', 'switch to money', 'banking', 'expenses']) assert.deepEqual(cmd(q, none), { type: 'mode', mode: 'money' }, q);
   assert.deepEqual(cmd('open calendar', none), { type: 'open', view: { type: 'calendar', mode: 'week' } });
   assert.deepEqual(cmd('show me my schedule', none), { type: 'open', view: { type: 'calendar', mode: 'week' } });
   assert.deepEqual(cmd('pull up all jobs', none), { type: 'open', view: { type: 'jobList', status: 'all' } });

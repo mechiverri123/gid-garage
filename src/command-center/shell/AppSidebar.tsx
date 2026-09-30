@@ -1,10 +1,10 @@
 // Left navigation. Expanded on wide screens, icon rail on laptops, drawer on
 // tablets/phones. Items link to real destinations: dashboard sections, SEO
 // mode, and Jarvis workspace views (jobs, customers, calendar, revenue).
-import { LayoutDashboard, Briefcase, Users, CalendarDays, Map as MapIcon, Megaphone, SearchCheck, BarChart3, Bot, Settings, Lock, X , type LucideIcon } from 'lucide-react';
+import { LayoutDashboard, Briefcase, Users, CalendarDays, Map as MapIcon, Megaphone, SearchCheck, Wallet, Bot, Settings, Lock, X , type LucideIcon } from 'lucide-react';
 import { C } from '../ui/theme';
 
-export type NavTarget = { kind: 'mode'; mode: 'ops' | 'seo' } | { kind: 'section'; id: string } | { kind: 'href'; href: string } | { kind: 'view'; view: { type: string; [k: string]: unknown } };
+export type NavTarget = { kind: 'mode'; mode: 'ops' | 'seo' | 'money' } | { kind: 'section'; id: string } | { kind: 'href'; href: string } | { kind: 'view'; view: { type: string; [k: string]: unknown } };
 export interface NavItem { key: string; label: string; icon: LucideIcon; target: NavTarget }
 
 export const NAV: NavItem[] = [
@@ -15,7 +15,7 @@ export const NAV: NavItem[] = [
   { key: 'map', label: 'Map', icon: MapIcon, target: { kind: 'section', id: 'cc-route' } },
   { key: 'marketing', label: 'Marketing', icon: Megaphone, target: { kind: 'section', id: 'cc-marketing' } },
   { key: 'seo', label: 'SEO', icon: SearchCheck, target: { kind: 'mode', mode: 'seo' } },
-  { key: 'reports', label: 'Reports', icon: BarChart3, target: { kind: 'view', view: { type: 'analytics', range: { period: 'this_month' } } } },
+  { key: 'money', label: 'Money', icon: Wallet, target: { kind: 'mode', mode: 'money' } },
   { key: 'jarvis', label: 'Jarvis', icon: Bot, target: { kind: 'section', id: 'cc-jarvis' } },
   { key: 'settings', label: 'Settings', icon: Settings, target: { kind: 'view', view: { type: 'settings' } } },
 ];

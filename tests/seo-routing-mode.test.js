@@ -112,3 +112,12 @@ test('manual sidebar switch still works and leaving SEO resets focus', () => {
   ui = applyUiEvent(ui, { type: 'manual', mode: 'ops' });
   assert.deepEqual(ui, { mode: 'ops', seoFocus: 'overview' });
 });
+
+test('Money page: chat turns (ui_mode ops) keep it open; an SEO turn or a manual switch leaves it', () => {
+  let ui = applyUiEvent(INITIAL_UI_MODE, { type: 'manual', mode: 'money' });
+  assert.equal(ui.mode, 'money');
+  ui = applyUiEvent(ui, { type: 'ui_mode', mode: 'ops' });
+  assert.equal(ui.mode, 'money');
+  assert.equal(applyUiEvent(ui, { type: 'ui_mode', mode: 'seo' }).mode, 'seo');
+  assert.equal(applyUiEvent(ui, { type: 'manual', mode: 'ops' }).mode, 'ops');
+});

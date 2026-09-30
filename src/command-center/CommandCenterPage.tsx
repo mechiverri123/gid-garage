@@ -30,13 +30,14 @@ import { CommandPalette, useCommandPalette } from './components/CommandPalette';
 import { CommandInput } from './components/CommandInput';
 import { SeoMode } from './seo/SeoMode';
 import { SEO_VIEWS, type SeoView } from './seo/seoTypes';
-import { applyUiEvent, INITIAL_UI_MODE, type UiModeEvent } from './seo/uiMode';
+import { applyUiEvent, INITIAL_UI_MODE, type UiModeEvent, type AppMode } from './seo/uiMode';
+import { MoneyMode } from './money/MoneyMode';
 import { AppSidebar, type NavTarget } from './shell/AppSidebar';
 import { CommandTopBar } from './shell/CommandTopBar';
 import { KpiStrip, TodaysJobs, AttentionCard } from './dashboard/TodaySections';
 import { TodayRoute } from './dashboard/TodayRoute';
 import { JarvisPanel } from './dashboard/JarvisPanel';
-import { QuickActionHero, ThisMonth, LeadsBySource, RecentActivity, UpcomingJobsTable, RevenueTrend, QuickCommandTiles } from './dashboard/BusinessSections';
+import { QuickActionHero, ThisMonth, LeadsBySource, RecentActivity, UpcomingJobsTable, QuickCommandTiles } from './dashboard/BusinessSections';
 import { Skeleton, ErrorState } from './ui/primitives';
 import type { OrbState } from './ui/JarvisOrb';
 import { C } from './ui/theme';
@@ -60,7 +61,7 @@ function ackFor(a: WsAction) {
   if (a.type === 'close') return pick('Very good, sir.', 'As you wish.', 'Of course, sir.');
   if (a.type === 'close_all') return pick('Cleared, sir.', 'Very good, sir.');
   if (a.type === 'home') return pick('Welcome back, sir.', 'Back to the main screen, sir.');
-  if (a.type === 'mode') return a.mode === 'seo' ? 'Local search, sir.' : 'The command center, sir.';
+  if (a.type === 'mode') return a.mode === 'seo' ? 'Local search, sir.' : a.mode === 'money' ? 'The books, sir.' : 'The command center, sir.';
   if (a.type === 'tab') return `The ${TAB_WORD[String(a.tab)]?.toLowerCase() ?? 'details'}, sir.`;
   if (a.type === 'focus') return a.tab ? `The ${String(a.tab)}, sir.` : pick('Right away, sir.', 'Here it is, sir.');
   if (a.type === 'step') return pick('Next one, sir.', 'Here you are, sir.');
@@ -108,7 +109,7 @@ export function CommandCenterPage({ onLock }: { onLock: () => void }) {
   // the sidebar and on-screen commands all drive.
   const [ws, dispatchWs] = useReducer(workspaceReduce, INITIAL_WORKSPACE);
   const wsRef = useRef(ws);
-  const modeRef = useRef<'ops' | 'seo'>('ops');
+  const modeRef = useRef<AppMode>('ops');
   wsRef.current = ws;
   const screenMeta = () => { const t = workspaceTop(wsRef.current); return t?.type === 'jobs' ? t.jobIds.map((id: string) => jobMeta.get(id) ?? { label: '', date: '' }) : []; };
   const openView = useCallback((view: Record<string, unknown>) => dispatchWs({ type: 'open', view }), []);
@@ -181,7 +182,7 @@ export function CommandCenterPage({ onLock }: { onLock: () => void }) {
   // the relevant panel into focus (structured ui_focus events).
   const [ui, setUi] = useState(INITIAL_UI_MODE);
   const onUiEvent = useCallback((e: UiModeEvent) => setUi(s => applyUiEvent(s, e)), []);
-  const setMode = useCallback((m: 'ops' | 'seo') => setUi(s => applyUiEvent(s, { type: 'manual', mode: m })), []);
+  const setMode = useCallback((m: AppMode) => setUi(s => applyUiEvent(s, { type: 'manual', mode: m })), []);
   const setSeoFocus = useCallback((v: SeoView) => setUi(s => applyUiEvent(s, { type: 'ui_focus', mode: 'seo', target: v })), []);
   // Deep links: /jarvis#seo (SEO Mode) or /jarvis#seo/actions, #seo/top5, #seo/blueprint …
   useEffect(() => {
@@ -211,7 +212,7 @@ export function CommandCenterPage({ onLock }: { onLock: () => void }) {
   // Page-level screen actions: modes ("switch to SEO", "back to Jarvis") plus
   // everything the workspace reducer handles.
   const applyLocal = (local: WsAction, q: string) => {
-    if (local.type === 'mode') { dispatchWs({ type: 'close_all' }); setMode(local.mode as 'ops' | 'seo'); } // the new mode is what you see
+    if (local.type === 'mode') { dispatchWs({ type: 'close_all' }); setMode(local.mode as AppMode); } // the new mode is what you see
     else if (local.type === 'home') { dispatchWs({ type: 'close_all' }); setMode('ops'); }
     else if (local.type !== 'noop') dispatchWs(local);
     addLocal(q, ackFor(local));
@@ -326,6 +327,7 @@ export function CommandCenterPage({ onLock }: { onLock: () => void }) {
     { id: 'unpaid', label: 'Unpaid invoices', run: () => askAndShow("what's unpaid") },
     { id: 'takehome', label: 'Take-home this week', run: () => askAndShow('what did I actually take home this week') },
     { id: 'seo', label: 'SEO Mode (local search)', run: () => setMode('seo') },
+    { id: 'money', label: 'Money (revenue, expenses, owner equity, sales tax)', run: () => setMode('money') },
     { id: 'seo-brief', label: 'How is local search doing?', run: () => ask('How is my local SEO doing this month?') },
     { id: 'brief', label: 'Daily brief', run: () => openView({ type: 'brief' }) },
     { id: 'reviews', label: 'Google reviews', run: () => openView({ type: 'reviews' }) },
@@ -341,7 +343,7 @@ export function CommandCenterPage({ onLock }: { onLock: () => void }) {
       partial={VOICE_MODE === 'direct' ? direct.partial : ''} note={VOICE_MODE === 'direct' ? direct.budgetNote : null} />
     {VOICE_MODE === 'direct' && <WakeWordToggle on={wakeOn} onChange={setWake} supported={wake.supported} listening={wake.listening} error={wake.error} />}
   </div>;
-  const title = mode === 'seo' ? 'Local Search Command Center' : 'Command Center';
+  const title = mode === 'seo' ? 'Local Search Command Center' : mode === 'money' ? 'Money' : 'Command Center';
 
   return (
     <div className="cc-root cc-grid-bg flex h-screen overflow-hidden">
@@ -353,7 +355,7 @@ export function CommandCenterPage({ onLock }: { onLock: () => void }) {
         </Suspense>
       )}
 
-      <AppSidebar active={mode === 'seo' ? 'seo' : 'dashboard'} onGo={onGo} onLock={onLock} systemOk={!error} voiceLabel={VOICE_LABEL[voice.state]} drawerOpen={drawer} onCloseDrawer={() => setDrawer(false)} />
+      <AppSidebar active={mode === 'ops' ? 'dashboard' : mode} onGo={onGo} onLock={onLock} systemOk={!error} voiceLabel={VOICE_LABEL[voice.state]} drawerOpen={drawer} onCloseDrawer={() => setDrawer(false)} />
 
       <div className="flex-1 flex flex-col min-w-0">
         <CommandTopBar title={title} attention={summary?.needsAttention ?? []} onSearch={q => openView({ type: 'jobList', query: q, status: 'all' })}
@@ -364,6 +366,8 @@ export function CommandCenterPage({ onLock }: { onLock: () => void }) {
             {error && !summary && <ErrorState message={`Couldn't load the dashboard: ${error}`} onRetry={loadSummary} />}
             {mode === 'seo' ? (
               <SeoMode focus={seoFocus} onFocus={setSeoFocus} orb={orb} onOpenReviews={() => openView({ type: 'reviews' })} />
+            ) : mode === 'money' ? (
+              <MoneyMode summary={summary ?? null} onOpenView={openView} />
             ) : !summary ? (
               loading ? <DashboardSkeleton /> : null
             ) : (<>
@@ -393,8 +397,7 @@ export function CommandCenterPage({ onLock }: { onLock: () => void }) {
               </div>
 
               <div className="grid gap-4 sm:gap-5 xl:grid-cols-12">
-                <div className="xl:col-span-8 min-w-0"><RevenueTrend summary={summary} /></div>
-                <div className="xl:col-span-4 min-w-0"><QuickCommandTiles onAsk={askAndShow} /></div>
+                <div className="xl:col-span-12 min-w-0"><QuickCommandTiles onAsk={askAndShow} /></div>
               </div>
 
               <div id="cc-marketing" className="grid gap-4 sm:gap-5 xl:grid-cols-12 scroll-mt-4">
@@ -408,8 +411,8 @@ export function CommandCenterPage({ onLock }: { onLock: () => void }) {
           </div>
         </main>
 
-        {/* SEO Mode keeps Jarvis one keystroke away at the bottom; the dashboard has its own Jarvis panel. */}
-        {mode === 'seo' && (
+        {/* SEO and Money keep Jarvis one keystroke away at the bottom; the dashboard has its own Jarvis panel. */}
+        {mode !== 'ops' && (
           <div className="border-t px-4 sm:px-6 lg:px-8 py-3" style={{ borderColor: C.border, background: 'rgba(5,13,21,0.9)', backdropFilter: 'blur(16px)' }}>
             <CommandInput chatMessages={chatMessages} asking={asking} liveActivity={liveActivity} onAsk={command} onClear={clear} />
           </div>

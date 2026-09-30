@@ -78,6 +78,29 @@ Jarvis is the interactive command interface for GID Garage, not primarily a chat
   - The wake word (`voice/wakeWord.tsx`) is the browser's free speech recognition and only starts Deepgram after "Jarvis".
 - The only remaining `/admin` link on `/jarvis` is the explicit "Admin dashboard" item in the account menu. Settings opens the admin Hub re-themed; new customers are created with their first job (New Job), same as `/admin`.
 
+# 0.35 MONEY TAB (2026-09-30)
+
+- **Where it lives:** the sidebar "Money" item. It's a mode next to ops and seo (`seo/uiMode.ts` `AppMode`), shown by `src/command-center/money/MoneyMode.tsx`. "Money", "finances" and "the books" open it with no AI call.
+  - It replaced the sidebar "Reports" item. The revenue chart is one button away.
+  - The dashboard's RevenueTrend panel moved here.
+  - Chat turns (`ui_mode: ops`) don't pull the owner off the Money page.
+- **Data:** `/jarvis/money` (`functions/jarvis/money.js`, Access plus verified JWT).
+  - Uploads: Bluevine "Transactions" CSV and Zoho Books "Expense Details" CSV, told apart by their header row. They're stored in R2 at `private/money/{bluevine,zoho,decisions}.json`.
+  - Re-uploading merges rows by id, so nothing is ever counted twice.
+- **Reconciliation** (`shared/money.js`, tested in `tests/money.test.js`):
+  - A Zoho expense and its bank charge are one entry (same amount; bank date 3 days before to 7 days after the Zoho date).
+  - A Zoho receipt that covers several same-merchant charges (Meta ads billing) is also one entry.
+  - A second Zoho copy of the same receipt is not counted, and is flagged.
+  - Zoho-only expenses dated before the bank export starts count as paid personally, which makes them owner contributions.
+  - Zoho-only expenses after that go to review (personal card or business cash?).
+  - Ambiguous stores (Walmart, Amazon, Best Buy…) also go to review. Until decided, review items count as business expenses.
+  - Every bank row and every Zoho expense lands exactly once, and there's a test for it.
+- **Totals:**
+  - Revenue is the canonical collected figure from the jobs, not bank deposits.
+  - Net = revenue − sales tax collected − expenses + interest.
+  - Owner's equity out (Venmo, SoFi, anything marked "Personal") and TPT payments never count as expenses.
+- **Decisions:** the owner's choices (`decide`) are kept separately from the uploads.
+
 # 0.3 COMMAND CENTER UI (redesign, 2026-09-28)
 
 - Design system: `src/command-center/ui/` (`theme.ts` palette, `primitives.tsx`, `charts.tsx` custom SVG, `JarvisOrb.tsx`, `useMapLibre.ts`, `command-center.css` scoped to `.cc-root`). Shell in `shell/`, dashboard sections in `dashboard/`, SEO in `seo/`.
