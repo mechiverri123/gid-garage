@@ -154,8 +154,23 @@ export function ActionsView({ a, post }: { a: Any | undefined; post: Post }) {
       <Tier title="MEDIUM PRIORITY" tone="amber" cards={a.medium} post={post} compact empty="Nothing medium priority." />
       <Tier title="LOW PRIORITY" tone="muted" cards={a.low} post={post} compact />
       {a.inProgress?.length > 0 && <Tier title="IN PROGRESS" tone="cyan" cards={a.inProgress} post={post} compact />}
-      {a.monitoring?.length > 0 && <Tier title="MONITORING (measuring the effect)" tone="purple" cards={a.monitoring} post={post} compact />}
+      {a.monitoring?.length > 0 && <Done cards={a.monitoring} post={post} />}
       {a.decisions?.length > 0 && <Tier title="YOUR DECISION NEEDED" tone="amber" cards={a.decisions} post={post} compact />}
+    </div>
+  );
+}
+
+// Done work leaves the queue: a single line, expandable, while its effect is measured.
+function Done({ cards, post }: { cards: Any[]; post: Post }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="flex flex-col gap-2.5">
+      <button type="button" onClick={() => setOpen(o => !o)} className="self-start inline-flex items-center gap-2 text-[14px]" style={{ color: C.text2 }} aria-expanded={open}>
+        {open ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
+        <StatusBadge tone="green" dot>DONE</StatusBadge>
+        {cards.length} completed — measuring the effect at 7, 30, 90 and 180 days (History tab)
+      </button>
+      {open && <ul className="flex flex-col gap-3">{cards.map(c => <ActionCard key={c.id} c={c} post={post} compact />)}</ul>}
     </div>
   );
 }

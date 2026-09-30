@@ -772,7 +772,7 @@ const SERVICE_AREAS = [
   { name: 'Winona',          slug: 'winona',           lat: 35.2045, lng: -111.4051, isHome: false, miles: 13.9,
     blurb: 'East on old Route 66 near Walnut Canyon — we make it out this way regularly.' },
   { name: 'Parks',           slug: 'parks',            lat: 35.2636, lng: -111.9505, isHome: false, miles: 17.0,
-    blurb: 'Out I-40 west toward Williams — a familiar drive for us.' },
+    blurb: 'Out I-40 west, past Bellemont — a familiar drive for us.' },
   { name: 'Sedona',          slug: 'sedona',           lat: 34.8697, lng: -111.7610, isHome: false, miles: 28.0,
     blurb: 'Down 89A through Oak Creek Canyon — mobile repair without the drive up to Flagstaff.' },
   { name: 'Winslow',         slug: 'winslow',          lat: 35.0242, lng: -110.6974, isHome: false, miles: 58.0,

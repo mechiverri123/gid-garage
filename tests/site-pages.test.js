@@ -58,3 +58,10 @@ test('routing: app routes still load, town pages 301 to one Areas page, sitemap 
   for (const p of SERVICE_PAGES) assert.match(sitemap, new RegExp(`<loc>https://gidgarage.com${p.path}</loc>`));
   assert.ok(AREAS.some(a => a.slug === 'winslow'), 'Winslow stays listed until the owner decides');
 });
+
+test('legal pages are not asked to mention Flagstaff in their title', async () => {
+  const { auditPage } = await import('../functions/_lib/seo/providers.js');
+  const html = '<title>Privacy Policy | GID Garage</title><meta name="viewport" content="x">';
+  assert.ok(!auditPage('https://gidgarage.com/privacy', html).issues.some(i => i.code === 'title_no_location'));
+  assert.ok(auditPage('https://gidgarage.com/brake-repair-flagstaff', '<title>Brakes</title>').issues.some(i => i.code === 'title_no_location'));
+});

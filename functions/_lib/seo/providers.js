@@ -238,7 +238,8 @@ export function auditPage(url, html, httpStatus = 200) {
   const add = (code, severity, title, detail) => issues.push({ code, severity, title, detail });
   if (httpStatus >= 400) add('http_error', 'high', 'Page returns an error', `HTTP ${httpStatus}.`);
   if (!p.title) add('missing_title', 'high', 'Missing page title', 'Add a title naming the service and Flagstaff.');
-  else if (!/flagstaff/i.test(p.title)) add('title_no_location', 'medium', 'Title doesn\'t mention Flagstaff', `"${p.title}"`);
+  // Legal pages (privacy, terms) aren't meant to rank for local searches.
+  else if (!/flagstaff/i.test(p.title) && !/\/(privacy|terms)/i.test(url)) add('title_no_location', 'medium', 'Title doesn\'t mention Flagstaff', `"${p.title}"`);
   if (!p.description) add('missing_description', 'medium', 'Missing meta description', 'Describe the mobile service and area in ~150 characters.');
   if (!/<meta[^>]+name=["']viewport["']/i.test(html)) add('no_viewport', 'high', 'No mobile viewport tag', 'Phones are where local searches happen.');
   if (/<meta[^>]+name=["']robots["'][^>]+content=["'][^"']*noindex/i.test(html)) add('noindex', 'high', 'Page is set to noindex', 'Google is told not to index it.');

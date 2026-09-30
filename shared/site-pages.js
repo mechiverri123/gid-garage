@@ -118,7 +118,7 @@ export const AREAS = [
   { name: 'Bellemont', slug: 'bellemont', miles: 10.6, blurb: 'Out along old Route 66/I-40 west of town — happy to make the drive.' },
   { name: 'Munds Park', slug: 'munds-park', miles: 12.5, blurb: 'The I-17 mountain community south of Flagstaff — a straightforward trip down the interstate.' },
   { name: 'Winona', slug: 'winona', miles: 13.9, blurb: 'East on old Route 66 near Walnut Canyon — we make it out this way regularly.' },
-  { name: 'Parks', slug: 'parks', miles: 17.0, blurb: 'Out I-40 west toward Williams — a familiar drive for us.' },
+  { name: 'Parks', slug: 'parks', miles: 17.0, blurb: 'Out I-40 west, past Bellemont — a familiar drive for us.' },
   { name: 'Sedona', slug: 'sedona', miles: 28.0, blurb: 'Down 89A through Oak Creek Canyon — mobile repair without the drive up to Flagstaff.' },
   { name: 'Winslow', slug: 'winslow', miles: 58.0, blurb: 'Further east off I-40 — reach out ahead of time so we can build it into the schedule.' },
 ];
