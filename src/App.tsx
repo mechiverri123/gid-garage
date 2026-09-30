@@ -4,6 +4,7 @@ import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import Lenis from 'lenis';
 import GameRedeem from './GameRedeem';
+import { pageForPath, SERVICE_PAGES } from '../shared/site-pages.js';
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -19,6 +20,8 @@ const InvoicePage = lazy(() => import('./JobOps').then(m => ({ default: m.Invoic
 const PPIPage = lazy(() => import('./JobOps').then(m => ({ default: m.PPIPage })));
 const GamesPage = lazy(() => import('./GamesPage'));
 const JarvisPage = lazy(() => import('./JarvisPage'));
+const ServicePage = lazy(() => import('./ServicePages').then(m => ({ default: m.ServicePage })));
+const AreasPage = lazy(() => import('./ServicePages').then(m => ({ default: m.AreasPage })));
 
 // Cancel flow now validates server-side (secret lives in the worker, not here).
 async function apiPost(action: string, args: Record<string, any> = {}) {
@@ -354,6 +357,9 @@ function ServiceCard({ s, onBookService }: { s: typeof services[0]; onBookServic
         </div>
       )}
 
+      {SERVICE_PAGES.find(p => p.serviceId === s.id) && (
+        <a href={SERVICE_PAGES.find(p => p.serviceId === s.id)!.path} className="mt-4 text-xs text-white/60 hover:text-white underline underline-offset-4">{s.title} details &amp; pricing →</a>
+      )}
       <button
         onClick={() => onBookService(s.id)}
         className="mt-5 w-full bg-red-600 hover:bg-red-500 text-white text-xs font-bold uppercase tracking-widest py-2.5 px-4 transition-colors duration-200"
@@ -748,19 +754,6 @@ function GoogleReviewsSection() {
 
 // ── SERVICE AREA MAP ─────────────────────────────────────────────────────────
 // Real coordinates from Google Maps / Places API
-const DEFAULT_FAQ_SCHEMA = JSON.stringify({
-  "@context": "https://schema.org",
-  "@type": "FAQPage",
-  "mainEntity": [
-    { "@type": "Question", "name": "Do you actually come to me?", "acceptedAnswer": { "@type": "Answer", "text": "Yes — GID Garage is 100% mobile. Home, work, roadside, wherever your vehicle is, that's where we work on it." } },
-    { "@type": "Question", "name": "What areas do you cover?", "acceptedAnswer": { "@type": "Answer", "text": "Flagstaff and the surrounding communities — Fort Valley, Kachina Village, Mountainaire, Doney Park, Bellemont, Munds Park, Winona, Parks, Sedona, and Winslow. Not sure if you're in range? Just call or text — 480-757-0476." } },
-    { "@type": "Question", "name": "How fast can you get to me?", "acceptedAnswer": { "@type": "Answer", "text": "Same-day or next-day appointments are usually available, depending on the schedule. Text us your details and we'll give you a real answer, not a runaround." } },
-    { "@type": "Question", "name": "What kind of work do you do?", "acceptedAnswer": { "@type": "Answer", "text": "Oil changes, brakes, diagnostics, suspension, and most general maintenance and repair. A few specialty jobs — wheel alignments, A/C system work, transmission overhauls, welding — we'll point you to a shop that specializes in it, no charge for the honesty." } },
-    { "@type": "Question", "name": "How do I pay?", "acceptedAnswer": { "@type": "Answer", "text": "Card on file, tap-to-pay in person, or a secure payment link sent to your phone — whatever's easiest for you." } },
-    { "@type": "Question", "name": "Do I need to be there while you work?", "acceptedAnswer": { "@type": "Answer", "text": "Not necessarily — as long as we can access the vehicle and get in touch if anything comes up, plenty of customers have us come by while they're at work or running errands." } },
-  ],
-});
-
 const SERVICE_AREAS = [
   { name: 'Flagstaff',       slug: 'flagstaff',       lat: 35.1983, lng: -111.6513, isHome: true,  miles: 0,
     blurb: 'Home base. Same-day and next-day mobile appointments are usually available anywhere in town.' },
@@ -828,7 +821,7 @@ function ServiceMap() {
             return area.isHome ? (
               <div key={area.name} className="p-3 text-center border border-red-600 bg-red-600/10">{Card}</div>
             ) : (
-              <a key={area.name} href={`/service-area/${area.slug}`} className="p-3 text-center border border-white/10 bg-white/5 hover:border-red-600/50 hover:bg-white/10 transition-colors">{Card}</a>
+              <a key={area.name} href={`/service-area#${area.slug}`} className="p-3 text-center border border-white/10 bg-white/5 hover:border-red-600/50 hover:bg-white/10 transition-colors">{Card}</a>
             );
           })}
         </div>
@@ -1064,6 +1057,8 @@ function Footer() {
             {[{ label: 'Services', href: '#services' }, { label: 'Why GID Garage', href: '#why' }, { label: 'Service Area', href: '#area' }, { label: 'Get a Quote', href: '#booking' }].map((l) => (
               <a key={l.label} href={l.href} className="text-white/60 hover:text-white text-sm transition-colors">{l.label}</a>
             ))}
+            {SERVICE_PAGES.map(p => <a key={p.path} href={p.path} className="text-white/60 hover:text-white text-sm transition-colors">{p.label}</a>)}
+            <a href="/service-area" className="text-white/60 hover:text-white text-sm transition-colors">Areas We Serve</a>
             <a href="/admin" className="text-gray-700 hover:text-gray-500 text-xs transition-colors mt-2">Admin ↗</a>
           </div>
         </div>
@@ -1076,110 +1071,6 @@ function Footer() {
   );
 }
 
-// ── SERVICE AREA LANDING PAGES ────────────────────────────────────────────────
-function ServiceAreaPage({ slug }: { slug: string }) {
-  const [modalOpen, setModalOpen] = useState(false);
-  const area = SERVICE_AREAS.find(a => a.slug === slug);
-
-  useEffect(() => {
-    if (!area) return;
-    const title = `Mobile Mechanic in ${area.name}, AZ | GID Garage`;
-    const desc = `GID Garage brings mobile auto repair to ${area.name}, AZ — oil changes, brakes, diagnostics, suspension & more. We come to you. Call ${PHONE} or book online.`;
-    document.title = title;
-    let meta = document.querySelector('meta[name="description"]');
-    if (meta) meta.setAttribute('content', desc);
-
-    // Flagstaff is our home base and already the homepage's primary target —
-    // canonicalize this page to the homepage so the two don't compete for
-    // the same "Flagstaff mobile mechanic" ranking. Other towns canonicalize
-    // to their own clean URL.
-    const canonicalHref = area.isHome
-      ? 'https://gidgarage.com/'
-      : `https://gidgarage.com/service-area/${area.slug}`;
-    let link = document.querySelector('link[rel="canonical"]');
-    if (!link) {
-      link = document.createElement('link');
-      link.setAttribute('rel', 'canonical');
-      document.head.appendChild(link);
-    }
-    link.setAttribute('href', canonicalHref);
-
-    // Localize the FAQPage schema per town so Google doesn't see identical
-    // FAQ content across every service-area URL (duplicate-content risk).
-    // Flagstaff (home) keeps the generic, broader FAQ set already in index.html.
-    const faqScript = document.getElementById('faq-schema');
-    if (faqScript) {
-      if (area.isHome) {
-        faqScript.textContent = DEFAULT_FAQ_SCHEMA;
-      } else {
-        faqScript.textContent = JSON.stringify({
-          "@context": "https://schema.org",
-          "@type": "FAQPage",
-          "mainEntity": [
-            { "@type": "Question", "name": `Do you come to ${area.name}?`, "acceptedAnswer": { "@type": "Answer", "text": `Yes — GID Garage is 100% mobile and regularly services ${area.name}, AZ, about ${area.miles} miles from our Flagstaff home base. ${area.blurb}` } },
-            { "@type": "Question", "name": `How fast can you get to me in ${area.name}?`, "acceptedAnswer": { "@type": "Answer", "text": `Same-day or next-day appointments are usually available in ${area.name}, depending on the schedule. Text us your details and we'll give you a real answer, not a runaround.` } },
-            { "@type": "Question", "name": `What kind of work do you do in ${area.name}?`, "acceptedAnswer": { "@type": "Answer", "text": "Oil changes, brakes, diagnostics, suspension, and most general maintenance and repair. A few specialty jobs — wheel alignments, A/C system work, transmission overhauls, welding — we'll point you to a shop that specializes in it, no charge for the honesty." } },
-            { "@type": "Question", "name": "How do I pay?", "acceptedAnswer": { "@type": "Answer", "text": "Card on file, tap-to-pay in person, or a secure payment link sent to your phone — whatever's easiest for you." } },
-          ],
-        });
-      }
-    }
-  }, [area]);
-
-  if (!area) {
-    return (
-      <div className="bg-dark text-dark min-h-screen font-sans flex items-center justify-center px-5">
-        <div className="text-center">
-          <p className="text-white text-xl font-bold mb-3">Service area not found</p>
-          <a href="/" className="text-red-400 underline text-sm">Back to homepage</a>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="bg-dark text-dark min-h-screen font-sans pb-16 md:pb-0">
-      <Nav openBooking={() => setModalOpen(true)} />
-      <section className="pt-32 pb-16 md:pt-40 md:pb-20">
-        <div className="max-w-4xl mx-auto px-5 md:px-8 text-center">
-          <p className="text-red-500 text-xs font-bold uppercase tracking-[0.25em] mb-3">Mobile Mechanic · {area.name}, AZ</p>
-          <h1 className="text-4xl md:text-6xl font-extrabold text-white tracking-tight mb-5">We Come To You In {area.name}</h1>
-          <p className="text-white/60 text-lg max-w-2xl mx-auto mb-8">{area.blurb}</p>
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-            <button onClick={() => setModalOpen(true)} className="btn-primary text-xs px-8 py-4">Get a Quote</button>
-            <a href={`tel:${PHONE}`} className="inline-flex items-center justify-center gap-2 border-2 border-white text-white font-bold px-7 py-3 text-sm uppercase tracking-wide hover:bg-white/10 transition-colors duration-200"><Phone className="w-4 h-4" />{PHONE}</a>
-          </div>
-          {!area.isHome && <p className="text-white/30 text-xs mt-4">~{area.miles} miles from our Flagstaff home base</p>}
-        </div>
-      </section>
-
-      <section className="py-16 md:py-20 bg-white/5 border-t border-white/10">
-        <div className="max-w-6xl mx-auto px-5 md:px-8">
-          <div className="text-center mb-10">
-            <div className="text-3xl md:text-4xl font-extrabold text-white tracking-tight">What We Handle in {area.name}</div>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {services.slice(0, 6).map(s => (
-              <div key={s.id} className="bg-black/20 border border-white/10 p-6">
-                <h3 className="text-white font-bold text-lg mb-2">{s.title}</h3>
-                <p className="text-white/60 text-sm leading-relaxed">{s.desc}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      <FAQ />
-      <Footer />
-      {!modalOpen && <StickyMobileCTA openBooking={() => setModalOpen(true)} />}
-      {modalOpen && <BookingWidget autoOpen onClose={() => setModalOpen(false)} />}
-    </div>
-  );
-}
-
-// ── STICKY MOBILE CTA ─────────────────────────────────────────────────────────
-// Persistent bottom bar on small screens only — catches people who'd otherwise
-// bail before scrolling all the way down to a CTA.
 function StickyMobileCTA({ openBooking }: { openBooking: () => void }) {
   return (
     <div className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-[#0f0f0f] border-t border-white/10 flex" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
@@ -1424,8 +1315,8 @@ export default function App() {
   const isPPI = window.location.pathname === '/ppi';
   const isGames = window.location.pathname === '/games';
   const isGameRedeem = window.location.pathname === '/game-redeem';
-  const isServiceArea = window.location.pathname.startsWith('/service-area/');
-  const serviceAreaSlug = isServiceArea ? window.location.pathname.split('/service-area/')[1]?.replace(/\/$/, '') : '';
+  const isServiceArea = window.location.pathname === '/service-area' || window.location.pathname.startsWith('/service-area/');
+  const servicePage = pageForPath(window.location.pathname);
   const isPrivacy = window.location.pathname === '/privacy';
   const isReview = window.location.pathname === '/review';
 
@@ -1466,7 +1357,8 @@ export default function App() {
   if (isPPI) return <Suspense fallback={null}><PPIPage /></Suspense>;
   if (isGames) return <Suspense fallback={null}><GamesPage /></Suspense>;
   if (isGameRedeem) return <GameRedeem />;
-  if (isServiceArea) return <ServiceAreaPage slug={serviceAreaSlug ?? ''} />;
+  if (isServiceArea) return <Suspense fallback={null}><AreasPage /></Suspense>;
+  if (servicePage) return <Suspense fallback={null}><ServicePage page={servicePage} /></Suspense>;
   if (isPrivacy) return <PrivacyPolicyPage />;
   if (isReview) return <ReviewRedirect />;
   if (cancelId && cancelToken) return <CancelPage bookingId={cancelId} token={cancelToken} />;

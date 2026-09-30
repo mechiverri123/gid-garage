@@ -1,1 +1,18 @@
-/service-area/*  /index.html  200
+# Real 404s: dist/404.html exists, so Cloudflare Pages no longer serves the app
+# for every URL. The app's own routes are listed here (rewritten to dist/app-shell.html; a rewrite to /index.html would 308-redirect).
+# Content pages (/, services, /service-area, /privacy) are pre-rendered .html files
+# (scripts/prerender.mjs) and need no rule.
+
+# The 10 town pages became one Areas We Serve page.
+/service-area/*  /service-area  301
+
+/bookings  /app-shell  200
+/admin  /app-shell  200
+/jarvis  /app-shell  200
+/prompt  /app-shell  200
+/estimate  /app-shell  200
+/invoice  /app-shell  200
+/ppi  /app-shell  200
+/games  /app-shell  200
+/game-redeem  /app-shell  200
+/review  /app-shell  200

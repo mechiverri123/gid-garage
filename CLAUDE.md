@@ -106,6 +106,12 @@ Jarvis is the interactive command interface for GID Garage, not primarily a chat
   - Tables: `seo_agent_migration.sql`, additive; the owner runs it.
   - Recommendations cite `knowledge.js` entries.
   - Never scrape Google or auto-publish site changes.
+- **Public pages** (2026-09-29): one page per offered service plus one `/service-area` page.
+  - Content is in `shared/site-pages.js`, rendered by `src/ServicePages.tsx`.
+  - Pre-rendered at build time by the Vite plugin → `scripts/prerender.mjs`, which also writes `dist/app-shell.html` and a real `dist/404.html`.
+  - `dist/404.html` turns off Cloudflare's SPA fallback, so **every client route must be listed in `public/_redirects`** (rewritten to `/app-shell`), or it will 404. Add new app routes there.
+  - Old `/service-area/<town>` URLs 301 to `/service-area`.
+  - Tests: `tests/site-pages.test.js`.
 - **SEO routes:**
   - `/jarvis/seo-data` (`functions/jarvis/seo-data.js`): admin API, Access plus verified JWT; also runs "Sync now".
   - `/seo-sync`: cron only.
