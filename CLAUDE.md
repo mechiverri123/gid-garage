@@ -72,7 +72,9 @@ Jarvis is the interactive command interface for GID Garage, not primarily a chat
 - **Feed panels** (`functions/_lib/jarvis-feeds.js`, `/jarvis/feeds`, `workspace/FeedViews.tsx`) are brief, reviews, social and mail.
   - "Brief me", "show me my reviews", "any new followers" and "check my email" are answered by the fast path (`parsePanelRequest` → `show_panel`) with no Claude call.
   - Outside calls are cached in R2 (`GID_PHOTOS`: `cache/`; tokens and history in `private/`, which the photo routes refuse to serve).
-  - They're read-only toward Google, Meta and Zoho.
+  - They're read-only toward Google, Meta and Zoho, with two exceptions:
+    - Messenger replies, double-confirmed.
+    - SEO link-outreach emails (`functions/_lib/seo/outreach.js`), each reviewed and confirmed. They go only to the address the site publishes, once per site, 10 a day at most, and they need `ZohoMail.messages.CREATE`.
   - The wake word (`voice/wakeWord.tsx`) is the browser's free speech recognition and only starts Deepgram after "Jarvis".
 - The only remaining `/admin` link on `/jarvis` is the explicit "Admin dashboard" item in the account menu. Settings opens the admin Hub re-themed; new customers are created with their first job (New Job), same as `/admin`.
 
@@ -117,6 +119,8 @@ Jarvis is the interactive command interface for GID Garage, not primarily a chat
   - `indexnow`: weekly.
   - `ai_visibility`: weekly; Claude plus web search, ~$0.05 a week in the AI budget.
   - Places also looks up competitor websites.
+  - `competitor_listings` (monthly) records where competitors are listed and whether GID is.
+  - `link_outreach` (weekly) finds link sites and drafts emails. It never sends; see §0 feed panels.
   - State is kept in R2 `private/`.
   - The site serves `/llms.txt` and per-service JSON-LD, both from `scripts/prerender.mjs`.
 - **SEO routes:**

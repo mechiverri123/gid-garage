@@ -222,9 +222,9 @@
     "semantic_hash": "861c63dd430d890bfbbd07dd2ef1013a"
   },
   "src/App.tsx": {
-    "mtime": 1790747687.00378,
-    "seen": 1790747721.6374052,
-    "ast_hash": "96e2364422b3f28c4c6f5ffd39282849",
+    "mtime": 1790750084.1220539,
+    "seen": 1790750147.4317017,
+    "ast_hash": "bb840525b2defd36cbf7dfdbb4374e69",
     "semantic_hash": ""
   },
   "src/BookingWidget.tsx": {
@@ -612,9 +612,9 @@
     "semantic_hash": "d64dacd95675737d6ca07775d01ab26d"
   },
   "index.html": {
-    "mtime": 1790748782.7235827,
-    "seen": 1790749020.8413713,
-    "ast_hash": "b951a7759ed5b13dc8ed6f6e36479754",
+    "mtime": 1790750089.3427415,
+    "seen": 1790750147.44453,
+    "ast_hash": "701736049d1dfab061b36757d61653ca",
     "semantic_hash": ""
   },
   "jarvis-agent/README.md": {
@@ -1830,21 +1830,21 @@
     "semantic_hash": ""
   },
   "scripts/prerender.mjs": {
-    "mtime": 1790748782.7235827,
-    "seen": 1790749020.8257804,
-    "ast_hash": "ccc49818dc563cb54f5f887a8509384e",
+    "mtime": 1790750084.2475164,
+    "seen": 1790750147.4301846,
+    "ast_hash": "ddbdabd71c5f262e88815d2599376da4",
     "semantic_hash": ""
   },
   "shared/site-pages.d.ts": {
-    "mtime": 1790745493.0701983,
-    "seen": 1790745633.2097087,
-    "ast_hash": "834bc374b77f4d036b22dc9efd915633",
+    "mtime": 1790750117.8804648,
+    "seen": 1790750147.4315104,
+    "ast_hash": "e5c8aa9d3a628d02102dc8ff74f0d476",
     "semantic_hash": ""
   },
   "shared/site-pages.js": {
-    "mtime": 1790747687.0027575,
-    "seen": 1790747721.6372192,
-    "ast_hash": "c352b60748d865fef61bc3ef1824ac58",
+    "mtime": 1790750084.1860328,
+    "seen": 1790750147.4315119,
+    "ast_hash": "df10ec4d4c6f96ed685ba94b996b81cc",
     "semantic_hash": ""
   },
   "src/ServicePages.tsx": {

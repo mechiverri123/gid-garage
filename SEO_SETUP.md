@@ -261,7 +261,16 @@ All of these run inside the existing sync (`functions/_lib/seo/monitors.js`). Th
 | `search_news` | daily | Reads the Google Search Status Dashboard (core, spam and ranking updates, with start and end dates), the Google Search Central blog and the Bing Webmaster blog. Each item is classified as high, medium, low or info for a local mobile-mechanic site. |
 | `indexnow` | weekly | Submits the sitemap pages to IndexNow (Bing, Yandex and others; Bing feeds ChatGPT search and Copilot). The key file is `public/<key>.txt`. Google doesn't use IndexNow. |
 | `ai_visibility` | weekly | Asks Claude Haiku with live web search (location set to Flagstaff) 3 questions local customers ask. It records whether GID Garage is named, at what position, who else is named, and which sources were cited. Cost is about $0.05 a week, recorded in the Jarvis AI budget. |
+| `competitor_listings` | monthly | Searches the top 6 competitors (mobile first) and GID by name, using Claude with web search. Records which directories and sites list them and whether GID is on them. Search noise is dropped: a site is kept only if it's a known listing site or lists 2+ competitors. About $0.15 a month. Code: `functions/_lib/seo/outreach.js`. |
+| `link_outreach` | weekly | Finds up to 5 new Flagstaff/Arizona sites that could link to GID. It reads the contact email each site publishes (home page, `/contact`, `/contact-us`) and drafts an email that starts "Hello, this is Michael with GID Garage,". **Nothing is sent by the sync.** |
 | `places` (extended) | weekly | Looks up up to 6 competitor websites per run (Places Details `website`), so `competitor_pages` can monitor their pages. `website = 'none'` means checked, has none. |
+
+**Outreach sending rules** (`sendOutreach`):
+- Sending happens only from SEO → Research → Link outreach, through Review & send and then "Yes, send it" (`reviewed` + `confirmed`).
+- It goes only to the address the site publishes, and each site is emailed at most once.
+- The cap is 10 a day, and the opt-out line is always kept.
+- Mail goes out through Zoho (`sendZohoMail`), which needs the `ZohoMail.messages.CREATE` scope. Reconnect Zoho with the scope `ZohoMail.accounts.READ,ZohoMail.messages.READ,ZohoMail.messages.CREATE`.
+- The owner's decisions (sent/skipped) are kept in `private/seo-outreach-decisions.json`, apart from the found list, so a sync never overwrites them.
 
 **Where it shows up:**
 - **Banner:** on the SEO status strip while a Google update is rolling out.

@@ -137,6 +137,37 @@ export function readAnswer(content = []) {
   };
 }
 
+// One Claude Haiku call with live web search near Flagstaff; usage is summed into `usage`.
+export async function claudeSearch(ctx, usage, { prompt, system, maxUses = 1, maxTokens = 700 }) {
+  const res = await ctx.fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST', headers: { 'Content-Type': 'application/json', 'x-api-key': ctx.env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' },
+    body: JSON.stringify({
+      model: 'claude-haiku-4-5-20251001', max_tokens: maxTokens,
+      tools: [{ type: 'web_search_20250305', name: 'web_search', max_uses: maxUses, user_location: { type: 'approximate', city: 'Flagstaff', region: 'Arizona', country: 'US', timezone: 'America/Phoenix' } }],
+      ...(system ? { system } : {}),
+      messages: [{ role: 'user', content: prompt }],
+    }),
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) throw new ProviderError(res.status === 401 ? 'needs_authorization' : 'error', `Anthropic: HTTP ${res.status} ${body.error?.message || ''}`.trim());
+  for (const [k, v] of Object.entries(body.usage || {})) {
+    if (typeof v === 'number') usage[k] = (usage[k] || 0) + v;
+    else if (k === 'server_tool_use') usage.web_search_requests = (usage.web_search_requests || 0) + Number(v?.web_search_requests || 0);
+  }
+  return body.content || [];
+}
+
+// Cost into the shared Jarvis AI budget (web searches are $10 per 1,000).
+export async function recordSearchCost(ctx, usage, fallbackSearches) {
+  const searches = Number(usage.web_search_requests || 0) || fallbackSearches;
+  const usd = anthropicUsd(usage, pricing(ctx.env)) + searches * 0.01;
+  await ctx.store.rpc('jarvis_add_usage', { p_month: budgetMonth(new Date(ctx.now)), p_provider: 'anthropic', p_units: (usage.input_tokens || 0) + (usage.output_tokens || 0), p_usd: usd }).catch(() => {});
+  return usd;
+}
+
+// URLs of the pages a search returned (the search results, not the model's prose).
+export const searchResultUrls = (content = []) => content.flatMap(b => (b.type === 'web_search_tool_result' && Array.isArray(b.content) ? b.content.map(r => r.url).filter(Boolean) : []));
+
 export const aiVisibility = {
   id: 'ai_visibility', label: 'AI assistant answers (Claude + web search)', category: 'research', env: ['ANTHROPIC_API_KEY'], docs: 'monitors', snapshot: true,
   status(env) {
@@ -146,24 +177,13 @@ export const aiVisibility = {
   async sync(ctx) {
     const results = []; const usage = {};
     for (const q of AI_QUESTIONS) {
-      const res = await ctx.fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST', headers: { 'Content-Type': 'application/json', 'x-api-key': ctx.env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' },
-        body: JSON.stringify({
-          model: 'claude-haiku-4-5-20251001', max_tokens: 700,
-          tools: [{ type: 'web_search_20250305', name: 'web_search', max_uses: 2, user_location: { type: 'approximate', city: 'Flagstaff', region: 'Arizona', country: 'US', timezone: 'America/Phoenix' } }],
-          system: 'Answer the way a helpful assistant answers a local customer: search the web, then recommend specific businesses briefly. After the answer, on its own line, write BUSINESSES: followed by a JSON array of the business names you recommended, in order.',
-          messages: [{ role: 'user', content: q }],
-        }),
+      const content = await claudeSearch(ctx, usage, {
+        maxUses: 2, maxTokens: 700, prompt: q,
+        system: 'Answer the way a helpful assistant answers a local customer: search the web, then recommend specific businesses briefly. After the answer, on its own line, write BUSINESSES: followed by a JSON array of the business names you recommended, in order.',
       });
-      const body = await res.json().catch(() => ({}));
-      if (!res.ok) throw new ProviderError(res.status === 401 ? 'needs_authorization' : 'error', `Anthropic: HTTP ${res.status} ${body.error?.message || ''}`.trim());
-      for (const [k, v] of Object.entries(body.usage || {})) if (typeof v === 'number') usage[k] = (usage[k] || 0) + v;
-      results.push({ question: q, ...readAnswer(body.content || []) });
+      results.push({ question: q, ...readAnswer(content) });
     }
-    // Cost into the shared Jarvis AI budget (web searches are $10 per 1,000).
-    const searches = Number(usage.server_tool_use?.web_search_requests || 0) || results.length * 2;
-    const usd = anthropicUsd(usage, pricing(ctx.env)) + searches * 0.01;
-    await ctx.store.rpc('jarvis_add_usage', { p_month: budgetMonth(new Date(ctx.now)), p_provider: 'anthropic', p_units: (usage.input_tokens || 0) + (usage.output_tokens || 0), p_usd: usd }).catch(() => {});
+    const usd = await recordSearchCost(ctx, usage, results.length * 2);
     const history = (await readJson(ctx.env.GID_PHOTOS, AI_KEY))?.runs || [];
     const run = { at: new Date(ctx.now).toISOString(), model: 'claude-haiku-4-5 + web search', results };
     await writeJson(ctx.env.GID_PHOTOS, AI_KEY, { runs: [run, ...history].slice(0, 26) });

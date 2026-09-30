@@ -570,9 +570,9 @@
     "semantic_hash": "a643d83b7626b709e8beeda21099b3f0"
   },
   "CLAUDE.md": {
-    "mtime": 1790749000.2209246,
-    "seen": 1790749020.8408592,
-    "ast_hash": "ec77af9cde4f908642de88bcd80aa70c",
+    "mtime": 1790750913.2819667,
+    "seen": 1790750958.9566457,
+    "ast_hash": "3c974f2a686e8ba7baf85f4cc4026afb",
     "semantic_hash": ""
   },
   "CODEBASE.md": {
@@ -588,9 +588,9 @@
     "semantic_hash": "fd787bd83c244fb46ab680994613908b"
   },
   "MANUAL_STEPS.md": {
-    "mtime": 1790656573.7025588,
-    "seen": 1790656580.9526422,
-    "ast_hash": "7a79bbde0caa868c5a9fdcb5deb0126e",
+    "mtime": 1790750711.9731712,
+    "seen": 1790750958.956892,
+    "ast_hash": "4c3b3f3329e8ee93d1881f06c8cd255d",
     "semantic_hash": ""
   },
   "README-FIRST.txt": {
@@ -1242,9 +1242,9 @@
     "semantic_hash": ""
   },
   "functions/_lib/seo/providers.js": {
-    "mtime": 1790748923.231428,
-    "seen": 1790749020.8231578,
-    "ast_hash": "e53e05d19d4e84b4f27dedcacb13cc89",
+    "mtime": 1790750711.9711432,
+    "seen": 1790750958.9402704,
+    "ast_hash": "c8fcc3d11449ace7ad011a43ffb94e0c",
     "semantic_hash": ""
   },
   "functions/_lib/seo/store.js": {
@@ -1254,9 +1254,9 @@
     "semantic_hash": ""
   },
   "functions/_lib/seo/sync.js": {
-    "mtime": 1790748617.7012022,
-    "seen": 1790749020.8232236,
-    "ast_hash": "e1ae98ec6597218a17473b50899f0a58",
+    "mtime": 1790750711.9716492,
+    "seen": 1790750958.9403355,
+    "ast_hash": "15f1f0c9519d5bc19c61a3157fde1c30",
     "semantic_hash": ""
   },
   "functions/seo-sync.js": {
@@ -1374,9 +1374,9 @@
     "semantic_hash": ""
   },
   "SEO_SETUP.md": {
-    "mtime": 1790749000.2204227,
-    "seen": 1790749020.841306,
-    "ast_hash": "663e717abbe68ce195ea041c7ef3533d",
+    "mtime": 1790750913.2814617,
+    "seen": 1790750958.9570122,
+    "ast_hash": "19b2c04d3847102f7ef646cfcadded99",
     "semantic_hash": ""
   },
   "functions/_lib/access-auth.js": {
@@ -1416,9 +1416,9 @@
     "semantic_hash": ""
   },
   "functions/jarvis/seo-data.js": {
-    "mtime": 1790748732.7561147,
-    "seen": 1790749020.8251367,
-    "ast_hash": "a6344ea79dbdc8586800e41ea6b9fe7e",
+    "mtime": 1790750711.9716492,
+    "seen": 1790750958.9421444,
+    "ast_hash": "29eb837c05d22a1f910420bab453e94b",
     "semantic_hash": ""
   },
   "functions/_lib/seo/http.js": {
@@ -1758,9 +1758,9 @@
     "semantic_hash": ""
   },
   "functions/_lib/jarvis-feeds.js": {
-    "mtime": 1790748813.582322,
-    "seen": 1790749020.82275,
-    "ast_hash": "8495e555c281e6d487d28f7e1f2191e8",
+    "mtime": 1790750711.9721575,
+    "seen": 1790750958.9398198,
+    "ast_hash": "e5dcb20c06bbe77d51797dbdd52a467c",
     "semantic_hash": ""
   },
   "functions/jarvis/feeds.js": {
@@ -1776,9 +1776,9 @@
     "semantic_hash": ""
   },
   "src/command-center/workspace/FeedViews.tsx": {
-    "mtime": 1790656525.663503,
-    "seen": 1790656580.9444892,
-    "ast_hash": "862f07d1902b59a1b6a9c937fc6228eb",
+    "mtime": 1790750711.9726636,
+    "seen": 1790750958.948719,
+    "ast_hash": "243060e822345fefd771f2b1105663af",
     "semantic_hash": ""
   },
   "tests/jarvis-feeds.test.js": {
@@ -1818,9 +1818,9 @@
     "semantic_hash": ""
   },
   "src/command-center/seo/SeoAgent.tsx": {
-    "mtime": 1790748839.1259954,
-    "seen": 1790749020.8300617,
-    "ast_hash": "bc08964fe9bb66a8466722b9d4830db7",
+    "mtime": 1790750818.8112023,
+    "seen": 1790750958.9471734,
+    "ast_hash": "047481483e52d5ef09a9d1708360ff80",
     "semantic_hash": ""
   },
   "tests/seo-agent.test.js": {
@@ -2154,9 +2154,9 @@
     "semantic_hash": ""
   },
   "functions/_lib/seo/monitors.js": {
-    "mtime": 1790748923.231428,
-    "seen": 1790749020.8230853,
-    "ast_hash": "106a810e978f87a36691059850a034d2",
+    "mtime": 1790750608.1181078,
+    "seen": 1790750958.9402044,
+    "ast_hash": "f5dc5e3c4c1e32fda7f464c6f48f5632",
     "semantic_hash": ""
   },
   "tests/seo-monitors.test.js": {
@@ -2169,6 +2169,18 @@
     "mtime": 1790748782.807717,
     "seen": 1790749020.84151,
     "ast_hash": "7e724dd7bcfc8ee519647f76b2427a82",
+    "semantic_hash": ""
+  },
+  "functions/_lib/seo/outreach.js": {
+    "mtime": 1790750688.6978655,
+    "seen": 1790750958.940269,
+    "ast_hash": "9d494c479b6e79bc1ebbaa66ca123be7",
+    "semantic_hash": ""
+  },
+  "tests/seo-outreach.test.js": {
+    "mtime": 1790750876.6815615,
+    "seen": 1790750958.9516206,
+    "ast_hash": "51ff5ca2a248bd197968d76748557fa3",
     "semantic_hash": ""
   }
 }

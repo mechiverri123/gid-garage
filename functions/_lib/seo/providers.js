@@ -13,6 +13,7 @@ import { classifyCompetitor, parsePublicPage } from '../../../shared/seo/competi
 import { isInsideServiceArea, SERVICE_AREA, findPlaces } from '../../../shared/seo/service-area.js';
 import { aiAssistant, contentGuard } from '../../../shared/seo/demand.js';
 import { MONITOR_PROVIDERS } from './monitors.js';
+import { OUTREACH_PROVIDERS } from './outreach.js';
 
 const missing = (env, keys) => keys.filter(k => !env[k]);
 const ymd = d => new Date(d).toISOString().slice(0, 10);
@@ -476,7 +477,7 @@ export const weatherHistory = {
   },
 };
 
-export const PROVIDERS = [searchConsole, businessProfile, ga4, places, pageSpeed, siteAudit, competitorPages, bing, instagram, googleAds, metaAds, weatherForecast, weatherHistory, appleBusinessConnect, ...MONITOR_PROVIDERS];
+export const PROVIDERS = [searchConsole, businessProfile, ga4, places, pageSpeed, siteAudit, competitorPages, bing, instagram, googleAds, metaAds, weatherForecast, weatherHistory, appleBusinessConnect, ...MONITOR_PROVIDERS, ...OUTREACH_PROVIDERS];
 
 export function providerStatuses(env) {
   return PROVIDERS.map(p => ({ id: p.id, label: p.label, category: p.category, docs: p.docs, ...p.status(env) }));

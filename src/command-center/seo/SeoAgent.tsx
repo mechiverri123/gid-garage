@@ -333,12 +333,119 @@ function AiAnswers() {
   );
 }
 
+// ---- where competitors are listed + link outreach (functions/_lib/seo/outreach.js) ----------
+
+async function seoPost(body: Record<string, unknown>) {
+  const r = await fetch('/jarvis/seo-data', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok || d.ok === false) throw new Error(d.error || `HTTP ${r.status}`);
+  return d;
+}
+
+function RunNow({ id, label, onDone }: { id: string; label: string; onDone: () => void }) {
+  const [busy, setBusy] = useState(false); const [msg, setMsg] = useState('');
+  const run = async () => { setBusy(true); setMsg(''); try { const d = await seoPost({ action: 'run_monitor', id }); setMsg(d.detail || 'Done'); onDone(); } catch (e) { setMsg(e instanceof Error ? e.message : String(e)); } setBusy(false); };
+  return <span className="inline-flex items-center gap-2 flex-wrap"><ActionButton size="sm" variant="secondary" disabled={busy} onClick={run}>{busy ? 'Working… (up to a minute)' : label}</ActionButton>{msg && <span className="text-[13px]" style={{ color: C.muted }}>{msg}</span>}</span>;
+}
+
+function CompetitorListings() {
+  const [n, setN] = useState(0);
+  const l = useSeoRead(`listings&n=${n}`);
+  if (!l) return <Skeleton className="h-[140px]" />;
+  const missing = (l.sites || []).filter((s: Any) => !s.gidListed);
+  return (
+    <section className="flex flex-col gap-2">
+      <h3 className="font-semibold text-[15px]" style={{ color: C.text }}>Where competitors are listed <span className="text-[12.5px] font-normal" style={{ color: C.muted }}>{l.checkedAt ? `checked ${timeAgo(l.checkedAt)} · ${l.competitors?.length || 0} competitors · GID missing from ${missing.length}` : 'first check runs on the next sync'}</span></h3>
+      <div><RunNow id="competitor_listings" label="Check now" onDone={() => setN(x => x + 1)} /></div>
+      {l.sites?.length ? (
+        <ul className="flex flex-col gap-1.5">{l.sites.map((s: Any) => (
+          <li key={s.site} className="text-[14px] rounded-xl p-3 flex flex-col gap-0.5" style={box}>
+            <div className="flex flex-wrap items-baseline gap-x-2">
+              <StatusBadge tone={s.gidListed ? 'green' : 'red'}>{s.gidListed ? 'GID listed' : 'GID missing'}</StatusBadge>
+              <a href={s.urls?.[0] || `https://${s.site}`} target="_blank" rel="noreferrer" className="underline font-semibold" style={{ color: C.text }}>{s.name}</a>
+              <span style={{ color: C.muted }}>{s.competitors.length} competitor{s.competitors.length === 1 ? '' : 's'}</span>
+            </div>
+            <div className="text-[13px]" style={{ color: C.text2 }}>{s.competitors.join(', ')}</div>
+            {s.how && <div className="text-[13px]" style={{ color: C.muted }}>{s.how}</div>}
+          </li>
+        ))}</ul>
+      ) : <Muted>No listing sites recorded yet.</Muted>}
+    </section>
+  );
+}
+
+function OutreachDialog({ p, from, onClose, onSent }: { p: Any; from: string | null; onClose: () => void; onSent: () => void }) {
+  const [subject, setSubject] = useState<string>(p.draft?.subject || '');
+  const [body, setBody] = useState<string>(p.draft?.body || '');
+  const [step, setStep] = useState<'write' | 'confirm' | 'sending' | 'done'>('write');
+  const [error, setError] = useState('');
+  const send = async () => {
+    setStep('sending'); setError('');
+    try { await seoPost({ action: 'outreach_send', site: p.site, subject, body, reviewed: true, confirmed: true }); setStep('done'); onSent(); } catch (e) { setError(e instanceof Error ? e.message : String(e)); setStep('confirm'); }
+  };
+  const field = { background: 'rgba(3,10,17,0.9)', border: `1px solid ${C.borderStrong}`, color: C.text };
+  return (
+    <div className="jv-editor fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6" style={{ background: 'rgba(0,0,0,0.6)' }} role="dialog" aria-modal="true" aria-label={`Email ${p.name}`}>
+      <div className="w-full max-w-[620px] max-h-[92vh] overflow-y-auto rounded-2xl p-5 flex flex-col gap-3" style={{ background: C.surface1, border: `1px solid ${C.borderStrong}` }}>
+        <div className="text-[16px] font-semibold" style={{ color: C.text }}>Email {p.name}</div>
+        <div className="text-[13.5px]" style={{ color: C.text2 }}>To <b style={{ color: C.text }}>{p.email}</b> (published on <a href={p.foundOn} target="_blank" rel="noreferrer" className="underline">their site</a>) · from <b style={{ color: C.text }}>{from || 'your Zoho mailbox'}</b></div>
+        {step === 'write' && <>
+          <input value={subject} onChange={e => setSubject(e.target.value)} maxLength={150} aria-label="Subject" className="w-full rounded-xl p-2.5 text-[15px] outline-none" style={field} />
+          <textarea value={body} onChange={e => setBody(e.target.value)} rows={14} maxLength={5000} aria-label="Message" className="w-full rounded-xl p-3 text-[14.5px] leading-relaxed outline-none resize-y" style={field} />
+          <div className="flex gap-2 justify-end"><ActionButton variant="ghost" onClick={onClose}>Cancel</ActionButton><ActionButton variant="primary" disabled={!subject.trim() || body.trim().length < 40} onClick={() => setStep('confirm')}>Review</ActionButton></div>
+        </>}
+        {(step === 'confirm' || step === 'sending') && <>
+          <div className="rounded-xl p-3 text-[14.5px]" style={{ background: 'rgba(255,184,77,0.08)', border: '1px solid rgba(255,184,77,0.35)', color: C.text }}>Send this email to <b>{p.email}</b> now? It can't be unsent, and this site won't be emailed again.</div>
+          <div className="rounded-xl p-3 text-[14px] whitespace-pre-wrap break-words max-h-[300px] overflow-y-auto" style={{ ...box, color: C.text2 }}><b style={{ color: C.text }}>{subject}</b>{'\n\n'}{body}</div>
+          {error && <div role="alert" className="text-[14px]" style={{ color: C.amber }}>Not sent: {error}</div>}
+          <div className="flex gap-2 justify-end"><ActionButton variant="ghost" disabled={step === 'sending'} onClick={() => setStep('write')}>Edit</ActionButton><ActionButton variant="primary" icon={Check} disabled={step === 'sending'} onClick={send}>{step === 'sending' ? 'Sending…' : 'Yes, send it'}</ActionButton></div>
+        </>}
+        {step === 'done' && <>
+          <div className="flex items-center gap-2 text-[15px]" style={{ color: C.green }}><Check size={18} />Sent to {p.email}.</div>
+          <div className="flex justify-end"><ActionButton variant="primary" onClick={onClose}>Close</ActionButton></div>
+        </>}
+      </div>
+    </div>
+  );
+}
+
+function LinkOutreach() {
+  const [n, setN] = useState(0);
+  const o = useSeoRead(`outreach&n=${n}`);
+  const [open, setOpen] = useState<Any | null>(null);
+  if (!o) return <Skeleton className="h-[160px]" />;
+  const ps: Any[] = o.prospects || [];
+  const ready = ps.filter(p => p.status === 'ready'), noEmail = ps.filter(p => p.status === 'no_email'), done = ps.filter(p => p.status === 'sent' || p.status === 'skipped');
+  const skip = async (site: string) => { try { await seoPost({ action: 'outreach_skip', site }); setN(x => x + 1); } catch { /* shown on next load */ } };
+  return (
+    <section className="flex flex-col gap-2">
+      <h3 className="font-semibold text-[15px]" style={{ color: C.text }}>Link outreach <span className="text-[12.5px] font-normal" style={{ color: C.muted }}>{o.checkedAt ? `last search ${timeAgo(o.checkedAt)}` : 'first search runs on the next weekly sync'} · {o.sentToday}/{o.cap} sent today · from {o.from || 'Zoho (not connected)'}</span></h3>
+      <p className="text-[13.5px]" style={{ color: C.text2 }}>Jarvis finds Flagstaff and Arizona sites that could link to you, reads the contact email each site publishes, and drafts a friendly note. You review and confirm every email; each site is emailed once at most.</p>
+      <div><RunNow id="link_outreach" label="Find more sites now" onDone={() => setN(x => x + 1)} /></div>
+      {ready.length > 0 ? <ul className="flex flex-col gap-2">{ready.map(p => (
+        <li key={p.site} className="rounded-xl p-3 flex flex-col gap-1 text-[14px]" style={box}>
+          <div className="flex flex-wrap items-baseline gap-x-2"><StatusBadge tone="cyan">{p.kind}</StatusBadge><a href={p.url} target="_blank" rel="noreferrer" className="underline font-semibold" style={{ color: C.text }}>{p.name}</a><span style={{ color: C.muted }}>{p.email}</span></div>
+          {p.why && <div className="text-[13px]" style={{ color: C.text2 }}>{p.why}</div>}
+          <div className="flex gap-2 mt-1"><ActionButton size="sm" variant="primary" onClick={() => setOpen(p)}>Review & send</ActionButton><ActionButton size="sm" variant="ghost" onClick={() => skip(p.site)}>Skip</ActionButton></div>
+        </li>
+      ))}</ul> : <Muted>No drafts waiting.</Muted>}
+      {noEmail.length > 0 && <details className="rounded-xl p-3" style={box}><summary className="cursor-pointer text-[14px]" style={{ color: C.text }}>{noEmail.length} site{noEmail.length === 1 ? '' : 's'} with no published email (use their contact form)</summary>
+        <ul className="flex flex-col gap-1 mt-2 text-[13.5px]">{noEmail.map(p => <li key={p.site} style={{ color: C.text2 }}><a href={p.contactUrl || p.url} target="_blank" rel="noreferrer" className="underline" style={{ color: C.text }}>{p.name}</a> — {p.why} <button type="button" className="underline ml-1" style={{ color: C.muted }} onClick={() => skip(p.site)}>done / skip</button></li>)}</ul></details>}
+      {done.length > 0 && <details className="rounded-xl p-3" style={box}><summary className="cursor-pointer text-[14px]" style={{ color: C.text }}>{done.length} sent or skipped</summary>
+        <ul className="flex flex-col gap-1 mt-2 text-[13.5px]">{done.map(p => <li key={p.site} style={{ color: C.text2 }}><StatusBadge tone={p.status === 'sent' ? 'green' : 'muted'}>{p.status}</StatusBadge> {p.name}{p.status === 'sent' ? ` → ${p.to} ${String(p.decidedAt || '').slice(0, 10)}` : ''}</li>)}</ul></details>}
+      {open && <OutreachDialog p={open} from={o.from} onClose={() => setOpen(null)} onSent={() => setN(x => x + 1)} />}
+    </section>
+  );
+}
+
 export function ResearchView({ k, post }: { k: Any | undefined; post: Post }) {
   if (!k) return <Skeleton className="h-[300px]" />;
   return (
     <div className="flex flex-col gap-3">
       <SearchNews />
       <AiAnswers />
+      <CompetitorListings />
+      <LinkOutreach />
       <h3 className="font-semibold text-[15px] mt-2" style={{ color: C.text }}>Guidance the recommendations cite</h3>
       {!k.ready && <NotSetUp what="Weekly re-checking of Google's documents" />}
       <p className="text-[14px]" style={{ color: C.text2 }}>What the recommendations are allowed to cite. Google's pages are re-checked weekly; a changed page is flagged for review, and superseded guidance stops being cited.</p>

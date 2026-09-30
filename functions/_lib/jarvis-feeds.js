@@ -352,7 +352,8 @@ const zohoAccounts = dc => (dc === 'ca' ? 'https://accounts.zohocloud.ca' : `htt
 const zohoMailHost = dc => (dc === 'ca' ? 'https://mail.zohocloud.ca' : `https://mail.zoho.${dc}`);
 
 // Self Client: client id + secret + the one-time code (scope
-// ZohoMail.accounts.READ,ZohoMail.messages.READ). The data center is found by trying each.
+// ZohoMail.accounts.READ,ZohoMail.messages.READ,ZohoMail.messages.CREATE — CREATE is only
+// used by the owner-confirmed SEO outreach emails). The data center is found by trying each.
 export async function connectZoho({ bucket, clientId, clientSecret, code, now = Date.now(), fetchImpl = (...a) => fetch(...a) }) {
   if (!clientId || !clientSecret || !code) throw new Error('Client ID, client secret and the generated code are all needed.');
   let tok = null; let dc = null; let lastErr = 'no response';
@@ -426,6 +427,26 @@ export async function mailMessage({ bucket, id, folderId, now = Date.now(), fetc
   const body = await zohoGet(z.dc, `/api/accounts/${z.accountId}/folders/${folderId}/messages/${id}/content`, token, fetchImpl);
   return { id, text: htmlToText(body.data?.content || '') };
 }
+// Send one plain-text email from the connected Zoho mailbox. Callers own the
+// confirmation (SEO link outreach: functions/_lib/seo/outreach.js). Needs the
+// ZohoMail.messages.CREATE scope; a read-only connection gets a clear error.
+export async function sendZohoMail({ bucket, to, subject, text, now = Date.now(), fetchImpl = (...a) => fetch(...a) }) {
+  const z = (await readJson(bucket, CONN_KEY))?.zoho;
+  if (!z?.refreshToken) throw new Error('Zoho Mail is not connected.');
+  const token = await zohoToken(z, bucket, now, fetchImpl);
+  const res = await fetchImpl(`${zohoMailHost(z.dc)}/api/accounts/${z.accountId}/messages`, {
+    method: 'POST', headers: { Authorization: `Zoho-oauthtoken ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ fromAddress: z.email, toAddress: to, subject, content: text, mailFormat: 'plaintext' }),
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const code = String(body.data?.errorCode || body.status?.description || `HTTP ${res.status}`);
+    if (res.status === 401 || res.status === 403 || /scope|permission|INVALID_OAUTHSCOPE/i.test(code)) throw new Error('Zoho Mail can read but not send yet: reconnect Zoho Mail with the scope ZohoMail.accounts.READ,ZohoMail.messages.READ,ZohoMail.messages.CREATE.');
+    throw new Error(`Zoho Mail: ${code}`);
+  }
+  return { from: z.email, messageId: body.data?.messageId || null };
+}
+
 export function htmlToText(html) {
   return String(html)
     .replace(/<(script|style)[\s\S]*?<\/\1>/gi, '')

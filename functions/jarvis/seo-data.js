@@ -6,6 +6,7 @@
 // Missing token -> 401, invalid -> 403.
 // GET  ?action=overview|opportunities|demand|competitors|seasonality|geography|authority|connections|briefing|queries|technical
 //            |actions|top5|blueprint|history|knowledge|ranks|jobs|news|ai   (Local SEO agent)
+//            |listings|outreach   (competitor listings; link outreach: functions/_lib/seo/outreach.js)
 // POST { action, ...args }  — allowlisted writes only:
 //   update_recommendation { id, action: accept|reject|dismiss|mark_applied|reopen, reason?, note? }
 //   add_competitor { name, website }            set_competitor_status { id, status: active|ignored }
@@ -14,7 +15,11 @@
 //   sync_now { mode?: incremental|backfill }      one budget-bounded sync call; the UI repeats while `more` (sync.js)
 //   add_rank { keyword, area, rank|null, date?, in_local_pack?, competitors? }   import_ranks { csv }
 //   set_knowledge_status { id, status: active|superseded }
-// Nothing here publishes anything outside GID's own database.
+//   run_monitor { id: competitor_listings|link_outreach }   run that finder now
+//   outreach_skip { site }
+//   outreach_send { site, subject, body, reviewed: true, confirmed: true }   the ONE outside send:
+//     a reviewed + confirmed email to the address the site publishes, from the Zoho mailbox
+// Apart from outreach_send, nothing here publishes anything outside GID's own database.
 
 import { createSeoStore } from '../_lib/seo/store.js';
 import { createSeoOps } from '../_lib/seo/ops.js';
@@ -23,6 +28,7 @@ import { verifyAccess } from '../_lib/access-auth.js';
 import { isInsideServiceArea } from '../../shared/seo/service-area.js';
 import { classifyCompetitor } from '../../shared/seo/competitors.js';
 import { SERVICE_CATALOG } from '../../shared/seo/services.js';
+import { OUTREACH_PROVIDERS, outreachState, listingsState, sendOutreach, skipOutreach } from '../_lib/seo/outreach.js';
 
 const json = (body, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
 const str = (v, n = 300) => (v == null ? null : String(v).trim().slice(0, n) || null);
@@ -57,6 +63,8 @@ export async function handleSeoData({ request, env, store, now = new Date(), run
       jobs: () => ops.agent().jobs(),
       news: () => ops.agent().news(),
       ai: () => ops.agent().aiVisibility(),
+      listings: () => listingsState(env.GID_PHOTOS),
+      outreach: () => outreachState(env.GID_PHOTOS, now.getTime()),
     };
     if (!reads[action]) return json({ error: `Unknown action. Use one of: ${Object.keys(reads).join(', ')}` }, 400);
     return json(await reads[action]());
@@ -119,6 +127,16 @@ export async function handleSeoData({ request, env, store, now = new Date(), run
       return json(await ops.agent().importRanks(body.csv));
     case 'set_knowledge_status':
       return json(await ops.agent().setKnowledgeStatus({ id: str(body.id, 80), status: str(body.status, 20) }));
+    case 'run_monitor': {
+      const p = OUTREACH_PROVIDERS.find(x => x.id === body.id);
+      if (!p) return json({ error: 'Unknown monitor' }, 400);
+      if (p.status(env).status !== 'connected') return json({ error: p.status(env).missing.join(', ') || 'Not configured' }, 400);
+      return json({ ok: true, ...(await p.sync({ env, store, fetch: (...a) => fetch(...a), now })) });
+    }
+    case 'outreach_skip':
+      return json(await skipOutreach({ bucket: env.GID_PHOTOS, site: str(body.site, 200), now: now.getTime() }));
+    case 'outreach_send':
+      return json(await sendOutreach({ bucket: env.GID_PHOTOS, site: str(body.site, 200), subject: body.subject, body: body.body, reviewed: body.reviewed, confirmed: body.confirmed, now: now.getTime() }));
     case 'check_location':
       return json(isInsideServiceArea(str(body.location, 200) || ''));
     case 'sync_now': {

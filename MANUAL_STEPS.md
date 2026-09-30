@@ -25,7 +25,7 @@ All free, and there's nothing to set in Cloudflare. Tokens are stored in the R2 
   - A lead's chat is matched only on its exact full name. Otherwise you pick the chat yourself.
 - **Zoho Mail**, one time: say "Jarvis, check my email". The panel has the steps.
   - api-console.zoho.com → Self Client.
-  - Scope `ZohoMail.accounts.READ,ZohoMail.messages.READ`.
+  - Scope `ZohoMail.accounts.READ,ZohoMail.messages.READ,ZohoMail.messages.CREATE` (CREATE is only used to send the SEO outreach emails you confirm in /jarvis).
   - Paste the ID, secret and code within 10 minutes.
   - O'Reilly emails are flagged as parts orders. The access is read-only.
 - **Brief:** "Jarvis, brief me" or "good morning". It shows today's jobs, weather, what needs you, reviews, overnight likes and followers, email, and ads. Telegram briefings are unchanged.

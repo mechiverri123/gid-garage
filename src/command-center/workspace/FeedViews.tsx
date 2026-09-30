@@ -185,7 +185,7 @@ export function ConnectZoho({ onDone }: { onDone: () => void }) {
     <div className="flex flex-col gap-3 text-[14px]" style={{ color: C.text2 }}>
       <ol className="list-decimal pl-5 flex flex-col gap-1">
         <li>Open <a className="underline" style={{ color: C.cyan }} href="https://api-console.zoho.com/" target="_blank" rel="noreferrer">Zoho API Console</a> → <b>Add Client</b> → <b>Self Client</b> → Create.</li>
-        <li>On the <b>Generate Code</b> tab, scope: <code className="select-all" style={{ color: C.text }}>ZohoMail.accounts.READ,ZohoMail.messages.READ</code>, duration 10 minutes, any description → Create.</li>
+        <li>On the <b>Generate Code</b> tab, scope: <code className="select-all" style={{ color: C.text }}>ZohoMail.accounts.READ,ZohoMail.messages.READ,ZohoMail.messages.CREATE</code>, duration 10 minutes, any description → Create.</li>
         <li>Paste the Client ID, Client Secret (Client Secret tab) and the code here within 10 minutes.</li>
       </ol>
       <div className="grid gap-3 sm:grid-cols-2">
