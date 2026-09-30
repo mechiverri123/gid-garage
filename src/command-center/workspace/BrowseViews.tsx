@@ -3,17 +3,17 @@
 import { useMemo, useState } from 'react';
 import { Search, Briefcase, Users, ChevronRight, UserPlus } from 'lucide-react';
 import type { Job } from '../../JobOps';
-import { jobMoney, isAwaitingPayment, jobBalance, isCancelled } from '../../../shared/business-rules.js';
+import { jobMoney, isAwaitingPayment, jobBalance, isCancelled, needsPartsCost } from '../../../shared/business-rules.js';
 import { collectedRevenue } from '../../../shared/business-metrics.js';
 import { C, money, shortDay } from '../ui/theme';
 import { StatusBadge, Skeleton, ErrorState, EmptyState, ActionButton } from '../ui/primitives';
-import { useAllJobs, jobTitle } from './jobStore';
+import { useAllJobs, jobTitle, jobOps, putJob } from './jobStore';
 
 type Dispatch = (a: { type: string; [k: string]: unknown }) => void;
 
 const STATUS_FILTERS = [
   { value: 'active', label: 'Active' }, { value: 'unpaid', label: 'Unpaid' }, { value: 'PAID', label: 'Paid' },
-  { value: 'CANCELLED', label: 'Cancelled' }, { value: 'all', label: 'All' },
+  { value: 'CANCELLED', label: 'Cancelled' }, { value: 'all', label: 'All' }, { value: 'noParts', label: 'Parts cost missing' },
 ];
 const STAGE_LABEL: Record<string, string> = { BOOKED: 'Booked', ESTIMATE_SENT: 'Estimate sent', SIGNED: 'Signed', IN_PROGRESS: 'In progress', COMPLETED: 'Completed', INVOICED: 'Invoiced' };
 function statusMatch(j: Job, s: string) {
@@ -21,6 +21,7 @@ function statusMatch(j: Job, s: string) {
   if (s === 'active') return !isCancelled(j) && j.jobStatus !== 'PAID';
   if (s === 'unpaid') return isAwaitingPayment(j) && jobBalance(j) > 0.01;
   if (s === 'CANCELLED') return isCancelled(j);
+  if (s === 'noParts') return needsPartsCost(j);
   return j.jobStatus === s && !isCancelled(j);
 }
 const haystack = (j: Job) => `${j.fname} ${j.lname} ${j.phone} ${j.email} ${j.vehicle} ${j.vin} ${j.service} ${jobTitle(j)}`.toLowerCase();
@@ -44,7 +45,14 @@ export function JobListView({ query, status, dispatch }: { query: string; status
     return (jobs ?? []).filter(j => statusMatch(j, status) && (!q || q.split(/\s+/).every(w => haystack(j).includes(w))))
       .sort((a, b) => String(b.date).localeCompare(String(a.date)));
   }, [jobs, query, status]);
-  const open = (j: Job) => dispatch({ type: 'open', view: { type: 'jobs', jobIds: [j.id] } });
+  const partsMode = status === 'noParts';
+  // Parts checklist: open straight to the Parts tab; "No parts" saves $0 (same patch-booking as the admin Parts panel).
+  const open = (j: Job) => dispatch({ type: 'open', view: { type: 'jobs', jobIds: [j.id], ...(partsMode ? { tab: 'parts' } : {}) } });
+  const [saving, setSaving] = useState<string | null>(null);
+  const noParts = async (j: Job) => {
+    setSaving(j.id);
+    try { const m = await jobOps(); await m.patchJob(j.id, { parts_cost: 0 }); putJob({ ...j, partsCost: 0 }); } finally { setSaving(null); }
+  };
 
   return (
     <div className="jv-glass jv-pop max-w-[1180px] mx-auto p-4 sm:p-6 flex flex-col gap-4">
@@ -65,9 +73,10 @@ export function JobListView({ query, status, dispatch }: { query: string; status
       </div>
       {error ? <ErrorState message={`Couldn't load jobs: ${error}`} /> : !jobs ? <Skeleton className="h-[360px]" /> : !rows.length ? <EmptyState icon={Briefcase} title="No jobs match">Try another name or filter.</EmptyState> : (
         <div className="flex flex-col gap-2">
+          {partsMode && <p className="text-[14px]" style={{ color: C.text2 }}>Done jobs with no parts cost entered. Net profit counts these as $0 parts. Open one to enter the cost from your receipt, or mark it "No parts".</p>}
           {rows.slice(0, limit).map(j => {
             const m = jobMoney(j);
-            return (
+            const row = (
               <button key={j.id} type="button" onClick={() => open(j)} className="cc-btn w-full text-left rounded-xl px-4 py-3 grid grid-cols-[minmax(0,1fr)_auto] sm:grid-cols-[110px_minmax(0,1.3fr)_minmax(0,1fr)_auto_auto] items-center gap-x-4 gap-y-1"
                 style={{ background: 'rgba(3,10,17,0.45)', border: `1px solid ${C.border}` }}>
                 <span className="hidden sm:block text-[14px] font-semibold tabular-nums" style={{ color: C.cyan }}>{j.dateTbd ? 'TBD' : shortDay(j.date)}</span>
@@ -83,6 +92,12 @@ export function JobListView({ query, status, dispatch }: { query: string; status
                 <span className="flex items-center gap-2 text-[15px] font-semibold tabular-nums" style={{ color: C.text }}>{money(m.invoiceTotal ?? m.estimateTotal, 2)}<ChevronRight size={17} color={C.muted} /></span>
               </button>
             );
+            return partsMode ? (
+              <div key={j.id} className="flex items-stretch gap-2">
+                <div className="flex-1 min-w-0">{row}</div>
+                <ActionButton size="sm" variant="secondary" disabled={saving === j.id} onClick={() => noParts(j)} title="Save $0 parts cost">{saving === j.id ? 'Saving…' : 'No parts'}</ActionButton>
+              </div>
+            ) : row;
           })}
           {rows.length > limit && <div className="flex justify-center pt-2"><ActionButton onClick={() => setLimit(l => l + 40)}>Show more</ActionButton></div>}
         </div>

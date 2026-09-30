@@ -620,6 +620,17 @@ Existing concept:
 
 This may be useful, but it is not revenue and is not necessarily the dashboard's net profit.
 
+## Owner's equity (owner's decision, 2026-09-30)
+
+- **The owner doesn't pay himself a salary or draw.** He paid for GID with his own money, and still does (gas on his personal card, early tools and parts).
+- **Transfers from the business account to the owner's personal accounts are repayment of owner's equity** (for example Venmo payments and transfers to his SoFi account). They are:
+  - not a business expense;
+  - not owner pay or take-home;
+  - not a reduction of revenue or net profit.
+- **Money the owner deposits into the business is an owner contribution, not revenue.** An example is "miko echiverri – Deposit Account" on the Bluevine export.
+- **Any bank or cash-flow feature** (for example a Bluevine CSV import) must classify these as equity movements and never count them as spending.
+- **Mileage is tracked in /admin.** Fuel goes on the personal card, so it's missing from the business bank account by design.
+
 ## Ambiguous phrase
 
 User:

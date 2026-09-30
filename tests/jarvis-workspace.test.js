@@ -218,6 +218,7 @@ test('jobs list and calendar: same spoken/typed switching as the job tabs', () =
   assert.deepEqual(cmd('the paid ones', L), { type: 'filter', status: 'PAID' });
   assert.deepEqual(cmd('back to active', L), { type: 'filter', status: 'active' });
   assert.deepEqual(cmd('unpaid', L), { type: 'filter', status: 'unpaid' });
+  assert.deepEqual(cmd('missing parts', L), { type: 'filter', status: 'noParts' });
   assert.deepEqual(cmd('show me in progress', L), { type: 'filter', status: 'IN_PROGRESS' });
   assert.deepEqual(cmd('find Jill', L), { type: 'filter', query: 'jill' });
   assert.deepEqual(cmd('clear search', L), { type: 'filter', query: '' });
@@ -311,6 +312,8 @@ test('global voice/typed commands need no AI: modes and main screens, from anywh
   assert.deepEqual(cmd('pull up all jobs', none), { type: 'open', view: { type: 'jobList', status: 'all' } });
   assert.deepEqual(cmd('open customers', run([three])), { type: 'open', view: { type: 'customers' } });
   assert.deepEqual(cmd('new job', none), { type: 'open', view: { type: 'newJob' } });
+  for (const q of ['parts checklist', 'show me the parts checklist', 'jobs missing parts cost', 'which jobs are missing parts', 'unrecorded parts costs', 'open parts cost checklist'])
+    assert.deepEqual(cmd(q, none), { type: 'open', view: { type: 'jobList', status: 'noParts' } }, q);
   // Real questions still go to Jarvis.
   assert.equal(cmd('show bookings this week', none), null);
   assert.equal(cmd("pull up Jill's jobs", none), null);

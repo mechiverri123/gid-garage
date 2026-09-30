@@ -114,7 +114,7 @@ test('data health flags each inconsistency class and nothing on clean rows', () 
     { id: 'ok', jobStatus: 'PAID', paidAt: '2026-09-01T00:00:00Z', invoiceAmount: 100, taxAmount: 0, amountPaid: 100, payments: [{ amount: 100, at: '2026-09-01T00:00:00Z' }] },
     { id: 'tbd', jobStatus: 'BOOKED', date: '2026-09-20', dateTbd: true },
     { id: 'x', status: 'cancelled', jobStatus: 'PAID', paidAt: null },
-  ];
+  ].map(j => ({ partsCost: 0, ...j })); // parts recorded ($0) — the parts checklist has its own test
   const leads = [{ id: 'l1', status: 'booked', booking_id: null }, { id: 'l2', status: 'booked', booking_id: 'GID-1' }];
   const reminders = [
     { id: 'r1', status: 'open', notified_at: null, due_at: new Date(NOW.getTime() - HOUR).toISOString(), title: 'call parts' },
@@ -201,4 +201,16 @@ test('9: cancel/reopen write exactly what the admin buttons write', () => {
   assert.throws(() => cancelJobPlan({ jobStatus: 'PAID' }), /PAID/);
   assert.throws(() => cancelJobPlan({ jobStatus: 'CANCELLED' }), /already cancelled/);
   assert.deepEqual(reopenJobPlan({ jobStatus: 'CANCELLED', status: 'cancelled' }).fields, { job_status: 'BOOKED', status: 'confirmed' });
+});
+
+test('parts checklist: done jobs with a blank parts cost; $0 means no parts; cancelled/open jobs ignored', async () => {
+  const { needsPartsCost, dataHealthIssues } = await import('../shared/business-rules.js');
+  assert.equal(needsPartsCost({ jobStatus: 'PAID', partsCost: null }), true);
+  assert.equal(needsPartsCost({ jobStatus: 'INVOICED' }), true);
+  assert.equal(needsPartsCost({ jobStatus: 'PAID', partsCost: 0 }), false);
+  assert.equal(needsPartsCost({ jobStatus: 'PAID', partsCost: 42.5 }), false);
+  assert.equal(needsPartsCost({ jobStatus: 'BOOKED', partsCost: null }), false);
+  assert.equal(needsPartsCost({ jobStatus: 'PAID', partsCost: null, status: 'cancelled' }), false);
+  const issues = dataHealthIssues({ jobs: [{ id: 'a', fname: 'Jill', jobStatus: 'PAID', paidAt: '2026-09-01T00:00:00Z', amountPaid: 100, invoiceAmount: 100, partsCost: null }] }, new Date('2026-09-30T12:00:00Z'));
+  assert.ok(issues.some(i => i.type === 'parts_cost_missing' && i.id === 'a'));
 });

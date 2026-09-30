@@ -222,6 +222,14 @@ export function planPayment(job, { amount, method = 'Other', stripeId = '', note
 //   severity:   high (money/records wrong) | medium | low
 //   confidence: certain (the stored values contradict each other)
 //             | possible (could be legitimate — e.g. a shared family phone)
+// Parts cost not recorded: the work is done (completed / invoiced / paid) and
+// parts_cost is blank. A saved $0 means "no parts" and is not flagged. Net
+// profit counts a blank as $0 parts, so these jobs overstate profit.
+export const PARTS_DONE_STATUSES = ['COMPLETED', 'INVOICED', 'PAID'];
+export function needsPartsCost(job) {
+  return !isCancelled(job) && PARTS_DONE_STATUSES.includes(job.jobStatus) && (job.partsCost == null || job.partsCost === '');
+}
+
 const HEALTH = {
   paid_without_paid_at: ['high', 'certain', 'Marked PAID but has no paid date, so it is missing from every revenue period.', 'Open the job and set the paid date, or re-record the payment.'],
   paid_without_amount: ['high', 'certain', 'Marked PAID with no amount paid, no payment history and no invoice total.', 'Check what was actually collected and record it.'],
@@ -230,6 +238,7 @@ const HEALTH = {
   fully_paid_not_marked_paid: ['medium', 'certain', null, 'If the customer is paid up, mark the job PAID in the dashboard.'],
   paid_with_balance: ['medium', 'certain', null, 'Check whether a discount or write-off was intended, or a payment is missing.'],
   past_appointment_pre_service: ['low', 'certain', null, 'Update the job status (done, cancelled, or rescheduled).'],
+  parts_cost_missing: ['medium', 'certain', 'Job is done but its parts cost is blank, so net profit counts $0 parts.', "Enter the parts cost in the job's Parts tab, or $0 if no parts were used (Jarvis: \"parts checklist\")."],
   booked_lead_without_booking: ['low', 'certain', 'Lead is marked booked but is not linked to a booking.', 'Link the lead to its booking, or fix the lead status.'],
   reminder_not_delivered: ['medium', 'certain', null, 'Check the proactive cron / Telegram delivery.'],
   shared_phone_number: ['low', 'possible', null, 'Review manually: these may be one person split across records, or a legitimately shared phone (family, spouse, business line).'],
@@ -258,6 +267,7 @@ export function dataHealthIssues({ jobs = [], leads = [], reminders = [], custom
     if (j.invoiceAmount != null && paid != null && paid > totalDue + 0.01) add('overpaid', 'money', j.id, who, `Amount paid $${paid.toFixed(2)} is more than invoice + tax $${totalDue.toFixed(2)}.`, ev);
     if (j.jobStatus !== 'PAID' && j.invoiceAmount != null && totalDue > 0 && paid != null && paid >= totalDue - 0.01) add('fully_paid_not_marked_paid', 'money', j.id, who, `Paid $${paid.toFixed(2)} of $${totalDue.toFixed(2)} but status is ${j.jobStatus}.`, ev);
     if (j.jobStatus === 'PAID' && j.invoiceAmount != null && paid != null && paid < totalDue - 0.01) add('paid_with_balance', 'money', j.id, who, `Marked PAID but only $${paid.toFixed(2)} of $${totalDue.toFixed(2)} is recorded.`, ev);
+    if (needsPartsCost(j)) add('parts_cost_missing', 'money', j.id, who, null, { job_status: j.jobStatus, parts_cost: null });
     if (j.date && j.date < today && !j.dateTbd && PRE_SERVICE_STATUSES.includes(j.jobStatus)) add('past_appointment_pre_service', 'schedule', j.id, who, `Appointment was ${j.date} but the job is still ${j.jobStatus}.`, { date: j.date, job_status: j.jobStatus });
   }
 

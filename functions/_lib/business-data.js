@@ -431,7 +431,7 @@ export function createBusinessOps({ sbGet, sbPatch, sbInsert = null, now = () =>
 
   async function dataHealth() {
     const [jobs, leads, reminders, customers] = await Promise.all([
-      sbGet('bookings', { select: 'id,fname,lname,date,date_tbd,job_status,status,paid_at,amount_paid,invoice_amount,tax_amount,payments', order: 'date.desc', limit: '2000' }),
+      sbGet('bookings', { select: 'id,fname,lname,date,date_tbd,job_status,status,paid_at,amount_paid,invoice_amount,tax_amount,payments,parts_cost', order: 'date.desc', limit: '2000' }),
       sbGet('leads', { select: 'id,fname,lname,phone,status,booking_id', status: 'eq.booked', limit: '500' }),
       sbGet('jarvis_reminders', { select: 'id,title,due_at,status,notified_at', status: 'eq.open', limit: '500' }),
       sbGet('customers', { select: 'id,fname,lname,phone', limit: '2000' }),

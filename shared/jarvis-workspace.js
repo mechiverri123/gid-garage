@@ -274,6 +274,7 @@ const LIST_STATUS = {
   paid: 'PAID', cancelled: 'CANCELLED', canceled: 'CANCELLED',
   booked: 'BOOKED', 'estimate sent': 'ESTIMATE_SENT', estimates: 'ESTIMATE_SENT', signed: 'SIGNED',
   'in progress': 'IN_PROGRESS', completed: 'COMPLETED', done: 'COMPLETED', invoiced: 'INVOICED',
+  'parts missing': 'noParts', 'missing parts': 'noParts', 'missing parts cost': 'noParts', 'no parts cost': 'noParts', 'parts checklist': 'noParts', 'parts cost missing': 'noParts',
 };
 
 // Global, deterministic commands (no AI tokens): modes and the main screens.
@@ -285,6 +286,8 @@ const GLOBAL_OPENS = [
   [new RegExp(`^${OPEN_VERB} all(?: the| of the| my)? jobs$|^all jobs$`), { type: 'jobList', status: 'all' }],
   [new RegExp(`^${OPEN_VERB} (?:jobs|job list|jobs list|work orders)$`), { type: 'jobList', status: 'active' }],
   [new RegExp(`^${OPEN_VERB} (?:customers|customer list|clients)$|^customers$`), { type: 'customers' }],
+  // Done jobs whose parts cost was never entered (needsPartsCost).
+  [new RegExp(`^(?:${OPEN_VERB} )?(?:(?:the )?parts(?: cost)? checklist|(?:jobs |which jobs (?:are |have )?)?(?:missing|without|with no|with missing|need(?:ing)?) parts(?: costs?)?|unrecorded parts(?: costs?)?)$`), { type: 'jobList', status: 'noParts' }],
   [new RegExp(`^${OPEN_VERB} settings$|^settings$`), { type: 'settings' }],
   [/^(?:new job|create a (?:new )?job|add a (?:new )?job|start a new job|new customer|add a customer)$/, { type: 'newJob' }],
 ];

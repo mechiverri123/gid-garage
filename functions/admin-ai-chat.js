@@ -359,7 +359,7 @@ const UI_TOOLS = [
   },
   {
     name: 'show_job_list',
-    description: 'Open the searchable jobs list. status: active (default), unpaid, all, or a pipeline status like BOOKED.',
+    description: 'Open the searchable jobs list. status: active (default), unpaid, all, noParts (done jobs with no parts cost entered — the parts checklist), or a pipeline status like BOOKED.',
     input_schema: { type: 'object', properties: { query: { type: 'string' }, status: { type: 'string' } } },
   },
   {
