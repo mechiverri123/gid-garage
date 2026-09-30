@@ -135,16 +135,23 @@ Search the web, then list websites that could reasonably link to a local mobile 
 1. Flagstaff / Northern Arizona community sites: local blogs, community and neighbourhood sites, resource pages for residents, new movers or NAU students, local event or sponsorship pages, local business directories run by local organisations.
 2. Arizona-wide sites: Arizona car, outdoor, road-trip or small-business blogs and resource pages.
 Do NOT include: other mechanics or auto shops, national directories or platforms (Yelp, BBB, Angi, Thumbtack, Google, Facebook, etc.), government agencies, or sites you did not see in the search results.
-After a one-line summary, on its own line write OPPORTUNITIES: followed by a JSON array (max 8) of objects:
+Keep your prose to one short line. Always finish with the list, even if only a few sites fit: on its own line write OPPORTUNITIES: followed by a JSON array (max 8) of objects:
 {"name": site name, "url": homepage or most relevant page URL, "kind": "community" | "resource page" | "blog" | "directory" | "events" | "other", "why": one short sentence on why a link fits, "note": one warm, specific sentence Michael could write to the site owner about their site (no flattery beyond what the search showed, no URLs)}`;
 
 const safeUrl = u => { try { const x = new URL(u); return /^https?:$/.test(x.protocol) && !/^(localhost|[\d.]+|\[.*\])$/.test(x.hostname) ? x : null; } catch { return null; } };
 
+// The list after "OPPORTUNITIES", tolerating code fences and a cut-off answer
+// (then each complete {...} object is read on its own).
+export const answerText = (content = []) => content.filter(b => b.type === 'text').map(b => b.text).join('');
 export function parseOpportunities(content = []) {
-  const text = content.filter(b => b.type === 'text').map(b => b.text).join('');
-  const json = text.match(/OPPORTUNITIES:\s*(\[[\s\S]*\])/)?.[1];
+  const text = answerText(content);
+  const at = text.lastIndexOf('OPPORTUNITIES');
+  const seg = at >= 0 ? text.slice(at) : text;
   let list = [];
-  try { list = JSON.parse(json || '[]'); } catch { return []; }
+  try { list = JSON.parse(seg.slice(seg.indexOf('['), seg.lastIndexOf(']') + 1)); } catch {
+    list = [...seg.matchAll(/\{[^{}]*\}/g)].map(m => { try { return JSON.parse(m[0]); } catch { return null; } });
+  }
+  if (!Array.isArray(list)) return [];
   return list.filter(o => o && safeUrl(o.url)).map(o => ({ name: clean(o.name, 80) || siteOf(o.url), url: safeUrl(o.url).href, site: siteOf(o.url), kind: clean(o.kind, 30) || 'other', why: clean(o.why, 200), note: clean(o.note, 260) }));
 }
 
@@ -177,17 +184,21 @@ export const linkOutreach = {
     const state = (await readJson(bucket, OUTREACH_KEY)) || { prospects: [] };
     const decisions = (await readJson(bucket, DECISIONS_KEY)) || {};
     const known = new Set([...state.prospects.map(p => p.site), ...Object.keys(decisions)]);
-    const usage = {};
-    const content = await claudeSearch(ctx, usage, { maxUses: 4, maxTokens: 1500, system: DISCOVER, prompt: `Find link opportunities for GID Garage. Already known, skip these: ${[...known].slice(0, 80).join(', ') || 'none'}.` });
+    const usage = {}; const info = {};
+    const content = await claudeSearch(ctx, usage, { maxUses: 4, maxTokens: 3000, system: DISCOVER, prompt: `Find link opportunities for GID Garage. Already known, skip these: ${[...known].slice(0, 80).join(', ') || 'none'}.` }, info);
     const usd = await recordSearchCost(ctx, usage, 4);
-    const fresh = parseOpportunities(content).filter(o => o.site && !known.has(o.site) && !NO_OUTREACH.test(o.site) && o.site !== 'gidgarage.com').slice(0, PER_RUN);
+    const suggested = parseOpportunities(content);
+    const fresh = suggested.filter(o => o.site && !known.has(o.site) && !NO_OUTREACH.test(o.site) && o.site !== 'gidgarage.com').slice(0, PER_RUN);
+    // Why a run found nothing, visible in the detail and kept in R2.
+    const lastRun = { at: new Date(ctx.now).toISOString(), stopReason: info.stopReason, suggested: suggested.length, kept: fresh.length, tail: suggested.length ? '' : answerText(content).slice(-600) };
     const found = [];
     for (const o of fresh) {
       const c = await contactFor(ctx, o);
       found.push({ ...o, ...c, status: c.email ? 'ready' : 'no_email', foundAt: new Date(ctx.now).toISOString(), draft: c.email ? draftEmail(o) : null });
     }
-    await writeJson(bucket, OUTREACH_KEY, { checkedAt: new Date(ctx.now).toISOString(), prospects: [...found, ...state.prospects].slice(0, 300) });
-    return { rows: found.length, detail: `${found.length} new site${found.length === 1 ? '' : 's'}, ${found.filter(f => f.email).length} with a published email ($${usd.toFixed(3)})` };
+    await writeJson(bucket, OUTREACH_KEY, { checkedAt: new Date(ctx.now).toISOString(), lastRun, prospects: [...found, ...state.prospects].slice(0, 300) });
+    const why = suggested.length ? (fresh.length ? '' : ` (all ${suggested.length} suggested were already known or big platforms)`) : ` (no list in the answer; stop: ${info.stopReason || '?'}; ends: "${lastRun.tail.slice(-160).replace(/\s+/g, ' ')}")`;
+    return { rows: found.length, detail: `${found.length} new site${found.length === 1 ? '' : 's'}, ${found.filter(f => f.email).length} with a published email${why} ($${usd.toFixed(3)})` };
   },
 };
 

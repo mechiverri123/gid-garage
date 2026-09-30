@@ -65,6 +65,11 @@ test('draft: starts with the greeting, personal line has no URLs, carries the op
 test('opportunities parsing keeps only real web URLs', () => {
   const list = parseOpportunities([{ type: 'text', text: 'Found some.\nOPPORTUNITIES: [{"name":"Flag Live","url":"https://flaglive.com/","kind":"community","why":"Local news","note":"Love the events page."},{"name":"Bad","url":"http://127.0.0.1/"},{"name":"Nope","url":"javascript:alert(1)"}]' }]);
   assert.deepEqual(list.map(o => o.site), ['flaglive.com']);
+  // Code fences, and an answer cut off mid-list: the complete objects still count.
+  const fenced = parseOpportunities([{ type: 'text', text: 'OPPORTUNITIES:\n```json\n[{"name":"A","url":"https://a-flag.org/"}]\n```' }]);
+  assert.deepEqual(fenced.map(o => o.site), ['a-flag.org']);
+  const cut = parseOpportunities([{ type: 'text', text: 'OPPORTUNITIES: [{"name":"A","url":"https://a-flag.org/"}, {"name":"B","url":"https://b-flag.org/"}, {"name":"C","url":"https://c-' }]);
+  assert.deepEqual(cut.map(o => o.site), ['a-flag.org', 'b-flag.org']);
 });
 
 test('link_outreach finder: skips known sites and platforms, reads contact pages, drafts, sends nothing', async () => {

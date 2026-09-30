@@ -138,7 +138,7 @@ export function readAnswer(content = []) {
 }
 
 // One Claude Haiku call with live web search near Flagstaff; usage is summed into `usage`.
-export async function claudeSearch(ctx, usage, { prompt, system, maxUses = 1, maxTokens = 700 }) {
+export async function claudeSearch(ctx, usage, { prompt, system, maxUses = 1, maxTokens = 700 }, info = {}) {
   const res = await ctx.fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST', headers: { 'Content-Type': 'application/json', 'x-api-key': ctx.env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' },
     body: JSON.stringify({
@@ -154,6 +154,7 @@ export async function claudeSearch(ctx, usage, { prompt, system, maxUses = 1, ma
     if (typeof v === 'number') usage[k] = (usage[k] || 0) + v;
     else if (k === 'server_tool_use') usage.web_search_requests = (usage.web_search_requests || 0) + Number(v?.web_search_requests || 0);
   }
+  info.stopReason = body.stop_reason || null;
   return body.content || [];
 }
 
