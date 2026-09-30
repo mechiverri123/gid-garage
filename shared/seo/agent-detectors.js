@@ -13,8 +13,8 @@ const HOME = 'https://gidgarage.com/';
 
 // The pages of the most recent crawl, one row per URL. A page removed from the
 // site (e.g. an old town page) drops out instead of producing findings forever.
-// rows: seo_page_audits rows with fetched_at; a crawl spans at most a few hours.
-export function currentCrawl(rows = [], windowHours = 12) {
+// rows: seo_page_audits rows with fetched_at; a crawl (resumed across sync calls) finishes well within 3 hours.
+export function currentCrawl(rows = [], windowHours = 3) {
   const times = rows.map(r => Date.parse(r.fetched_at)).filter(Number.isFinite);
   if (!times.length) return [...new Map(rows.map(r => [r.url, r])).values()];
   const cutoff = Math.max(...times) - windowHours * 3600_000;
