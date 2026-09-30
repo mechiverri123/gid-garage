@@ -5,12 +5,17 @@
   background:
     radial-gradient(1100px 600px at 50% 0%, rgba(52, 214, 255, 0.10), transparent 70%),
     rgba(2, 7, 12, 0.86);
+  animation: jv-in 0.18s ease-out backwards;
+}
+/* The blur lives on a layer behind the content: backdrop-filter on the overlay
+   itself would make it the containing block for fixed popups inside it. */
+.jv-overlay::before {
+  content: ''; position: absolute; inset: 0; z-index: -1; pointer-events: none;
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
-  animation: jv-in 0.18s ease-out both;
 }
 @keyframes jv-in { from { opacity: 0; } to { opacity: 1; } }
-.jv-pop { animation: jv-pop 0.2s ease-out both; }
+.jv-pop { animation: jv-pop 0.2s ease-out backwards; } /* backwards, not both: see command-center.css */
 @keyframes jv-pop { from { opacity: 0; transform: translateY(10px) scale(0.985); } to { opacity: 1; transform: none; } }
 
 .jv-glass {
