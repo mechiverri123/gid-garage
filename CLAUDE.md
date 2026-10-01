@@ -28,6 +28,56 @@ Treat all business data, customer data, schedules, payments, outbound messages, 
   Never point a webhook, cron job or agent at a `/jarvis*` path.
 - Preserve this rule in every future architecture change or refactor.
 
+
+# 0.45 PERMANENT TIME, TIMEZONE & MONEY INTEGRITY RULES
+
+**Production timezone:** GID Garage operates in Arizona. Business-day/month boundaries and human-facing local times use `America/Phoenix`. Never use the browser/server's implicit timezone for business logic.
+
+## Database timestamp contract
+
+- Every column representing a real instant/event MUST be PostgreSQL `timestamptz` (`timestamp with time zone`). Examples: `created_at`, `updated_at`, `paid_at`, `signed_at`, `sent_at`, `completed_at`, `cancelled_at`, webhook/event timestamps, audit timestamps.
+- NEVER create or migrate a real event timestamp as `timestamp without time zone`.
+- Date-only concepts (scheduled service date, birthday, reporting date when intentionally date-only) may use PostgreSQL `date`.
+- A local wall-clock value should only use a timezone-less type when it intentionally has no instant/timezone semantics; document that exception next to the schema.
+- Application writes for real instants must be UTC ISO-8601 (`new Date().toISOString()`) or database `now()`. Preserve the offset/`Z` end-to-end.
+- Never strip `Z`/offsets before persisting or parsing. Never append `Z` to an unknown timezone-less value as a guess.
+- For legacy `timestamp without time zone` migrations, first determine what timezone the stored values actually represent. If they were produced from UTC ISO timestamps, convert with `USING column AT TIME ZONE 'UTC'`. Do not blindly convert historical data.
+
+## Display and business-boundary contract
+
+- Display customer/business times explicitly in `America/Phoenix` unless a feature explicitly requires another zone.
+- "Today", "this week", "this month", reports, revenue periods, calendar boundaries and day grouping MUST be resolved in `America/Phoenix`, not UTC and not the runtime machine timezone.
+- Do not derive a Phoenix business date with `toISOString().slice(0,10)`; that is a UTC date. Use the project's timezone helpers.
+- Do not parse date-only `YYYY-MM-DD` strings through `new Date(dateString)` for calendar logic; JS interprets them as UTC. Keep date-only values as date-only strings or use the shared Phoenix date helpers.
+- Centralize timezone conversion. Do not scatter ad-hoc `new Date(...)`, `toLocaleString(...)`, manual `-7 hours`, or offset arithmetic through components. Arizona has no DST, but still use the IANA zone `America/Phoenix`, never a hard-coded `-07:00` as the architecture.
+
+## Canonical money/accounting contract
+
+- `payments[]` payment events are the canonical source for **when cash was collected**. Each payment's timestamp determines the accounting period.
+- `paid_at` is job/status metadata (when the job became fully paid), NOT a substitute for individual payment timestamps when allocating revenue by day/month.
+- Revenue, sales tax, net profit, paid-job/reporting counts, charts, Jarvis answers, Money mode and exports MUST use the same canonical shared accounting functions. Never implement a second period calculation in a UI component.
+- Partial payments that cross day/month/year boundaries must be allocated by their actual payment timestamps. Never assign the whole invoice to the final `paid_at` period.
+- If legacy data has `amount_paid` greater than the sum of recorded `payments[]`, synthesize only the missing remainder at the best verified payment timestamp; never double-count the invoice.
+- Net profit for a period must be derived from the same collected-payment basis as revenue. Tax and job-level costs must be allocated consistently by the canonical business-metrics logic.
+- Card/processing fees must be identified from the actual payment processor/method metadata (including Tap to Pay/Stripe IDs), not one fragile display-string equality.
+- Money displayed by Admin, Jarvis, Money mode, reports and exports must reconcile to the same canonical functions.
+
+## Required checks before shipping any time/money change
+
+1. Search schema/migrations for newly introduced `timestamp without time zone`; reject it for real event timestamps.
+2. Search changed code for UTC-date shortcuts (`toISOString().slice(0, 10)`), implicit `new Date('YYYY-MM-DD')`, manual timezone offsets, and duplicate revenue/profit math.
+3. Run the focused money/time regression tests plus normal typecheck/build/tests.
+4. Maintain boundary regression tests covering at minimum:
+   - Sep 30 5:xx PM Phoenix represented as Oct 1 00:xxZ stays in September.
+   - Oct 1 local payment stays in October.
+   - signed/paid timestamps display the original Arizona wall time.
+   - partial payments on opposite sides of a month boundary allocate correctly.
+   - revenue and net-profit period filters cannot disagree about which payment belongs to the period.
+5. For a database migration, provide the owner with additive/safe SQL and a verification query. Never silently reinterpret production timestamps.
+
+**Incident that established this rule (2026-10-01):** `bookings.paid_at`, `signed_at`, and `created_at` were `timestamp without time zone` even though the app wrote UTC ISO timestamps. PostgreSQL/Supabase discarded the timezone semantics. This made Sep 30 Arizona payments appear as Oct 1 to some calculations, caused Revenue and Net Profit to disagree, and displayed a 1:27 PM Arizona signature as 8:27 PM. These columns were migrated to `timestamptz`. Do not reintroduce this class of bug.
+
+---
 # 0.4 JARVIS VISUAL-FIRST INTERACTION RULE (permanent)
 
 Jarvis is the interactive command interface for GID Garage, not primarily a chatbot.
