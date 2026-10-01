@@ -1845,7 +1845,7 @@ function PhotoPanel({ job, onUpdate }: { job: Job; onUpdate: (j: Job) => void })
         const safeName = file.name.replace(/\.\w+$/, '') + '.jpg';
         const { key, url } = await uploadBlob(compressed, safeName);
         const newPhoto: JobPhoto = {
-          id: Math.random().toString(36).slice(2),
+          id: crypto.randomUUID(),
           key,
           url,
           note: '',
@@ -2027,7 +2027,7 @@ function VideoPanel({ job, onUpdate }: { job: Job; onUpdate: (j: Job) => void })
         if (!res.ok) throw new Error(await res.text());
         const { key, url } = await res.json() as any;
         const newVideo: JobVideo = {
-          id: Math.random().toString(36).slice(2),
+          id: crypto.randomUUID(),
           key,
           url,
           note: '',
@@ -2197,7 +2197,7 @@ export function InspectionPanel({ job, onUpdate }: { job: Job; onUpdate: (j: Job
   function markDirty() { setSaved(false); }
 
   function addCode() {
-    setCodes(prev => [...prev, { id: Math.random().toString(36).slice(2), code: '', plan: '' }]);
+    setCodes(prev => [...prev, { id: crypto.randomUUID(), code: '', plan: '' }]);
     markDirty();
   }
   function removeCode(id: string) { setCodes(prev => prev.filter(c => c.id !== id)); markDirty(); }
@@ -2377,7 +2377,7 @@ export function EstimatePanel({ job, onUpdate }: { job: Job; onUpdate: (j: Job) 
 
   function addLineItem() {
     hasLocalEdits.current = true;
-    setLineItems(prev => [...prev, { id: Math.random().toString(36).slice(2), label: '', amount: 0, type: 'other' }]);
+    setLineItems(prev => [...prev, { id: crypto.randomUUID(), label: '', amount: 0, type: 'other' }]);
   }
 
   async function saveEstimate() {
@@ -2753,7 +2753,7 @@ export function PaymentPanel({ job, onUpdate, onRequote }: { job: Job; onUpdate:
     setRecordError(null);
     try {
       const newPayment: Payment = {
-        id: Math.random().toString(36).slice(2),
+        id: crypto.randomUUID(),
         amount: Math.round(amt * 100) / 100,
         method: paymentMethod,
         note: paymentNote,
@@ -2979,7 +2979,7 @@ export function PaymentPanel({ job, onUpdate, onRequote }: { job: Job; onUpdate:
           customerId: job.stripeCustomerId,
           amountCents: Math.round(amountToCharge * 100),
           subtotal: chargedAmount,
-          taxAmount: taxForAmount(chargedAmount), taxRateSnapshot: TAX_RATE,
+          taxAmount: taxForAmount(chargedAmount), taxRateSnapshot: job.taxRateSnapshot ?? TAX_RATE,
           description: `GID Garage — ${job.service} — ${job.vehicle}`,
           bookingId: job.id,
         }),
@@ -2998,7 +2998,7 @@ export function PaymentPanel({ job, onUpdate, onRequote }: { job: Job; onUpdate:
         // record matches what actually got charged.
         const alreadyLogged = (job.payments || []).some(p => p.stripeId === data.chargeId);
         const updatedPayments = alreadyLogged ? (job.payments || []) : [...(job.payments || []), {
-          id: Math.random().toString(36).slice(2),
+          id: crypto.randomUUID(),
           amount: amountToCharge,
           method: 'Card (Stripe)',
           note: amountPaidSoFar > 0 ? 'Remaining balance' : '',
@@ -3008,7 +3008,7 @@ export function PaymentPanel({ job, onUpdate, onRequote }: { job: Job; onUpdate:
         const updated = {
           ...job,
           invoiceAmount: alreadyPaidAmount,
-          taxAmount: taxForAmount(chargedAmount), taxRateSnapshot: TAX_RATE,
+          taxAmount: taxForAmount(chargedAmount), taxRateSnapshot: job.taxRateSnapshot ?? TAX_RATE,
           stripeTransactionId: data.chargeId,
           paidAt,
           jobStatus: 'PAID' as JobStatus,
@@ -3041,7 +3041,7 @@ export function PaymentPanel({ job, onUpdate, onRequote }: { job: Job; onUpdate:
       // month tracking (which sums job.payments, not just paidAt) actually sees
       // this charge instead of only the earlier partial entries.
       const updatedPayments = [...(job.payments || []), {
-            id: Math.random().toString(36).slice(2),
+            id: crypto.randomUUID(),
             amount: amountToCharge,
             method: 'Card (Stripe)',
             note: amountPaidSoFar > 0 ? 'Remaining balance' : '',
@@ -3051,7 +3051,7 @@ export function PaymentPanel({ job, onUpdate, onRequote }: { job: Job; onUpdate:
       const updated = {
         ...job,
         invoiceAmount: confirmedAmount,
-        taxAmount: taxForAmount(chargedAmount), taxRateSnapshot: TAX_RATE,
+        taxAmount: taxForAmount(chargedAmount), taxRateSnapshot: job.taxRateSnapshot ?? TAX_RATE,
         stripeTransactionId: data.chargeId,
         paidAt,
         jobStatus: 'PAID' as JobStatus,
@@ -3094,7 +3094,7 @@ export function PaymentPanel({ job, onUpdate, onRequote }: { job: Job; onUpdate:
     try {
       let invoiceBump: { count: number; lastSentAt: string } | null = null;
       if (job.jobStatus !== 'INVOICED') {
-        await patchJob(job.id, { job_status: 'INVOICED', invoice_amount: finalAmount, tax_amount: taxForAmount(finalAmount), tax_rate_snapshot: TAX_RATE });
+        await patchJob(job.id, { job_status: 'INVOICED', invoice_amount: finalAmount, tax_amount: taxForAmount(finalAmount), tax_rate_snapshot: job.taxRateSnapshot ?? TAX_RATE });
         invoiceBump = await sendInvoiceEmail({ ...job, jobStatus: 'INVOICED' as JobStatus, invoiceAmount: finalAmount, taxAmount: taxForAmount(finalAmount) });
       }
       // Same reasoning as chargeCardOnFile — if there were prior partial
@@ -3111,7 +3111,7 @@ export function PaymentPanel({ job, onUpdate, onRequote }: { job: Job; onUpdate:
       await patchJob(job.id, {
         invoice_amount: finalAmount,
         tax_amount: taxForAmount(finalAmount),
-      tax_rate_snapshot: TAX_RATE,
+      tax_rate_snapshot: job.taxRateSnapshot ?? TAX_RATE,
         stripe_transaction_id: stripeId,
         paid_at: paidAt,
         job_status: 'PAID',
@@ -3120,7 +3120,7 @@ export function PaymentPanel({ job, onUpdate, onRequote }: { job: Job; onUpdate:
         payments: JSON.stringify(updatedPayments),
       });
       const paidJob = {
-        ...job, invoiceAmount: finalAmount, taxAmount: taxForAmount(finalAmount), taxRateSnapshot: TAX_RATE, stripeTransactionId: stripeId, paidAt, jobStatus: 'PAID' as JobStatus, status: 'completed', amountPaid: reconciledAmountPaid, payments: updatedPayments,
+        ...job, invoiceAmount: finalAmount, taxAmount: taxForAmount(finalAmount), taxRateSnapshot: job.taxRateSnapshot ?? TAX_RATE, stripeTransactionId: stripeId, paidAt, jobStatus: 'PAID' as JobStatus, status: 'completed', amountPaid: reconciledAmountPaid, payments: updatedPayments,
         ...(invoiceBump ? { invoiceSentCount: invoiceBump.count, invoiceLastSentAt: invoiceBump.lastSentAt } : {}),
       };
       onUpdate(paidJob);
@@ -3165,8 +3165,8 @@ export function PaymentPanel({ job, onUpdate, onRequote }: { job: Job; onUpdate:
 
   async function markInvoiced() {
     setSaving(true);
-    await patchJob(job.id, { job_status: 'INVOICED', invoice_amount: finalAmount, tax_amount: taxForAmount(finalAmount), tax_rate_snapshot: TAX_RATE });
-    let updated = { ...job, jobStatus: 'INVOICED' as JobStatus, invoiceAmount: finalAmount, taxAmount: taxForAmount(finalAmount) };
+    await patchJob(job.id, { job_status: 'INVOICED', invoice_amount: finalAmount, tax_amount: taxForAmount(finalAmount), tax_rate_snapshot: job.taxRateSnapshot ?? TAX_RATE });
+    let updated = { ...job, jobStatus: 'INVOICED' as JobStatus, invoiceAmount: finalAmount, taxAmount: taxForAmount(finalAmount), taxRateSnapshot: job.taxRateSnapshot ?? TAX_RATE };
     const inv = await sendInvoiceEmail(updated);
     if (inv) updated = { ...updated, invoiceSentCount: inv.count, invoiceLastSentAt: inv.lastSentAt };
     onUpdate(updated);
@@ -9571,7 +9571,7 @@ export function OwnerPayPanel() {
     const name = newItemName.trim();
     const amount = parseFloat(newItemAmount);
     if (!name || !(amount >= 0)) return;
-    const updated = [...overheadItems, { id: Math.random().toString(36).slice(2), name, amount }];
+    const updated = [...overheadItems, { id: crypto.randomUUID(), name, amount }];
     setOverheadItems(updated);
     setNewItemName('');
     setNewItemAmount('');

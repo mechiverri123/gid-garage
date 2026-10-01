@@ -21,7 +21,7 @@ export async function onRequestPost({ request, env }) {
   }
 
   try {
-    const { customerId, amountCents, subtotal, taxAmount, description, bookingId } = await request.json();
+    const { customerId, amountCents, subtotal, taxAmount, taxRateSnapshot, description, bookingId } = await request.json();
 
     if (!customerId || !amountCents || !bookingId) {
       return new Response(JSON.stringify({ error: 'Missing required fields' }), {
@@ -55,7 +55,7 @@ export async function onRequestPost({ request, env }) {
     }
 
     // Check if already paid
-    const checkRes = await fetch(`${supabaseUrl}/rest/v1/bookings?id=eq.${bookingId}&select=job_status,stripe_transaction_id`, {
+    const checkRes = await fetch(`${supabaseUrl}/rest/v1/bookings?id=eq.${bookingId}&select=job_status,stripe_transaction_id,tax_rate_snapshot`, {
       headers: {
         apikey: supabaseKey,
         Authorization: `Bearer ${supabaseKey}`,
@@ -93,6 +93,8 @@ export async function onRequestPost({ request, env }) {
     if (charge.error) throw new Error(charge.error.message);
 
     const currentTaxRate = await fetchCurrentTaxRate();
+    const storedRate = rows?.[0]?.tax_rate_snapshot;
+    const effectiveTaxRate = storedRate != null ? Number(storedRate) : (taxRateSnapshot != null ? Number(taxRateSnapshot) : currentTaxRate);
 
     // Update Supabase; Stripe success is not considered complete until this write is confirmed.
     const updateRes = await fetch(`${supabaseUrl}/rest/v1/bookings?id=eq.${bookingId}`, {
@@ -111,8 +113,8 @@ export async function onRequestPost({ request, env }) {
         // flat-rate fallback overcharges tax whenever any line item is exempt.
         tax_amount: taxAmount != null
           ? Math.round(Number(taxAmount) * 100) / 100
-          : (subtotal != null ? Math.round(subtotal * currentTaxRate * 100) / 100 : 0),
-        tax_rate_snapshot: currentTaxRate,
+          : (subtotal != null ? Math.round(subtotal * effectiveTaxRate * 100) / 100 : 0),
+        tax_rate_snapshot: effectiveTaxRate,
         paid_at: new Date().toISOString(),
         job_status: 'PAID',
         status: 'completed',

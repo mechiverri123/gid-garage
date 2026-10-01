@@ -103,6 +103,17 @@ function phoenixToday() {
   return new Date().toLocaleDateString('en-CA', { timeZone: 'America/Phoenix' });
 }
 
+function phoenixUtcBounds(ymd) {
+  const [y, m, d] = ymd.split('-').map(Number);
+  const next = new Date(Date.UTC(y, m - 1, d + 1, 12));
+  const nextYmd = next.toISOString().slice(0, 10);
+  // America/Phoenix is UTC-7 year-round.
+  return {
+    start: `${ymd}T07:00:00.000Z`,
+    end: `${nextYmd}T07:00:00.000Z`,
+  };
+}
+
 // Maps any dollar amount to the nearest valid prize tier at or below it, so
 // a doubled/split bet that lands on a non-standard amount (e.g. $2 after
 // doubling a $1 bet) still resolves to a sane prize tier instead of erroring.
@@ -220,50 +231,37 @@ export async function onRequestPost({ request, env }) {
     return json({ error: 'Invalid JSON' }, 400);
   }
 
-  // Loads (or creates) the credits row, applying the daily refill if needed.
-  // Returns the up-to-date row.
+  // Loads or creates the credits row and performs the Phoenix-day refill
+  // atomically in Postgres. This closes the remaining midnight race where two
+  // simultaneous requests could both reset the same account and wipe one
+  // another's just-applied credit/spin change.
   async function loadAccount(phone, fname) {
-    const res = await fetch(`${base}/game_credits?phone=eq.${encodeURIComponent(phone)}&select=*`, { headers });
-    const rows = res.ok ? await res.json() : [];
     const today = phoenixToday();
-
-    if (!rows.length) {
-      const insertRes = await fetch(`${base}/game_credits`, {
-        method: 'POST',
-        headers: { ...headers, Prefer: 'return=representation' },
-        body: JSON.stringify({
-          phone, fname: fname || null,
-          balance: STARTING_BALANCE, spins_today: 0, last_refill_date: today,
-        }),
-      });
-      const inserted = await insertRes.json();
-      return { row: inserted[0], isNew: true };
-    }
-
-    const row = rows[0];
-    if (row.last_refill_date !== today) {
-      const newBalance = Math.max(row.balance, DAILY_REFILL_TO);
-      const patchRes = await fetch(`${base}/game_credits?phone=eq.${encodeURIComponent(phone)}`, {
-        method: 'PATCH',
-        headers: { ...headers, Prefer: 'return=representation' },
-        body: JSON.stringify({
-          balance: newBalance, spins_today: 0, last_refill_date: today,
-          fname: fname || row.fname, updated_at: new Date().toISOString(),
-        }),
-      });
-      const patched = await patchRes.json();
-      return { row: patched[0], isNew: false };
-    }
-
-    return { row, isNew: false };
+    const res = await fetch(`${base}/rpc/gid_game_prepare_account`, {
+      method: 'POST',
+      headers: { ...headers, Prefer: 'return=representation' },
+      body: JSON.stringify({
+        p_phone: phone,
+        p_fname: fname || null,
+        p_today: today,
+        p_starting_balance: STARTING_BALANCE,
+        p_refill_to: DAILY_REFILL_TO,
+      }),
+    });
+    if (!res.ok) throw new Error(`Game account prepare failed: ${res.status} ${await res.text()}`);
+    const payload = await res.json();
+    const row = Array.isArray(payload) ? payload[0] : payload;
+    if (!row) throw new Error('Game account prepare returned no row');
+    return { row, isNew: !!row.is_new };
   }
 
   // Prizes this phone has already won today (Phoenix time) — excluded from
   // future rolls today so nobody stacks 3x of the same prize in one day.
   async function getWonLabelsToday(phone) {
     const today = phoenixToday();
+    const { start, end } = phoenixUtcBounds(today);
     const res = await fetch(
-      `${base}/game_wins?phone=eq.${encodeURIComponent(phone)}&created_at=gte.${today}&select=prize_label`,
+      `${base}/game_wins?phone=eq.${encodeURIComponent(phone)}&created_at=gte.${encodeURIComponent(start)}&created_at=lt.${encodeURIComponent(end)}&select=prize_label`,
       { headers }
     );
     const rows = res.ok ? await res.json() : [];
