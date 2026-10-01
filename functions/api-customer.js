@@ -14,7 +14,7 @@
 //   get-ppi             { id }                    -> PPIRecord | null (for the /ppi page)
 //   sign                { id, signature }         -> { ok }   (customer e-signs estimate)
 //   estimate-decline    { id }                    -> { ok }   (customer declines estimate)
-//   returning-customer  { fname,lname,email,phone}-> { stripeCustomerId, last4 } | null
+//   returning-customer  { fname,lname,email,phone}-> { hasCardOnFile, last4 } | null
 
 //   insert-booking       { row }                  -> { ok }   (customer booking + inquiry forms — resolves/creates a customer file)
 //   send-inquiry        { row, fname,lname,phone,email,vehicle,notes,bookingId } -> { ok }  (inserts + emails atomically)
@@ -357,15 +357,17 @@ export async function onRequestPost({ request, env }) {
       }
 
       // ---- Returning-customer card-on-file lookup --------------------------
-      // Requires an exact name + email + phone match; returns only the Stripe
-      // customer id + last4 (never the full row).
+      // Requires an exact name + email + phone match. IMPORTANT: never return
+      // the Stripe customer id to the public browser. The browser only needs to
+      // know whether a saved card exists and the display-only last4. Any later
+      // action that needs the Stripe customer id resolves it again server-side.
       case 'returning-customer': {
         const { fname, lname, email, phone } = payload;
         if (!fname || !lname || !email || !phone) return json(null);
         const digits = String(phone).replace(/\D/g, '');
         const dash = digits.replace(/^(\d{3})(\d{3})(\d{4})$/, '$1-$2-$3');
         const url =
-          `${base}/bookings?select=stripe_customer_id,stripe_last4` +
+          `${base}/bookings?select=stripe_last4,stripe_customer_id` +
           `&fname=ilike.${encodeURIComponent(fname)}` +
           `&lname=ilike.${encodeURIComponent(lname)}` +
           `&email=ilike.${encodeURIComponent(email)}` +
@@ -375,9 +377,55 @@ export async function onRequestPost({ request, env }) {
         if (!res.ok) return json(null);
         const rows = await res.json();
         if (rows.length && rows[0].stripe_customer_id) {
-          return json({ stripeCustomerId: rows[0].stripe_customer_id, last4: rows[0].stripe_last4 ?? null });
+          return json({ hasCardOnFile: true, last4: rows[0].stripe_last4 ?? null });
         }
         return json(null);
+      }
+
+      // ---- Public returning-customer card update --------------------------
+      // The client sends a one-time Stripe token + identity fields. The Stripe
+      // customer id is looked up and used only on the server, so it never has
+      // to be exposed to the browser.
+      case 'update-returning-card': {
+        const { token, fname, lname, email, phone } = payload;
+        if (!token || !fname || !lname || !email || !phone) return json({ error: 'Missing card or customer information' }, 400);
+        const stripeKey = env.STRIPE_SECRET_KEY;
+        if (!stripeKey) return json({ error: 'Stripe not configured' }, 500);
+        const digits = String(phone).replace(/\D/g, '');
+        const dash = digits.replace(/^(\d{3})(\d{3})(\d{4})$/, '$1-$2-$3');
+        const lookupRes = await fetch(
+          `${base}/bookings?select=stripe_customer_id&fname=ilike.${encodeURIComponent(fname)}&lname=ilike.${encodeURIComponent(lname)}&email=ilike.${encodeURIComponent(email)}&or=(phone.eq.${digits},phone.eq.${dash})&stripe_customer_id=not.is.null&order=created_at.desc&limit=1`,
+          { headers }
+        );
+        if (!lookupRes.ok) return json({ error: 'Unable to find saved card' }, 502);
+        const matches = await lookupRes.json();
+        const customerId = matches?.[0]?.stripe_customer_id;
+        if (!customerId) return json({ error: 'Saved card not found' }, 404);
+
+        const sourceRes = await fetch(`https://api.stripe.com/v1/customers/${encodeURIComponent(customerId)}/sources`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${stripeKey}`, 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: new URLSearchParams({ source: token }).toString(),
+        });
+        const source = await sourceRes.json();
+        if (!sourceRes.ok || source.error) return json({ error: source.error?.message || 'Unable to update card' }, 502);
+
+        const defaultRes = await fetch(`https://api.stripe.com/v1/customers/${encodeURIComponent(customerId)}`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${stripeKey}`, 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: new URLSearchParams({ default_source: source.id }).toString(),
+        });
+        const defaultData = await defaultRes.json().catch(() => ({}));
+        if (!defaultRes.ok || defaultData.error) return json({ error: defaultData.error?.message || 'Unable to set default card' }, 502);
+
+        const last4 = source.last4 ?? null;
+        const patchRes = await fetch(`${base}/bookings?stripe_customer_id=eq.${encodeURIComponent(customerId)}`, {
+          method: 'PATCH',
+          headers: { ...headers, Prefer: 'return=minimal' },
+          body: JSON.stringify({ stripe_last4: last4 }),
+        });
+        if (!patchRes.ok) return json({ error: 'Card updated in Stripe but local card display could not be updated' }, 502);
+        return json({ ok: true, last4 });
       }
 
       // ---- Booking confirmation email (customer + owner) ----------------
@@ -488,18 +536,34 @@ export async function onRequestPost({ request, env }) {
 
       // ---- Confirm booking for returning customers (bypass save-card) ----
       case 'confirm-booking': {
-        const { id, stripeCustomerId, stripeLast4 } = payload;
+        const { id, reuseSavedCard } = payload;
         if (!id) return json({ error: 'Missing id' }, 400);
+
+        let savedCard = {};
+        if (reuseSavedCard) {
+          const currentRes = await fetch(`${base}/bookings?id=eq.${encodeURIComponent(id)}&select=fname,lname,email,phone`, { headers });
+          if (!currentRes.ok) return json({ error: 'Unable to load booking' }, 502);
+          const currentRows = await currentRes.json();
+          const current = currentRows?.[0];
+          if (!current) return json({ error: 'Booking not found' }, 404);
+          const digits = String(current.phone || '').replace(/\D/g, '');
+          const dash = digits.replace(/^(\d{3})(\d{3})(\d{4})$/, '$1-$2-$3');
+          const lookupRes = await fetch(
+            `${base}/bookings?select=stripe_customer_id,stripe_last4&id=neq.${encodeURIComponent(id)}&fname=ilike.${encodeURIComponent(current.fname || '')}&lname=ilike.${encodeURIComponent(current.lname || '')}&email=ilike.${encodeURIComponent(current.email || '')}&or=(phone.eq.${digits},phone.eq.${dash})&stripe_customer_id=not.is.null&order=created_at.desc&limit=1`,
+            { headers }
+          );
+          if (!lookupRes.ok) return json({ error: 'Unable to find saved card' }, 502);
+          const prior = (await lookupRes.json())?.[0];
+          if (!prior?.stripe_customer_id) return json({ error: 'Saved card not found' }, 404);
+          savedCard = { stripe_customer_id: prior.stripe_customer_id, stripe_last4: prior.stripe_last4 ?? null };
+        }
+
         const res = await fetch(
           `${base}/bookings?id=eq.${encodeURIComponent(id)}`,
           {
             method: 'PATCH',
             headers: { ...headers, Prefer: 'return=representation' },
-            body: JSON.stringify({
-              status: 'confirmed',
-              ...(stripeCustomerId ? { stripe_customer_id: stripeCustomerId } : {}),
-              ...(stripeLast4 ? { stripe_last4: stripeLast4 } : {}),
-            }),
+            body: JSON.stringify({ status: 'confirmed', ...savedCard }),
           }
         );
         if (!res.ok) return json({ error: await res.text() }, 502);

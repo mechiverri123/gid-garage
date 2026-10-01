@@ -186,9 +186,10 @@ export async function onRequestPost({ request, env }) {
     // invoice to show one total ("Total Due") while the Pay button asked for
     // a different, higher one. Only fall back to the flat rate if the client
     // didn't send a tax figure at all.
+    const currentTaxRate = await fetchCurrentTaxRate();
     const finalTaxAmount = taxAmount != null
       ? Math.round(Number(taxAmount) * 100) / 100
-      : (subtotal != null ? Math.round(Number(subtotal) * (await fetchCurrentTaxRate()) * 100) / 100 : 0);
+      : (subtotal != null ? Math.round(Number(subtotal) * currentTaxRate * 100) / 100 : 0);
     const newAmountPaid = Math.round((amountPaidSoFar + chargedAmount) * 100) / 100;
 
     // If there was a prior partial payment, log this charge as its own entry
@@ -211,6 +212,7 @@ export async function onRequestPost({ request, env }) {
         stripe_transaction_id: charge.id,
         invoice_amount: subtotal != null ? Number(subtotal) : chargedAmount,
         tax_amount: finalTaxAmount,
+        tax_rate_snapshot: currentTaxRate,
         amount_paid: newAmountPaid,
         payments: JSON.stringify(updatedPayments),
         paid_at: paidAt,

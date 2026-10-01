@@ -289,18 +289,27 @@ export async function onRequestPost({ request, env }) {
     return code;
   }
 
-  // Applies a balance delta (+/-) and optionally bumps spins_today by 1.
+  // Applies a balance delta and optional spin increment atomically in Postgres.
+  // This prevents two simultaneous requests from both reading the same old
+  // balance and then overwriting each other. The RPC is installed by
+  // GID_APPROVED_FIXES.sql and is only callable with the service-role key.
   async function adjustBalance(phone, delta, bumpSpins) {
-    const res = await fetch(`${base}/game_credits?phone=eq.${encodeURIComponent(phone)}&select=balance,spins_today`, { headers });
-    const rows = res.ok ? await res.json() : [];
-    const current = rows[0] ?? { balance: 0, spins_today: 0 };
-    const newBalance = Math.round((current.balance + delta) * 100) / 100;
-    const newSpins = bumpSpins ? current.spins_today + 1 : current.spins_today;
-    await fetch(`${base}/game_credits?phone=eq.${encodeURIComponent(phone)}`, {
-      method: 'PATCH',
-      headers: { ...headers, Prefer: 'return=minimal' },
-      body: JSON.stringify({ balance: newBalance, spins_today: newSpins, updated_at: new Date().toISOString() }),
+    const res = await fetch(`${base}/rpc/gid_game_apply_delta`, {
+      method: 'POST',
+      headers: { ...headers, Prefer: 'return=representation' },
+      body: JSON.stringify({
+        p_phone: phone,
+        p_delta: Math.round(Number(delta) * 100) / 100,
+        p_bump_spins: !!bumpSpins,
+        p_max_spins: MAX_SPINS_PER_DAY,
+      }),
     });
+    if (!res.ok) throw new Error(`Game balance update failed: ${res.status} ${await res.text()}`);
+    const rows = await res.json();
+    const row = Array.isArray(rows) ? rows[0] : rows;
+    if (!row) throw new Error(bumpSpins ? 'Daily spin limit reached or not enough credits' : 'Unable to update game credits');
+    const newBalance = Number(row.balance) || 0;
+    const newSpins = Number(row.spins_today) || 0;
     return { newBalance, spinsRemaining: Math.max(0, MAX_SPINS_PER_DAY - newSpins) };
   }
 
@@ -483,14 +492,8 @@ export async function onRequestPost({ request, env }) {
           });
         }
 
-        const newBalance = Math.round((row.balance - bet + creditWin) * 100) / 100;
-        await fetch(`${base}/game_credits?phone=eq.${encodeURIComponent(phone)}`, {
-          method: 'PATCH',
-          headers: { ...headers, Prefer: 'return=minimal' },
-          body: JSON.stringify({
-            balance: newBalance, spins_today: row.spins_today + 1, updated_at: new Date().toISOString(),
-          }),
-        });
+        const applied = await adjustBalance(phone, -bet + creditWin, true);
+        const newBalance = applied.newBalance;
 
         return json({
           result: prize.type,
@@ -498,7 +501,7 @@ export async function onRequestPost({ request, env }) {
           prizeLabel,
           code,
           newBalance,
-          spinsRemaining: Math.max(0, MAX_SPINS_PER_DAY - (row.spins_today + 1)),
+          spinsRemaining: applied.spinsRemaining,
         });
       }
 

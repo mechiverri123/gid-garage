@@ -157,7 +157,7 @@ export async function onRequestPost({ request, env }) {
         const listColumns = [
           'id', 'service', 'date', 'time', 'fname', 'lname', 'phone', 'email',
           'vehicle', 'vin', 'mileage', 'service_address', 'customer_id', 'notes', 'garage_notes', 'status', 'job_status', 'created_at',
-          'estimate_amount', 'tax_amount', 'customer_agreed', 'signed_at', 'line_items',
+          'estimate_amount', 'tax_amount', 'tax_rate_snapshot', 'customer_agreed', 'signed_at', 'line_items',
           'invoice_amount', 'stripe_transaction_id', 'stripe_customer_id',
           'stripe_last4', 'paid_at', 'adjustment_amount', 'amount_paid', 'payments',
           'invoice_sent_count', 'invoice_last_sent_at', 'parts_cost', 'parts_receipts',
@@ -1146,7 +1146,9 @@ export async function onRequestPost({ request, env }) {
         const { job, shopAvg } = payload;
         if (!job) return json({ error: 'Missing job' }, 400);
         const savings = shopAvg > 0 ? shopAvg - (job.estimateAmount || 0) : 0;
-        const estTaxPct = ((await fetchCurrentTaxRate()) * 100).toFixed(3);
+        const currentEstimateRate = await fetchCurrentTaxRate();
+        const estimateRate = Number(job.taxRateSnapshot ?? job.tax_rate_snapshot) || currentEstimateRate;
+        const estTaxPct = (estimateRate * 100).toFixed(3);
         // Shop comparison block — moved to bottom, shows "They'd charge ~$X / You save $Y"
         const savingsHtml = savings > 10 ? `
           <table style="width:100%;background:#052e16;border:1px solid #166534;border-collapse:collapse;margin-bottom:0;"><tr><td style="padding:16px 20px;">
@@ -1196,9 +1198,10 @@ export async function onRequestPost({ request, env }) {
         const invoiceUrl = `https://gidgarage.com/invoice?id=${job.id}&action=pay`;
         const subtotalInv = job.lineItems?.reduce((s, i) => s + Number(i.amount || 0), 0) || Number(job.estimateAmount || 0);
         const currentRateForInvoice = await fetchCurrentTaxRate();
-        const taxInv = job.taxAmount ? Number(job.taxAmount) : Math.round(subtotalInv * currentRateForInvoice * 100) / 100;
+        const invoiceRate = Number(job.taxRateSnapshot ?? job.tax_rate_snapshot) || currentRateForInvoice;
+        const taxInv = job.taxAmount ? Number(job.taxAmount) : Math.round(subtotalInv * invoiceRate * 100) / 100;
         const totalInv = subtotalInv + taxInv;
-        const taxPctInv = (currentRateForInvoice * 100).toFixed(3);
+        const taxPctInv = (invoiceRate * 100).toFixed(3);
         const lineItemsHtml = job.lineItems?.length
           ? job.lineItems.map(i => `<tr><td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#9ca3af;font-size:13px;">${escHtml(i.label)}</td><td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#fff;font-size:13px;text-align:right;font-family:monospace;white-space:nowrap;">${i.amount === 0 ? 'FREE' : (i.amount < 0 ? '-$' + Math.abs(Number(i.amount)).toFixed(2) : '$' + Number(i.amount).toFixed(2))}</td></tr>`).join('')
           : '';

@@ -671,12 +671,15 @@ function BrakePadSelector({ value, onChange }: { value: string | null; onChange:
 
 // ── RETURNING CUSTOMER BANNER ────────────────────────────────────────────────
 function ReturningCustomerBanner({
-  fname, returningCustomer, onCardUpdated, customerName,
+  fname, returningCustomer, onCardUpdated, customerName, lname, email, phone,
 }: {
   fname: string;
-  returningCustomer: { stripeCustomerId: string; last4?: string };
+  returningCustomer: { hasCardOnFile: true; last4?: string };
   onCardUpdated: (last4: string) => void;
   customerName: string;
+  lname: string;
+  email: string;
+  phone: string;
 }) {
   const [showUpdate, setShowUpdate] = useState(false);
   const [stripe, setStripe] = useState<any>(null);
@@ -722,17 +725,13 @@ function ReturningCustomerBanner({
       const { token, error } = await stripe.createToken(card, { name: customerName || undefined });
       if (error) { setCardError(error.message); setSaving(false); return; }
 
-      // Call update-card worker — attaches new source to existing Stripe Customer
-      const res = await fetch('/admin-update', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          token: token.id,
-          customerId: returningCustomer.stripeCustomerId,
-        }),
+      // Update through the public customer API. The Stripe customer id stays
+      // server-side and never needs to be exposed to this browser.
+      const data = await apiPost('update-returning-card', {
+        token: token.id,
+        fname, lname, email, phone,
       });
-      const data = await res.json() as any;
-      if (data.error) throw new Error(data.error);
+      if (data?.error) throw new Error(data.error);
 
       const newLast4: string = data.last4 ?? token.card?.last4 ?? '????';
 
@@ -1079,7 +1078,7 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [showCancelPolicy, setShowCancelPolicy] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
-  const [returningCustomer, setReturningCustomer] = useState<{ stripeCustomerId: string; last4?: string } | null>(null);
+  const [returningCustomer, setReturningCustomer] = useState<{ hasCardOnFile: true; last4?: string } | null>(null);
   const [lookingUpCustomer, setLookingUpCustomer] = useState(false);
 
   // Debounced returning-customer lookup: fires when fname+lname+email+phone are all filled
@@ -1092,8 +1091,8 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
       setLookingUpCustomer(true);
       try {
         const data = await apiPost('returning-customer', { fname, lname, email, phone });
-        if (data && data.stripeCustomerId) {
-          setReturningCustomer({ stripeCustomerId: data.stripeCustomerId, last4: data.last4 ?? undefined });
+        if (data && data.hasCardOnFile) {
+          setReturningCustomer({ hasCardOnFile: true, last4: data.last4 ?? undefined });
         } else {
           setReturningCustomer(null);
         }
@@ -1162,7 +1161,7 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
     // If returning customer with card on file, skip card step and submit directly
     if (returningCustomer) {
       setS(p => ({ ...p, step: 5, bookingId }));
-      await handleFinalSubmit(returningCustomer.stripeCustomerId, returningCustomer.last4 ?? null, bookingId);
+      await handleFinalSubmit(null, returningCustomer.last4 ?? null, bookingId, true);
       return;
     }
     setS(p => ({ ...p, step: 5, bookingId }));
@@ -1173,19 +1172,16 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
     handleFinalSubmit(customerId, last4);
   }
 
-  async function handleFinalSubmit(customerId: string | null = null, last4: string | null = null, bookingIdOverride?: string) {
+  async function handleFinalSubmit(customerId: string | null = null, last4: string | null = null, bookingIdOverride?: string, reuseSavedCard = false) {
     const resolvedBookingId = bookingIdOverride ?? s.bookingId;
     if (!s.service || !s.date || !s.time || !svc || !resolvedBookingId) return;
     setSubmitting(true);
-    // For new cards: save-card worker already patched status='confirmed' server-side.
-    // For returning customers: save-card is bypassed, so we must confirm here via the worker.
-    if (customerId) {
+    // For new cards: save-card already patched status='confirmed' server-side.
+    // For returning customers: resolve the saved Stripe customer server-side,
+    // so the public browser never receives the Stripe customer id.
+    if (reuseSavedCard) {
       try {
-        await apiPost('confirm-booking', {
-          id: resolvedBookingId,
-          stripeCustomerId: customerId,
-          stripeLast4: last4,
-        });
+        await apiPost('confirm-booking', { id: resolvedBookingId, reuseSavedCard: true });
       } catch (e) { console.warn('Status confirm failed:', e); }
     }
     const booking: Booking = {
@@ -1578,6 +1574,9 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
                   {!lookingUpCustomer && returningCustomer && (
                     <ReturningCustomerBanner
                       fname={form.fname}
+                      lname={form.lname}
+                      email={form.email}
+                      phone={form.phone}
                       returningCustomer={returningCustomer}
                       onCardUpdated={(last4) => setReturningCustomer(p => p ? { ...p, last4 } : p)}
                       customerName={`${form.fname} ${form.lname}`.trim()}

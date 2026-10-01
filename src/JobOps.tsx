@@ -154,7 +154,7 @@ export async function syncTaxRate() {
   const data: any = await adminPost('get-tax-rate');
   if (data?.taxRate) setTaxRate(Number(data.taxRate));
 }
-function taxRatePercentLabel(): string { return (TAX_RATE * 100).toFixed(3); }
+function taxRatePercentLabel(rate: number = TAX_RATE): string { return (rate * 100).toFixed(3); }
 // AZ TPT does NOT apply to labor or the mobile service/travel fee. Everything else
 // (parts, flat service charges, misc add-on lines) is taxable. calcTax(subtotal) is a
 // legacy fallback that taxes the whole amount; prefer taxFromItems() with line items.
@@ -295,6 +295,7 @@ export interface Job {
   estimateNotes: string;
   lineItems: LineItem[];
   taxAmount: number | null;
+  taxRateSnapshot: number | null;
   // signing
   preExistingDamage: string;
   customerAgreed: boolean;
@@ -606,6 +607,7 @@ function mapJob(b: any): Job {
     estimateNotes: b.estimate_notes || '',
     lineItems: b.line_items ? (typeof b.line_items === 'string' ? JSON.parse(b.line_items) : b.line_items) : [],
     taxAmount: b.tax_amount ?? null,
+    taxRateSnapshot: b.tax_rate_snapshot ?? null,
     preExistingDamage: b.pre_existing_damage || '',
     customerAgreed: b.customer_agreed || false,
     customerSignature: b.customer_signature || '',
@@ -2385,8 +2387,9 @@ export function EstimatePanel({ job, onUpdate }: { job: Job; onUpdate: (j: Job) 
       estimate_notes: notes,
       line_items: JSON.stringify(lineItems),
       tax_amount: taxFromItems(lineItems),
+      tax_rate_snapshot: TAX_RATE,
     });
-    onUpdate({ ...job, estimateAmount: total, estimateNotes: notes, lineItems, taxAmount: taxFromItems(lineItems) });
+    onUpdate({ ...job, estimateAmount: total, estimateNotes: notes, lineItems, taxAmount: taxFromItems(lineItems), taxRateSnapshot: TAX_RATE });
     setSaving(false);
   }
 
@@ -2399,8 +2402,9 @@ export function EstimatePanel({ job, onUpdate }: { job: Job; onUpdate: (j: Job) 
       line_items: JSON.stringify(lineItems),
       job_status: 'ESTIMATE_SENT',
       tax_amount: taxFromItems(lineItems),
+      tax_rate_snapshot: TAX_RATE,
     });
-    const updated = { ...job, estimateAmount: total, estimateNotes: notes, lineItems, jobStatus: 'ESTIMATE_SENT' as JobStatus, taxAmount: taxFromItems(lineItems) };
+    const updated = { ...job, estimateAmount: total, estimateNotes: notes, lineItems, jobStatus: 'ESTIMATE_SENT' as JobStatus, taxAmount: taxFromItems(lineItems), taxRateSnapshot: TAX_RATE };
     await sendEstimateEmail(updated, showShopComparison ? shopAvg : 0);
     onUpdate(updated);
     setSending(false);
@@ -2765,6 +2769,7 @@ export function PaymentPanel({ job, onUpdate, onRequote }: { job: Job; onUpdate:
         amount_paid: newAmountPaid,
         invoice_amount: finalAmount,
         tax_amount: taxForAmount(finalAmount),
+      tax_rate_snapshot: TAX_RATE,
       };
       if (isNowFullyPaid) {
         fields.job_status = 'PAID';
@@ -2974,7 +2979,7 @@ export function PaymentPanel({ job, onUpdate, onRequote }: { job: Job; onUpdate:
           customerId: job.stripeCustomerId,
           amountCents: Math.round(amountToCharge * 100),
           subtotal: chargedAmount,
-          taxAmount: taxForAmount(chargedAmount),
+          taxAmount: taxForAmount(chargedAmount), taxRateSnapshot: TAX_RATE,
           description: `GID Garage — ${job.service} — ${job.vehicle}`,
           bookingId: job.id,
         }),
@@ -3003,7 +3008,7 @@ export function PaymentPanel({ job, onUpdate, onRequote }: { job: Job; onUpdate:
         const updated = {
           ...job,
           invoiceAmount: alreadyPaidAmount,
-          taxAmount: taxForAmount(chargedAmount),
+          taxAmount: taxForAmount(chargedAmount), taxRateSnapshot: TAX_RATE,
           stripeTransactionId: data.chargeId,
           paidAt,
           jobStatus: 'PAID' as JobStatus,
@@ -3046,7 +3051,7 @@ export function PaymentPanel({ job, onUpdate, onRequote }: { job: Job; onUpdate:
       const updated = {
         ...job,
         invoiceAmount: confirmedAmount,
-        taxAmount: taxForAmount(chargedAmount),
+        taxAmount: taxForAmount(chargedAmount), taxRateSnapshot: TAX_RATE,
         stripeTransactionId: data.chargeId,
         paidAt,
         jobStatus: 'PAID' as JobStatus,
@@ -3089,7 +3094,7 @@ export function PaymentPanel({ job, onUpdate, onRequote }: { job: Job; onUpdate:
     try {
       let invoiceBump: { count: number; lastSentAt: string } | null = null;
       if (job.jobStatus !== 'INVOICED') {
-        await patchJob(job.id, { job_status: 'INVOICED', invoice_amount: finalAmount, tax_amount: taxForAmount(finalAmount) });
+        await patchJob(job.id, { job_status: 'INVOICED', invoice_amount: finalAmount, tax_amount: taxForAmount(finalAmount), tax_rate_snapshot: TAX_RATE });
         invoiceBump = await sendInvoiceEmail({ ...job, jobStatus: 'INVOICED' as JobStatus, invoiceAmount: finalAmount, taxAmount: taxForAmount(finalAmount) });
       }
       // Same reasoning as chargeCardOnFile — if there were prior partial
@@ -3106,6 +3111,7 @@ export function PaymentPanel({ job, onUpdate, onRequote }: { job: Job; onUpdate:
       await patchJob(job.id, {
         invoice_amount: finalAmount,
         tax_amount: taxForAmount(finalAmount),
+      tax_rate_snapshot: TAX_RATE,
         stripe_transaction_id: stripeId,
         paid_at: paidAt,
         job_status: 'PAID',
@@ -3114,7 +3120,7 @@ export function PaymentPanel({ job, onUpdate, onRequote }: { job: Job; onUpdate:
         payments: JSON.stringify(updatedPayments),
       });
       const paidJob = {
-        ...job, invoiceAmount: finalAmount, taxAmount: taxForAmount(finalAmount), stripeTransactionId: stripeId, paidAt, jobStatus: 'PAID' as JobStatus, status: 'completed', amountPaid: reconciledAmountPaid, payments: updatedPayments,
+        ...job, invoiceAmount: finalAmount, taxAmount: taxForAmount(finalAmount), taxRateSnapshot: TAX_RATE, stripeTransactionId: stripeId, paidAt, jobStatus: 'PAID' as JobStatus, status: 'completed', amountPaid: reconciledAmountPaid, payments: updatedPayments,
         ...(invoiceBump ? { invoiceSentCount: invoiceBump.count, invoiceLastSentAt: invoiceBump.lastSentAt } : {}),
       };
       onUpdate(paidJob);
@@ -3159,7 +3165,7 @@ export function PaymentPanel({ job, onUpdate, onRequote }: { job: Job; onUpdate:
 
   async function markInvoiced() {
     setSaving(true);
-    await patchJob(job.id, { job_status: 'INVOICED', invoice_amount: finalAmount, tax_amount: taxForAmount(finalAmount) });
+    await patchJob(job.id, { job_status: 'INVOICED', invoice_amount: finalAmount, tax_amount: taxForAmount(finalAmount), tax_rate_snapshot: TAX_RATE });
     let updated = { ...job, jobStatus: 'INVOICED' as JobStatus, invoiceAmount: finalAmount, taxAmount: taxForAmount(finalAmount) };
     const inv = await sendInvoiceEmail(updated);
     if (inv) updated = { ...updated, invoiceSentCount: inv.count, invoiceLastSentAt: inv.lastSentAt };
@@ -3188,7 +3194,7 @@ export function PaymentPanel({ job, onUpdate, onRequote }: { job: Job; onUpdate:
           <span className="text-gray-400 font-mono">${(job.invoiceAmount || 0).toFixed(2)}</span>
         </div>
         <div className="flex justify-between text-xs">
-          <span className="text-gray-600">AZ TPT ({taxRatePercentLabel()}%)</span>
+          <span className="text-gray-600">AZ TPT ({taxRatePercentLabel(job.taxRateSnapshot ?? TAX_RATE)}%)</span>
           <span className="text-yellow-600 font-mono">${(job.taxAmount || 0).toFixed(2)}</span>
         </div>
         {job.payments?.length > 0 ? (
@@ -4412,7 +4418,7 @@ export function JobDetailPanel({ job: initialJob, onClose, onJobUpdate, backLabe
                     <span className="text-white text-sm font-mono">${(job.estimateAmount || 0).toFixed(2)}</span>
                   </div>
                   <div className="flex justify-between px-4 py-2">
-                    <span className="text-gray-500 text-xs font-bold uppercase tracking-wider">AZ TPT ({taxRatePercentLabel()}%)</span>
+                    <span className="text-gray-500 text-xs font-bold uppercase tracking-wider">AZ TPT ({taxRatePercentLabel(job.taxRateSnapshot ?? TAX_RATE)}%)</span>
                     <span className="text-white text-sm font-mono">${taxFromItems(job.lineItems).toFixed(2)}</span>
                   </div>
                   <div className="flex justify-between px-4 py-3">
@@ -5255,6 +5261,7 @@ export function ExternalLeadModal({ onClose, onAdded, jobs }: { onClose: () => v
       created_at: now.toISOString(),
       line_items: JSON.stringify(lineItems),
       tax_amount: tax,
+      tax_rate_snapshot: TAX_RATE,
       estimate_amount: subtotal,
       estimate_notes: notesStr,
       ...(f.vin ? { vin: f.vin } : {}),
@@ -7443,7 +7450,7 @@ export function InvoicePage() {
           <div className="flex justify-end mt-3">
             <div className="w-64 text-base">
               <div className="flex justify-between py-1"><span>Subtotal</span><span>${amount?.toFixed(2)}</span></div>
-              <div className="flex justify-between py-1 border-b border-gray-300"><span>AZ TPT ({taxRatePercentLabel()}%)</span><span>${(job.taxAmount || 0).toFixed(2)}</span></div>
+              <div className="flex justify-between py-1 border-b border-gray-300"><span>AZ TPT ({taxRatePercentLabel(job.taxRateSnapshot ?? TAX_RATE)}%)</span><span>${(job.taxAmount || 0).toFixed(2)}</span></div>
               {isPartiallyPaid && (
                 <div className="flex justify-between py-1"><span>Amount Paid</span><span>-${(job.amountPaid || 0).toFixed(2)}</span></div>
               )}
@@ -7566,7 +7573,7 @@ export function InvoicePage() {
               <span className="text-white text-sm font-mono">${amount?.toFixed(2)}</span>
             </div>
             <div className="flex justify-between px-6 py-3 border-t border-white/5">
-              <span className="text-gray-500 text-xs font-bold uppercase tracking-wider">AZ TPT ({taxRatePercentLabel()}%)</span>
+              <span className="text-gray-500 text-xs font-bold uppercase tracking-wider">AZ TPT ({taxRatePercentLabel(job.taxRateSnapshot ?? TAX_RATE)}%)</span>
               <span className="text-white text-sm font-mono">${(job.taxAmount || 0).toFixed(2)}</span>
             </div>
             {isPartiallyPaid && (
@@ -7930,7 +7937,7 @@ export function EstimatePage() {
             <span className="text-white text-sm font-mono">${job.estimateAmount?.toFixed(2)}</span>
           </div>
           <div className="flex justify-between px-4 py-3 border-t border-white/5">
-            <span className="text-gray-500 text-xs font-bold uppercase tracking-wider">AZ TPT ({taxRatePercentLabel()}%)</span>
+            <span className="text-gray-500 text-xs font-bold uppercase tracking-wider">AZ TPT ({taxRatePercentLabel(job.taxRateSnapshot ?? TAX_RATE)}%)</span>
             <span className="text-white text-sm font-mono">${taxFromItems(job.lineItems).toFixed(2)}</span>
           </div>
           <div className="flex justify-between px-4 py-4 border-t border-white/10">
@@ -8829,7 +8836,7 @@ function buildInvoicesPdf(JsPDF: any, jobs: Job[], periodLabel: string): any {
     doc.text(money(job.invoiceAmount || 0), rightX, y, { align: 'right' });
     y += 16;
     doc.setTextColor(180, 83, 9);
-    doc.text(`AZ TPT (${taxRatePercentLabel()}%)`, marginX, y);
+    doc.text(`AZ TPT (${taxRatePercentLabel(job.taxRateSnapshot ?? TAX_RATE)}%)`, marginX, y);
     doc.text(money(job.taxAmount || 0), rightX, y, { align: 'right' });
     y += 14;
     doc.setDrawColor(20);
@@ -8985,7 +8992,7 @@ function InvoiceExport() {
             <div style="border-top:1px solid #333;padding:12px 20px;">
               <table style="width:100%;">
                 <tr><td style="padding:4px 0;font-size:11px;color:#666;">Subtotal</td><td style="text-align:right;font-family:monospace;font-size:12px;color:#fff;">$${(job.invoiceAmount||0).toFixed(2)}</td></tr>
-                <tr><td style="padding:4px 0;font-size:11px;color:#b45309;">AZ TPT (${taxRatePercentLabel()}%)</td><td style="text-align:right;font-family:monospace;font-size:12px;color:#fbbf24;">$${(job.taxAmount||0).toFixed(2)}</td></tr>
+                <tr><td style="padding:4px 0;font-size:11px;color:#b45309;">AZ TPT (${taxRatePercentLabel(job.taxRateSnapshot ?? TAX_RATE)}%)</td><td style="text-align:right;font-family:monospace;font-size:12px;color:#fbbf24;">$${(job.taxAmount||0).toFixed(2)}</td></tr>
                 <tr style="border-top:1px solid #333;"><td style="padding:8px 0 4px;font-size:12px;color:#fff;font-weight:700;">Total</td><td style="text-align:right;font-family:monospace;font-size:14px;color:#4ade80;font-weight:900;">$${total}</td></tr>
               </table>
             </div>
@@ -9389,7 +9396,8 @@ function TaxSummary() {
       : null;
     if (items && items.length) return taxableAmount(items);
     const tax = Number(b.tax_amount) || 0;
-    return tax > 0 ? tax / TAX_RATE : 0;
+    const historicalRate = Number(b.tax_rate_snapshot) || TAX_RATE;
+    return tax > 0 ? tax / historicalRate : 0;
   }
 
   useEffect(() => {

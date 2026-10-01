@@ -92,6 +92,8 @@ export async function onRequestPost({ request, env }) {
     const charge = await chargeRes.json();
     if (charge.error) throw new Error(charge.error.message);
 
+    const currentTaxRate = await fetchCurrentTaxRate();
+
     // Update Supabase; Stripe success is not considered complete until this write is confirmed.
     const updateRes = await fetch(`${supabaseUrl}/rest/v1/bookings?id=eq.${bookingId}`, {
       method: 'PATCH',
@@ -109,7 +111,8 @@ export async function onRequestPost({ request, env }) {
         // flat-rate fallback overcharges tax whenever any line item is exempt.
         tax_amount: taxAmount != null
           ? Math.round(Number(taxAmount) * 100) / 100
-          : (subtotal != null ? Math.round(subtotal * (await fetchCurrentTaxRate()) * 100) / 100 : 0),
+          : (subtotal != null ? Math.round(subtotal * currentTaxRate * 100) / 100 : 0),
+        tax_rate_snapshot: currentTaxRate,
         paid_at: new Date().toISOString(),
         job_status: 'PAID',
         status: 'completed',
