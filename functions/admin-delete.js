@@ -4,15 +4,18 @@
 //   This lets the admin delete button work even after the public DELETE policy is
 //   removed from Supabase, so the internet can't delete rows but you still can.
 
+import { verifyAccess } from './_lib/access-auth.js';
+
 export async function onRequestPost({ request, env }) {
   const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Headers': 'Content-Type',
   };
 
-  if (!request.headers.get('Cf-Access-Jwt-Assertion')) {
-    return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-      status: 401, headers: { 'Content-Type': 'application/json' },
+  const auth = await verifyAccess(request, env);
+  if (!auth.ok) {
+    return new Response(JSON.stringify({ error: auth.error }), {
+      status: auth.status, headers: { 'Content-Type': 'application/json' },
     });
   }
 

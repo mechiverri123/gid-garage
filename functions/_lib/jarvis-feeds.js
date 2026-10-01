@@ -323,7 +323,7 @@ export async function sendMessenger({ env, bucket, psid, text, reviewed, confirm
   let lead = null;
   if (leadId && sbGet && sbPatch) {
     [lead] = await sbGet('leads', { select: 'id,status,notes', id: `eq.${leadId}`, limit: '1' });
-    if (lead) await markLeadContacted({ sbPatch, lead, note: `Messaged on Messenger ${new Date(now).toISOString().slice(0, 10)}`, now });
+    if (lead) await markLeadContacted({ sbPatch, lead, note: `Messaged on Messenger ${phoenixYmd(now)}`, now });
   }
   return { ok: true, messageId: sent?.message_id || null, leadStatus: lead ? (['new', 'no_response'].includes(lead.status) ? 'contacted' : lead.status) : null };
 }

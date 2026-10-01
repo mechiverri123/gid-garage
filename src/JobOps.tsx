@@ -3096,7 +3096,7 @@ export function PaymentPanel({ job, onUpdate, onRequote }: { job: Job; onUpdate:
       // payments, log this manual entry's remaining-balance amount so
       // revenue-by-month tracking actually sees it.
       const updatedPayments = [...(job.payments || []), {
-            id: Math.random().toString(36).slice(2),
+            id: crypto.randomUUID(),
             amount: balanceDue,
             method: 'Manual Entry',
             note: amountPaidSoFar > 0 ? 'Remaining balance' : '',
@@ -9120,7 +9120,10 @@ function InvoiceExport() {
 
 // ── CSV EXPORT (all jobs — for taxes / bookkeeping) ────────────────────────────
 function csvCell(val: any): string {
-  const s = val === null || val === undefined ? '' : String(val);
+  let s = val === null || val === undefined ? '' : String(val);
+  // Prevent spreadsheet formula injection when customer-entered text is opened
+  // in Excel/Sheets. The leading apostrophe is displayed as text by spreadsheets.
+  if (/^[\t\r ]*[=+\-@]/.test(s)) s = `'${s}`;
   return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 

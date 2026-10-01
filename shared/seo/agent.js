@@ -388,7 +388,11 @@ export function parseRankCsv(text = '') {
     const cols = l.split(',').map(s => s.trim());
     const get = k => (idx(k) >= 0 ? cols[idx(k)] : '');
     const keyword = get('keyword'); const area = get('area'); const rawRank = get('rank');
-    const date = get('date') || new Date().toISOString().slice(0, 10);
+    const date = get('date') || (() => {
+      const parts = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Phoenix', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date());
+      const getPart = t => parts.find(p => p.type === t)?.value;
+      return `${getPart('year')}-${getPart('month')}-${getPart('day')}`;
+    })();
     const rank = /^(nr|none|not ranked|-|)$/i.test(rawRank) ? null : Number(rawRank);
     if (!keyword || !area || (rank != null && !(Number.isInteger(rank) && rank >= 1 && rank <= 100)) || !/^\d{4}-\d{2}-\d{2}$/.test(date)) { errors.push(`Line ${i + 1}: "${l}"`); return; }
     rows.push({ keyword: keyword.toLowerCase(), area_name: area, rank, observed_on: date, in_local_pack: /^(y|yes|true|1)$/i.test(get('in_local_pack')), competitors: get('competitors') ? get('competitors').split(';').map(s => s.trim()).filter(Boolean) : [], method: 'csv' });

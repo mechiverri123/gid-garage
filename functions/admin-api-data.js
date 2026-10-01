@@ -58,6 +58,8 @@ const GBP_REVIEW_URL = 'https://g.page/r/CdERSypGqVdlEBM/review';
 
 
 
+function escHtml(value) { return String(value ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;'); }
+
 function json(body, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
@@ -82,13 +84,12 @@ function namesLikelyMatch(fnameA, lnameA, fnameB, lnameB) {
   return la === lb;
 }
 
+import { verifyAccess } from './_lib/access-auth.js';
+
 export async function onRequestPost({ request, env }) {
-  // Defense-in-depth: require the Access JWT. Access normally blocks this route
-  // entirely, but if the route is ever mis-scoped this prevents open access.
-  const accessJwt = request.headers.get('Cf-Access-Jwt-Assertion');
-  if (!accessJwt) {
-    return json({ error: 'Unauthorized' }, 401);
-  }
+  // Defense-in-depth: cryptographically verify the Access JWT, not just its presence.
+  const auth = await verifyAccess(request, env);
+  if (!auth.ok) return json({ error: auth.error }, auth.status);
 
   const supabaseUrl = env.SUPABASE_URL ?? env.VITE_SUPABASE_URL;
   const serviceKey = env.SUPABASE_SERVICE_KEY;
@@ -783,7 +784,7 @@ export async function onRequestPost({ request, env }) {
         const ppiUrl = `https://gidgarage.com/ppi?id=${record.id}`;
         await brevoSend({
           sender: { name: 'GID Garage', email: 'bookings@gidgarage.com' },
-          to: [{ email: toEmail, name: `${record.fname || ''} ${record.lname || ''}`.trim() }],
+          to: [{ email: toEmail, name: `${escHtml(record.fname || '')} ${record.lname || ''}`.trim() }],
           subject: `Pre-Purchase Inspection — ${record.vehicle || 'Vehicle'} — GID Garage`,
           htmlContent: `<div style="font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;max-width:580px;margin:0 auto;background:#0f0f0f;color:#fff;">
             <div style="background:#111827;border-bottom:3px solid #2563eb;">
@@ -791,11 +792,11 @@ export async function onRequestPost({ request, env }) {
             </div>
             <div style="padding:32px;">
               <h2 style="color:#fff;font-size:24px;font-weight:900;margin:0 0 6px;letter-spacing:-0.5px;">Pre-Purchase Inspection</h2>
-              <p style="color:#6b7280;font-size:14px;margin:0 0 28px;">Hi ${record.fname || ''} — here's the inspection report for ${record.vehicle || 'the vehicle'}.</p>
+              <p style="color:#6b7280;font-size:14px;margin:0 0 28px;">Hi ${escHtml(record.fname || '')} — here's the inspection report for ${escHtml(record.vehicle || 'the vehicle')}.</p>
               <div style="background:#1f2937;border:1px solid #374151;border-left:4px solid #2563eb;padding:16px 20px;margin-bottom:28px;">
                 <table style="width:100%;border-collapse:collapse;">
-                  ${record.vin ? `<tr><td style="color:#6b7280;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;padding:3px 0;">VIN</td><td style="color:#fff;font-size:13px;text-align:right;padding:3px 0;font-family:monospace;">${record.vin}</td></tr>` : ''}
-                  ${record.vehicle ? `<tr><td style="color:#6b7280;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;padding:3px 0;">Vehicle</td><td style="color:#fff;font-size:13px;text-align:right;padding:3px 0;">${record.vehicle}</td></tr>` : ''}
+                  ${record.vin ? `<tr><td style="color:#6b7280;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;padding:3px 0;">VIN</td><td style="color:#fff;font-size:13px;text-align:right;padding:3px 0;font-family:monospace;">${escHtml(record.vin)}</td></tr>` : ''}
+                  ${record.vehicle ? `<tr><td style="color:#6b7280;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;padding:3px 0;">Vehicle</td><td style="color:#fff;font-size:13px;text-align:right;padding:3px 0;">${escHtml(record.vehicle)}</td></tr>` : ''}
                 </table>
               </div>
               <p style="margin:28px 0 8px;text-align:center;">
@@ -1169,14 +1170,14 @@ export async function onRequestPost({ request, env }) {
             </table>
           </td></tr></table>` : '';
         const lineItemsHtml = job.lineItems?.length
-          ? job.lineItems.map(i => `<tr><td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#9ca3af;font-size:13px;">${i.label}</td><td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#fff;font-size:13px;text-align:right;white-space:nowrap;">${i.amount === 0 ? 'FREE' : (i.amount < 0 ? '-$' + Math.abs(Number(i.amount)).toFixed(2) : '$' + Number(i.amount).toFixed(2))}</td></tr>`).join('')
-          : `<tr><td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#9ca3af;font-size:13px;">${job.service}</td><td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#fff;font-size:13px;text-align:right;">$${Number(job.estimateAmount || 0).toFixed(2)}</td></tr>`;
+          ? job.lineItems.map(i => `<tr><td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#9ca3af;font-size:13px;">${escHtml(i.label)}</td><td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#fff;font-size:13px;text-align:right;white-space:nowrap;">${i.amount === 0 ? 'FREE' : (i.amount < 0 ? '-$' + Math.abs(Number(i.amount)).toFixed(2) : '$' + Number(i.amount).toFixed(2))}</td></tr>`).join('')
+          : `<tr><td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#9ca3af;font-size:13px;">${escHtml(job.service)}</td><td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#fff;font-size:13px;text-align:right;">$${Number(job.estimateAmount || 0).toFixed(2)}</td></tr>`;
         const estimateUrl = `https://gidgarage.com/estimate?id=${job.id}`;
         await brevoSend({
           sender: { name: 'GID Garage', email: 'bookings@gidgarage.com' },
-          to: [{ email: job.email, name: `${job.fname} ${job.lname}` }],
-          subject: `Your GID Garage Estimate — ${job.vehicle}`,
-          htmlContent: `<div style="font-family:sans-serif;max-width:560px;margin:0 auto;background:#0f0f0f;color:#fff;padding:0;overflow:hidden;"><img src="https://gidgarage.com/banner.PNG" alt="GID Garage" style="width:100%;display:block;height:auto;"/><div style="padding:28px 32px 32px;"><h2 style="color:#fff;font-size:22px;margin:0 0 8px;">Your Estimate is Ready</h2><p style="color:#9ca3af;margin:0 0 20px;">Hi ${job.fname}, here's your quote for the upcoming appointment.</p><table style="width:100%;border-collapse:collapse;margin-bottom:8px;">${lineItemsHtml}</table><table style="width:100%;border-collapse:collapse;margin-bottom:20px;">
+          to: [{ email: job.email, name: `${escHtml(job.fname)} ${job.lname}` }],
+          subject: `Your GID Garage Estimate — ${escHtml(job.vehicle)}`,
+          htmlContent: `<div style="font-family:sans-serif;max-width:560px;margin:0 auto;background:#0f0f0f;color:#fff;padding:0;overflow:hidden;"><img src="https://gidgarage.com/banner.PNG" alt="GID Garage" style="width:100%;display:block;height:auto;"/><div style="padding:28px 32px 32px;"><h2 style="color:#fff;font-size:22px;margin:0 0 8px;">Your Estimate is Ready</h2><p style="color:#9ca3af;margin:0 0 20px;">Hi ${escHtml(job.fname)}, here's your quote for the upcoming appointment.</p><table style="width:100%;border-collapse:collapse;margin-bottom:8px;">${lineItemsHtml}</table><table style="width:100%;border-collapse:collapse;margin-bottom:20px;">
               <tr style="border-top:2px solid #374151;"><td style="padding:12px 0 4px;color:#9ca3af;font-size:13px;">Subtotal</td><td style="padding:12px 0 4px;color:#fff;font-size:13px;text-align:right;">$${Number(job.estimateAmount||0).toFixed(2)}</td></tr>
               <tr><td style="padding:4px 0;color:#9ca3af;font-size:13px;">AZ TPT (${estTaxPct}%)</td><td style="padding:4px 0;color:#fff;font-size:13px;text-align:right;">$${Number(job.taxAmount||0).toFixed(2)}</td></tr>
               <tr style="background:#111827;"><td style="padding:10px 0 10px 0;color:#fff;font-size:14px;font-weight:700;border-top:1px solid #374151;">Total</td><td style="padding:10px 0;color:#fff;font-size:15px;font-weight:900;text-align:right;border-top:1px solid #374151;">$${(Number(job.estimateAmount||0)+Number(job.taxAmount||0)).toFixed(2)}</td></tr>
@@ -1199,12 +1200,12 @@ export async function onRequestPost({ request, env }) {
         const totalInv = subtotalInv + taxInv;
         const taxPctInv = (currentRateForInvoice * 100).toFixed(3);
         const lineItemsHtml = job.lineItems?.length
-          ? job.lineItems.map(i => `<tr><td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#9ca3af;font-size:13px;">${i.label}</td><td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#fff;font-size:13px;text-align:right;font-family:monospace;white-space:nowrap;">${i.amount === 0 ? 'FREE' : (i.amount < 0 ? '-$' + Math.abs(Number(i.amount)).toFixed(2) : '$' + Number(i.amount).toFixed(2))}</td></tr>`).join('')
+          ? job.lineItems.map(i => `<tr><td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#9ca3af;font-size:13px;">${escHtml(i.label)}</td><td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#fff;font-size:13px;text-align:right;font-family:monospace;white-space:nowrap;">${i.amount === 0 ? 'FREE' : (i.amount < 0 ? '-$' + Math.abs(Number(i.amount)).toFixed(2) : '$' + Number(i.amount).toFixed(2))}</td></tr>`).join('')
           : '';
         const serviceDateInv = job.date ? new Date(job.date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }) : '';
         await brevoSend({
           sender: { name: 'GID Garage', email: 'bookings@gidgarage.com' },
-          to: [{ email: job.email, name: `${job.fname} ${job.lname}` }],
+          to: [{ email: job.email, name: `${escHtml(job.fname)} ${job.lname}` }],
           subject: `Invoice — ${job.vehicle || 'Your Vehicle'} — GID Garage`,
           htmlContent: `<div style="font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;max-width:580px;margin:0 auto;background:#0f0f0f;color:#fff;">
             <div style="background:#111827;border-bottom:3px solid #dc2626;">
@@ -1212,14 +1213,14 @@ export async function onRequestPost({ request, env }) {
             </div>
             <div style="padding:32px;">
               <h2 style="color:#fff;font-size:24px;font-weight:900;margin:0 0 6px;letter-spacing:-0.5px;">Invoice Ready for Review</h2>
-              <p style="color:#6b7280;font-size:14px;margin:0 0 28px;">Hi ${job.fname} — your service has been completed. Please review and pay your invoice below.</p>
+              <p style="color:#6b7280;font-size:14px;margin:0 0 28px;">Hi ${escHtml(job.fname)} — your service has been completed. Please review and pay your invoice below.</p>
 
               <div style="background:#1f2937;border:1px solid #374151;border-left:4px solid #dc2626;padding:16px 20px;margin-bottom:28px;">
                 <table style="width:100%;border-collapse:collapse;">
-                  ${job.vehicle ? `<tr><td style="color:#6b7280;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;padding:3px 0;">Vehicle</td><td style="color:#fff;font-size:13px;text-align:right;padding:3px 0;">${job.vehicle}</td></tr>` : ''}
+                  ${job.vehicle ? `<tr><td style="color:#6b7280;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;padding:3px 0;">Vehicle</td><td style="color:#fff;font-size:13px;text-align:right;padding:3px 0;">${escHtml(job.vehicle)}</td></tr>` : ''}
                   ${serviceDateInv ? `<tr><td style="color:#6b7280;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;padding:3px 0;">Service Date</td><td style="color:#fff;font-size:13px;text-align:right;padding:3px 0;">${serviceDateInv}</td></tr>` : ''}
-                  ${job.service ? `<tr><td style="color:#6b7280;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;padding:3px 0;">Service</td><td style="color:#fff;font-size:13px;text-align:right;padding:3px 0;">${job.serviceIcon || ''} ${job.service.charAt(0).toUpperCase() + job.service.slice(1)}</td></tr>` : ''}
-                  ${job.serviceAddress ? `<tr><td style="color:#6b7280;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;padding:3px 0;">Location</td><td style="color:#fff;font-size:13px;text-align:right;padding:3px 0;">${job.serviceAddress}</td></tr>` : ''}
+                  ${job.service ? `<tr><td style="color:#6b7280;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;padding:3px 0;">Service</td><td style="color:#fff;font-size:13px;text-align:right;padding:3px 0;">${escHtml(job.serviceIcon || '')} ${escHtml(job.service.charAt(0).toUpperCase() + job.service.slice(1))}</td></tr>` : ''}
+                  ${job.serviceAddress ? `<tr><td style="color:#6b7280;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;padding:3px 0;">Location</td><td style="color:#fff;font-size:13px;text-align:right;padding:3px 0;">${escHtml(job.serviceAddress)}</td></tr>` : ''}
                 </table>
               </div>
 
@@ -1256,15 +1257,15 @@ export async function onRequestPost({ request, env }) {
         const taxPctRcpt = ((await fetchCurrentTaxRate()) * 100).toFixed(3);
         const hasAdjustment = adjustmentReason && adjustmentAmount !== undefined && Math.abs(adjustmentAmount) > 0.001;
         const adjustmentHtml = hasAdjustment
-          ? `<tr style="background:#1a1a2e;"><td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#818cf8;font-size:13px;font-style:italic;">Price Adjustment — ${adjustmentReason}</td><td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#818cf8;font-size:13px;text-align:right;font-weight:700;font-family:monospace;">${Number(adjustmentAmount) < 0 ? '-' : '+'}$${Math.abs(Number(adjustmentAmount)).toFixed(2)}</td></tr>`
+          ? `<tr style="background:#1a1a2e;"><td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#818cf8;font-size:13px;font-style:italic;">Price Adjustment — ${escHtml(adjustmentReason)}</td><td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#818cf8;font-size:13px;text-align:right;font-weight:700;font-family:monospace;">${Number(adjustmentAmount) < 0 ? '-' : '+'}$${Math.abs(Number(adjustmentAmount)).toFixed(2)}</td></tr>`
           : '';
         const lineItemsHtml = job.lineItems?.length
-          ? job.lineItems.map(i => `<tr><td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#9ca3af;font-size:13px;">${i.label}</td><td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#fff;font-size:13px;text-align:right;font-family:monospace;white-space:nowrap;">${i.amount === 0 ? 'FREE' : (i.amount < 0 ? '-$' + Math.abs(Number(i.amount)).toFixed(2) : '$' + Number(i.amount).toFixed(2))}</td></tr>`).join('')
+          ? job.lineItems.map(i => `<tr><td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#9ca3af;font-size:13px;">${escHtml(i.label)}</td><td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#fff;font-size:13px;text-align:right;font-family:monospace;white-space:nowrap;">${i.amount === 0 ? 'FREE' : (i.amount < 0 ? '-$' + Math.abs(Number(i.amount)).toFixed(2) : '$' + Number(i.amount).toFixed(2))}</td></tr>`).join('')
           : '';
         const serviceDateRcpt = job.date ? new Date(job.date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }) : '';
         await brevoSend({
           sender: { name: 'GID Garage', email: 'bookings@gidgarage.com' },
-          to: [{ email: job.email, name: `${job.fname} ${job.lname}` }],
+          to: [{ email: job.email, name: `${escHtml(job.fname)} ${job.lname}` }],
           subject: `Payment Receipt — ${job.vehicle || 'GID Garage'}`,
           htmlContent: `<div style="font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;max-width:580px;margin:0 auto;background:#0f0f0f;color:#fff;">
             <div style="background:#111827;border-bottom:3px solid #16a34a;">
@@ -1272,14 +1273,14 @@ export async function onRequestPost({ request, env }) {
             </div>
             <div style="padding:32px;">
               <h2 style="color:#4ade80;font-size:24px;font-weight:900;margin:0 0 6px;letter-spacing:-0.5px;">✅ Payment Confirmed</h2>
-              <p style="color:#6b7280;font-size:14px;margin:0 0 28px;">Hi ${job.fname} — thanks for your business. Here's your receipt.</p>
+              <p style="color:#6b7280;font-size:14px;margin:0 0 28px;">Hi ${escHtml(job.fname)} — thanks for your business. Here's your receipt.</p>
 
               <div style="background:#1f2937;border:1px solid #374151;border-left:4px solid #16a34a;padding:16px 20px;margin-bottom:28px;">
                 <table style="width:100%;border-collapse:collapse;">
-                  ${job.vehicle ? `<tr><td style="color:#6b7280;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;padding:3px 0;">Vehicle</td><td style="color:#fff;font-size:13px;text-align:right;padding:3px 0;">${job.vehicle}</td></tr>` : ''}
+                  ${job.vehicle ? `<tr><td style="color:#6b7280;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;padding:3px 0;">Vehicle</td><td style="color:#fff;font-size:13px;text-align:right;padding:3px 0;">${escHtml(job.vehicle)}</td></tr>` : ''}
                   ${serviceDateRcpt ? `<tr><td style="color:#6b7280;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;padding:3px 0;">Service Date</td><td style="color:#fff;font-size:13px;text-align:right;padding:3px 0;">${serviceDateRcpt}</td></tr>` : ''}
-                  ${job.service ? `<tr><td style="color:#6b7280;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;padding:3px 0;">Service</td><td style="color:#fff;font-size:13px;text-align:right;padding:3px 0;">${job.serviceIcon || ''} ${job.service.charAt(0).toUpperCase() + job.service.slice(1)}</td></tr>` : ''}
-                  ${job.serviceAddress ? `<tr><td style="color:#6b7280;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;padding:3px 0;">Location</td><td style="color:#fff;font-size:13px;text-align:right;padding:3px 0;">${job.serviceAddress}</td></tr>` : ''}
+                  ${job.service ? `<tr><td style="color:#6b7280;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;padding:3px 0;">Service</td><td style="color:#fff;font-size:13px;text-align:right;padding:3px 0;">${escHtml(job.serviceIcon || '')} ${escHtml(job.service.charAt(0).toUpperCase() + job.service.slice(1))}</td></tr>` : ''}
+                  ${job.serviceAddress ? `<tr><td style="color:#6b7280;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;padding:3px 0;">Location</td><td style="color:#fff;font-size:13px;text-align:right;padding:3px 0;">${escHtml(job.serviceAddress)}</td></tr>` : ''}
                 </table>
               </div>
 
@@ -1294,7 +1295,7 @@ export async function onRequestPost({ request, env }) {
               <p style="margin:28px 0 8px;text-align:center;">
                 <a href="${invoiceUrl}" style="display:inline-block;background:#1f2937;color:#fff;text-decoration:none;font-weight:700;font-size:12px;padding:14px 32px;letter-spacing:0.08em;text-transform:uppercase;border:1px solid #374151;">🧾 VIEW / SAVE RECEIPT →</a>
               </p>
-              ${job.stripeTransactionId ? `<p style="color:#4b5563;font-size:11px;text-align:center;margin:8px 0 0;">Transaction ID: ${job.stripeTransactionId}</p>` : ''}
+              ${job.stripeTransactionId ? `<p style="color:#4b5563;font-size:11px;text-align:center;margin:8px 0 0;">Transaction ID: ${escHtml(job.stripeTransactionId)}</p>` : ''}
               <div style="margin-top:24px;padding-top:20px;border-top:1px solid #1f2937;text-align:center;">
                 <p style="color:#9ca3af;font-size:12px;margin:0 0 10px;">Happy with the work? A quick review helps a lot:</p>
                 <a href="${GBP_REVIEW_URL}" style="display:inline-block;background:#16a34a;color:#fff;text-decoration:none;font-weight:700;font-size:11px;padding:10px 24px;letter-spacing:0.05em;text-transform:uppercase;">⭐ Leave a Review</a>
@@ -1316,9 +1317,9 @@ export async function onRequestPost({ request, env }) {
         const retryUrl = `https://gidgarage.com/invoice?id=${job.id}&action=pay`;
         await brevoSend({
           sender: { name: 'GID Garage', email: 'bookings@gidgarage.com' },
-          to: [{ email: job.email, name: `${job.fname} ${job.lname}` }],
+          to: [{ email: job.email, name: `${escHtml(job.fname)} ${job.lname}` }],
           subject: 'Payment Declined — GID Garage',
-          htmlContent: `<div style="font-family:sans-serif;max-width:560px;margin:0 auto;background:#0f0f0f;color:#fff;padding:32px;"><img src="https://gidgarage.com/banner.PNG" alt="GID Garage" style="width:100%;display:block;height:auto;margin-bottom:24px;"/><h2 style="color:#ef4444;font-size:22px;margin:0 0 8px;">⚠️ Payment Declined</h2><p style="color:#9ca3af;margin:0 0 16px;">Hi ${job.fname}, your payment for ${job.vehicle} was declined${reason ? ': ' + reason : '.'} No worries — you can try again below with the same card or a different one.</p><p style="margin:24px 0;text-align:center;"><a href="${retryUrl}" style="display:inline-block;background:#dc2626;color:#fff;text-decoration:none;font-weight:bold;font-size:13px;padding:14px 28px;letter-spacing:0.05em;text-transform:uppercase;">TRY PAYMENT AGAIN →</a></p><p style="color:#4b5563;font-size:11px;margin-top:24px;">Or call or text <strong style="color:#9ca3af;">480-757-0476</strong> — GID Garage, Flagstaff AZ</p></div>`,
+          htmlContent: `<div style="font-family:sans-serif;max-width:560px;margin:0 auto;background:#0f0f0f;color:#fff;padding:32px;"><img src="https://gidgarage.com/banner.PNG" alt="GID Garage" style="width:100%;display:block;height:auto;margin-bottom:24px;"/><h2 style="color:#ef4444;font-size:22px;margin:0 0 8px;">⚠️ Payment Declined</h2><p style="color:#9ca3af;margin:0 0 16px;">Hi ${escHtml(job.fname)}, your payment for ${escHtml(job.vehicle)} was declined${reason ? ': ' + escHtml(reason) : '.'} No worries — you can try again below with the same card or a different one.</p><p style="margin:24px 0;text-align:center;"><a href="${retryUrl}" style="display:inline-block;background:#dc2626;color:#fff;text-decoration:none;font-weight:bold;font-size:13px;padding:14px 28px;letter-spacing:0.05em;text-transform:uppercase;">TRY PAYMENT AGAIN →</a></p><p style="color:#4b5563;font-size:11px;margin-top:24px;">Or call or text <strong style="color:#9ca3af;">480-757-0476</strong> — GID Garage, Flagstaff AZ</p></div>`,
         });
         return json({ ok: true });
       }
@@ -1657,7 +1658,7 @@ export async function onRequestPost({ request, env }) {
         }
 
         if (q.includes('ads') || q.includes('marketing') || q.includes('google ads') || q.includes('facebook ads') || q.includes('meta ads')) {
-          const windowStart = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
+          const windowStart = addDaysYmd(phoenixYmd(new Date()), -30);
           const [spendRes, leadsRes] = await Promise.all([
             fetch(`${base}/marketing_spend?select=*&date=gte.${windowStart}`, { headers }),
             fetch(`${base}/leads?select=source,status,quote_amount,booking_id&created_at=gte.${windowStart}`, { headers }),

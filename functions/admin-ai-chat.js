@@ -27,6 +27,7 @@
 // A conversation with no tool calls just streams a single 'final' line.
 
 import { createBusinessOps, cleanSearchText, writeResult } from './_lib/business-data.js';
+import { verifyAccess } from './_lib/access-auth.js';
 import { planTurn, updateContext, guardFinalText, projectForFacet } from './_lib/jarvis-context.js';
 import { isLikelyNaturalBusinessNote, classifyWithContext, focusedRoutingInstruction, INTENT_TOOL_NAMES } from './_lib/jarvis-intent.js';
 import { createSeoStore } from './_lib/seo/store.js';
@@ -889,14 +890,16 @@ const TOOLS = [
 ];
 
 export async function onRequestPost({ request, env }) {
-  const accessJwt = request.headers.get('Cf-Access-Jwt-Assertion');
   const internalJarvisSecret = request.headers.get('X-GID-Internal-Jarvis');
   const trustedInternalJarvis = Boolean(
     env.TELEGRAM_WEBHOOK_SECRET &&
     internalJarvisSecret &&
     internalJarvisSecret === env.TELEGRAM_WEBHOOK_SECRET
   );
-  if (!accessJwt && !trustedInternalJarvis) return json({ error: 'Unauthorized' }, 401);
+  if (!trustedInternalJarvis) {
+    const auth = await verifyAccess(request, env);
+    if (!auth.ok) return json({ error: auth.error }, auth.status);
+  }
 
   const anthropicKey = env.ANTHROPIC_API_KEY;
   const supabaseUrl = env.SUPABASE_URL ?? env.VITE_SUPABASE_URL;

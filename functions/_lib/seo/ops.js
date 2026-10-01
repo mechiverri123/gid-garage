@@ -18,7 +18,13 @@ import { createAgentOps } from './agent-ops.js';
 import { currentCrawl } from '../../../shared/seo/agent-detectors.js';
 
 const DAY = 86400000;
-const ymd = d => new Date(d).toISOString().slice(0, 10);
+const ymd = d => {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/Phoenix', year: 'numeric', month: '2-digit', day: '2-digit',
+  }).formatToParts(new Date(d));
+  const get = t => parts.find(p => p.type === t)?.value;
+  return `${get('year')}-${get('month')}-${get('day')}`;
+};
 const shift = (d, n) => ymd(new Date(new Date(`${ymd(d)}T12:00:00Z`).getTime() + n * DAY));
 const GSC_LAG = 3;
 

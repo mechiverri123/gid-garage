@@ -186,7 +186,7 @@ export function planPayment(job, { amount, method = 'Other', stripeId = '', note
   if (dup) throw new Error(`A $${amt.toFixed(2)} payment was already recorded on this job at ${dup.at}. Not recording a duplicate.`);
 
   const payment = {
-    id: Math.random().toString(36).slice(2),
+    id: crypto.randomUUID(),
     amount: amt,
     method,
     note: String(note || 'Recorded by Jarvis').slice(0, 500),

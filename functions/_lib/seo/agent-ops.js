@@ -19,7 +19,13 @@ import { PLACES, isInsideServiceArea } from '../../../shared/seo/service-area.js
 const SERVICE_AREA_PLACES = PLACES.filter(p => isInsideServiceArea({ lat: p.lat, lng: p.lng }).inside === true).map(({ name, lat, lng }) => ({ name, lat, lng }));
 
 const DAY = 86400000;
-const ymd = d => new Date(d).toISOString().slice(0, 10);
+const ymd = d => {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/Phoenix', year: 'numeric', month: '2-digit', day: '2-digit',
+  }).formatToParts(new Date(d));
+  const get = t => parts.find(p => p.type === t)?.value;
+  return `${get('year')}-${get('month')}-${get('day')}`;
+};
 const addDays = (d, n) => ymd(new Date(new Date(`${ymd(d)}T12:00:00Z`).getTime() + n * DAY));
 const LOCAL = new Set(['likely_local', 'confirmed_local']);
 const KNOWLEDGE_EVERY_DAYS = 7;

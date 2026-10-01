@@ -10,12 +10,12 @@
  *   - Route covered by Cloudflare Access (same policy as /admin)
  */
 
+import { verifyAccess } from './_lib/access-auth.js';
+
 export async function onRequestGet({ request, env }) {
   // Defense-in-depth: require Access JWT
-  const accessJwt = request.headers.get('Cf-Access-Jwt-Assertion');
-  if (!accessJwt) {
-    return new Response('Unauthorized', { status: 401 });
-  }
+  const auth = await verifyAccess(request, env);
+  if (!auth.ok) return new Response(auth.error, { status: auth.status });
 
   const bucket = env.GID_PHOTOS;
   if (!bucket) {

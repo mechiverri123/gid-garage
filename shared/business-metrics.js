@@ -124,7 +124,7 @@ const invoiceTotal = j => num(j.invoiceAmount) + num(j.taxAmount);
 export function moneyEntriesForJob(j) {
   const payments = parsePayments(j.payments)
     .filter(p => p?.at && Number.isFinite(new Date(p.at).getTime()) && Number.isFinite(num(p.amount)) && num(p.amount) !== 0)
-    .map(p => ({ date: p.at, amount: num(p.amount), method: p.method || null, source: 'payment_entry' }));
+    .map(p => ({ date: p.at, amount: num(p.amount), method: p.method || null, stripeId: p.stripeId || null, source: 'payment_entry' }));
 
   const loggedTotal = payments.reduce((s, p) => s + p.amount, 0);
   const invoiceGross = invoiceTotal(j);
@@ -281,7 +281,7 @@ export function cardRevenue(jobs, inWindow) {
       if (!e?.date || !inWindow(e.date)) continue;
       const logged = e.source === 'payment_entry';
       const isStripe = logged
-        ? !!e.stripeId || e.method === 'Card (Stripe)' || e.method === 'Card (Tap to Pay)'
+        ? !!e.stripeId || e.method === 'Card (Stripe)' || e.method === 'Card (Tap to Pay)' || e.method === 'Card (Self-Pay)'
         : !!j.stripeTransactionId;
       if (isStripe) total += num(e.amount);
     }

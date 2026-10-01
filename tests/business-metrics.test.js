@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   resolvePeriodWindow, collectedRevenue, netProfit, cardRevenue,
-  ownerPaySettings, ownerTakeHome, jobFromRow, phoenixDateParts,
+  ownerPaySettings, ownerTakeHome, jobFromRow, phoenixDateParts, moneyEntriesForJob,
 } from '../shared/business-metrics.js';
 
 // Noon Sept 27 2026 in Arizona (UTC-7, no DST).
@@ -157,4 +157,15 @@ test('1: contributions add up to the totals, and the period comparison is exact'
   assert.equal(cmp.netProfitDifference, 100); // 920 − 820
   assert.deepEqual(cmp.differences.map(d => [d.job.id, d.where, d.collectedDifference]), [['F', 'only_in_b', 100]]);
   assert.equal(cents(cmp.differences.reduce((s, d) => s + d.collectedDifference, 0)), cmp.collectedDifference);
+});
+
+test('card revenue recognizes self-pay Stripe entries and preserves stripeId evidence', () => {
+  const jobs = [{
+    id: 'self-pay', jobStatus: 'PAID', paidAt: '2026-10-01T19:00:00.000Z',
+    invoiceAmount: 100, taxAmount: 0, partsCost: 0, amountPaid: 100,
+    payments: [{ id: 'p1', amount: 100, method: 'Card (Self-Pay)', at: '2026-10-01T19:00:00.000Z', stripeId: 'ch_test' }],
+  }];
+  const w = resolvePeriodWindow('this_month', new Date('2026-10-15T19:00:00.000Z'));
+  assert.equal(cardRevenue(jobs, w.inWindow), 100);
+  assert.equal(moneyEntriesForJob(jobs[0])[0].stripeId, 'ch_test');
 });

@@ -13,6 +13,7 @@
 import { reportError } from './_lib/sentry.js';
 
 const GBP_REVIEW_URL = 'https://g.page/r/CdERSypGqVdlEBM/review';
+const escapeHtml = (value) => String(value ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 
 async function handle({ request, env }) {
   const url = new URL(request.url);
@@ -62,7 +63,7 @@ async function handle({ request, env }) {
     for (const b of rows) {
       if (!b.email) { skipped++; continue; }
       try {
-        await fetch('https://api.brevo.com/v3/smtp/email', {
+        const emailRes = await fetch('https://api.brevo.com/v3/smtp/email', {
           method: 'POST',
           headers: { 'api-key': brevoKey, 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -72,7 +73,7 @@ async function handle({ request, env }) {
             htmlContent: `<div style="font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;max-width:560px;margin:0 auto;background:#0f0f0f;color:#fff;padding:32px;">
               <img src="https://gidgarage.com/banner.PNG" alt="GID Garage" style="width:100%;display:block;height:auto;margin-bottom:24px;"/>
               <h2 style="color:#4ade80;font-size:22px;font-weight:900;margin:0 0 10px;">How'd we do?</h2>
-              <p style="color:#9ca3af;font-size:14px;line-height:1.5;margin:0 0 24px;">Hi ${b.fname || ''}, thanks again for trusting GID Garage with ${b.vehicle || 'your vehicle'}. If you have a minute, a quick Google review helps a small mobile shop like this a ton.</p>
+              <p style="color:#9ca3af;font-size:14px;line-height:1.5;margin:0 0 24px;">Hi ${escapeHtml(b.fname || '')}, thanks again for trusting GID Garage with ${escapeHtml(b.vehicle || 'your vehicle')}. If you have a minute, a quick Google review helps a small mobile shop like this a ton.</p>
               <p style="text-align:center;margin:0 0 8px;">
                 <a href="${GBP_REVIEW_URL}" style="display:inline-block;background:#16a34a;color:#fff;text-decoration:none;font-weight:700;font-size:13px;padding:14px 32px;letter-spacing:0.05em;text-transform:uppercase;">⭐ Leave a Review</a>
               </p>
@@ -80,11 +81,13 @@ async function handle({ request, env }) {
             </div>`,
           }),
         });
-        await fetch(`${supabaseUrl}/rest/v1/bookings?id=eq.${b.id}`, {
+        if (!emailRes.ok) throw new Error(`Brevo send failed: ${emailRes.status} ${await emailRes.text()}`);
+        const markRes = await fetch(`${supabaseUrl}/rest/v1/bookings?id=eq.${b.id}`, {
           method: 'PATCH',
           headers: { ...headers, Prefer: 'return=minimal' },
           body: JSON.stringify({ review_requested_at: new Date().toISOString() }),
         });
+        if (!markRes.ok) throw new Error(`Could not mark review request sent: ${markRes.status} ${await markRes.text()}`);
         sent++;
       } catch (e) {
         failed++;

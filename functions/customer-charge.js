@@ -16,6 +16,11 @@ import { reportError } from './_lib/sentry.js';
 
 const GBP_REVIEW_URL = 'https://g.page/r/CdERSypGqVdlEBM/review';
 
+const escapeHtml = (value) => String(value ?? '')
+  .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+  .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+
+
 function corsHeaders() {
   return {
     'Access-Control-Allow-Origin': '*',
@@ -67,7 +72,7 @@ export async function onRequestPost({ request, env }) {
       headers: { 'api-key': brevoKey, 'Content-Type': 'application/json' },
       body: JSON.stringify(emailPayload),
     });
-    if (!r.ok) console.error('Brevo send failed:', r.status, await r.text());
+    if (!r.ok) throw new Error(`Brevo send failed: ${r.status} ${await r.text()}`);
   }
 
   // Current AZ TPT rate as a decimal — only used as a fallback if the client
@@ -82,6 +87,18 @@ export async function onRequestPost({ request, env }) {
     } catch {
       return 0.09386;
     }
+  }
+
+  async function stripeChargeTimestamp(chargeId) {
+    if (!chargeId) return null;
+    try {
+      const r = await fetch(`https://api.stripe.com/v1/charges/${encodeURIComponent(chargeId)}`, {
+        headers: { Authorization: `Bearer ${stripeKey}` },
+      });
+      if (!r.ok) return null;
+      const charge = await r.json();
+      return Number.isFinite(Number(charge.created)) ? new Date(Number(charge.created) * 1000).toISOString() : null;
+    } catch { return null; }
   }
 
   try {
@@ -112,21 +129,22 @@ export async function onRequestPost({ request, env }) {
         const amountPaidSoFar = Number(existing.amount_paid) || 0;
         const backfillAmount = subtotal != null ? Number(subtotal) - amountPaidSoFar : amountCents / 100;
         const updatedPayments = [...existingPayments, {
-          id: Math.random().toString(36).slice(2),
+          id: crypto.randomUUID(),
           amount: Math.round(backfillAmount * 100) / 100,
           method: 'Card (Self-Pay)',
           note: amountPaidSoFar > 0 ? 'Remaining balance' : '',
-          at: new Date().toISOString(),
+          at: (await stripeChargeTimestamp(chargeId)) || new Date().toISOString(),
           stripeId: chargeId,
         }];
-        await fetch(`${base}/bookings?id=eq.${encodeURIComponent(bookingId)}`, {
+        const backfillRes = await fetch(`${base}/bookings?id=eq.${encodeURIComponent(bookingId)}`, {
           method: 'PATCH',
           headers: { ...headers, Prefer: 'return=minimal' },
           body: JSON.stringify({
             amount_paid: Math.round((amountPaidSoFar + backfillAmount) * 100) / 100,
             payments: JSON.stringify(updatedPayments),
           }),
-        }).catch(e => console.error('already_paid payments backfill failed:', e.message));
+        });
+        if (!backfillRes.ok) throw new Error(`Payment backfill failed: ${backfillRes.status} ${await backfillRes.text()}`);
       }
       return json({
         error: 'already_paid',
@@ -177,7 +195,7 @@ export async function onRequestPost({ request, env }) {
     // so revenue-by-month tracking (which sums individual payment dates) sees
     // it, instead of just collapsing into a single opaque total.
     const updatedPayments = [...existingPayments, {
-          id: Math.random().toString(36).slice(2),
+          id: crypto.randomUUID(),
           amount: chargedAmount,
           method: 'Card (Self-Pay)',
           note: amountPaidSoFar > 0 ? 'Remaining balance' : '',
@@ -186,7 +204,7 @@ export async function onRequestPost({ request, env }) {
         }];
 
     const paidAt = new Date().toISOString();
-    await fetch(`${base}/bookings?id=eq.${encodeURIComponent(bookingId)}`, {
+    const bookingPatchRes = await fetch(`${base}/bookings?id=eq.${encodeURIComponent(bookingId)}`, {
       method: 'PATCH',
       headers: { ...headers, Prefer: 'return=minimal' },
       body: JSON.stringify({
@@ -200,6 +218,7 @@ export async function onRequestPost({ request, env }) {
         status: 'completed',
       }),
     });
+    if (!bookingPatchRes.ok) throw new Error(`Stripe charged successfully, but booking update failed: ${bookingPatchRes.status} ${await bookingPatchRes.text()}`);
 
     // Payment event — feeds the existing admin notification poll
     try {
@@ -217,7 +236,7 @@ export async function onRequestPost({ request, env }) {
         sender: { name: 'GID Garage', email: 'bookings@gidgarage.com' },
         to: [{ email: existing.email, name: customerName }],
         subject: `Payment Received — ${existing.vehicle || 'Your Vehicle'} — GID Garage`,
-        htmlContent: `<div style="font-family:sans-serif;max-width:560px;margin:0 auto;background:#0f0f0f;color:#fff;padding:32px;"><img src="https://gidgarage.com/banner.PNG" alt="GID Garage" style="width:100%;display:block;height:auto;margin-bottom:24px;"/><h2 style="color:#22c55e;font-size:22px;margin:0 0 8px;">✅ Payment Received</h2><p style="color:#9ca3af;margin:0 0 16px;">Hi ${existing.fname || ''}, thanks — we've received your payment of $${newAmountPaid.toFixed(2)} for ${existing.vehicle || 'your vehicle'}.</p><div style="margin:24px 0;padding-top:20px;border-top:1px solid #1f2937;text-align:center;"><p style="color:#9ca3af;font-size:12px;margin:0 0 10px;">Happy with the work? A quick review helps a lot:</p><a href="${GBP_REVIEW_URL}" style="display:inline-block;background:#16a34a;color:#fff;text-decoration:none;font-weight:700;font-size:11px;padding:10px 24px;letter-spacing:0.05em;text-transform:uppercase;">⭐ Leave a Review</a></div><p style="color:#4b5563;font-size:11px;margin-top:24px;">Questions? Call or text <strong style="color:#9ca3af;">480-757-0476</strong> — GID Garage, Flagstaff AZ</p></div>`,
+        htmlContent: `<div style="font-family:sans-serif;max-width:560px;margin:0 auto;background:#0f0f0f;color:#fff;padding:32px;"><img src="https://gidgarage.com/banner.PNG" alt="GID Garage" style="width:100%;display:block;height:auto;margin-bottom:24px;"/><h2 style="color:#22c55e;font-size:22px;margin:0 0 8px;">✅ Payment Received</h2><p style="color:#9ca3af;margin:0 0 16px;">Hi ${escapeHtml(existing.fname || '')}, thanks — we've received your payment of $${newAmountPaid.toFixed(2)} for ${escapeHtml(existing.vehicle || 'your vehicle')}.</p><div style="margin:24px 0;padding-top:20px;border-top:1px solid #1f2937;text-align:center;"><p style="color:#9ca3af;font-size:12px;margin:0 0 10px;">Happy with the work? A quick review helps a lot:</p><a href="${GBP_REVIEW_URL}" style="display:inline-block;background:#16a34a;color:#fff;text-decoration:none;font-weight:700;font-size:11px;padding:10px 24px;letter-spacing:0.05em;text-transform:uppercase;">⭐ Leave a Review</a></div><p style="color:#4b5563;font-size:11px;margin-top:24px;">Questions? Call or text <strong style="color:#9ca3af;">480-757-0476</strong> — GID Garage, Flagstaff AZ</p></div>`,
       });
     } catch (e) { console.error('Receipt email failed:', e.message); }
 

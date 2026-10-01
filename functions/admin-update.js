@@ -3,15 +3,18 @@
 // → Attaches new card source to existing Stripe Customer, sets as default
 // → Returns { last4, sourceId } — client then patches Supabase stripe_last4
 
+import { verifyAccess } from './_lib/access-auth.js';
+
 export async function onRequestPost({ request, env }) {
   const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Headers': 'Content-Type',
   };
 
-  if (!request.headers.get('Cf-Access-Jwt-Assertion')) {
-    return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-      status: 401, headers: { 'Content-Type': 'application/json', ...corsHeaders },
+  const auth = await verifyAccess(request, env);
+  if (!auth.ok) {
+    return new Response(JSON.stringify({ error: auth.error }), {
+      status: auth.status, headers: { 'Content-Type': 'application/json', ...corsHeaders },
     });
   }
 
@@ -66,7 +69,7 @@ export async function onRequestPost({ request, env }) {
     const serviceKey = env.SUPABASE_SERVICE_KEY;
     if (supabaseUrl && serviceKey) {
       try {
-        await fetch(
+        const patchRes = await fetch(
           `${supabaseUrl}/rest/v1/bookings?stripe_customer_id=eq.${encodeURIComponent(customerId)}`,
           {
             method: 'PATCH',
@@ -79,6 +82,7 @@ export async function onRequestPost({ request, env }) {
             body: JSON.stringify({ stripe_last4: last4 }),
           }
         );
+        if (!patchRes.ok) throw new Error(`Supabase stripe_last4 update failed: ${patchRes.status} ${await patchRes.text()}`);
       } catch (e) {
         console.warn('Failed to patch stripe_last4 in Supabase:', e.message);
       }

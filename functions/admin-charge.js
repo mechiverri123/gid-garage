@@ -3,6 +3,7 @@
 // → Charges the Stripe customer's saved card, updates Supabase
 
 import { reportError } from './_lib/sentry.js';
+import { verifyAccess } from './_lib/access-auth.js';
 
 export async function onRequestPost({ request, env }) {
   const corsHeaders = {
@@ -12,9 +13,10 @@ export async function onRequestPost({ request, env }) {
 
   // Only the authenticated admin can charge cards. Access injects this header
   // on every request that passes through the Access application.
-  if (!request.headers.get('Cf-Access-Jwt-Assertion')) {
-    return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-      status: 401, headers: { 'Content-Type': 'application/json', ...corsHeaders },
+  const auth = await verifyAccess(request, env);
+  if (!auth.ok) {
+    return new Response(JSON.stringify({ error: auth.error }), {
+      status: auth.status, headers: { 'Content-Type': 'application/json', ...corsHeaders },
     });
   }
 
@@ -59,6 +61,7 @@ export async function onRequestPost({ request, env }) {
         Authorization: `Bearer ${supabaseKey}`,
       },
     });
+    if (!checkRes.ok) throw new Error(`Booking lookup failed: ${checkRes.status} ${await checkRes.text()}`);
     const rows = await checkRes.json();
     if (rows?.[0]?.job_status === 'PAID') {
       return new Response(JSON.stringify({
@@ -89,8 +92,8 @@ export async function onRequestPost({ request, env }) {
     const charge = await chargeRes.json();
     if (charge.error) throw new Error(charge.error.message);
 
-    // Update Supabase
-    await fetch(`${supabaseUrl}/rest/v1/bookings?id=eq.${bookingId}`, {
+    // Update Supabase; Stripe success is not considered complete until this write is confirmed.
+    const updateRes = await fetch(`${supabaseUrl}/rest/v1/bookings?id=eq.${bookingId}`, {
       method: 'PATCH',
       headers: {
         apikey: supabaseKey,
@@ -112,6 +115,7 @@ export async function onRequestPost({ request, env }) {
         status: 'completed',
       }),
     });
+    if (!updateRes.ok) throw new Error(`Stripe charged successfully, but booking update failed: ${updateRes.status} ${await updateRes.text()}`);
 
     return new Response(JSON.stringify({
       chargeId: charge.id,

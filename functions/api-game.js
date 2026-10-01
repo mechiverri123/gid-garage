@@ -80,6 +80,21 @@ function json(body, status = 200) {
   });
 }
 
+
+function secureRandom() {
+  const a = new Uint32Array(1);
+  crypto.getRandomValues(a);
+  return a[0] / 0x100000000;
+}
+
+function secureRandomInt(maxExclusive) {
+  if (!Number.isInteger(maxExclusive) || maxExclusive <= 0) throw new Error('Invalid random range');
+  const limit = Math.floor(0x100000000 / maxExclusive) * maxExclusive;
+  const a = new Uint32Array(1);
+  do { crypto.getRandomValues(a); } while (a[0] >= limit);
+  return a[0] % maxExclusive;
+}
+
 function normalizePhone(phone) {
   return String(phone ?? '').replace(/\D/g, '');
 }
@@ -102,7 +117,7 @@ function rollPrize(bet, excludeLabels) {
   const table = BET_PRIZE_TABLES[tierKeyFor(bet)]
     .filter((p) => p.type !== 'real' || !excludeLabels?.has(p.label));
   const totalWeight = table.reduce((s, p) => s + p.weight, 0);
-  let roll = Math.random() * totalWeight;
+  let roll = secureRandom() * totalWeight;
   for (const p of table) {
     if (roll < p.weight) return p;
     roll -= p.weight;
@@ -111,7 +126,7 @@ function rollPrize(bet, excludeLabels) {
 }
 
 function genCode() {
-  return String(Math.floor(100000 + Math.random() * 900000));
+  return String(100000 + secureRandomInt(900000));
 }
 
 // ── Blackjack helpers ─────────────────────────────────────────────────────
@@ -122,7 +137,7 @@ function freshDeck() {
   const deck = [];
   for (const r of RANKS) for (const s of SUITS) deck.push({ r, s });
   for (let i = deck.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
+    const j = secureRandomInt(i + 1);
     [deck[i], deck[j]] = [deck[j], deck[i]];
   }
   return deck;
@@ -162,7 +177,7 @@ function rollWinPrize(bet, excludeLabels) {
   const table = BET_PRIZE_TABLES[tierKeyFor(bet)];
   const pool = table.filter((p) => p.type !== 'lose' && (p.type !== 'real' || !excludeLabels?.has(p.label)));
   const totalWeight = pool.reduce((s, p) => s + p.weight, 0);
-  let roll = Math.random() * totalWeight;
+  let roll = secureRandom() * totalWeight;
   for (const p of pool) {
     if (roll < p.weight) return p;
     roll -= p.weight;
@@ -178,7 +193,7 @@ function rollNaturalPrize(bet, excludeLabels) {
   const pool = table.filter((p) => p.type === 'real' && !excludeLabels?.has(p.label));
   if (!pool.length) return null; // every real prize at this tier already won today
   const totalWeight = pool.reduce((s, p) => s + p.weight, 0);
-  let roll = Math.random() * totalWeight;
+  let roll = secureRandom() * totalWeight;
   for (const p of pool) {
     if (roll < p.weight) return p;
     roll -= p.weight;
@@ -375,7 +390,7 @@ export async function onRequestPost({ request, env }) {
         payout = h.bet * 2;
         const prize = rollWinPrize(h.bet, excludeLabels);
         if (prize.type === 'credit') {
-          const mult = 0.5 + Math.random() * 1.5;
+          const mult = 0.5 + secureRandom() * 1.5;
           creditWin = Math.round(h.bet * mult * 100) / 100;
           payout += creditWin;
         } else if (prize.type === 'real') {
@@ -445,7 +460,7 @@ export async function onRequestPost({ request, env }) {
         let code = null;
 
         if (prize.type === 'credit') {
-          const mult = 2 + Math.random() * 3; // 2x–5x bet, in-game credits only
+          const mult = 2 + secureRandom() * 3; // 2x–5x bet, in-game credits only
           creditWin = Math.round(bet * mult * 100) / 100;
         } else if (prize.type === 'real') {
           prizeLabel = prize.label;

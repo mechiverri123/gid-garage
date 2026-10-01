@@ -2,6 +2,8 @@
 // POST /save-card  { token, bookingId, name, email }
 // → Creates Stripe Customer + saves to Supabase
 
+const escapeHtml = (value) => String(value ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+
 export async function onRequestPost({ request, env }) {
   const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
@@ -91,8 +93,8 @@ export async function onRequestPost({ request, env }) {
             body: JSON.stringify({
               sender: { name: 'GID Garage Bookings', email: 'bookings@gidgarage.com' },
               to: [{ email: 'info@gidgarage.com', name: 'GID Garage' }],
-              subject: `New Booking: ${row.fname} ${row.lname} — ${row.service} on ${row.date}`,
-              htmlContent: `<div style="font-family:sans-serif;padding:24px;background:#0f0f0f;color:#fff;"><h2 style="color:#ef4444;">New Booking</h2><p><strong>${row.fname} ${row.lname}</strong><br>${row.phone}<br>${row.email || ''}</p><p><strong>${row.service}</strong><br>${row.date} at ${row.time}<br>${row.vehicle || ''}</p>${row.notes ? `<p>Notes: ${row.notes}</p>` : ''}</div>`,
+              subject: `New Booking: ${escapeHtml(row.fname)} ${escapeHtml(row.lname)} — ${escapeHtml(row.service)} on ${row.date}`,
+              htmlContent: `<div style="font-family:sans-serif;padding:24px;background:#0f0f0f;color:#fff;"><h2 style="color:#ef4444;">New Booking</h2><p><strong>${escapeHtml(row.fname)} ${escapeHtml(row.lname)}</strong><br>${escapeHtml(row.phone)}<br>${escapeHtml(row.email || '')}</p><p><strong>${escapeHtml(row.service)}</strong><br>${escapeHtml(row.date)} at ${escapeHtml(row.time)}<br>${escapeHtml(row.vehicle || '')}</p>${row.notes ? `<p>Notes: ${escapeHtml(row.notes)}</p>` : ''}</div>`,
             }),
           });
         }

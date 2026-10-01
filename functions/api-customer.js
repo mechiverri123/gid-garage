@@ -20,6 +20,8 @@
 //   send-inquiry        { row, fname,lname,phone,email,vehicle,notes,bookingId } -> { ok }  (inserts + emails atomically)
 //   quick-quote         { name, phone, issue }    -> { ok }    (homepage fast-path form — texts the owner directly)
 
+const escapeHtmlGlobal = (value) => String(value ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+
 function json(body, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
@@ -316,8 +318,8 @@ export async function onRequestPost({ request, env }) {
             await brevoSend({
               sender: { name: 'GID Garage', email: 'bookings@gidgarage.com' },
               to: [{ email: 'info@gidgarage.com', name: 'GID Garage' }],
-              subject: `✅ Estimate Signed — ${customerName} — $${total.toFixed(2)}`,
-              htmlContent: `<div style="font-family:sans-serif;padding:24px;background:#0f0f0f;color:#fff;"><h2 style="color:#22c55e;">Estimate Signed</h2><p><strong>${customerName}</strong><br>${booking.phone || ''}<br>${booking.email || ''}</p><p><strong>${booking.vehicle || ''}</strong><br>${booking.service || ''}</p><p style="font-size:20px;font-weight:bold;color:#22c55e;">$${total.toFixed(2)}</p>${damage ? `<p>Pre-existing damage noted: ${String(damage).slice(0, 300)}</p>` : ''}</div>`,
+              subject: `✅ Estimate Signed — ${escapeHtmlGlobal(customerName)} — $${total.toFixed(2)}`,
+              htmlContent: `<div style="font-family:sans-serif;padding:24px;background:#0f0f0f;color:#fff;"><h2 style="color:#22c55e;">Estimate Signed</h2><p><strong>${escapeHtmlGlobal(customerName)}</strong><br>${escapeHtmlGlobal(booking.phone || '')}<br>${escapeHtmlGlobal(booking.email || '')}</p><p><strong>${escapeHtmlGlobal(booking.vehicle || '')}</strong><br>${escapeHtmlGlobal(booking.service || '')}</p><p style="font-size:20px;font-weight:bold;color:#22c55e;">$${total.toFixed(2)}</p>${damage ? `<p>Pre-existing damage noted: ${escapeHtmlGlobal(String(damage).slice(0, 300))}</p>` : ''}</div>`,
             });
           } catch (e) { console.error('Signed-estimate owner email failed:', e.message); }
 
@@ -443,8 +445,8 @@ export async function onRequestPost({ request, env }) {
           await brevoSend({
             sender: { name: 'GID Garage Bookings', email: 'bookings@gidgarage.com' },
             to: [{ email: 'info@gidgarage.com', name: 'GID Garage' }],
-            subject: `❌ Cancellation: ${customerName} — ${svcName} on ${dateStr}`,
-            htmlContent: `<div style="font-family:sans-serif;padding:24px;background:#0f0f0f;color:#fff;"><h2 style="color:#ef4444;">❌ Booking Cancelled</h2><p><strong>${customerName}</strong><br>${booking.phone}<br>${booking.email}</p><p>${svcName}<br>${apptLine}<br>${booking.vehicle}</p></div>`,
+            subject: `❌ Cancellation: ${escapeHtmlGlobal(customerName)} — ${escapeHtmlGlobal(svcName)} on ${dateStr}`,
+            htmlContent: `<div style="font-family:sans-serif;padding:24px;background:#0f0f0f;color:#fff;"><h2 style="color:#ef4444;">❌ Booking Cancelled</h2><p><strong>${escapeHtmlGlobal(customerName)}</strong><br>${escapeHtmlGlobal(booking.phone)}<br>${escapeHtmlGlobal(booking.email)}</p><p>${escapeHtmlGlobal(svcName)}<br>${escapeHtmlGlobal(apptLine)}<br>${escapeHtmlGlobal(booking.vehicle)}</p></div>`,
           });
         } catch (e) { console.error('Owner cancellation email failed:', e.message); }
 
@@ -453,7 +455,7 @@ export async function onRequestPost({ request, env }) {
           await brevoSend({
             sender: { name: 'GID Garage', email: 'bookings@gidgarage.com' },
             to: [{ email: booking.email, name: customerName }],
-            subject: `Your ${svcName} appointment has been cancelled — GID Garage`,
+            subject: `Your ${escapeHtmlGlobal(svcName)} appointment has been cancelled — GID Garage`,
             htmlContent: `<div style="font-family:sans-serif;max-width:560px;margin:0 auto;background:#0f0f0f;color:#fff;padding:32px;">
   <img src="https://gidgarage.com/website_logo.png" alt="GID Garage" style="height:48px;margin-bottom:28px;"/>
   <h2 style="color:#ef4444;font-size:22px;font-weight:900;margin:0 0 8px;">Appointment Cancelled</h2>
@@ -461,11 +463,11 @@ export async function onRequestPost({ request, env }) {
   <table style="width:100%;border-collapse:collapse;background:#111827;border:1px solid #1f2937;margin-bottom:24px;">
     <tr><td style="padding:14px 16px;border-bottom:1px solid #1f2937;">
       <p style="color:#6b7280;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;margin:0 0 3px;">Service</p>
-      <p style="color:#fff;font-size:15px;font-weight:700;margin:0;">${svcName}</p>
+      <p style="color:#fff;font-size:15px;font-weight:700;margin:0;">${escapeHtmlGlobal(svcName)}</p>
     </td></tr>
     <tr><td style="padding:14px 16px;border-bottom:1px solid #1f2937;">
       <p style="color:#6b7280;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;margin:0 0 3px;">Scheduled For</p>
-      <p style="color:#fff;font-size:15px;font-weight:700;margin:0;">${apptLine}</p>
+      <p style="color:#fff;font-size:15px;font-weight:700;margin:0;">${escapeHtmlGlobal(apptLine)}</p>
     </td></tr>
     <tr><td style="padding:14px 16px;">
       <p style="color:#6b7280;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;margin:0 0 3px;">Vehicle</p>
@@ -514,8 +516,8 @@ export async function onRequestPost({ request, env }) {
             await brevoSend({
               sender: { name: 'GID Garage Bookings', email: 'bookings@gidgarage.com' },
               to: [{ email: 'info@gidgarage.com', name: 'GID Garage' }],
-              subject: `New Booking: ${row.fname} ${row.lname} — ${row.service} on ${row.date}`,
-              htmlContent: `<div style="font-family:sans-serif;padding:24px;background:#0f0f0f;color:#fff;"><h2 style="color:#ef4444;">New Booking</h2><p><strong>${row.fname} ${row.lname}</strong><br>${row.phone}<br>${row.email || ''}</p><p><strong>${row.service}</strong><br>${row.date} at ${row.time}<br>${row.vehicle || ''}</p>${row.notes ? `<p>Notes: ${row.notes}</p>` : ''}</div>`,
+              subject: `New Booking: ${escapeHtmlGlobal(row.fname)} ${escapeHtmlGlobal(row.lname)} — ${escapeHtmlGlobal(row.service)} on ${row.date}`,
+              htmlContent: `<div style="font-family:sans-serif;padding:24px;background:#0f0f0f;color:#fff;"><h2 style="color:#ef4444;">New Booking</h2><p><strong>${escapeHtmlGlobal(row.fname)} ${escapeHtmlGlobal(row.lname)}</strong><br>${escapeHtmlGlobal(row.phone)}<br>${escapeHtmlGlobal(row.email || '')}</p><p><strong>${escapeHtmlGlobal(row.service)}</strong><br>${escapeHtmlGlobal(row.date)} at ${escapeHtmlGlobal(row.time)}<br>${escapeHtmlGlobal(row.vehicle || '')}</p>${row.notes ? `<p>Notes: ${escapeHtmlGlobal(row.notes)}</p>` : ''}</div>`,
             });
           }
         } catch (e) { console.error('Owner notification (confirm-booking) failed:', e.message); }

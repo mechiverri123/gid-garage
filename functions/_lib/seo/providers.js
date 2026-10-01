@@ -16,7 +16,13 @@ import { MONITOR_PROVIDERS } from './monitors.js';
 import { OUTREACH_PROVIDERS } from './outreach.js';
 
 const missing = (env, keys) => keys.filter(k => !env[k]);
-const ymd = d => new Date(d).toISOString().slice(0, 10);
+const ymd = d => {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/Phoenix', year: 'numeric', month: '2-digit', day: '2-digit',
+  }).formatToParts(new Date(d));
+  const get = t => parts.find(p => p.type === t)?.value;
+  return `${get('year')}-${get('month')}-${get('day')}`;
+};
 const addDays = (d, n) => ymd(new Date(new Date(`${ymd(d)}T12:00:00Z`).getTime() + n * 86400000));
 const eachDay = (from, to) => { const out = []; for (let d = from; d <= to; d = addDays(d, 1)) out.push(d); return out; };
 const envStatus = (env, required, note) => {
