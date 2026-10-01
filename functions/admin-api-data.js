@@ -52,6 +52,7 @@ import { runBackup, readBackupStatus, listBackups, restoreBackup, inspectBackupB
 import { reportError } from './_lib/sentry.js';
 import { trendSeries, activityFeed, todayRoute, weatherToday, monthStats, collectedTotals } from './_lib/command-center-extras.js';
 import { createBusinessOps } from './_lib/business-data.js';
+import { phoenixYmd, addDaysYmd } from '../shared/business-metrics.js';
 
 const GBP_REVIEW_URL = 'https://g.page/r/CdERSypGqVdlEBM/review';
 
@@ -1437,10 +1438,10 @@ export async function onRequestPost({ request, env }) {
       case 'get-command-center-summary': {
         const windowDays = Number(payload.windowDays) || 30;
         const now = new Date();
-        const phoenixToday = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Phoenix' });
-        const windowStart = new Date(now.getTime() - windowDays * 86400000).toISOString().slice(0, 10);
-        const weekStart = new Date(now.getTime() - 7 * 86400000).toISOString().slice(0, 10);
-        const nextWeekEnd = new Date(now.getTime() + 7 * 86400000).toISOString().slice(0, 10);
+        const phoenixToday = phoenixYmd(now);
+        const windowStart = new Date(now.getTime() - windowDays * 86400000).toISOString();
+        const weekStart = addDaysYmd(phoenixToday, -7);
+        const nextWeekEnd = addDaysYmd(phoenixToday, 7);
 
         const [bookingsRes, leadsRes, callsRes, spendRes] = await Promise.all([
           fetch(`${base}/bookings?select=id,fname,lname,vehicle,service,date,time,job_status,status,estimate_amount,invoice_amount,tax_amount,amount_paid,paid_at,created_at&date=gte.${weekStart}&date=lte.${nextWeekEnd}`, { headers }),
@@ -1485,8 +1486,8 @@ export async function onRequestPost({ request, env }) {
         }
 
         const todaysRevenue = todaysJobs.reduce((sum, b) => sum + jobRevenue(b), 0);
-        const newLeadsToday = leads.filter(l => (l.created_at || '').slice(0, 10) === phoenixToday);
-        const missedCallsToday = calls.filter(c => (c.created_at || '').slice(0, 10) === phoenixToday && (c.outcome === 'missed' || c.outcome === 'no_answer'));
+        const newLeadsToday = leads.filter(l => l.created_at && phoenixYmd(new Date(l.created_at)) === phoenixToday);
+        const missedCallsToday = calls.filter(c => c.created_at && phoenixYmd(new Date(c.created_at)) === phoenixToday && (c.outcome === 'missed' || c.outcome === 'no_answer'));
 
         // Next open-ish day in the coming week: first day (excluding today)
         // in range with zero jobs booked.

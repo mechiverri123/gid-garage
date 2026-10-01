@@ -292,7 +292,7 @@ function VehicleSelector({ form, setForm, errors, clearError }: {
   errors: Record<string, string>;
   clearError: (key: string) => void;
 }) {
-  const currentYear = new Date().getFullYear();
+  const currentYear = getPhoenixNow().getFullYear();
   const years = Array.from({ length: currentYear - 1980 + 1 }, (_, i) => currentYear - i);
 
   const [makes, setMakes] = useState<string[]>([]);
@@ -565,7 +565,7 @@ interface State {
 }
 const INIT_STATE: State = {
   step: 1, service: null, date: null, time: null,
-  calYear: new Date().getFullYear(), calMonth: new Date().getMonth(),
+  calYear: getPhoenixNow().getFullYear(), calMonth: getPhoenixNow().getMonth(),
   suspensionPart: null, suspensionPosition: null,
   brakeService: null, brakePosition: null, brakePadType: null, audioPackage: null,
   cardToken: null, cardLast4: null, cardSkipped: false, bookingId: null,
@@ -1541,7 +1541,7 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
                   <StepHeader n={3} current={s.step} label="Pick a Time" />
                   <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 mb-2">
                     {timeSlots.filter(t => {
-                      const now = new Date();
+                      const now = getPhoenixNow();
                       const todayKey = dateKey(now.getFullYear(), now.getMonth(), now.getDate());
                       if (s.date !== todayKey) return true;
                       return parseSlotHour(t) > now.getHours();

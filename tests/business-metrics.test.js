@@ -51,25 +51,32 @@ test('this month and last 30 days are different periods', () => {
   assert.equal(cents(collectedRevenue(JOBS, w('last_month').inWindow).total), 200);   // F + B's Aug payment
 });
 
-test('net profit: paid − tax − parts, PAID jobs closed in window only', () => {
-  assert.equal(cents(netProfit(JOBS, w('this_month').inWindow)), 820);   // A200 + C180 + D440
-  assert.equal(cents(netProfit(JOBS, w('last_30_days').inWindow)), 920); // + F100
-  assert.equal(netProfit([JOBS[1], JOBS[4]], w('this_month').inWindow), 0); // unpaid + cancelled
+test('net profit follows the same payment dates as revenue, including partials', () => {
+  assert.equal(cents(netProfit(JOBS, w('this_month').inWindow)), 1045);   // A200 + B150 + C180 + D440 + E75
+  assert.equal(cents(netProfit(JOBS, w('last_30_days').inWindow)), 1145); // + F100
+  assert.equal(cents(netProfit([JOBS[1], JOBS[4]], w('this_month').inWindow)), 225); // partial + retained cancelled deposit
 });
 
-test('card revenue only counts Card (Stripe) entries', () => {
-  assert.equal(cardRevenue(JOBS, w('last_30_days').inWindow), 200);
+test('card revenue counts Stripe and Tap-to-Pay entries, including Stripe remainder fallback', () => {
+  const jobs = [
+    ...JOBS,
+    { jobStatus: 'PAID', paidAt: '2026-09-25T20:00:00Z', invoiceAmount: 60, taxAmount: 0, amountPaid: 60, partsCost: 0,
+      stripeTransactionId: 'pi_fallback', payments: [] },
+    { jobStatus: 'PAID', paidAt: '2026-09-26T20:00:00Z', invoiceAmount: 40, taxAmount: 0, amountPaid: 40, partsCost: 0,
+      payments: [{ amount: 40, at: '2026-09-26T20:00:00Z', method: 'Card (Tap to Pay)', stripeId: 'pi_tap' }] },
+  ];
+  assert.equal(cardRevenue(jobs, w('last_30_days').inWindow), 300);
 });
 
 test('owner take-home matches the Owner Pay panel formula and is not revenue', () => {
   const settings = ownerPaySettings({ owner_tax_reserve_pct: 0.3, owner_stripe_fee_pct: 0.03, owner_overhead_items: [{ amount: 200 }, { amount: 100 }] });
   const t = ownerTakeHome(JOBS, w('last_30_days'), settings);
-  assert.equal(cents(t.jobMargin), 920);
+  assert.equal(cents(t.jobMargin), 1145);
   assert.equal(cents(t.stripeFees), 6);
   assert.equal(cents(t.overhead), 300);
-  assert.equal(cents(t.businessNet), 614);
-  assert.equal(cents(t.taxReserve), 184.2);
-  assert.equal(cents(t.takeHome), 429.8);
+  assert.equal(cents(t.businessNet), 839);
+  assert.equal(cents(t.taxReserve), 251.7);
+  assert.equal(cents(t.takeHome), 587.3);
   assert.notEqual(cents(t.takeHome), 1390);
 });
 
@@ -109,26 +116,28 @@ test('jobFromRow maps Supabase rows, including string-encoded payments', () => {
   assert.equal(jobFromRow({ payments: 'not json' }).payments.length, 0);
 });
 
-// Parity: the dashboard's formulas as they were before extraction (JobOps.tsx
-// revenueFor / netProfitFor), fed the same Arizona window.
-test('parity with the pre-extraction dashboard formulas', () => {
-  const oldRevenueFor = (jobs, inWindow) => jobs.reduce((sum, j) => {
-    const loggedInWindow = (j.payments || []).filter(p => inWindow(p.at)).reduce((s, p) => s + p.amount, 0);
-    const loggedTotal = (j.payments || []).reduce((s, p) => s + p.amount, 0);
-    const invoiceTotal = (j.invoiceAmount || 0) + (j.taxAmount || 0);
-    if (j.jobStatus === 'PAID' && j.paidAt && inWindow(j.paidAt) && loggedTotal < invoiceTotal - 0.01) return sum + invoiceTotal;
-    return sum + loggedInWindow;
-  }, 0);
-  const oldNetProfitFor = (jobs, inWindow) => jobs.reduce((sum, j) => {
-    if (j.jobStatus !== 'PAID' || !j.paidAt || !inWindow(j.paidAt)) return sum;
-    const paid = j.amountPaid ?? ((j.invoiceAmount || 0) + (j.taxAmount || 0));
-    return sum + (paid - (j.taxAmount || 0) - (j.partsCost || 0));
-  }, 0);
-  for (const p of ['today', 'this_month', 'last_month', 'this_year', 'last_7_days', 'last_30_days']) {
-    const { inWindow } = w(p);
-    assert.equal(collectedRevenue(JOBS, inWindow).total, oldRevenueFor(JOBS, inWindow), `revenue ${p}`);
-    assert.equal(netProfit(JOBS, inWindow), oldNetProfitFor(JOBS, inWindow), `net profit ${p}`);
-  }
+// Revenue and profit must use one payment ledger. Incomplete payment history
+// contributes only the missing remainder on paidAt — never the whole invoice
+// a second time.
+test('incomplete payment fallback never double-counts an earlier partial payment', () => {
+  const j = { jobStatus: 'PAID', paidAt: '2026-09-10T20:00:00Z', invoiceAmount: 460, taxAmount: 40, amountPaid: 500, partsCost: 100,
+    payments: [{ amount: 100, at: '2026-08-25T20:00:00Z', method: 'Cash' }] };
+  assert.equal(collectedRevenue([j], w('last_month').inWindow).total, 100);
+  assert.equal(collectedRevenue([j], w('this_month').inWindow).total, 400);
+  assert.equal(cents(netProfit([j], w('last_month').inWindow)), 72);
+  assert.equal(cents(netProfit([j], w('this_month').inWindow)), 288);
+});
+
+test('Arizona month boundary keeps Sep 30 evening payments out of October', () => {
+  const octNow = new Date('2026-10-01T20:30:00Z');
+  const oct = resolvePeriodWindow('this_month', octNow);
+  const jobs = [
+    { jobStatus: 'PAID', paidAt: '2026-10-01T00:27:00.416Z', invoiceAmount: 654.16, taxAmount: 61.4, amountPaid: 715.56, partsCost: 649.98, payments: [{ amount: 715.56, at: '2026-10-01T00:27:00.416Z' }] },
+    { jobStatus: 'PAID', paidAt: '2026-10-01T00:17:36.729Z', invoiceAmount: 175, taxAmount: 0, amountPaid: 175, partsCost: 0, payments: [{ amount: 175, at: '2026-10-01T00:17:36.729Z' }] },
+    { jobStatus: 'PAID', paidAt: '2026-10-01T19:02:21.217Z', invoiceAmount: 56.29, taxAmount: 3.71, amountPaid: 60, partsCost: 0, payments: [{ amount: 60, at: '2026-10-01T19:02:21.217Z' }] },
+  ];
+  assert.equal(cents(collectedRevenue(jobs, oct.inWindow).total), 60);
+  assert.equal(cents(netProfit(jobs, oct.inWindow)), 56.29);
 });
 
 // ---- Bug 1: contribution-level evidence and exact period comparison ----
@@ -141,7 +150,7 @@ test('1: contributions add up to the totals, and the period comparison is exact'
   const contribs = revenueContributions(JOBS, month.inWindow);
   assert.equal(cents(contribs.reduce((s, x) => s + x.c.collected, 0)), cents(collectedRevenue(JOBS, month.inWindow).total));
   assert.equal(cents(contribs.reduce((s, x) => s + x.c.netProfit, 0)), cents(netProfit(JOBS, month.inWindow)));
-  assert.equal(contribs.find(x => x.job.id === 'D').c.basis, 'paid_invoice_fallback');
+  assert.equal(contribs.find(x => x.job.id === 'D').c.basis, 'payment_entries_plus_remainder');
 
   const cmp = compareRevenuePeriods(JOBS, month, last30);
   assert.equal(cmp.collectedDifference, 100); // 1390 − 1290

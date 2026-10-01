@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import { Users, Check } from 'lucide-react';
-import { fmtSource } from '../utils/formatters';
+import { fmtSource, fmtDate } from '../utils/formatters';
 import { LEAD_STATUS_OPTIONS } from '../types';
 import type { CommandCenterSummary, Lead } from '../types';
-import { C, shortDay } from '../ui/theme';
+import { C } from '../ui/theme';
 import { CommandCard, SectionHeader, DataTable, EmptyState, Skeleton, statusTone, type Column } from '../ui/primitives';
 import { TONE } from '../ui/theme';
 
@@ -45,7 +45,7 @@ export function LeadPipeline({
         </span>
       ),
     },
-    { key: 'when', header: 'Received', width: '16%', hideBelow: 'lg', render: l => <span style={{ color: C.text2 }}>{shortDay(String(l.created_at).slice(0, 10))}</span> },
+    { key: 'when', header: 'Received', width: '16%', hideBelow: 'lg', render: l => <span style={{ color: C.text2 }}>{fmtDate(l.created_at)}</span> },
   ];
 
   return (

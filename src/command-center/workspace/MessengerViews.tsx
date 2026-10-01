@@ -244,7 +244,7 @@ function Thread({ c, onBack, onReply }: { c: Convo; onBack: () => void; onReply:
         <div className="flex flex-col gap-2 rounded-xl p-3 max-h-[55vh] overflow-y-auto" style={box}>
           {msgs.map((m, i) => (
             <div key={i} className={`max-w-[85%] rounded-2xl px-3.5 py-2 text-[14.5px] whitespace-pre-wrap break-words ${m.fromPage ? 'self-end' : 'self-start'}`}
-              style={m.fromPage ? { background: '#0084FF', color: '#fff' } : { background: C.surface3, color: C.text }} title={m.at ? new Date(m.at).toLocaleString() : ''}>{m.text || '(attachment)'}</div>
+              style={m.fromPage ? { background: '#0084FF', color: '#fff' } : { background: C.surface3, color: C.text }} title={m.at ? new Date(m.at).toLocaleString('en-US', { timeZone: 'America/Phoenix' }) : ''}>{m.text || '(attachment)'}</div>
           ))}
         </div>
       )}

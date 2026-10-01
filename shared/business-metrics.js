@@ -111,45 +111,87 @@ export function resolvePeriodWindow(period, now = new Date()) {
 const num = v => Number(v || 0);
 const invoiceTotal = j => num(j.invoiceAmount) + num(j.taxAmount);
 
-// Money actually collected in the window. Two payment paths that don't overlap:
-// individual payments[] entries dated in-window, OR, for a PAID job closed
-// in-window whose payment log doesn't cover the invoice (Stripe idempotent
-// retry closed it without appending), the full invoice + tax.
-// Cancelled jobs are NOT excluded: money collected on them was still collected.
-// One job's share of a period, with the evidence behind it. collectedRevenue
-// and netProfit are sums of these, so a breakdown always adds up to its total.
-export function jobContribution(j, inWindow) {
-  const payments = parsePayments(j.payments);
-  const loggedTotal = payments.reduce((s, p) => s + num(p?.amount), 0);
-  const inWindowPayments = payments.filter(p => p?.at && inWindow(p.at));
-  let collected = inWindowPayments.reduce((s, p) => s + num(p.amount), 0);
-  let basis = inWindowPayments.length ? 'payment_entries' : null;
-  let paymentDates = inWindowPayments.map(p => p.at);
-  if (j.jobStatus === 'PAID' && j.paidAt && inWindow(j.paidAt) && loggedTotal < invoiceTotal(j) - 0.01) {
-    collected = invoiceTotal(j);
-    basis = 'paid_invoice_fallback';
-    paymentDates = [j.paidAt];
+// Canonical money ledger for one job. Every real payment stays on its actual
+// timestamp. If a PAID job's payment history is incomplete, only the unlogged
+// remainder is synthesized on paidAt. This avoids the old cross-period double
+// count where an earlier partial payment was counted once on its real date and
+// then the entire invoice was counted again when the job closed.
+//
+// Tax and parts cost are allocated across the money entries proportionally.
+// That makes revenue and net profit use the same accounting clock, including
+// partial payments that cross month/year boundaries. Across the full life of a
+// fully-paid job, the allocations sum exactly to: collected - tax - parts cost.
+export function moneyEntriesForJob(j) {
+  const payments = parsePayments(j.payments)
+    .filter(p => p?.at && Number.isFinite(new Date(p.at).getTime()) && Number.isFinite(num(p.amount)) && num(p.amount) !== 0)
+    .map(p => ({ date: p.at, amount: num(p.amount), method: p.method || null, source: 'payment_entry' }));
+
+  const loggedTotal = payments.reduce((s, p) => s + p.amount, 0);
+  const invoiceGross = invoiceTotal(j);
+  const recordedPaid = j.amountPaid != null ? num(j.amountPaid) : 0;
+  // For a closed job, at least the invoice total was intended to have been
+  // collected; amountPaid/logged history can be higher for tips/overpayments.
+  const accountingTotal = j.jobStatus === 'PAID'
+    ? Math.max(invoiceGross, recordedPaid, loggedTotal)
+    : Math.max(recordedPaid, loggedTotal);
+
+  if (j.jobStatus === 'PAID' && j.paidAt) {
+    const missing = accountingTotal - loggedTotal;
+    if (missing > 0.005) payments.push({ date: j.paidAt, amount: missing, method: null, source: 'paid_remainder_fallback' });
   }
+
+  // While a job is only partially paid, allocate tax/COGS against the expected
+  // invoice total rather than treating the first deposit as if it carried 100%
+  // of the job's tax and parts cost. Once PAID, use the actual collected total
+  // so over/under-payment corrections still reconcile exactly.
+  const allocationBase = j.jobStatus === 'PAID'
+    ? Math.max(accountingTotal, 0)
+    : Math.max(invoiceGross, accountingTotal, 0);
+  const tax = num(j.taxAmount);
+  const parts = num(j.partsCost);
+
+  return payments.map(e => {
+    const share = allocationBase > 0 ? e.amount / allocationBase : 0;
+    const allocatedTax = tax * share;
+    const allocatedParts = parts * share;
+    return {
+      ...e,
+      share,
+      taxAmount: allocatedTax,
+      partsCost: allocatedParts,
+      netProfit: e.amount - allocatedTax - allocatedParts,
+    };
+  });
+}
+
+// One job's share of a reporting window, with the evidence behind it. Revenue,
+// net profit and the dashboard breakdown all derive from this same ledger.
+export function jobContribution(j, inWindow) {
+  const entries = moneyEntriesForJob(j).filter(e => inWindow(e.date));
+  const collected = entries.reduce((s, e) => s + e.amount, 0);
+  const taxAmount = entries.reduce((s, e) => s + e.taxAmount, 0);
+  const partsCost = entries.reduce((s, e) => s + e.partsCost, 0);
+  const net = entries.reduce((s, e) => s + e.netProfit, 0);
   const closedInWindow = j.jobStatus === 'PAID' && !!j.paidAt && inWindow(j.paidAt);
-  const net = closedInWindow
-    ? (j.amountPaid != null ? num(j.amountPaid) : invoiceTotal(j)) - num(j.taxAmount) - num(j.partsCost)
-    : 0;
+  const hasFallback = entries.some(e => e.source === 'paid_remainder_fallback');
+  const hasLogged = entries.some(e => e.source === 'payment_entry');
   return {
     id: j.id ?? null,
     collected,
-    basis,
-    paymentDates,
+    basis: hasFallback ? (hasLogged ? 'payment_entries_plus_remainder' : 'paid_remainder_fallback') : (hasLogged ? 'payment_entries' : null),
+    paymentDates: entries.map(e => e.date),
     closedInWindow,
+    allocationShare: entries.reduce((s, e) => s + e.share, 0),
     netProfit: net,
-    taxAmount: closedInWindow ? num(j.taxAmount) : 0,
-    partsCost: closedInWindow ? num(j.partsCost) : 0,
+    taxAmount,
+    partsCost,
   };
 }
 
 // Per-job contributions for a window (only jobs that contribute anything).
 export function revenueContributions(jobs, inWindow) {
   return jobs.map(j => ({ job: j, c: jobContribution(j, inWindow) }))
-    .filter(({ c }) => c.collected !== 0 || c.closedInWindow);
+    .filter(({ c }) => Math.abs(c.collected) > 0.000001 || Math.abs(c.netProfit) > 0.000001);
 }
 
 export function collectedRevenue(jobs, inWindow) {
@@ -172,20 +214,22 @@ export function collectedByDay(jobs, dayOf) {
   const out = new Map();
   const add = (day, amount) => { if (day) out.set(day, (out.get(day) || 0) + amount); };
   for (const j of jobs) {
-    const payments = parsePayments(j.payments);
-    const loggedTotal = payments.reduce((s, p) => s + num(p?.amount), 0);
-    const fallbackDay = j.jobStatus === 'PAID' && j.paidAt && loggedTotal < invoiceTotal(j) - 0.01 ? dayOf(j.paidAt) : null;
-    for (const p of payments) {
-      const day = p?.at ? dayOf(p.at) : null;
-      if (day && day !== fallbackDay) add(day, num(p.amount));
-    }
-    if (fallbackDay) add(fallbackDay, invoiceTotal(j));
+    for (const e of moneyEntriesForJob(j)) add(dayOf(e.date), e.amount);
   }
   return out;
 }
 
-// Dashboard net profit: for PAID jobs closed (paidAt) in-window,
-// amount paid − sales tax collected − parts cost.
+export function netProfitByDay(jobs, dayOf) {
+  const out = new Map();
+  const add = (day, amount) => { if (day) out.set(day, (out.get(day) || 0) + amount); };
+  for (const j of jobs) {
+    for (const e of moneyEntriesForJob(j)) add(dayOf(e.date), e.netProfit);
+  }
+  return out;
+}
+
+// Dashboard net profit: the margin attached to money actually collected in
+// the window, using the same payment timestamps as revenue.
 export function netProfit(jobs, inWindow) {
   return jobs.reduce((sum, j) => sum + jobContribution(j, inWindow).netProfit, 0);
 }
@@ -202,8 +246,8 @@ export function compareRevenuePeriods(jobs, windowA, windowB) {
     const a = jobContribution(j, windowA.inWindow);
     const b = jobContribution(j, windowB.inWindow);
     totalA += a.collected; totalB += b.collected; netA += a.netProfit; netB += b.netProfit;
-    const inA = a.collected !== 0 || a.closedInWindow;
-    const inB = b.collected !== 0 || b.closedInWindow;
+    const inA = Math.abs(a.collected) > 0.000001 || Math.abs(a.netProfit) > 0.000001;
+    const inB = Math.abs(b.collected) > 0.000001 || Math.abs(b.netProfit) > 0.000001;
     if (inA && inB && Math.abs(a.collected - b.collected) < 0.005 && Math.abs(a.netProfit - b.netProfit) < 0.005) { shared += 1; continue; }
     if (!inA && !inB) continue;
     rows.push({
@@ -229,8 +273,17 @@ export function compareRevenuePeriods(jobs, windowA, windowB) {
 export function cardRevenue(jobs, inWindow) {
   let total = 0;
   for (const j of jobs) {
-    for (const p of parsePayments(j.payments)) {
-      if (p?.method === 'Card (Stripe)' && p.at && inWindow(p.at)) total += num(p.amount);
+    // Use the same canonical money ledger as revenue. Logged Stripe/Tap-to-Pay
+    // entries are recognized by a Stripe payment id or their explicit method.
+    // If a PAID Stripe job has an incomplete payment history, its synthesized
+    // remainder also belongs to Stripe when the job has a Stripe transaction id.
+    for (const e of moneyEntriesForJob(j)) {
+      if (!e?.date || !inWindow(e.date)) continue;
+      const logged = e.source === 'payment_entry';
+      const isStripe = logged
+        ? !!e.stripeId || e.method === 'Card (Stripe)' || e.method === 'Card (Tap to Pay)'
+        : !!j.stripeTransactionId;
+      if (isStripe) total += num(e.amount);
     }
   }
   return total;

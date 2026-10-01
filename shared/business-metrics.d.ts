@@ -2,7 +2,7 @@
 
 export const BUSINESS_TZ: string;
 
-export interface MetricPayment { amount: number; at: string; method?: string }
+export interface MetricPayment { amount: number; at: string; method?: string; stripeId?: string | null }
 
 export interface MetricJob {
   jobStatus?: string | null;
@@ -13,6 +13,7 @@ export interface MetricJob {
   taxAmount?: number | null;
   partsCost?: number | null;
   payments?: MetricPayment[] | string | null;
+  stripeTransactionId?: string | null;
 }
 
 export interface PeriodWindow {
@@ -28,6 +29,8 @@ export function phoenixDateParts(date: Date): { year: number; month: number; day
 export function parsePayments(value: unknown): MetricPayment[];
 export function jobFromRow(row: Record<string, unknown>): MetricJob;
 export function resolvePeriodWindow(period: string, now?: Date): PeriodWindow;
+export function moneyEntriesForJob(job: MetricJob): Array<{ date: string; amount: number; method: string | null; stripeId: string | null; source: 'payment_entry' | 'paid_remainder_fallback'; share: number; taxAmount: number; partsCost: number; netProfit: number }>;
+export function jobContribution(job: MetricJob, inWindow: PeriodWindow['inWindow']): { id: unknown; collected: number; basis: string | null; paymentDates: string[]; closedInWindow: boolean; allocationShare: number; netProfit: number; taxAmount: number; partsCost: number };
 export function collectedRevenue(jobs: MetricJob[], inWindow: PeriodWindow['inWindow']): { total: number; jobCount: number };
 export function netProfit(jobs: MetricJob[], inWindow: PeriodWindow['inWindow']): number;
 export function cardRevenue(jobs: MetricJob[], inWindow: PeriodWindow['inWindow']): number;
@@ -45,5 +48,6 @@ export interface DayRange { from: string; to: string; days: number; key: string 
 export function dayRangeWindow(from: string, to: string): PeriodWindow & { from: string; to: string };
 export function resolveDayRange(spec?: Record<string, unknown> | string, now?: Date): DayRange;
 export function collectedByDay(jobs: MetricJob[], dayOf: (iso: string) => string): Map<string, number>;
+export function netProfitByDay(jobs: MetricJob[], dayOf: (iso: string) => string): Map<string, number>;
 export function addDaysYmd(ymd: string, days: number): string;
 export function phoenixYmd(date: Date): string;

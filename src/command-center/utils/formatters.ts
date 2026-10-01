@@ -8,15 +8,15 @@ export function fmtSource(s: string): string {
 }
 
 export function fmtDayLabel(dateStr: string): string {
-  const d = new Date(dateStr + 'T00:00:00');
-  return d.toLocaleDateString('en-US', { weekday: 'short' });
+  const [y, m, d] = dateStr.split('-').map(Number);
+  return new Date(Date.UTC(y, m - 1, d, 12)).toLocaleDateString('en-US', { weekday: 'short', timeZone: 'UTC' });
 }
 
 export function fmtDate(s?: string): string {
   if (!s) return '—';
-  try { return new Date(s).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }); } catch { return s; }
+  try { return new Date(s).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'America/Phoenix' }); } catch { return s; }
 }
 
 export function fmtClock(ts: number): string {
-  return new Date(ts).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
+  return new Date(ts).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false, timeZone: 'America/Phoenix' });
 }

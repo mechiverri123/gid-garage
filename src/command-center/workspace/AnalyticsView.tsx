@@ -25,7 +25,7 @@ function heading(r: RevenueRange) {
   if (r.key === 'today') return 'Today';
   if (r.key === 'yesterday') return 'Yesterday';
   if (r.key === 'this_year') return `${r.from.slice(0, 4)} so far`;
-  if (r.key === 'this_month' || r.key === 'last_month' || r.key.startsWith('month:')) return `${d(r.from, { month: 'long' })}${r.from.slice(0, 4) !== new Date().getFullYear().toString() ? ` ${r.from.slice(0, 4)}` : ''}`;
+  if (r.key === 'this_month' || r.key === 'last_month' || r.key.startsWith('month:')) return `${d(r.from, { month: 'long' })}${r.from.slice(0, 4) !== new Date().toLocaleDateString('en-US', { year: 'numeric', timeZone: 'America/Phoenix' }) ? ` ${r.from.slice(0, 4)}` : ''}`;
   if (r.key.startsWith('last_')) return `Last ${r.days} days`;
   return span(r.from, r.to);
 }

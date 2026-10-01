@@ -529,7 +529,7 @@ export function HistoryView({ hs }: { hs: Any | undefined }) {
         <section>
           <h3 className="font-semibold text-[15px] mb-2" style={{ color: C.text }}>Analyses</h3>
           <ul className="flex flex-col gap-1 text-[13.5px]" style={{ color: C.text2 }}>
-            {hs.snapshots.slice(0, 15).map((s: Any) => <li key={s.id}><b style={{ color: C.text }}>{s.label}</b> · {new Date(s.at).toLocaleDateString()} — {s.data.localImpressions} local impressions, {s.data.ownReviews ?? '—'} reviews, {s.data.openHigh} high / {s.data.openMedium} medium open</li>)}
+            {hs.snapshots.slice(0, 15).map((s: Any) => <li key={s.id}><b style={{ color: C.text }}>{s.label}</b> · {new Date(s.at).toLocaleDateString('en-US', { timeZone: 'America/Phoenix' })} — {s.data.localImpressions} local impressions, {s.data.ownReviews ?? '—'} reviews, {s.data.openHigh} high / {s.data.openMedium} medium open</li>)}
           </ul>
         </section>
       )}

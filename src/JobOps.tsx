@@ -5,7 +5,7 @@
 
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { decodeVin, cleanVin, vinCheckDigitOk } from './vinDecode';
-import { resolvePeriodWindow, collectedRevenue, netProfit, cardRevenue, ownerTakeHome } from '../shared/business-metrics.js';
+import { resolvePeriodWindow, collectedRevenue, netProfit, cardRevenue, ownerTakeHome, jobContribution, moneyEntriesForJob, jobFromRow, phoenixDateParts, phoenixYmd } from '../shared/business-metrics.js';
 import { isAwaitingPayment, statusChangeFields } from '../shared/business-rules.js';
 
 // Emails now sent server-side — BREVO_API_KEY removed from client bundle
@@ -6622,7 +6622,7 @@ function TbdJobsModal({ onClose, jobs, onSelectJob }: {
           ) : (
             <div className="space-y-1.5">
               {tbdJobs.map(j => {
-                const createdStr = j.createdAt ? new Date(j.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '';
+                const createdStr = j.createdAt ? new Date(j.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'America/Phoenix' }) : '';
                 return (
                   <button
                     key={j.id}
@@ -6849,29 +6849,29 @@ export function JobsTab() {
   const monthNetProfit = netProfit(jobs, isThisMonth);
   const yearNetProfit = netProfit(jobs, isThisYear);
 
-  // Breakdown of what net profit is made of, same PAID/paidAt-in-window
-  // gating as netProfitFor above, but split out by line-item type instead
-  // of collapsed to one number. laborBilled/partsBilled/mobileBilled/other
-  // come from each job's line items (what the customer was actually
-  // charged); partsCost is the admin-entered actual cost (COGS), so
-  // partsMargin = partsBilled - partsCost is the real profit on parts.
+  // Breakdown uses the exact same payment ledger as revenue/net profit. If a
+  // job is paid across multiple months, billed lines, tax and parts cost are
+  // allocated proportionally to the money actually collected in each period.
   const breakdownFor = (inWindow: (iso: string) => boolean) => jobs.reduce((acc, j) => {
-    if (j.jobStatus !== 'PAID' || !j.paidAt || !inWindow(j.paidAt)) return acc;
+    const c = jobContribution(j, inWindow);
+    if (Math.abs(c.collected) < 0.000001 && Math.abs(c.netProfit) < 0.000001) return acc;
+    const share = c.allocationShare || 0;
     for (const li of j.lineItems || []) {
-      if (li.type === 'labor') acc.laborBilled += li.amount;
-      else if (li.type === 'parts') acc.partsBilled += li.amount;
-      else if (li.type === 'mobile') acc.mobileBilled += li.amount;
-      else acc.otherBilled += li.amount; // fixed / discount / other
+      const amount = (Number(li.amount) || 0) * share;
+      if (li.type === 'labor') acc.laborBilled += amount;
+      else if (li.type === 'parts') acc.partsBilled += amount;
+      else if (li.type === 'mobile') acc.mobileBilled += amount;
+      else acc.otherBilled += amount; // fixed / discount / other
     }
-    acc.partsCost += j.partsCost || 0;
-    acc.taxCollected += j.taxAmount || 0;
-    acc.jobCount += 1;
+    acc.partsCost += c.partsCost;
+    acc.taxCollected += c.taxAmount;
+    if (c.collected > 0) acc.jobCount += 1;
     return acc;
   }, { laborBilled: 0, partsBilled: 0, mobileBilled: 0, otherBilled: 0, partsCost: 0, taxCollected: 0, jobCount: 0 });
   const monthBreakdown = breakdownFor(isThisMonth);
   const yearBreakdown = breakdownFor(isThisYear);
   const activeBreakdown = netProfitView === 'month' ? monthBreakdown : yearBreakdown;
-  const activeBreakdownLabel = netProfitView === 'month' ? 'This Month' : `${now.getFullYear()}`;
+  const activeBreakdownLabel = netProfitView === 'month' ? 'This Month' : `${phoenixDateParts(now).year}`;
   const partsMargin = activeBreakdown.partsBilled - activeBreakdown.partsCost;
 
   const JOB_STATUS_ORDER: Record<string, number> = {
@@ -8172,14 +8172,14 @@ function ratesForDate(dateStr: string): number {
   }
   return cents;
 }
-function todayStr() { return new Date().toISOString().slice(0, 10); }
+function todayStr() { return phoenixYmd(new Date()); }
 
 const MILEAGE_PURPOSES = ['Job site visit', 'Parts run', 'Bank / supply run', 'Other'];
 
 export function MileageTab() {
   const [entries, setEntries] = useState<MileageEntry[]>([]);
   const [loading, setLoading] = useState(true);
-  const [year, setYear] = useState<number>(new Date().getFullYear());
+  const [year, setYear] = useState<number>(phoenixDateParts(new Date()).year);
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<MileageEntry | null>(null);
   const [fDate, setFDate] = useState(todayStr());
@@ -8263,13 +8263,14 @@ export function MileageTab() {
 
   const totalMiles = entries.reduce((s, e) => s + Number(e.miles || 0), 0);
   const totalDeduction = entries.reduce((s, e) => s + Number(e.miles || 0) * (Number(e.rate_cents_per_mile || 0) / 100), 0);
-  const thisMonth = new Date().getMonth();
-  const isCurrentYear = year === new Date().getFullYear();
-  const mtdEntries = isCurrentYear ? entries.filter(e => new Date(e.date + 'T00:00').getMonth() === thisMonth) : [];
+  const nowPhx = phoenixDateParts(new Date());
+  const thisMonth = nowPhx.month;
+  const isCurrentYear = year === nowPhx.year;
+  const mtdEntries = isCurrentYear ? entries.filter(e => Number(e.date.slice(5, 7)) === thisMonth) : [];
   const mtdMiles = mtdEntries.reduce((s, e) => s + Number(e.miles || 0), 0);
   const currentRate = ratesForDate(todayStr());
 
-  const years = Array.from(new Set([new Date().getFullYear(), new Date().getFullYear() - 1, ...entries.map(e => Number(e.date.slice(0, 4)))])).sort((a, b) => b - a);
+  const years = Array.from(new Set([nowPhx.year, nowPhx.year - 1, ...entries.map(e => Number(e.date.slice(0, 4)))])).sort((a, b) => b - a);
 
   return (
     <div>
@@ -8918,18 +8919,18 @@ function InvoiceExport() {
       .catch((e: any) => { setLoadError(e?.message ?? 'Failed to load paid jobs'); setLoading(false); });
   }, []);
 
-  const years = [...new Set(allJobs.map(j => new Date(j.paidAt!).getFullYear().toString()))].sort();
+  const years = [...new Set(allJobs.map(j => String(phoenixDateParts(new Date(j.paidAt!)).year)))].sort();
   const months = selectedYear
     ? [...new Set(allJobs
-        .filter(j => new Date(j.paidAt!).getFullYear().toString() === selectedYear)
-        .map(j => new Date(j.paidAt!).toISOString().slice(0, 7)))]
+        .filter(j => String(phoenixDateParts(new Date(j.paidAt!)).year) === selectedYear)
+        .map(j => phoenixYmd(new Date(j.paidAt!)).slice(0, 7)))]
         .sort()
     : [];
 
   const filteredJobs = allJobs.filter(j => {
-    const d = new Date(j.paidAt!);
-    if (mode === 'year') return selectedYear && d.getFullYear().toString() === selectedYear;
-    if (mode === 'month') return selectedMonth && d.toISOString().slice(0, 7) === selectedMonth;
+    const paidYmd = phoenixYmd(new Date(j.paidAt!));
+    if (mode === 'year') return selectedYear && paidYmd.slice(0, 4) === selectedYear;
+    if (mode === 'month') return selectedMonth && paidYmd.slice(0, 7) === selectedMonth;
     return false;
   });
 
@@ -8939,7 +8940,7 @@ function InvoiceExport() {
       ? `Year ${selectedYear}`
       : (() => {
           const [yr, mo] = selectedMonth.split('-');
-          return new Date(Number(yr), Number(mo) - 1, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+          return new Date(Date.UTC(Number(yr), Number(mo) - 1, 1, 12)).toLocaleDateString('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' });
         })();
 
     const invoiceHtml = filteredJobs.map(job => {
@@ -9056,7 +9057,7 @@ function InvoiceExport() {
         <div className="space-y-2 mb-4">
           {years.map(y => (
             <button key={y} onClick={() => setSelectedYear(y)} className={`w-full text-left px-4 py-3 border text-sm font-bold transition-colors ${selectedYear === y ? 'border-red-600 text-white bg-red-900/20' : 'border-gray-800 text-gray-400 hover:border-gray-600 hover:text-white'}`}>
-              {y} — {allJobs.filter(j => new Date(j.paidAt!).getFullYear().toString() === y).length} invoices
+              {y} — {allJobs.filter(j => String(phoenixDateParts(new Date(j.paidAt!)).year) === y).length} invoices
             </button>
           ))}
         </div>
@@ -9074,7 +9075,7 @@ function InvoiceExport() {
           {selectedYear && months.map(m => {
             const [yr, mo] = m.split('-');
             const label = new Date(Number(yr), Number(mo) - 1, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
-            const count = allJobs.filter(j => new Date(j.paidAt!).toISOString().slice(0, 7) === m).length;
+            const count = allJobs.filter(j => phoenixYmd(new Date(j.paidAt!)).slice(0, 7) === m).length;
             return (
               <button key={m} onClick={() => setSelectedMonth(m)} className={`w-full text-left px-4 py-3 border text-sm font-bold transition-colors ${selectedMonth === m ? 'border-red-600 text-white bg-red-900/20' : 'border-gray-800 text-gray-400 hover:border-gray-600 hover:text-white'}`}>
                 {label} — {count} invoices
@@ -9220,7 +9221,7 @@ function JobsCSVExport() {
         .map(r => r.map(csvCell).join(','))
         .join('\r\n');
 
-      const today = new Date().toISOString().slice(0, 10);
+      const today = phoenixYmd(new Date());
       setPreviewHeaders(headers);
       setPreviewRows([...rows, totalsRow]);
       setCsvContent(csv);
@@ -9389,17 +9390,24 @@ function TaxSummary() {
   }
 
   useEffect(() => {
-    adminPost('paid-bookings')
+    adminPost('list-bookings')
       .then((data: any[]) => {
         if (!data?.length) { setRows([]); setLoading(false); return; }
         const byMonth: Record<string, { subtotal: number; taxableGross: number; tax: number }> = {};
         for (const b of data) {
-          if (!b.paid_at) continue;
-          const month = b.paid_at.slice(0, 7); // YYYY-MM
-          if (!byMonth[month]) byMonth[month] = { subtotal: 0, taxableGross: 0, tax: 0 };
-          byMonth[month].subtotal += Number(b.invoice_amount) || 0;
-          byMonth[month].taxableGross += taxableGrossFor(b);
-          byMonth[month].tax += Number(b.tax_amount) || 0;
+          const metricJob = jobFromRow(b);
+          const subtotal = Number(b.invoice_amount) || 0;
+          const taxableGross = taxableGrossFor(b);
+          for (const entry of moneyEntriesForJob(metricJob)) {
+            const month = phoenixYmd(new Date(entry.date)).slice(0, 7);
+            if (!byMonth[month]) byMonth[month] = { subtotal: 0, taxableGross: 0, tax: 0 };
+            // Same proportional allocation used by the revenue/net-profit ledger.
+            // This keeps TPT month buckets tied to when customer money was
+            // actually received, including partial payments across months.
+            byMonth[month].subtotal += subtotal * entry.share;
+            byMonth[month].taxableGross += taxableGross * entry.share;
+            byMonth[month].tax += entry.taxAmount;
+          }
         }
         const sorted = Object.entries(byMonth)
           .sort(([a], [b]) => b.localeCompare(a))
@@ -9430,7 +9438,7 @@ function TaxSummary() {
       <div className="space-y-2">
         {rows.map(r => {
           const [yr, mo] = r.month.split('-');
-          const label = new Date(Number(yr), Number(mo) - 1, 1).toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+          const label = new Date(Date.UTC(Number(yr), Number(mo) - 1, 1, 12)).toLocaleDateString('en-US', { month: 'short', year: 'numeric', timeZone: 'UTC' });
           return (
             <div key={r.month} className="border border-gray-800 bg-gray-900/40 px-4 py-3 space-y-1.5">
               <p className="text-white text-sm font-black">{label}</p>
@@ -9794,7 +9802,7 @@ function EquityTracker() {
   const [entryType, setEntryType] = useState<'contribution' | 'draw'>('draw');
   const [amountInput, setAmountInput] = useState('');
   const [noteInput, setNoteInput] = useState('');
-  const [dateInput, setDateInput] = useState(() => new Date().toISOString().slice(0, 10));
+  const [dateInput, setDateInput] = useState(() => phoenixYmd(new Date()));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -10024,35 +10032,11 @@ function EquityTracker() {
 // Same payments-aware, fallback-to-paidAt accounting as JobsTab's monthRevenue,
 // generalized to per-entry {date, amount} so it can be bucketed by day or month.
 function revenueEntriesFor(b: any): { date: string; amount: number }[] {
-  const payments = b.payments
-    ? (typeof b.payments === 'string' ? JSON.parse(b.payments) : b.payments)
-    : [];
-  const loggedTotal = payments.reduce((s: number, p: any) => s + (Number(p.amount) || 0), 0);
-  const invoiceTotal = (Number(b.invoice_amount) || 0) + (Number(b.tax_amount) || 0);
-  // If what's logged in payments[] actually covers the invoice, trust it
-  // (preserves the real dates of partial payments split across periods).
-  // Otherwise (missing/incomplete payments — e.g. the Stripe idempotent-retry
-  // gap) fall back to a single entry on paid_at for the full invoice total.
-  if (payments.length && loggedTotal >= invoiceTotal - 0.01) {
-    return payments.map((p: any) => ({ date: p.at, amount: Number(p.amount) || 0 }));
-  }
-  if (b.paid_at) return [{ date: b.paid_at, amount: invoiceTotal }];
-  return [];
+  return moneyEntriesForJob(jobFromRow(b)).map(e => ({ date: e.date, amount: e.amount }));
 }
 
-// Net profit, same methodology as JobsTab's monthNetProfit/yearNetProfit:
-// revenue collected minus the sales tax collected (owed to AZ, not income)
-// minus parts cost, attributed as a lump sum to paid_at (parts cost doesn't
-// split across partial payments the way revenue does).
 function netProfitEntriesFor(b: any): { date: string; amount: number }[] {
-  if (!b.paid_at) return [];
-  const payments = b.payments
-    ? (typeof b.payments === 'string' ? JSON.parse(b.payments) : b.payments)
-    : [];
-  const loggedTotal = payments.reduce((s: number, p: any) => s + (Number(p.amount) || 0), 0);
-  const invoiceTotal = (Number(b.invoice_amount) || 0) + (Number(b.tax_amount) || 0);
-  const paid = payments.length && loggedTotal >= invoiceTotal - 0.01 ? loggedTotal : invoiceTotal;
-  return [{ date: b.paid_at, amount: paid - (Number(b.tax_amount) || 0) - (Number(b.parts_cost) || 0) }];
+  return moneyEntriesForJob(jobFromRow(b)).map(e => ({ date: e.date, amount: e.netProfit }));
 }
 
 function LineGraph({ points, points2, series2Label, series2Color, valueFmt }: {
@@ -10147,11 +10131,11 @@ function LineGraph({ points, points2, series2Label, series2Color, valueFmt }: {
 // Local YYYY-MM-DD for a Date, and an inclusive [start, end] day-string check —
 // avoids UTC/timezone drift when comparing to <input type="date"> values.
 function toDateInputStr(d: Date): string {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  return phoenixYmd(d);
 }
 function inDateRange(iso: string, start: string, end: string): boolean {
   if (!start || !end) return false;
-  const day = toDateInputStr(new Date(iso));
+  const day = phoenixYmd(new Date(iso));
   return day >= start && day <= end;
 }
 
@@ -10166,7 +10150,7 @@ function RevenuePanel() {
   const [rangeEnd, setRangeEnd] = useState(today);
 
   useEffect(() => {
-    adminPost('paid-bookings')
+    adminPost('list-bookings')
       .then((data: any[]) => { setRows(data || []); setLoading(false); })
       .catch(() => setLoading(false));
   }, []);
@@ -10177,8 +10161,9 @@ function RevenuePanel() {
   const allNetProfitEntries = rows.flatMap(netProfitEntriesFor).filter(e => e.date);
 
   const now = new Date();
-  const targetMonthDate = new Date(now.getFullYear(), now.getMonth() + monthOffset, 1);
-  const targetYear = now.getFullYear() + yearOffset;
+  const nowPhx = phoenixDateParts(now);
+  const targetMonthDate = new Date(Date.UTC(nowPhx.year, nowPhx.month - 1 + monthOffset, 1, 12));
+  const targetYear = nowPhx.year + yearOffset;
 
   let points: { label: string; value: number }[] = [];
   let netProfitPoints: { label: string; value: number }[] = [];
@@ -10187,35 +10172,35 @@ function RevenuePanel() {
   let periodNetProfitTotal = 0;
 
   if (mode === 'month') {
-    const y = targetMonthDate.getFullYear(), m = targetMonthDate.getMonth();
-    const daysInMonth = new Date(y, m + 1, 0).getDate();
+    const y = targetMonthDate.getUTCFullYear(), m = targetMonthDate.getUTCMonth();
+    const daysInMonth = new Date(Date.UTC(y, m + 1, 0)).getUTCDate();
     const dailyTotals = new Array(daysInMonth).fill(0);
     const dailyNetProfitTotals = new Array(daysInMonth).fill(0);
     for (const e of allEntries) {
-      const d = new Date(e.date);
-      if (d.getFullYear() === y && d.getMonth() === m) dailyTotals[d.getDate() - 1] += e.amount;
+      const d = phoenixDateParts(new Date(e.date));
+      if (d.year === y && d.month === m + 1) dailyTotals[d.day - 1] += e.amount;
     }
     for (const e of allNetProfitEntries) {
-      const d = new Date(e.date);
-      if (d.getFullYear() === y && d.getMonth() === m) dailyNetProfitTotals[d.getDate() - 1] += e.amount;
+      const d = phoenixDateParts(new Date(e.date));
+      if (d.year === y && d.month === m + 1) dailyNetProfitTotals[d.day - 1] += e.amount;
     }
     let running = 0;
     points = dailyTotals.map((amt, i) => { running += amt; return { label: String(i + 1), value: Math.round(running * 100) / 100 }; });
     let runningNP = 0;
     netProfitPoints = dailyNetProfitTotals.map((amt, i) => { runningNP += amt; return { label: String(i + 1), value: Math.round(runningNP * 100) / 100 }; });
-    periodLabel = targetMonthDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+    periodLabel = targetMonthDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' });
     periodTotal = running;
     periodNetProfitTotal = runningNP;
   } else {
     const monthTotals = new Array(12).fill(0);
     const monthNetProfitTotals = new Array(12).fill(0);
     for (const e of allEntries) {
-      const d = new Date(e.date);
-      if (d.getFullYear() === targetYear) monthTotals[d.getMonth()] += e.amount;
+      const d = phoenixDateParts(new Date(e.date));
+      if (d.year === targetYear) monthTotals[d.month - 1] += e.amount;
     }
     for (const e of allNetProfitEntries) {
-      const d = new Date(e.date);
-      if (d.getFullYear() === targetYear) monthNetProfitTotals[d.getMonth()] += e.amount;
+      const d = phoenixDateParts(new Date(e.date));
+      if (d.year === targetYear) monthNetProfitTotals[d.month - 1] += e.amount;
     }
     let running = 0;
     const MONTH_ABBR = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
