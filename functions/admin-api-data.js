@@ -87,6 +87,8 @@ function namesLikelyMatch(fnameA, lnameA, fnameB, lnameB) {
 
 import { verifyAccess } from './_lib/access-auth.js';
 import { handleFleetAction, FleetError } from './_lib/fleet.js';
+import { suggestLaborHours } from './_lib/labor-hours.js';
+import { cleanTemplate, DEFAULT_CHECKLIST } from '../shared/next-visit.js';
 
 export async function onRequestPost({ request, env }) {
   // Defense-in-depth: cryptographically verify the Access JWT, not just its presence.
@@ -836,6 +838,34 @@ export async function onRequestPost({ request, env }) {
       // ---- Paid bookings (tax/revenue summary) -----------------------------
       // ---- AZ TPT tax rate (editable, applies going forward only) ----------
       // ---- Home base address (for auto-calculating job trip mileage) ------
+      // ---- Next-visit checklist template (Hub) + labor-hour suggestion -----
+      // Template lives in business_settings.next_visit_checklist
+      // (next_visit_migration.sql). Before the migration: the default list.
+      case 'get-next-visit-checklist': {
+        const res = await fetch(`${base}/business_settings?id=eq.default&select=next_visit_checklist`, { headers });
+        if (!res.ok) return json({ checklist: DEFAULT_CHECKLIST, custom: false, migrated: false });
+        const saved = (await res.json())?.[0]?.next_visit_checklist;
+        return json({ checklist: cleanTemplate(saved), custom: Array.isArray(saved) && saved.length > 0, migrated: true });
+      }
+      case 'set-next-visit-checklist': {
+        const list = payload.reset ? null : cleanTemplate(payload.checklist);
+        const res = await fetch(`${base}/business_settings`, {
+          method: 'POST',
+          headers: { ...headers, Prefer: 'resolution=merge-duplicates,return=minimal' },
+          body: JSON.stringify({ id: 'default', next_visit_checklist: list, updated_at: new Date().toISOString() }),
+        });
+        if (!res.ok) {
+          const t = await res.text();
+          return json({ error: /next_visit_checklist/.test(t) ? 'Run next_visit_migration.sql in Supabase first, then save again.' : t }, 400);
+        }
+        return json({ ok: true, checklist: list || DEFAULT_CHECKLIST });
+      }
+      case 'suggest-labor-hours': {
+        try {
+          return json(await suggestLaborHours({ base, headers, env, vin: payload.vin, vehicle: payload.vehicle, service: payload.service, note: payload.note }));
+        } catch (e) { return json({ error: e.message }, 400); }
+      }
+
       case 'get-home-address': {
         const res = await fetch(
           `${base}/business_settings?id=eq.default&select=home_address`,

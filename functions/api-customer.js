@@ -1,4 +1,7 @@
 // fixed
+import { checkResponse, nextVisitJobRow, recommendations } from '../shared/next-visit.js';
+import { isBookableSlot, phoenixHour } from '../shared/booking-slots.js';
+import { phoenixYmd } from '../shared/business-metrics.js';
 // Cloudflare Pages Function — POST /api/customer
 // PUBLIC customer operations that legitimately need DB access, now that the
 // anon key can no longer read the bookings table. Each action validates itself
@@ -279,6 +282,61 @@ export async function onRequestPost({ request, env }) {
       }
 
       // ---- PrePI page: read one pre-purchase inspection by id ---------------
+      // ---- Next-visit check: the customer approves/declines recommendations --
+      // on their invoice and picks a date/time. Creates ONE new booking (their
+      // details, vehicle, requested services, declined items, inspection link),
+      // records the answer on the original job, and leaves the owner a reminder
+      // (delivered to Telegram by the proactive worker). Answer once per invoice.
+      case 'next-visit-respond': {
+        const { id, approved = [], declined = [], date, time } = payload;
+        if (!id) return json({ error: 'Missing id' }, 400);
+        const res = await fetch(`${base}/bookings?id=eq.${encodeURIComponent(id)}&select=*`, { headers });
+        if (!res.ok) return json({ error: await res.text() }, 502);
+        const orig = (await res.json())[0];
+        if (!orig) return json({ error: 'Not found' }, 404);
+        let data;
+        try { data = typeof orig.inspection_data === 'string' ? JSON.parse(orig.inspection_data) : orig.inspection_data; } catch { data = null; }
+        const nv = data?.nextVisit;
+        if (nv?.response) return json({ ok: true, already: true, ...nv.response });
+        let r;
+        try { r = checkResponse(nv, Array.isArray(approved) ? approved : [], Array.isArray(declined) ? declined : []); }
+        catch (e) { return json({ error: e.message }, 400); }
+
+        let jobId = null;
+        if (r.approved.length) {
+          const now = new Date();
+          const [blk, tk] = await Promise.all([
+            fetch(`${base}/blackout_dates?select=date&date=eq.${encodeURIComponent(String(date || ''))}`, { headers }),
+            fetch(`${base}/bookings?select=time&date=eq.${encodeURIComponent(String(date || ''))}&status=not.in.(cancelled,pending)`, { headers }),
+          ]);
+          const blackout = blk.ok ? (await blk.json()).map(b => b.date) : [];
+          const taken = tk.ok ? (await tk.json()).map(b => b.time) : [];
+          if (!isBookableSlot(String(date || ''), String(time || ''), { today: phoenixYmd(now), nowHour: phoenixHour(now), taken, blackout })) {
+            return json({ error: 'That time is no longer available. Please pick another.' }, 409);
+          }
+          const row = nextVisitJobRow({ orig, approved: r.approved, declined: r.declined, date, time, id: `GID-${now.getTime()}`, createdAt: now.toISOString(), site: 'https://gidgarage.com' });
+          const ins = await fetch(`${base}/bookings`, { method: 'POST', headers: { ...headers, Prefer: 'return=minimal' }, body: JSON.stringify(row) });
+          if (!ins.ok) return json({ error: 'Could not book that time. Please try another.' }, 409);
+          jobId = row.id;
+        }
+
+        const response = { at: new Date().toISOString(), approved: r.approved.map(a => a.id), declined: r.declined.map(d => d.id), jobId, date: jobId ? date : null, time: jobId ? time : null };
+        await fetch(`${base}/bookings?id=eq.${encodeURIComponent(id)}`, {
+          method: 'PATCH', headers: { ...headers, Prefer: 'return=minimal' },
+          body: JSON.stringify({ inspection_data: JSON.stringify({ ...data, nextVisit: { ...nv, response } }) }),
+        });
+        const who = `${orig.fname || ''} ${orig.lname || ''}`.trim() || 'A customer';
+        await fetch(`${base}/jarvis_reminders`, {
+          method: 'POST', headers: { ...headers, Prefer: 'return=minimal' },
+          body: JSON.stringify({
+            title: jobId ? `${who} booked a next visit: ${date} ${time}` : `${who} declined all next-visit recommendations`,
+            notes: [jobId ? `Requested: ${r.approved.map(a => a.service).join('; ')}` : '', r.declined.length ? `Declined: ${r.declined.map(d => d.service).join('; ')}` : '', `${orig.vehicle || ''}`].filter(Boolean).join('\n'),
+            due_at: new Date().toISOString(), status: 'open',
+          }),
+        }).catch(() => {});
+        return json({ ok: true, ...response, recommendations: recommendations(nv).length });
+      }
+
       case 'get-ppi': {
         const { id } = payload;
         if (!id) return json({ error: 'Missing id' }, 400);

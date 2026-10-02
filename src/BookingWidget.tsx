@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, type Dispatch, type SetStateAction } from 'react';
 import { JobsTab, BusinessHub, MileageTab, JobDetailPanel, getJobById, getAllJobs, OwnerPayPanel, CustomersTab, type Job } from './JobOps';
 import { FleetAdminTab } from './fleet/FleetAdminTab';
+import { WEEKDAY_SLOTS, WEEKEND_SLOTS, slotsForDate } from '../shared/booking-slots.js';
 import { getEngines } from './engineData';
 import { getTrims } from './trimData';
 
@@ -149,27 +150,9 @@ const SERVICES = [
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 const DAY_LABELS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 
-// Mon–Fri 1:30pm–8pm, Sat–Sun 5am–8pm — resolved at selection time
-function genSlots(startH: number, startM: number, endH: number, endM: number): string[] {
-  const out: string[] = [];
-  let h = startH, m = startM;
-  while (h < endH || (h === endH && m <= endM)) {
-    const period = h >= 12 ? 'PM' : 'AM';
-    const h12 = h % 12 === 0 ? 12 : h % 12;
-    out.push(`${h12}:${m === 0 ? '00' : m} ${period}`);
-    m += 30;
-    if (m >= 60) { m = 0; h += 1; }
-  }
-  return out;
-}
-const WEEKDAY_SLOTS = genSlots(13, 30, 19, 0);
-const WEEKEND_SLOTS = genSlots(5, 0, 19, 0);
-
-function getSlotsForDate(dateStr: string): string[] {
-  if (!dateStr) return WEEKDAY_SLOTS;
-  const dow = new Date(dateStr + 'T12:00:00').getDay();
-  return (dow === 0 || dow === 6) ? WEEKEND_SLOTS : WEEKDAY_SLOTS;
-}
+// Appointment hours live in shared/booking-slots.js (also used by the next-visit
+// approval page and the server checks).
+const getSlotsForDate = (dateStr: string): string[] => slotsForDate(dateStr);
 
 function pad(n: number) { return String(n).padStart(2, '0'); }
 
