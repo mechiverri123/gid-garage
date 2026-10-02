@@ -158,7 +158,7 @@ Jarvis is the interactive command interface for GID Garage, not primarily a chat
 - **Where it lives:** `/jarvis/tech` (`src/tech/TechApp.tsx`), the phone app saved to the home screen (manifest `public/manifests/tech.json`). It's under /jarvis, so Access protects it.
 - **What it does:**
   - Job picker: Today / Upcoming / Recent / Search.
-  - Job screen: call / text (through Google Voice by default; a switch goes back to Phone/Messages) / drive / copy VIN, one next-status button (`statusChangeFields`), and tabs Job (technician notes), Photos (`PhotoPanel`/`VideoPanel`), Next (`NextVisitCheck`), Parts (`PartsCostPanel`) and Pay.
+  - Job screen: call / text (open the Google Voice app, work line only; the number or pay message is copied to paste, since `googlevoice://` can't carry it) / drive / copy VIN, one next-status button (`statusChangeFields`), and tabs Job (technician notes), Photos (`PhotoPanel`/`VideoPanel`), Next (`NextVisitCheck`), Parts (`PartsCostPanel`) and Pay.
   - Pay shows the balance from `jobMoney`, sends the `/invoice?action=pay` link, and includes `PaymentPanel`.
 - **Same data as admin:** the same bookings and calls (`getAllJobs`, `getJobById`, `patchJob`). Admin's UI is unchanged.
 - **Tap to Pay:** impossible from a web page (Apple allows it only in native apps). Take it in the Bluevine app and record it in Pay.
