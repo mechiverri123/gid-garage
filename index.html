@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <link rel="icon" href="/favicon.ico" sizes="any" />
     <link rel="icon" type="image/png" href="/favicon-192.png" sizes="192x192" />
-    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" id="app-touch-icon" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -19,6 +19,7 @@
         var p = location.pathname.replace(/\/+$/, '');
         if (!apps[p]) return;
         document.getElementById('app-manifest').setAttribute('href', '/manifests/' + apps[p][0] + '.json');
+        document.getElementById('app-touch-icon').setAttribute('href', '/icons/' + apps[p][0] + '-180.png');
         var t = document.createElement('meta'); t.name = 'apple-mobile-web-app-title'; t.content = apps[p][1];
         document.head.appendChild(t);
       })();
