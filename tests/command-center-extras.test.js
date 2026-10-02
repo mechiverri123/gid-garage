@@ -14,7 +14,8 @@ const JOBS = [
   { id: 'A', job_status: 'PAID', paid_at: '2026-09-27T18:00:00Z', invoice_amount: 300, tax_amount: 20, amount_paid: 320, payments: JSON.stringify([{ amount: 100, at: '2026-09-26T18:00:00Z' }, { amount: 220, at: '2026-09-27T18:00:00Z' }]) },
   { id: 'B', job_status: 'PAID', paid_at: '2026-09-28T01:00:00Z', invoice_amount: 200, tax_amount: 10, amount_paid: 210, payments: '[]' }, // Stripe retry: no log -> fallback, Phoenix day 09-27
   { id: 'C', job_status: 'INVOICED', invoice_amount: 500, tax_amount: 0, amount_paid: 150, payments: [{ amount: 150, at: '2026-09-28T16:00:00Z' }] },
-  { id: 'D', job_status: 'PAID', paid_at: '2026-09-28T17:00:00Z', invoice_amount: 400, tax_amount: 0, amount_paid: 400, payments: [{ amount: 100, at: '2026-09-25T17:00:00Z' }] }, // partial log + fallback
+  // $400 job: $100 logged on 09-25, closed 09-28 with no other entry -> only the missing $300 lands on 09-28 (CLAUDE.md §0.45: never the whole invoice again).
+  { id: 'D', job_status: 'PAID', paid_at: '2026-09-28T17:00:00Z', invoice_amount: 400, tax_amount: 0, amount_paid: 400, payments: [{ amount: 100, at: '2026-09-25T17:00:00Z' }] },
 ];
 
 test('collectedByDay: each day equals the canonical collectedRevenue for that single day', () => {
@@ -23,7 +24,7 @@ test('collectedByDay: each day equals the canonical collectedRevenue for that si
   for (const day of ['2026-09-25', '2026-09-26', '2026-09-27', '2026-09-28']) {
     assert.equal(byDay.get(day) || 0, collectedRevenue(jobs, dayWindow(day)).total, day);
   }
-  assert.deepEqual(Object.fromEntries(byDay), { '2026-09-25': 100, '2026-09-26': 100, '2026-09-27': 430, '2026-09-28': 550 });
+  assert.deepEqual(Object.fromEntries(byDay), { '2026-09-25': 100, '2026-09-26': 100, '2026-09-27': 430, '2026-09-28': 450 });
 });
 
 test('trend series: 90 Phoenix days, oldest first, leads/booked by lead day and collected money', () => {
@@ -33,7 +34,7 @@ test('trend series: 90 Phoenix days, oldest first, leads/booked by lead day and 
   ] }, NOW, 90);
   assert.equal(t.length, 90);
   assert.equal(t.at(-1).date, '2026-09-28');
-  assert.deepEqual(t.at(-1), { date: '2026-09-28', leads: 2, booked: 1, collected: 550 });
+  assert.deepEqual(t.at(-1), { date: '2026-09-28', leads: 2, booked: 1, collected: 450 });
   assert.deepEqual(t.at(-2), { date: '2026-09-27', leads: 1, booked: 0, collected: 430 });
 });
 

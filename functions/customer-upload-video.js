@@ -1,3 +1,4 @@
+import { uploadType, UPLOAD_TYPES } from './_lib/safe-media.js';
 /**
  * customer-upload-video — Cloudflare Pages Function
  * PUBLIC endpoint (no Cloudflare Access JWT) — receives multipart/form-data
@@ -40,7 +41,7 @@ export async function onRequestPost(context) {
     return new Response(JSON.stringify({ error: 'No file provided' }), { status: 400, headers: { 'Content-Type': 'application/json' } });
   }
 
-  if (file.type && !file.type.startsWith('video/')) {
+  if (!uploadType(file, UPLOAD_TYPES.video)) {
     return new Response(JSON.stringify({ error: 'Only video files are allowed' }), { status: 400, headers: { 'Content-Type': 'application/json' } });
   }
 
@@ -55,7 +56,7 @@ export async function onRequestPost(context) {
 
   const arrayBuffer = await file.arrayBuffer();
   await bucket.put(key, arrayBuffer, {
-    httpMetadata: { contentType: file.type || 'video/mp4' },
+    httpMetadata: { contentType: uploadType(file, UPLOAD_TYPES.video) || 'video/mp4' },
     customMetadata: { bookingId: safeBookingId, originalName: file.name },
   });
 

@@ -1,3 +1,4 @@
+import { uploadType, UPLOAD_TYPES } from './_lib/safe-media.js';
 /**
  * customer-upload-photo — Cloudflare Pages Function
  * PUBLIC endpoint (no Cloudflare Access JWT) — receives multipart/form-data
@@ -45,6 +46,11 @@ export async function onRequestPost(context) {
     return new Response(JSON.stringify({ error: 'File too large' }), { status: 413, headers: { 'Content-Type': 'application/json' } });
   }
 
+  const storedType = uploadType(file, UPLOAD_TYPES.image);
+  if (!storedType) {
+    return new Response(JSON.stringify({ error: 'Unsupported file type' }), { status: 415, headers: { 'Content-Type': 'application/json' } });
+  }
+
   // Sanitize bookingId and filename — these end up in the R2 key.
   const safeBookingId = String(bookingId).replace(/[^a-zA-Z0-9-]/g, '_');
   const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
@@ -52,7 +58,7 @@ export async function onRequestPost(context) {
 
   const arrayBuffer = await file.arrayBuffer();
   await bucket.put(key, arrayBuffer, {
-    httpMetadata: { contentType: file.type || 'application/octet-stream' },
+    httpMetadata: { contentType: storedType },
     customMetadata: { bookingId: safeBookingId, originalName: file.name },
   });
 

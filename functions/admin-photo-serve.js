@@ -1,3 +1,4 @@
+import { safeServeHeaders } from './_lib/safe-media.js';
 /**
  * admin-photo-serve — Cloudflare Pages Function
  * Serves R2 photos through the Worker, requiring Cloudflare Access JWT.
@@ -38,11 +39,7 @@ export async function onRequestGet({ request, env }) {
     return new Response('Not found', { status: 404 });
   }
 
-  const contentType = object.httpMetadata?.contentType || 'application/octet-stream';
   return new Response(object.body, {
-    headers: {
-      'Content-Type': contentType,
-      'Cache-Control': 'private, max-age=3600',
-    },
+    headers: safeServeHeaders(object.httpMetadata?.contentType, { 'Cache-Control': 'private, max-age=3600' }),
   });
 }

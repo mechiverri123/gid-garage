@@ -6870,7 +6870,7 @@ export function JobsTab() {
   // Breakdown uses the exact same payment ledger as revenue/net profit. If a
   // job is paid across multiple months, billed lines, tax and parts cost are
   // allocated proportionally to the money actually collected in each period.
-  const breakdownFor = (inWindow: (iso: string) => boolean) => jobs.reduce((acc, j) => {
+  const breakdownFor = (inWindow: (iso: string | null | undefined) => boolean) => jobs.reduce((acc, j) => {
     const c = jobContribution(j, inWindow);
     if (Math.abs(c.collected) < 0.000001 && Math.abs(c.netProfit) < 0.000001) return acc;
     const share = c.allocationShare || 0;
@@ -10293,8 +10293,8 @@ function RevenuePanel() {
               <button key={p.label}
                 onClick={() => {
                   const end = new Date();
-                  const start = p.days === null ? new Date(end.getFullYear(), 0, 1) : new Date(end.getTime() - (p.days - 1) * 86400000);
-                  setRangeStart(toDateInputStr(start));
+                  // YTD starts on Jan 1 of the Arizona year (not the device's local Jan 1).
+                  setRangeStart(p.days === null ? `${toDateInputStr(end).slice(0, 4)}-01-01` : toDateInputStr(new Date(end.getTime() - (p.days - 1) * 86400000)));
                   setRangeEnd(toDateInputStr(end));
                 }}
                 className="flex-1 py-1.5 text-[10px] font-bold uppercase tracking-wider border border-gray-800 text-gray-500 hover:text-white hover:border-gray-600 transition-colors"

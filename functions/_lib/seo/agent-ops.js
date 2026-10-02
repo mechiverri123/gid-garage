@@ -19,7 +19,11 @@ import { PLACES, isInsideServiceArea } from '../../../shared/seo/service-area.js
 const SERVICE_AREA_PLACES = PLACES.filter(p => isInsideServiceArea({ lat: p.lat, lng: p.lng }).inside === true).map(({ name, lat, lng }) => ({ name, lat, lng }));
 
 const DAY = 86400000;
+// A plain calendar date ("2026-09-22") is already a day: return it unchanged.
+// Reading it through Date would mean UTC midnight = the previous evening in
+// Arizona, which made every day-step slip one day (SEO backfill windows drifted).
 const ymd = d => {
+  if (typeof d === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(d)) return d;
   const parts = new Intl.DateTimeFormat('en-US', {
     timeZone: 'America/Phoenix', year: 'numeric', month: '2-digit', day: '2-digit',
   }).formatToParts(new Date(d));

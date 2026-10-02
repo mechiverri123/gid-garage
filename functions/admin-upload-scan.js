@@ -1,3 +1,5 @@
+import { verifyAccess } from './_lib/access-auth.js';
+import { uploadType, UPLOAD_TYPES } from './_lib/safe-media.js';
 /**
  * admin-upload-scan — Cloudflare Pages Function
  * Receives multipart/form-data with a file + bookingId + stage ('pre' | 'post'),
@@ -17,6 +19,8 @@ const MAX_BYTES = 20 * 1024 * 1024; // 20MB — scan reports/PDFs can run larger
 
 export async function onRequestPost(context) {
   const { request, env } = context;
+  const auth = await verifyAccess(request, env);
+  if (!auth.ok) return new Response(JSON.stringify({ error: auth.error }), { status: auth.status, headers: { 'Content-Type': 'application/json' } });
 
   const bucket = env.GID_PHOTOS;
   if (!bucket) {
@@ -45,13 +49,18 @@ export async function onRequestPost(context) {
     return new Response(JSON.stringify({ error: 'File too large (20MB max)' }), { status: 413, headers: { 'Content-Type': 'application/json' } });
   }
 
+  const storedType = uploadType(file, UPLOAD_TYPES.imageOrPdf);
+  if (!storedType) {
+    return new Response(JSON.stringify({ error: 'Unsupported file type' }), { status: 415, headers: { 'Content-Type': 'application/json' } });
+  }
+
   const safeBookingId = String(bookingId).replace(/[^a-zA-Z0-9-]/g, '_');
   const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
   const key = `scans/${safeBookingId}/${stage}-${Date.now()}-${safeName}`;
 
   const arrayBuffer = await file.arrayBuffer();
   await bucket.put(key, arrayBuffer, {
-    httpMetadata: { contentType: file.type || 'application/octet-stream' },
+    httpMetadata: { contentType: storedType },
     customMetadata: { bookingId: safeBookingId, stage, originalName: file.name },
   });
 

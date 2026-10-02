@@ -240,7 +240,9 @@ async function webChat({ text, script = [], screen = null, voice = false }) {
   return { events, claudeRequests, final: events.find(e => e.type === 'final')?.text, says: events.filter(e => e.type === 'say').map(e => e.text), ui: events.filter(e => e.type === 'ui').map(e => e.action) };
 }
 
-test('fast path: plain revenue / schedule / customer-jobs requests never call Claude', async () => {
+test('fast path: plain revenue / schedule / customer-jobs requests never call Claude', async t => {
+  // The seed's payments are in September 2026; pin "this month" there (the test broke when the real month rolled over).
+  t.mock.timers.enable({ apis: ['Date'], now: new Date('2026-09-28T19:00:00Z') });
   const rev = await webChat({ text: "What's my revenue this month?", voice: true });
   assert.equal(rev.claudeRequests.length, 0);
   assert.equal(rev.ui[0].view.type, 'analytics');

@@ -13,7 +13,7 @@ export const SEO = { accent: C.green, accentDim: C.cyan2, border: C.border, text
 export function Empty({ children }: { children: ReactNode }) { return <div className="text-[14px] py-8 text-center" style={{ color: C.text2 }}>{children}</div>; }
 
 const fmt = (n: number | null | undefined) => (n == null ? '—' : Number.isInteger(n) ? n.toLocaleString('en-US') : n.toFixed(1));
-const shortDate = (iso?: string | null) => (iso ? new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '');
+const shortDate = (iso?: string | null) => (iso ? new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'America/Phoenix' }) : '');
 
 // ---- KPIs ------------------------------------------------------------------------------------------
 

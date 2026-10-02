@@ -1175,7 +1175,7 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
     handleFinalSubmit(customerId, last4);
   }
 
-  async function handleFinalSubmit(customerId: string | null = null, last4: string | null = null, bookingIdOverride?: string, reuseSavedCard = false) {
+  async function handleFinalSubmit(_customerId: string | null = null, _last4: string | null = null, bookingIdOverride?: string, reuseSavedCard = false) {
     const resolvedBookingId = bookingIdOverride ?? s.bookingId;
     if (!s.service || !s.date || !s.time || !svc || !resolvedBookingId) return;
     setSubmitting(true);
@@ -1215,7 +1215,7 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
     setSubmitError(null);
     const bookingId = `GID-${Date.now()}`;
     const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Phoenix' });
-    const nowTime = new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+    const nowTime = new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'America/Phoenix' });
     const inquiry = {
       id: bookingId,
       service: 'other',

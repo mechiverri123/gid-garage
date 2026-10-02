@@ -1,3 +1,4 @@
+import { safeServeHeaders } from './_lib/safe-media.js';
 /**
  * customer-photo-serve — Cloudflare Pages Function
  * PUBLIC endpoint — serves R2 files with NO Access JWT required, since these
@@ -36,11 +37,7 @@ export async function onRequestGet({ request, env }) {
     return new Response('Not found', { status: 404 });
   }
 
-  const contentType = object.httpMetadata?.contentType || 'application/octet-stream';
   return new Response(object.body, {
-    headers: {
-      'Content-Type': contentType,
-      'Cache-Control': 'public, max-age=86400',
-    },
+    headers: safeServeHeaders(object.httpMetadata?.contentType, { 'Cache-Control': 'public, max-age=86400' }),
   });
 }
