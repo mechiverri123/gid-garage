@@ -205,6 +205,15 @@ function taxFromItems(items?: LineItem[] | null): number {
 function totalFromItems(subtotal: number, items?: LineItem[] | null): number {
   return Math.round((subtotal + taxFromItems(items)) * 100) / 100;
 }
+// What the customer was quoted, as they saw it: pre-tax subtotal (invoice, else
+// estimate) + the job's stored tax (fallback: tax on the taxable line items).
+// estimate_amount / invoice_amount are PRE-TAX — never show them alone as "the price".
+function quotedTotals(job: { invoiceAmount: number | null; estimateAmount: number | null; taxAmount: number | null; lineItems?: LineItem[] | null }) {
+  const subtotal = job.invoiceAmount ?? job.estimateAmount;
+  if (subtotal == null) return null;
+  const tax = job.taxAmount ?? taxFromItems(job.lineItems);
+  return { subtotal, tax, total: Math.round((subtotal + tax) * 100) / 100 };
+}
 
 // ── TYPES ────────────────────────────────────────────────────────────────────
 
@@ -3511,7 +3520,7 @@ function SignedDocSection({ job }: { job: Job }) {
   const signedDate = job.signedAt
     ? new Date(job.signedAt).toLocaleString('en-US', { month: 'long', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: 'America/Phoenix' })
     : 'Unknown';
-  const amount = job.invoiceAmount ?? job.estimateAmount;
+  const quoted = quotedTotals(job);
 
   return (
     <>
@@ -3557,7 +3566,7 @@ function SignedDocSection({ job }: { job: Job }) {
                   ['Vehicle', job.vehicle],
                   ['Service', resolveServiceName(job.service, job.notes)],
                   ['Appointment', job.dateTbd ? 'TBD — to be scheduled' : `${new Date(job.date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}${apptTimeLabel(job.time)}`],
-                  ...(amount ? [['Quoted Amount', `$${amount.toFixed(2)}`]] : []),
+                  ...(quoted ? [['Subtotal', `$${quoted.subtotal.toFixed(2)}`], ['AZ TPT (tax)', `$${quoted.tax.toFixed(2)}`], ['Quoted Total', `$${quoted.total.toFixed(2)}`]] : []),
                 ].map(([label, val]) => (
                   <div key={label} className="flex justify-between px-4 py-2.5 gap-4">
                     <span className="text-gray-500 text-xs font-bold uppercase tracking-wider flex-shrink-0">{label}</span>
@@ -6665,8 +6674,8 @@ function TbdJobsModal({ onClose, jobs, onSelectJob }: {
                       {createdStr && <p className="text-gray-600 text-[11px] mt-0.5">Lead created {createdStr}</p>}
                     </div>
                     <div className="flex-shrink-0 text-right">
-                      {j.estimateAmount != null && (
-                        <p className="text-gray-400 text-sm font-bold">${j.estimateAmount.toFixed(0)}</p>
+                      {quotedTotals(j) && (
+                        <p className="text-gray-400 text-sm font-bold">${quotedTotals(j)!.total.toFixed(2)}</p>
                       )}
                       <span className="text-indigo-400 text-[10px] font-bold uppercase tracking-wider">Set Date →</span>
                     </div>
