@@ -153,6 +153,23 @@ Jarvis is the interactive command interface for GID Garage, not primarily a chat
 - **Owner's equity totals come from the admin Owner's Equity ledger** (`equity_entries`, Hub → Banking & Credit). Bank transfers are only matched against it (same amount, ±5 days), and ones missing from the ledger are shown separately. Never compute equity from bank transfers or Zoho funding.
 - **"Why net profit isn't your bank balance" card:** net + sales tax still owed + equity net = what the business should have. The remainder beyond the bank balance is cash/Stripe/Venmo in transit or spending after the last upload.
 
+# 0.37 NEXT-VISIT CHECK (2026-10-01)
+
+- **What it is:** a free "what's next" checklist on any job (admin → job → Inspection tab → Next-Visit Check, `src/nextVisit/NextVisitCheck.tsx`). Each item is Good / Soon / Now.
+- **Recommendations:** Soon and Now items become recommended services on the customer's invoice (`NextVisitInvoice`). There are no prices; they're quoted later.
+- **Storage:** `bookings.inspection_data.nextVisit`. The Inspection tab's own Save keeps it, and checklist saves merge into the server's current record.
+- **Customer answer:** on the invoice the customer approves or declines every item and picks a slot. `/api-customer` `next-visit-respond`:
+  - creates ONE booking (`nextVisitJobRow`) with their details, vehicle/VIN, the slot, the requested services, `"A", "B" were declined at this time.`, and the inspection link;
+  - marks the original job answered (answered once; the checklist then locks);
+  - leaves a `jarvis_reminders` row, which reaches Telegram through the proactive worker. No Telegram code changed.
+- **Slots:** `shared/booking-slots.js`, also used by the booking widget. The slot is re-checked on the server.
+- **Pages:** `/inspection?id=` is the inspection-only page (`InspectionPage`), with the same print rules as the invoice.
+- **Media:** photos are compressed (1600px JPEG); videos have an 80MB cap. Both use the customer upload routes.
+- **Offline:** with no signal, changes go to localStorage and media to IndexedDB, then upload on reconnect.
+- **Labor hours:** `suggest-labor-hours` (functions/_lib/labor-hours.js) decodes the VIN with vPIC and asks Haiku for hours only. It's budget-governed and the owner's private number; the public `get-job` strips `laborHours`.
+- **Checklist template:** Hub → Next-Visit Checklist (`business_settings.next_visit_checklist`, `next_visit_migration.sql`, which the owner runs). The default list is in `shared/next-visit.js`.
+- **Tests:** `tests/next-visit.test.js`, `tests/labor-hours.test.js`.
+
 # 0.36 FLEET (2026-10-01; plan and owner decisions: FLEET_PLAN.md)
 
 - **Hierarchy:** Fleet → Company (permanent 4-digit Fleet #) → Vehicles → Unit #N → its record.

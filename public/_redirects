@@ -12,6 +12,7 @@
 /prompt  /app-shell  200
 /estimate  /app-shell  200
 /invoice  /app-shell  200
+/inspection  /app-shell  200
 /ppi  /app-shell  200
 /games  /app-shell  200
 /game-redeem  /app-shell  200

@@ -94,3 +94,16 @@ test('server: answer once, slot re-checked, job + reminder created, original job
     assert.equal(writes.filter(w => w[0] === 'bookings' && w[1] === 'POST').length, 1);
   } finally { globalThis.fetch = saved; }
 });
+
+test('public invoice lookup hides next-visit labor hours', async () => {
+  const { onRequestPost } = await import('../functions/api-customer.js');
+  const insp = JSON.stringify({ dtcCodes: [], nextVisit: { items: [{ id: 'a', status: 'now', service: 'Pads', laborHours: 1.2, note: '3mm' }] } });
+  const saved = globalThis.fetch;
+  globalThis.fetch = async url => new Response(JSON.stringify(String(url).includes('business_settings') ? [{ tax_rate: 0.09 }] : [{ id: 'GID-1', inspection_data: insp }]));
+  try {
+    const job = await (await onRequestPost({ request: new Request('https://x/api-customer', { method: 'POST', body: JSON.stringify({ action: 'get-job', id: 'GID-1' }) }), env: { SUPABASE_URL: 'https://sb', SUPABASE_SERVICE_KEY: 'k' } })).json();
+    const item = JSON.parse(job.inspection_data).nextVisit.items[0];
+    assert.equal(item.note, '3mm');
+    assert.ok(!('laborHours' in item));
+  } finally { globalThis.fetch = saved; }
+});

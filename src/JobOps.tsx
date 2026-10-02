@@ -7,6 +7,10 @@ import { useState, useEffect, useRef, useMemo } from 'react';
 import { decodeVin, cleanVin, vinCheckDigitOk } from './vinDecode';
 import { resolvePeriodWindow, collectedRevenue, netProfit, cardRevenue, ownerTakeHome, jobContribution, moneyEntriesForJob, jobFromRow, phoenixDateParts, phoenixYmd } from '../shared/business-metrics.js';
 import { isAwaitingPayment, statusChangeFields } from '../shared/business-rules.js';
+import { NextVisitCheck } from './nextVisit/NextVisitCheck';
+import { NextVisitInvoice, NextVisitReport } from './nextVisit/NextVisitPublic';
+import { ChecklistSettings } from './nextVisit/ChecklistSettings';
+import type { NextVisit } from '../shared/next-visit.js';
 
 // Emails now sent server-side — BREVO_API_KEY removed from client bundle
 const STRIPE_PK = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY as string;
@@ -375,6 +379,8 @@ interface InspectionData {
   tirePressure: TireReading;
   tireTread: TireReading;
   dtcCodes: DtcCode[];
+  // Next-visit check (src/nextVisit/NextVisitCheck.tsx); kept when tires/codes are saved.
+  nextVisit?: NextVisit;
 }
 
 // ── PRE-PURCHASE INSPECTION (PrePI) ───────────────────────────────────────────
@@ -2235,7 +2241,8 @@ export function InspectionPanel({ job, onUpdate }: { job: Job; onUpdate: (j: Job
 
   async function save() {
     setSaving(true);
-    const inspectionData: InspectionData = { tirePressure: pressure, tireTread: tread, dtcCodes: codes };
+    // Keep everything else in the record (the next-visit check lives here too).
+    const inspectionData: InspectionData = { ...(job.inspectionData || {}), tirePressure: pressure, tireTread: tread, dtcCodes: codes };
     await patchJob(job.id, { inspection_data: JSON.stringify(inspectionData) });
     onUpdate({ ...job, inspectionData });
     setSaving(false);
@@ -2317,6 +2324,10 @@ export function InspectionPanel({ job, onUpdate }: { job: Job; onUpdate: (j: Job
       >
         {saving ? 'Saving…' : saved ? '✓ Saved' : 'Save Inspection Data'}
       </button>
+
+      <div className="border-t border-gray-800 pt-6">
+        <NextVisitCheck job={job} onSaved={d => onUpdate({ ...job, inspectionData: d as unknown as InspectionData })} />
+      </div>
     </div>
   );
 }
@@ -7773,9 +7784,12 @@ export function InvoicePage() {
           </div>
         )}
 
+        {/* Next-visit recommendations — approve/decline + book (screen); clean list in print */}
+        <NextVisitInvoice jobId={job.id} nextVisit={job.inspectionData?.nextVisit} />
+
         {/* Inspection Report — tire pressure, tread, DTC codes */}
         {job.inspectionData && (() => {
-          const { tirePressure: tp, tireTread: tt, dtcCodes } = job.inspectionData!;
+          const { tirePressure: tp = EMPTY_TIRES, tireTread: tt = EMPTY_TIRES, dtcCodes = [] } = job.inspectionData!;
           const hasPressure = Object.values(tp).some(v => v);
           const hasTread = Object.values(tt).some(v => v);
           const hasCodes = dtcCodes.length > 0;
@@ -7858,6 +7872,44 @@ export function InvoicePage() {
   );
 }
 
+
+// /inspection?id= — the inspection only (linked from the invoice and from the
+// next-visit job). Same look and print rules as the invoice.
+export function InspectionPage() {
+  const params = new URLSearchParams(window.location.search);
+  const jobId = params.get('id');
+  const [job, setJob] = useState<Job | null>(null);
+  const [state, setState] = useState<'loading' | 'ok' | 'missing'>('loading');
+  useEffect(() => {
+    if (!jobId) { setState('missing'); return; }
+    getJobByIdPublic(jobId).then(j => { setJob(j); setState(j ? 'ok' : 'missing'); }, () => setState('missing'));
+  }, [jobId]);
+  if (state === 'loading') return <div className="min-h-screen bg-[#0f0f0f] flex items-center justify-center text-gray-500 text-sm">Loading inspection…</div>;
+  if (state === 'missing' || !job) return <div className="min-h-screen bg-[#0f0f0f] flex items-center justify-center text-gray-400 text-sm px-6 text-center">This inspection link isn't valid. Call or text 480-757-0476.</div>;
+  const nv = job.inspectionData?.nextVisit;
+  const checkedOn = nv?.updatedAt ? new Date(nv.updatedAt).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'America/Phoenix' }) : new Date(job.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+  return (
+    <div className="min-h-screen bg-[#0f0f0f] text-white py-8 px-4">
+      <style>{`@media print { ${PRINT_DOC_STYLES} }`}</style>
+      <div className="max-w-lg mx-auto print-full print-doc">
+        <div className="mb-5">
+          <p className="text-red-500 text-xs font-bold uppercase tracking-[0.25em]">GID Garage · Mobile Mechanic</p>
+          <h1 className="text-2xl font-black tracking-tight mt-1">Vehicle Inspection</h1>
+          <p className="text-gray-400 text-sm mt-1">{[job.fname, job.lname].filter(Boolean).join(' ')} · {job.vehicle}{job.vin ? ` · VIN ${job.vin}` : ''}</p>
+          <p className="text-gray-500 text-xs mt-0.5">Checked {checkedOn}{job.mileage ? ` · ${fmtMileage(job.mileage)} mi` : ''}</p>
+        </div>
+        <div className="border border-white/10 bg-white/5 print:border-0 print:bg-transparent">
+          <NextVisitReport nextVisit={nv} />
+        </div>
+        <div className="mt-6 flex justify-center gap-3 no-print">
+          <button type="button" onClick={() => window.print()} className="border border-gray-700 text-gray-300 hover:text-white text-xs font-bold uppercase tracking-widest px-4 py-2">Print / Save PDF</button>
+          <a href={`/invoice?id=${encodeURIComponent(job.id)}`} className="border border-gray-700 text-gray-300 hover:text-white text-xs font-bold uppercase tracking-widest px-4 py-2">Back to invoice</a>
+        </div>
+        <p className="text-gray-700 text-xs text-center mt-8">GID Garage · Flagstaff, AZ · 480-757-0476 · gidgarage.com</p>
+      </div>
+    </div>
+  );
+}
 
 export function EstimatePage() {
   const params = new URLSearchParams(window.location.search);
@@ -8457,6 +8509,7 @@ const HUB_CATEGORIES: HubCategory[] = [
   { id: 'taxes',    icon: '🧾', label: 'Taxes & TPT',        color: 'text-yellow-400',  border: 'border-yellow-800', bg: 'bg-yellow-900/10' },
   { id: 'ops',      icon: '⚙️', label: 'Operations',         color: 'text-blue-400',    border: 'border-blue-800',   bg: 'bg-blue-900/10'   },
   { id: 'legal',    icon: '⚖️', label: 'Legal & Licensing',  color: 'text-purple-400',  border: 'border-purple-800', bg: 'bg-purple-900/10' },
+  { id: 'nextvisit', icon: '✅', label: 'Next-Visit Checklist', color: 'text-emerald-400', border: 'border-emerald-800', bg: 'bg-emerald-900/10' },
   { id: 'pricing',  icon: '💲', label: 'Pricing & Labor',    color: 'text-green-400',   border: 'border-green-800',  bg: 'bg-green-900/10'  },
   { id: 'vendors',  icon: '🔩', label: 'Vendors & Parts',    color: 'text-orange-400',  border: 'border-orange-800', bg: 'bg-orange-900/10' },
   { id: 'banking',  icon: '🏦', label: 'Banking & Credit',   color: 'text-cyan-400',    border: 'border-cyan-800',   bg: 'bg-cyan-900/10'   },
@@ -10692,6 +10745,7 @@ function HubCategoryPanel({ cat }: { cat: HubCategory }) {
 
   if (cat.id === 'revenue') return <RevenuePanel />;
   if (cat.id === 'recovery') return <RecoveryPanel />;
+  if (cat.id === 'nextvisit') return <ChecklistSettings />;
 
   return (
     <div>

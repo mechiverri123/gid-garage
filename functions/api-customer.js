@@ -277,6 +277,14 @@ export async function onRequestPost({ request, env }) {
         // (parts cost/receipts = margins, admin-only photos, Stripe customer id,
         // the signer's IP, internal links). No customer page uses them.
         for (const k of PRIVATE_JOB_FIELDS) delete booking[k];
+        // Next-visit labor hours are the owner's own numbers: never sent to the customer.
+        try {
+          const insp = typeof booking.inspection_data === 'string' ? JSON.parse(booking.inspection_data) : booking.inspection_data;
+          if (insp?.nextVisit?.items) {
+            insp.nextVisit.items = insp.nextVisit.items.map(({ laborHours, ...rest }) => rest); // eslint-disable-line no-unused-vars
+            booking.inspection_data = typeof booking.inspection_data === 'string' ? JSON.stringify(insp) : insp;
+          }
+        } catch { /* leave as is */ }
         booking.currentTaxRate = await fetchCurrentTaxRate();
         return json(booking);
       }
