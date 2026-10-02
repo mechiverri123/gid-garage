@@ -6,7 +6,7 @@
 // migration runs, those parts report "not set up" and everything else works.
 // Tests: tests/seo-agent.test.js
 
-import { actionQueue, blueprint as buildBlueprint, categoryLearning, top5Gap, changesSince, jobContentCandidates, dueHorizons, horizonVerdict, playbookFor, parseRankCsv, rankGrid, OUTCOME_DAYS } from '../../../shared/seo/agent.js';
+import { actionQueue, blueprint as buildBlueprint, categoryLearning, top5Gap, changesSince, jobContentCandidates, dueHorizons, horizonVerdict, playbookFor, parseRankCsv, rankGrid, whereYouRank, OUTCOME_DAYS } from '../../../shared/seo/agent.js';
 import { detectSiteStructure, detectReviewGap, detectJobContent, detectKnowledgeChanges, detectSearchUpdates, detectAiVisibility, currentCrawl } from '../../../shared/seo/agent-detectors.js';
 import { readJson } from '../jarvis-feeds.js';
 import { NEWS_KEY, AI_KEY, ongoingUpdates } from './monitors.js';
@@ -232,11 +232,15 @@ export function createAgentOps({ store, env = {}, now = new Date(), h }) {
   async function jobs() { return { candidates: jobContentCandidates(await recentJobs(), { limit: 10 }), privacy: 'Vehicle, work done and month only — no names, contacts or addresses.' }; }
 
   // ---- rank observations -------------------------------------------------------------------------
+  // Map-pack observations plus `summary`: where GID ranks in everything measured.
   async function ranks() {
+    const [own, comps, runs] = await Promise.all([ownReviews(), competitorRows(), aiRuns().catch(() => [])]);
+    const summary = grid => whereYouRank({ own, competitors: comps, grid, ai: runs[0] });
     try {
       const rows = await store.select('seo_rank_observations', { select: '*', order: 'observed_on.desc', limit: '2000' });
-      return { ready: true, grid: rankGrid(rows), recent: rows.slice(0, 50), areas: SERVICE_AREA_PLACES };
-    } catch (e) { return { ready: !missingTable(e), grid: rankGrid([]), recent: [], areas: SERVICE_AREA_PLACES, error: missingTable(e) ? 'Run seo_agent_migration.sql to enable rank observations.' : e.message }; }
+      const grid = rankGrid(rows);
+      return { ready: true, grid, recent: rows.slice(0, 50), areas: SERVICE_AREA_PLACES, summary: summary(grid) };
+    } catch (e) { return { ready: !missingTable(e), grid: rankGrid([]), recent: [], areas: SERVICE_AREA_PLACES, summary: summary(null), error: missingTable(e) ? 'Run seo_agent_migration.sql to enable rank observations.' : e.message }; }
   }
   const placeFor = name => SERVICE_AREA_PLACES.find(p => p.name.toLowerCase() === String(name).toLowerCase());
   async function addRanks(rows) {

@@ -88,11 +88,14 @@ export function detectChanges(prev, next) {
   return changes;
 }
 
+// Local strength: tier weight × review volume × rating. GID scores as a mobile mechanic (1.0).
+export const strengthOf = c => Math.round(c.weight * (1 + Math.log10(1 + (c.reviewCount ?? c.review_count ?? 0))) * ((c.rating || 4) / 5) * 100) / 100;
+
 // Who is the biggest local competitor, and where they cover services we don't show.
 export function competitorLandscape(competitors, ourServicesShown = [], services = SERVICES) {
   const ranked = competitors
     .filter(c => c.kind === 'business' && c.weight > 0)
-    .map(c => ({ ...c, strength: Math.round(c.weight * (1 + Math.log10(1 + (c.reviewCount || 0))) * ((c.rating || 4) / 5) * 100) / 100 }))
+    .map(c => ({ ...c, strength: strengthOf(c) }))
     .sort((a, b) => b.strength - a.strength);
   return ranked.map(c => ({
     ...c,

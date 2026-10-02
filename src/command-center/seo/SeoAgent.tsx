@@ -247,6 +247,20 @@ export function RankingsView({ r, post }: { r: Any | undefined; post: Post }) {
   const tone = (n: number | null) => (n == null ? C.muted : n <= 3 ? C.green : n <= 5 ? C.cyan : n <= 10 ? C.amber : C.red);
   return (
     <div className="flex flex-col gap-4">
+      {r.summary?.length > 0 && (
+        <section className="flex flex-col gap-2">
+          <h3 className="font-semibold text-[15px]" style={{ color: C.text }}>Where you rank</h3>
+          <div className="grid gap-2 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+            {r.summary.map((s: Any) => (
+              <div key={s.id} className="rounded-xl p-3" style={box}>
+                <div className="text-[12.5px]" style={{ color: C.text2 }}>{s.label}</div>
+                <div className="text-[22px] font-semibold tabular-nums" style={{ color: tone(s.rank) }}>{s.rank != null ? `#${s.rank}` : 'Not shown'}{s.of ? <span className="text-[13px] font-normal" style={{ color: C.muted }}> of {s.of}</span> : null}</div>
+                <div className="text-[12.5px] break-words" style={{ color: C.muted }}>{s.detail}</div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
       <p className="text-[14px]" style={{ color: C.text2 }}>Local rank depends on where the searcher stands, so record it per area. Search on your phone from (or set to) that area, note GID's position in the map pack. No scraping — manual, CSV, or a rank-tracker export.</p>
       <div className="grid gap-2 sm:grid-cols-[2fr_1.3fr_0.8fr_auto_auto] items-end">
         <label className="flex flex-col gap-1"><span className="text-[12.5px]" style={{ color: C.text2 }}>Search</span><input className={input} style={inputStyle} value={keyword} onChange={e => setKeyword(e.target.value)} /></label>

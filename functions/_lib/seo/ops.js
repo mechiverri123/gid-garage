@@ -5,7 +5,7 @@
 
 import { computeOverview, annotateGsc, customerGeography as geoAggregate, localDailySeries } from '../../../shared/seo/kpis.js';
 import { serviceClusters, demandGaps, unconfirmedServiceDemand, nonOpportunities, AUTHORITY_STARTERS, authorityScore, citationIssues } from '../../../shared/seo/demand.js';
-import { competitorLandscape, reviewVelocity, detectChanges } from '../../../shared/seo/competitors.js';
+import { competitorLandscape, reviewVelocity, detectChanges, strengthOf } from '../../../shared/seo/competitors.js';
 import { seasonalFindings, eventsForYear, forecastColdSnap } from '../../../shared/seo/seasonality.js';
 import { runDetectors } from '../../../shared/seo/detectors.js';
 import { transition, mergeDetected, evaluateApplied, buildSeoBriefing, ACTIONS } from '../../../shared/seo/lifecycle.js';
@@ -112,7 +112,7 @@ export function createSeoOps({ store, env = {}, now = new Date() }) {
   async function competitorsView() {
     const [comps, snaps, changes, own, services] = await Promise.all([
       safe(store.select('seo_competitors', { select: '*', status: 'eq.active' })),
-      safe(store.selectAll('seo_review_snapshots', { select: 'subject,captured_at,review_count', order: 'captured_at.asc' }, 5000)),
+      safe(store.selectAll('seo_review_snapshots', { select: 'subject,captured_at,review_count,rating', order: 'captured_at.asc' }, 5000)),
       safe(store.select('seo_competitor_changes', { select: '*', order: 'detected_at.desc', limit: '20' })),
       safe(store.select('seo_page_audits', { select: 'url,schema_types', order: 'fetched_at.desc', limit: '1' })),
       servicesNow(),
@@ -122,7 +122,12 @@ export function createSeoOps({ store, env = {}, now = new Date() }) {
     const enriched = comps.map(c => ({ ...c, reviewCount: c.review_count, reviewVelocity: reviewVelocity(bySubject.get(c.id) || []), services: c.services || [] }));
     const ourServices = services.filter(s => s.offered === true && s.id !== 'general').map(s => s.id);
     const nameOf = id => comps.find(c => c.id === id)?.name || id;
+    // GID's own row, scored like a mobile mechanic, so the table shows where GID stands.
+    const ownLast = [...snaps].reverse().find(s => s.subject === 'own');
+    const you = ownLast ? { id: 'own', name: 'GID Garage (you)', isOwn: true, tier: 'primary', rating: ownLast.rating == null ? null : Number(ownLast.rating), reviewCount: ownLast.review_count, distance_miles: null, theyShowWeDont: [] } : null;
+    if (you) you.strength = strengthOf({ ...you, weight: 1 });
     return {
+      you,
       landscape: competitorLandscape(enriched, own.length ? ourServices : [], services),
       searchResultCompetitors: comps.filter(c => c.kind === 'search_result').map(c => c.name),
       ourReviewVelocity: reviewVelocity(bySubject.get('own') || []),

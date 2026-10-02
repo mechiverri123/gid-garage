@@ -224,3 +224,24 @@ test('audits: only the latest crawl counts, so removed pages stop producing find
   assert.deepEqual(cur.map(r => r.url).sort(), ['https://gidgarage.com/', 'https://gidgarage.com/service-area']);
   assert.equal(cur.find(r => r.url === 'https://gidgarage.com/').title, 'new');
 });
+
+test('whereYouRank: GID placed among in-area rivals, map pack best, AI best', async () => {
+  const { whereYouRank } = await import('../shared/seo/agent.js');
+  const competitors = [
+    { kind: 'business', weight: 1, review_count: 40, rating: 4.9 },
+    { kind: 'business', weight: 0.6, review_count: 5, rating: 4.2 },
+    { kind: 'business', weight: 0, review_count: 900, rating: 5 }, // outside the area: ignored
+    { kind: 'search_result', weight: 0, review_count: null, rating: null },
+  ];
+  const rows = Object.fromEntries(whereYouRank({
+    own: { count: 12, rating: 5 }, competitors,
+    grid: { cells: { 'mobile mechanic|Flagstaff': { rank: 3 }, 'mobile mechanic|Doney Park': { rank: null }, 'brakes|Flagstaff': { rank: 2 } } },
+    ai: { results: [{ mentioned: true, rank: 2 }, { mentioned: false }, { mentioned: false }] },
+  }).map(r => [r.id, r]));
+  assert.equal(rows.reviews.rank, 2); assert.equal(rows.reviews.of, 3);
+  assert.equal(rows.rating.rank, 1);
+  assert.equal(rows.strength.of, 3);
+  assert.equal(rows.map_pack.rank, 2); assert.match(rows.map_pack.detail, /2 of 3/);
+  assert.equal(rows.ai.rank, 2); assert.match(rows.ai.detail, /1 of 3/);
+  assert.deepEqual(whereYouRank({}), []);
+});

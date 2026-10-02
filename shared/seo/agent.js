@@ -12,6 +12,7 @@
 import { KNOWLEDGE } from './knowledge.js';
 import { reviewRivals } from './agent-detectors.js';
 import { SERVICE_CATALOG } from './services.js';
+import { strengthOf } from './competitors.js';
 
 export const CATEGORIES = ['GBP', 'REVIEWS', 'WEBSITE', 'TECHNICAL SEO', 'CONTENT', 'LOCAL AUTHORITY', 'CITATIONS', 'BACKLINKS', 'COMPETITOR GAP', 'AI VISIBILITY', 'CONVERSION', 'OTHER'];
 const IMPACT = { very_high: 1, high: 0.82, moderate: 0.6, low: 0.35 };
@@ -411,4 +412,34 @@ export function rankGrid(obs = []) {
   const keywords = [...new Set([...latest.values()].map(o => o.keyword))].sort();
   const areas = [...new Set([...latest.values()].map(o => o.area_name))].sort();
   return { keywords, areas, cells: Object.fromEntries([...latest.entries()].map(([k, o]) => [k, { rank: o.rank, date: o.observed_on, localPack: o.in_local_pack }])) };
+}
+
+// "Where do I rank": GID's place in every ranking the system measures, from stored
+// data only (Places review snapshots, manual map-pack observations, the weekly AI check).
+// rank is 1-based; null = GID not shown / no data. Rivals are local businesses inside the area.
+export function whereYouRank({ own = null, competitors = [], grid = null, ai = null } = {}) {
+  const rivals = competitors.filter(c => c.kind === 'business' && Number(c.weight) > 0);
+  const place = (mine, others) => (mine == null ? null : 1 + others.filter(v => v != null && v > mine).length);
+  const out = [];
+  if (own) {
+    const you = strengthOf({ weight: 1, reviewCount: own.count, rating: own.rating });
+    out.push({ id: 'strength', label: 'Local strength vs competitors', rank: place(you, rivals.map(strengthOf)), of: rivals.length + 1, detail: 'Mobile mechanics count most, then local shops, then dealers and chains.' });
+    const withCount = rivals.filter(c => c.review_count != null);
+    out.push({ id: 'reviews', label: 'Google review count', rank: place(own.count, withCount.map(c => Number(c.review_count))), of: withCount.length + 1, detail: `${own.count ?? '—'} reviews` });
+    const withRating = rivals.filter(c => c.rating != null);
+    out.push({ id: 'rating', label: 'Google rating', rank: place(own.rating, withRating.map(c => Number(c.rating))), of: withRating.length + 1, detail: own.rating != null ? `${own.rating}★` : 'no rating yet' });
+  }
+  const cells = Object.entries(grid?.cells || {});
+  if (cells.length) {
+    const shown = cells.filter(([, c]) => c.rank != null).sort((a, b) => a[1].rank - b[1].rank);
+    const best = shown[0];
+    out.push({ id: 'map_pack', label: 'Google Maps (your checks)', rank: best ? best[1].rank : null, of: null,
+      detail: best ? `best: "${best[0].split('|')[0]}" in ${best[0].split('|')[1]} · shown in ${shown.length} of ${cells.length} searches` : `not shown in ${cells.length} searches checked` });
+  }
+  if (ai?.results?.length) {
+    const named = ai.results.filter(r => r.mentioned);
+    const ranks = named.map(r => r.rank).filter(Boolean);
+    out.push({ id: 'ai', label: 'AI assistants', rank: ranks.length ? Math.min(...ranks) : null, of: null, detail: `named in ${named.length} of ${ai.results.length} local questions` });
+  }
+  return out;
 }

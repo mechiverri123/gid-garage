@@ -395,7 +395,7 @@ const VISUAL_FIRST = "VISUAL-FIRST: The owner is looking at the /jarvis screen. 
 // SEO tool -> SEO Mode panel the Command Center should bring to the center.
 const SEO_FOCUS = {
   get_seo_overview: 'overview', get_seo_actions: 'actions', get_seo_top5_gap: 'top5', get_seo_opportunities: 'opportunities', update_seo_recommendation: 'opportunities',
-  get_local_search_demand: 'demand', get_seo_competitors: 'competitors', get_seo_seasonality: 'seasonality',
+  get_local_search_demand: 'demand', get_seo_competitors: 'competitors', get_seo_rankings: 'rankings', get_seo_seasonality: 'seasonality',
   get_customer_geography: 'map', check_service_area: 'map', get_local_authority: 'authority', get_seo_connections: 'connections',
 };
 
@@ -836,6 +836,11 @@ const TOOLS = [
   {
     name: 'get_seo_competitors',
     description: 'Local competitor landscape weighted by customer competition (mobile mechanics first), review velocity vs GID, services they promote that GID offers, and recent website changes.',
+    input_schema: { type: 'object', properties: {} },
+  },
+  {
+    name: 'get_seo_rankings',
+    description: 'Where GID ranks in everything measured: local strength, Google review count and rating vs local competitors, Google Maps positions from the owner\'s own checks, and AI-assistant mentions. Use for "where do I rank", "how do I rank", "my rankings".',
     input_schema: { type: 'object', properties: {} },
   },
   {
@@ -1512,6 +1517,8 @@ export async function onRequestPost({ request, env }) {
         return await seo().localDemand({ days: Math.min(Math.max(Number(input.days || 28), 7), 180) });
       case 'get_seo_competitors':
         return await seo().competitors();
+      case 'get_seo_rankings':
+        return { summary: (await seo().agent().ranks()).summary };
       case 'get_seo_seasonality':
         return await seo().seasonality();
       case 'get_customer_geography':

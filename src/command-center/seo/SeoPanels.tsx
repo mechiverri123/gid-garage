@@ -330,13 +330,16 @@ export function DemandPanel({ d }: { d?: { clusters: Cluster[]; gaps: Gap[]; unc
   );
 }
 
-type Comp = { id: string; name: string; tier: string; is_mobile?: boolean; rating: number | null; reviewCount: number | null; reviewVelocity: number | null; distance_miles: number | null; theyShowWeDont: string[]; weShowTheyDont?: string[]; strength: number };
-export function CompetitorPanel({ c }: { c?: { landscape: Comp[]; ourReviewVelocity: number | null; recentChanges: { id: number; name: string; change_type: string; detected_at: string }[]; searchResultCompetitors: string[]; note: string } }) {
+type Comp = { id: string; name: string; isOwn?: boolean; tier: string; is_mobile?: boolean; rating: number | null; reviewCount: number | null; reviewVelocity: number | null; distance_miles: number | null; theyShowWeDont: string[]; weShowTheyDont?: string[]; strength: number };
+export function CompetitorPanel({ c }: { c?: { you?: Comp | null; landscape: Comp[]; ourReviewVelocity: number | null; recentChanges: { id: number; name: string; change_type: string; detected_at: string }[]; searchResultCompetitors: string[]; note: string } }) {
   if (!c) return <Skeleton className="h-[300px]" />;
   if (!c.landscape.length) return <EmptyState icon={Users2} title="No local competitors yet">Connect the Places API or add competitors manually.</EmptyState>;
-  const maxStrength = Math.max(1, ...c.landscape.map(x => x.strength || 0));
+  // GID sits in the table at its own place, so you can see where you stand.
+  const rows = [...c.landscape.slice(0, 15), ...(c.you ? [c.you] : [])].sort((a, b) => (b.strength || 0) - (a.strength || 0));
+  const yourPlace = c.you ? 1 + c.landscape.filter(x => (x.strength || 0) > (c.you!.strength || 0)).length : null;
+  const maxStrength = Math.max(1, ...rows.map(x => x.strength || 0));
   const cols: Column<Comp>[] = [
-    { key: 'name', header: 'Competitor', render: x => <span className="inline-flex items-center gap-2 min-w-0 max-w-full"><span className="truncate font-semibold">{x.name}</span>{x.tier === 'primary' && <StatusBadge tone="cyan">Mobile</StatusBadge>}</span> },
+    { key: 'name', header: 'Competitor', render: x => <span className="inline-flex items-center gap-2 min-w-0 max-w-full"><span className="truncate font-semibold" style={x.isOwn ? { color: C.green } : undefined}>{x.name}</span>{x.isOwn ? <StatusBadge tone="green">You</StatusBadge> : x.tier === 'primary' && <StatusBadge tone="cyan">Mobile</StatusBadge>}</span> },
     { key: 'strength', header: 'Local strength', width: '20%', hideBelow: 'sm', render: x => <span className="flex items-center gap-2"><span className="flex-1 h-2 rounded-full overflow-hidden" style={{ background: 'rgba(52,214,255,0.08)' }}><span className="block h-full rounded-full" style={{ width: `${((x.strength || 0) / maxStrength) * 100}%`, background: C.purple }} /></span><span className="tabular-nums text-[13px] w-8 text-right" style={{ color: C.text2 }}>{fmt(x.strength)}</span></span> },
     { key: 'rating', header: 'Rating', width: '12%', align: 'right', render: x => <span className="tabular-nums">{x.rating ?? '—'}★</span> },
     { key: 'reviews', header: 'Reviews', width: '11%', align: 'right', hideBelow: 'md', render: x => <span className="tabular-nums" style={{ color: C.text2 }}>{fmt(x.reviewCount)}</span> },
@@ -345,8 +348,8 @@ export function CompetitorPanel({ c }: { c?: { landscape: Comp[]; ourReviewVeloc
   ];
   return (
     <div className="flex flex-col gap-4">
-      <p className="text-[13.5px]" style={{ color: C.text2 }}>{c.note} Your review pace: {c.ourReviewVelocity ?? '—'} per 30 days.</p>
-      <DataTable columns={cols} rows={c.landscape.slice(0, 15)} rowKey={x => x.id} />
+      <p className="text-[13.5px]" style={{ color: C.text2 }}>{yourPlace != null && <b style={{ color: C.text }}>You're #{yourPlace} of {c.landscape.length + 1}. </b>}{c.note} Your review pace: {c.ourReviewVelocity ?? '—'} per 30 days.</p>
+      <DataTable columns={cols} rows={rows} rowKey={x => x.id} />
       {c.recentChanges.length > 0 && <div className="text-[13.5px]" style={{ color: C.text2 }}>Recent changes: {c.recentChanges.slice(0, 5).map(ch => `${ch.name} ${ch.change_type.replace(/_/g, ' ')}`).join('; ')}</div>}
       {c.searchResultCompetitors.length > 0 && <div className="text-[13px]" style={{ color: C.muted }}>Search-result competitors (not businesses): {c.searchResultCompetitors.join(', ')}</div>}
     </div>
