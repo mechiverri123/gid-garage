@@ -1,0 +1,14 @@
+{
+  "id": "/prompt",
+  "name": "GID Prompt",
+  "short_name": "GID Prompt",
+  "start_url": "/prompt",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#0f0f0f",
+  "theme_color": "#b91c1c",
+  "icons": [
+    { "src": "/apple-touch-icon.png", "sizes": "180x180", "type": "image/png" },
+    { "src": "/favicon-192.png", "sizes": "192x192", "type": "image/png" }
+  ]
+}
