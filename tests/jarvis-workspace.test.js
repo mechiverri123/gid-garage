@@ -320,3 +320,36 @@ test('global voice/typed commands need no AI: modes and main screens, from anywh
   assert.equal(cmd("pull up Jill's jobs", none), null);
   assert.equal(cmd('how is my SEO doing', none), null);
 });
+
+test('fleet commands: open fleet, units (typed and spoken), history, add job, companies; nothing else hijacked', () => {
+  const none = INITIAL_WORKSPACE;
+  const open = v => ({ type: 'open', view: { type: 'fleet', ...v } });
+  for (const q of ['open fleet', 'fleet', 'show me the fleet', 'pull up fleets']) assert.deepEqual(cmd(q, none), open({}), q);
+  assert.deepEqual(cmd('fleet calendar', none), open({ calendar: true }));
+  for (const q of ['pull up truck 36', 'show unit 36', 'unit #36', 'truck thirty six', 'Jarvis, pull up truck 36.', 'open van 44']) assert.deepEqual(cmd(q, none), open({ unit: q.includes('44') ? '44' : '36' }), q);
+  assert.deepEqual(cmd('show unit A12', none), open({ unit: 'a12' }));
+  for (const q of ["what's been done to 36", 'when did we last service 36', 'show service history for unit 12', 'what have we done to truck 36'])
+    assert.deepEqual(cmd(q, none), open({ unit: q.includes('12') ? '12' : '36', tab: 'history' }), q);
+  assert.deepEqual(cmd('add a job for unit 36', none), open({ unit: '36', addJob: true }));
+  assert.deepEqual(cmd('what vehicles does flagstaff equipment have', none), open({ company: 'flagstaff equipment', tab: 'vehicles' }));
+  assert.deepEqual(cmd('which flagstaff equipment vehicles need attention', none), open({ company: 'flagstaff equipment', filter: 'attention' }));
+  assert.deepEqual(cmd('open the flagstaff equipment fleet', none), open({ company: 'flagstaff equipment' }));
+  assert.deepEqual(cmd('fleet 4827', none), open({ company: '4827' }));
+  // Known fleet names open directly; unknown names stay with Jarvis.
+  assert.deepEqual(cmd('open Flagstaff Equipment', none, { fleets: ['Flagstaff Equipment', 'NAZ Landscaping'] }), open({ company: 'Flagstaff Equipment' }));
+  assert.equal(cmd('open Flagstaff Equipment', none), null);
+  // A bare number is a unit only inside the fleet view.
+  const F = run([{ type: 'open', view: { type: 'fleet' } }]);
+  assert.deepEqual(cmd('36', F), open({ unit: '36' }));
+  assert.deepEqual(cmd('#36', F), open({ unit: '36' }));
+  assert.notDeepEqual(cmd('36', none), open({ unit: '36' }));
+  // Existing commands unchanged.
+  assert.deepEqual(cmd('open calendar', none), { type: 'open', view: { type: 'calendar', mode: 'week' } });
+  assert.deepEqual(cmd('pull up all jobs', none), { type: 'open', view: { type: 'jobList', status: 'all' } });
+  assert.equal(cmd('show bookings this week', none), null);
+  assert.deepEqual(cmd('open money', none), { type: 'mode', mode: 'money' });
+  // Opening a job from the fleet view stacks, so "close it" returns to the fleet.
+  const J = workspaceReduce(F, three);
+  assert.equal(J.stack.length, 2);
+  assert.equal(workspaceTop(workspaceReduce(J, { type: 'close' })).type, 'fleet');
+});

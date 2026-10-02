@@ -97,7 +97,7 @@ export function JobListView({ query, status, dispatch }: { query: string; status
                 </span>
                 <span className="hidden sm:block min-w-0">
                   <span className="block text-[14.5px] truncate" style={{ color: C.text }}>{jobTitle(j)}</span>
-                  <span className="block text-[13px] truncate" style={{ color: C.text2 }}>{j.vehicle}</span>
+                  <span className="block text-[13px] truncate" style={{ color: C.text2 }}>{j.fleetId ? `${j.fleetNumber ? `Fleet #${j.fleetNumber}` : 'Fleet'}${j.fleetUnit ? ` · #${j.fleetUnit}` : ''} · ` : ''}{j.vehicle}</span>
                 </span>
                 <span className="hidden sm:block"><StatusBadge status={isCancelled(j) ? 'CANCELLED' : j.jobStatus} /></span>
                 <span className="flex items-center gap-2 text-[15px] font-semibold tabular-nums" style={{ color: C.text }}>{money(m.invoiceTotal ?? m.estimateTotal, 2)}<ChevronRight size={17} color={C.muted} /></span>
@@ -120,7 +120,9 @@ export function JobListView({ query, status, dispatch }: { query: string; status
 interface Person { key: string; name: string; phone: string; vehicles: string[]; jobs: Job[]; last: string; collected: number }
 
 export function CustomersView({ query, dispatch }: { query: string; dispatch: Dispatch }) {
-  const { jobs, error } = useAllJobs();
+  const { jobs: allJobs, error } = useAllJobs();
+  // Fleet companies live under Fleet, not as retail customers (FLEET_PLAN.md).
+  const jobs = useMemo(() => (allJobs ? allJobs.filter(j => !j.fleetId) : null), [allJobs]);
   const [limit, setLimit] = useState(40);
   const people = useMemo(() => {
     const map = new Map<string, Person>();

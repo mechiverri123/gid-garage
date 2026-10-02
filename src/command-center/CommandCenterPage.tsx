@@ -45,6 +45,9 @@ import './ui/command-center.css';
 import { workspaceReduce, parseLocalCommand, describeScreen, workspaceTop, isScreenFollowUp, INITIAL_WORKSPACE } from '../../shared/jarvis-workspace.js';
 import { phoenixYmd } from '../../shared/business-metrics.js';
 import { jobMeta, revenuePrefetch, feedPrefetch } from './workspace/jobMeta';
+import { cachedFleet, fleetPrefetch } from '../fleet/fleetData';
+// Fleet company names, so "open Flagstaff Equipment" opens the fleet with no AI call.
+const fleetNames = () => cachedFleet()?.accounts.map(a => a.name) ?? [];
 
 // Jobs, calendar, revenue and lists open here, over the dashboard (never /admin).
 const JarvisWorkspace = lazy(() => import('./workspace/JarvisWorkspace'));
@@ -66,7 +69,8 @@ function ackFor(a: WsAction) {
   if (a.type === 'focus') return a.tab ? `The ${String(a.tab)}, sir.` : pick('Right away, sir.', 'Here it is, sir.');
   if (a.type === 'step') return pick('Next one, sir.', 'Here you are, sir.');
   if (a.type === 'open') {
-    const v = (a.view as { type?: string; status?: string }) || {};
+    const v = (a.view as { type?: string; status?: string; unit?: string; addJob?: boolean; tab?: string; calendar?: boolean }) || {};
+    if (v.type === 'fleet') return v.unit ? (v.addJob ? `A new job for unit ${v.unit}, sir.` : v.tab === 'history' ? `Unit ${v.unit}'s history, sir.` : `Unit ${v.unit}, sir.`) : v.calendar ? 'The fleet calendar, sir.' : 'The fleet, sir.';
     return v.type === 'calendar' ? 'Your calendar, sir.' : v.type === 'jobList' ? (v.status === 'all' ? 'All jobs, sir.' : 'Your jobs, sir.') : v.type === 'customers' ? 'Your customers, sir.' : v.type === 'settings' ? 'Settings, sir.' : v.type === 'newJob' ? 'A new job, sir.' : 'Right away, sir.';
   }
   if (a.type === 'range') { const r = a.range as Record<string, unknown>; return r.last_days ? `The last ${r.last_days} days, sir.` : r.last_months ? `The last ${r.last_months} months, sir.` : 'Very good, sir.'; }
@@ -137,7 +141,7 @@ export function CommandCenterPage({ onLock }: { onLock: () => void }) {
   const utteranceRef = useRef<((text: string) => void) | null>(null);
   const abortRef = useRef<(() => void) | null>(null);
   const livekit = useLiveKitJarvis(text => {
-    const local = parseLocalCommand(text, wsRef.current, { meta: screenMeta(), today: phoenixYmd(new Date()) });
+    const local = parseLocalCommand(text, wsRef.current, { meta: screenMeta(), today: phoenixYmd(new Date()), fleets: fleetNames() });
     if (local && local.type !== 'noop') { applyLocalRef.current?.(local, text); markHandledRef.current?.(text); }
     else if (!local && isScreenFollowUp(text, wsRef.current)) {
       // Typed Jarvis answers it (with the screen) and that answer is spoken;
@@ -169,6 +173,7 @@ export function CommandCenterPage({ onLock }: { onLock: () => void }) {
       else void direct.speak('Yes, sir?');
     },
   });
+  useEffect(() => { fleetPrefetch(); }, []);
   useEffect(() => {
     if (!voiceLive) { wakeSession.current = false; return; }
     if (!wakeSession.current || direct.state !== 'listening') return;
@@ -219,7 +224,7 @@ export function CommandCenterPage({ onLock }: { onLock: () => void }) {
   };
   applyLocalRef.current = applyLocal;
   const command = useCallback((q: string) => {
-    const local = parseLocalCommand(q, wsRef.current, { meta: screenMeta(), today: phoenixYmd(new Date()) });
+    const local = parseLocalCommand(q, wsRef.current, { meta: screenMeta(), today: phoenixYmd(new Date()), fleets: fleetNames() });
     if (local) { applyLocalRef.current?.(local, q); return; }
     ask(q);
   }, [ask]);
@@ -235,7 +240,7 @@ export function CommandCenterPage({ onLock }: { onLock: () => void }) {
   // for free; anything else goes to Jarvis in voice mode, and its reply is
   // spoken sentence by sentence as it streams in.
   utteranceRef.current = (text: string) => {
-    const local = parseLocalCommand(text, wsRef.current, { meta: screenMeta(), today: phoenixYmd(new Date()) });
+    const local = parseLocalCommand(text, wsRef.current, { meta: screenMeta(), today: phoenixYmd(new Date()), fleets: fleetNames() });
     if (local) {
       applyLocal(local, text);
       direct.setThinking(false);

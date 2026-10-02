@@ -12,7 +12,8 @@ export type WorkspaceView =
   | { type: 'jobList'; query: string; status: string }
   | { type: 'customers'; query: string }
   | { type: 'newJob' }
-  | { type: 'settings' };
+  | { type: 'settings' }
+  | { type: 'fleet'; fleetId?: string; company?: string; unit?: string; tab?: string; addJob?: boolean; calendar?: boolean; filter?: 'attention' | 'due' };
 
 export interface WorkspaceState { stack: WorkspaceView[] }
 export type WorkspaceAction = { type: string; [k: string]: unknown };
@@ -23,7 +24,7 @@ export function normalizeView(v: unknown): WorkspaceView | null;
 export function workspaceReduce(state: WorkspaceState, action: WorkspaceAction): WorkspaceState;
 export function workspaceTop(state: WorkspaceState): WorkspaceView | null;
 export function resolveCalendarWhen(when: string, today: string): { date: string; mode: CalendarMode } | null;
-export function parseLocalCommand(text: string, state: WorkspaceState, opts?: { meta?: JobMetaEntry[]; today?: string }): (WorkspaceAction & { reply?: string }) | null;
+export function parseLocalCommand(text: string, state: WorkspaceState, opts?: { meta?: JobMetaEntry[]; today?: string; fleets?: string[] }): (WorkspaceAction & { reply?: string }) | null;
 export function describeScreen(state: WorkspaceState, meta?: JobMetaEntry[]): Record<string, unknown> | null;
 export function isScreenFollowUp(text: string, state: WorkspaceState): boolean;
 export function jobFamily(list: { id: string; customerId?: string | null; fname?: string; lname?: string; phone?: string; date?: string; status?: string; jobStatus?: string }[], id: string): string[];

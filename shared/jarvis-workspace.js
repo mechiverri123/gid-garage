@@ -50,6 +50,11 @@ export function normalizeView(v) {
     // reviews, Facebook/Instagram, email. `open` picks one email in the mail panel.
     case 'brief': case 'reviews': case 'social': case 'mail': case 'messages':
       return { type: v.type, ...((v.type === 'mail' || v.type === 'messages') && v.open ? { open: String(v.open).slice(0, 80) } : {}) };
+    case 'fleet': {
+      const s = (x, n = 80) => (x == null || x === '' ? undefined : String(x).slice(0, n));
+      const out = { type: 'fleet', fleetId: s(v.fleetId), company: s(v.company), unit: s(v.unit, 20), tab: ['vehicles', 'history', 'calendar', 'inspections', 'overview'].includes(v.tab) ? v.tab : undefined, addJob: v.addJob ? true : undefined, calendar: v.calendar ? true : undefined, filter: ['attention', 'due'].includes(v.filter) ? v.filter : undefined };
+      return Object.fromEntries(Object.entries(out).filter(([, x]) => x !== undefined));
+    }
     case 'leads':
       return { type: 'leads', query: String(v.query || '').slice(0, 80), status: String(v.status || 'open'), ...(v.open ? { open: String(v.open).slice(0, 80) } : {}) };
     default:
@@ -59,7 +64,7 @@ export function normalizeView(v) {
 
 // Drill-down views (a list or calendar opening a job) stack so "close it"
 // returns to where you were; anything else replaces what's open.
-const BROWSERS = new Set(['calendar', 'jobList', 'customers']);
+const BROWSERS = new Set(['calendar', 'jobList', 'customers', 'fleet']);
 
 export function workspaceReduce(state, action) {
   const t = top(state);
@@ -171,7 +176,7 @@ function spokenNumbers(t) {
     .replace(new RegExp(`\\b(${CARD}) (days?|weeks?|months?)\\b`, 'g'), (_, c, u) => `${cardinal(c)} ${u}`)
     .replace(/\b(?:a|one) (?:couple|couple of) (days?|weeks?|months?)\b/g, '2 $1')
     .replace(/\ba (day|week|month)\b/g, '1 $1')
-    .replace(new RegExp(`\\b(job|card|number) (?:number )?(${CARD})\\b`, 'g'), (_, k, c) => `${k} ${cardinal(c)}`)
+    .replace(new RegExp(`\\b(job|card|number|truck|unit|van|rig|trailer) (?:number )?(${CARD})\\b`, 'g'), (_, k, c) => `${k} ${cardinal(c)}`)
     // "the twenty sixth" (6th and up; "the third" stays a card position)
     .replace(new RegExp(`\\bthe (${ORD})\\b`, 'g'), (all, o) => (ordinal(o) >= 6 ? `the ${ordinal(o)}th` : all));
 }
@@ -336,10 +341,48 @@ function revenueRange(c, t, today) {
   return null;
 }
 
+// Fleet (FLEET_PLAN.md): "open fleet", "fleet calendar", "pull up truck 36",
+// "what's been done to 36", "add a job for unit 36", "what vehicles does
+// Flagstaff Equipment have", "open Flagstaff Equipment" (names from `fleets`).
+// The fleet view resolves the unit; with more than one match it shows choices.
+const UNIT = '#?\\s*([a-z]{0,3}-?\\d[a-z0-9-]*)';
+const UNIT_WORD = '(?:truck|unit|van|vehicle|rig|trailer|#)';
+const FLEET_PATTERNS = [
+  [/^(?:(?:open|show|pull up|go to|bring up|switch to|take me to)(?: me)?(?: the| my)? )?fleets?(?: (?:page|tab|list|accounts?|home))?$/, () => ({})],
+  [/^(?:(?:open|show|pull up|go to|bring up)(?: me)?(?: the| my)? )?fleet (?:calendar|schedule)$/, () => ({ calendar: true })],
+  [new RegExp(`^(?:(?:open|show|pull up|bring up|go to|find|look up|get)(?: me)?(?: the)? )?(?:fleet )?${UNIT_WORD} ?${UNIT}$`), m => ({ unit: m[1] })],
+  [new RegExp(`^(?:what(?:'s| has| have)? (?:been|we) (?:done|did) (?:to|on)|what have we done (?:to|on)|(?:open |show |pull up )?(?:the )?(?:full )?service history (?:for|of|on)|when did we last service|history (?:for|of|on)) (?:the )?(?:${UNIT_WORD} ?)?${UNIT}$`), m => ({ unit: m[1], tab: 'history' })],
+  [new RegExp(`^(?:add|create|new|make|start|open)(?: a)?(?: new)? job (?:for|on) (?:the )?(?:${UNIT_WORD} ?)?${UNIT}$`), m => ({ unit: m[1], addJob: true })],
+  [/^(?:what|which) vehicles does (.+?) have$/, m => ({ company: m[1], tab: 'vehicles' })],
+  [/^(?:which|what) (.+?) (?:vehicles|trucks|units) need (?:attention|work)$/, m => ({ company: m[1], filter: 'attention' })],
+  [/^(?:(?:open|show|pull up|go to|bring up)(?: me)? )?(?:the )?(.+?) fleet(?: account)?$/, m => ({ company: m[1] })],
+  [/^(?:(?:open|show|pull up|go to|bring up)(?: me)? )?fleet (?:#|number )?(\d{4})$/, m => ({ company: m[1] })],
+];
+const squashName = s => String(s || '').toLowerCase().replace(/[^a-z0-9 ]/g, '').replace(/\s+/g, ' ').trim();
+function parseFleetCommand(t, view, fleets = []) {
+  for (const [re, make] of FLEET_PATTERNS) {
+    const m = t.match(re);
+    if (m) return { type: 'open', view: { type: 'fleet', ...make(m) } };
+  }
+  // "open Flagstaff Equipment": only an exact (or clear leading) match of a known fleet name.
+  const o = t.match(/^(?:open|show|pull up|go to|bring up)(?: me)?(?: the)? (.+)$/);
+  if (o && fleets.length) {
+    const q = squashName(o[1]);
+    const hit = fleets.filter(n => squashName(n) === q || (q.length >= 6 && squashName(n).startsWith(q)));
+    if (hit.length === 1) return { type: 'open', view: { type: 'fleet', company: hit[0] } };
+  }
+  // Inside the fleet view a bare "36" / "#36" is that unit.
+  if (view?.type === 'fleet') {
+    const b = t.match(new RegExp(`^${UNIT}$`));
+    if (b) return { type: 'open', view: { type: 'fleet', unit: b[1] } };
+  }
+  return null;
+}
+
 // Returns a workspace action (or { type: 'noop', reply }) when the message is
 // clearly about what's on screen, else null (the AI handles it).
 // meta: per visible job, in jobIds order: { label, date } for "the brake one" / "newest".
-export function parseLocalCommand(text, state, { meta = [], today } = {}) {
+export function parseLocalCommand(text, state, { meta = [], today, fleets = [] } = {}) {
   const t = clean(text);
   if (!t || t.split(' ').length > 12) return null;
   const view = top(state);
@@ -347,6 +390,8 @@ export function parseLocalCommand(text, state, { meta = [], today } = {}) {
   if (HOME_RE.test(t)) return { type: 'home' };
   if (SEO_RE.test(t)) return { type: 'mode', mode: 'seo' };
   if (MONEY_RE.test(t)) return { type: 'mode', mode: 'money' };
+  const fleet = parseFleetCommand(t, view, fleets);
+  if (fleet) return fleet;
   for (const [re, target] of GLOBAL_OPENS) if (re.test(t) && view?.type !== target.type) return { type: 'open', view: { ...target } };
 
   if (CLOSE_ALL.test(t) && !CLOSE_ONE.test(t)) return view ? { type: 'close_all' } : { type: 'noop', reply: 'Nothing is open.' };

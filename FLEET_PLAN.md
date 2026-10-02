@@ -1,6 +1,6 @@
 # Fleet — approved plan (2026-09-30)
 
-The owner approved this architecture and all 4 recommendations. **Nothing is built yet.** Build it in the order at the bottom; each step is committed complete before the next one starts.
+The owner approved this architecture and all 4 recommendations. **Built 2026-10-01 (all 3 steps).** The owner runs `fleet_migration.sql` once; before that, Fleet shows a "run the migration" message and nothing else changes. Current summary: CLAUDE.md §0.36.
 
 ## What exists today
 - There's no fleet code.

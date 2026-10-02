@@ -19,6 +19,9 @@ let last: FleetData | null = null;
 // The fleet the owner is looking at, so "36" means that fleet's #36 (FleetApp sets it).
 export const fleetContext: { fleetId: string | null } = { fleetId: null };
 export const cachedFleet = () => last;
+// Where the fleet screen was, per target: closing a job (which unmounts the Jarvis
+// fleet view) comes back to the same unit; a new target (a new command) starts over.
+export const fleetUi: { target: unknown; route: unknown; applied: boolean } = { target: null, route: null, applied: false };
 
 export async function loadFleet(): Promise<FleetData> {
   const d = await fleetPost<{ accounts: FleetAccount[]; vehicles: FleetVehicle[]; jobs: Record<string, unknown>[] }>('fleet-data');

@@ -153,6 +153,30 @@ Jarvis is the interactive command interface for GID Garage, not primarily a chat
 - **Owner's equity totals come from the admin Owner's Equity ledger** (`equity_entries`, Hub → Banking & Credit). Bank transfers are only matched against it (same amount, ±5 days), and ones missing from the ledger are shown separately. Never compute equity from bank transfers or Zoho funding.
 - **"Why net profit isn't your bank balance" card:** net + sales tax still owed + equity net = what the business should have. The remainder beyond the bank balance is cash/Stripe/Venmo in transit or spending after the last upload.
 
+# 0.36 FLEET (2026-10-01; plan and owner decisions: FLEET_PLAN.md)
+
+- **Hierarchy:** Fleet → Company (permanent 4-digit Fleet #) → Vehicles → Unit #N → its record.
+- **Data:** `fleet_migration.sql`, additive; the owner runs it.
+  - `fleet_accounts`: `company_number` UNIQUE 1000–9999, assigned by a database trigger and locked against change.
+  - `fleet_vehicles`: `unit_number` stored without "#", UNIQUE per fleet (`fleet_id, lower(unit_number)`).
+  - Nullable `bookings.fleet_id` / `fleet_vehicle_id`.
+- **A fleet job is a normal booking** (`fleetJobRow`), so the job screens, money and time are unchanged. Invoices go to the company. Service history is worked out from bookings, never stored.
+- **Code:**
+  - `shared/fleet.js` (rules; tests in `tests/fleet.test.js`).
+  - `functions/_lib/fleet.js` (the `fleet-*` actions in `/admin-api-data`).
+  - `src/fleet/FleetApp.tsx`: one component with skins `admin` (the Fleet tab, `FleetAdminTab`) and `jarvis` (the workspace view `fleet`).
+- **Retail views leave fleet jobs out:**
+  - admin Schedule (`getSupabaseBookings`);
+  - Jarvis calendar;
+  - Jarvis Customers.
+- **Views that keep fleet jobs:**
+  - the Jobs lists (with a Fleet # / unit badge);
+  - public booking availability;
+  - revenue, Money and net profit.
+- **`list-bookings`** adds the fleet columns and falls back to the old select before the migration.
+- **Jarvis voice/typed commands** (`parseFleetCommand`, no AI call): "open fleet", "fleet calendar", "pull up truck 36", "what's been done to 36", "add a job for unit 36", "what vehicles does X have", and "open <fleet name>".
+  - Several fleets with the same unit → show the choices; never guess.
+
 # 0.3 COMMAND CENTER UI (redesign, 2026-09-28)
 
 - Design system: `src/command-center/ui/` (`theme.ts` palette, `primitives.tsx`, `charts.tsx` custom SVG, `JarvisOrb.tsx`, `useMapLibre.ts`, `command-center.css` scoped to `.cc-root`). Shell in `shell/`, dashboard sections in `dashboard/`, SEO in `seo/`.

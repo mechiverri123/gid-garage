@@ -2273,7 +2273,7 @@ export function AdminSchedule() {
         </div>
 
         {/* Main Tabs */}
-        <div className="flex gap-0 mb-8 border-b border-gray-800 overflow-x-auto">
+        <div className="flex flex-wrap gap-0 mb-8 border-b border-gray-800">
           {(['jobs', 'schedule', 'customers', 'fleet', 'mileage', 'hub', 'pay'] as const).map(tab => (
             <button key={tab} onClick={() => setAdminTab(tab)}
               className={`text-xs font-bold uppercase tracking-widest px-6 py-3 transition-colors border-b-2 -mb-px ${adminTab === tab ? 'border-red-600 text-white' : 'border-transparent text-gray-500 hover:text-gray-300'}`}>

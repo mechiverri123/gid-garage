@@ -4,7 +4,7 @@
 // Esc or the browser Back button closes one level; the command bar keeps
 // Jarvis (typed + follow-ups like "payment", "close") available on top.
 import { useEffect, useRef, useState } from 'react';
-import { X, Send, Loader2, Briefcase, CalendarDays, BarChart3, Users, ChevronRight, Settings, Sunrise, Star, ThumbsUp, Mail, MessageCircle } from 'lucide-react';
+import { X, Send, Loader2, Briefcase, CalendarDays, BarChart3, Users, ChevronRight, Settings, Sunrise, Star, ThumbsUp, Mail, MessageCircle, Truck } from 'lucide-react';
 import { workspaceTop, type WorkspaceState } from '../../../shared/jarvis-workspace.js';
 import { C } from '../ui/theme';
 import { JobsView, type JobsViewState } from './JobsView';
@@ -16,13 +16,14 @@ import { useAllJobs, putJob } from './jobStore';
 import { UsagePanel } from './UsagePanel';
 import { BriefView, ReviewsView, SocialView, MailView } from './FeedViews';
 import { LeadsView, MessagesView } from './MessengerViews';
+import { FleetApp, type FleetTarget } from '../../fleet/FleetApp';
 import './workspace.css';
 
 type View = { type: string; [k: string]: unknown };
 type Dispatch = (a: { type: string; [k: string]: unknown }) => void;
 
-const LABEL: Record<string, string> = { jobs: 'Jobs', analytics: 'Revenue', calendar: 'Calendar', jobList: 'All jobs', customers: 'Customers', newJob: 'New job', settings: 'Settings', brief: 'Daily brief', reviews: 'Google reviews', social: 'Facebook & Instagram', mail: 'Email', leads: 'Leads', messages: 'Messenger' };
-const ICON = { jobs: Briefcase, analytics: BarChart3, calendar: CalendarDays, jobList: Briefcase, customers: Users, newJob: Briefcase, settings: Settings, brief: Sunrise, reviews: Star, social: ThumbsUp, mail: Mail, leads: Users, messages: MessageCircle } as const;
+const LABEL: Record<string, string> = { jobs: 'Jobs', analytics: 'Revenue', calendar: 'Calendar', jobList: 'All jobs', customers: 'Customers', newJob: 'New job', settings: 'Settings', brief: 'Daily brief', reviews: 'Google reviews', social: 'Facebook & Instagram', mail: 'Email', leads: 'Leads', messages: 'Messenger', fleet: 'Fleet' };
+const ICON = { jobs: Briefcase, analytics: BarChart3, calendar: CalendarDays, jobList: Briefcase, customers: Users, newJob: Briefcase, settings: Settings, brief: Sunrise, reviews: Star, social: ThumbsUp, mail: Mail, leads: Users, messages: MessageCircle, fleet: Truck } as const;
 
 // The admin "new job" wizard (contact → date → estimate), same code and writes,
 // re-themed. The finished job opens right here.
@@ -72,6 +73,8 @@ export default function JarvisWorkspace({ state, dispatch, onAsk, asking, reply 
       case 'mail': return <MailView open={view.open as string | undefined} dispatch={dispatch} />;
       case 'leads': return <LeadsView query={String(view.query || '')} status={String(view.status || 'open')} dispatch={dispatch} />;
       case 'messages': return <MessagesView open={view.open as string | undefined} dispatch={dispatch} />;
+      // Fleet → company → unit (src/fleet/FleetApp.tsx); a job opens on top, "close it" comes back.
+      case 'fleet': return <div className="jv-pop"><FleetApp skin="jarvis" target={view as unknown as FleetTarget} onOpenJob={id => dispatch({ type: 'open', view: { type: 'jobs', jobIds: [id] } })} /></div>;
       // The admin Hub (tax rate, business notes, backups), same component and writes, re-themed.
       case 'settings': return <div className="jv-glass jv-pop max-w-[1180px] mx-auto p-4 sm:p-6"><UsagePanel /><div className="jv-skin"><BusinessHub /></div></div>;
       default: return null;

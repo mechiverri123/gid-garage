@@ -42,7 +42,9 @@ function Appt({ job, onOpen, big }: { job: Job; onOpen: (id: string) => void; bi
 }
 
 export function CalendarView({ date, mode, dispatch }: { date: string | null; mode: Mode; dispatch: Dispatch }) {
-  const { jobs, error } = useAllJobs();
+  const { jobs: allJobs, error } = useAllJobs();
+  // Fleet jobs have their own Fleet calendar (FLEET_PLAN.md).
+  const jobs = useMemo(() => (allJobs ? allJobs.filter(j => !j.fleetId) : null), [allJobs]);
   const today = phoenixYmd(new Date());
   const anchor = date || today;
 

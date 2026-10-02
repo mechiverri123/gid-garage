@@ -1,7 +1,7 @@
 // Left navigation. Expanded on wide screens, icon rail on laptops, drawer on
 // tablets/phones. Items link to real destinations: dashboard sections, SEO
 // mode, and Jarvis workspace views (jobs, customers, calendar, revenue).
-import { LayoutDashboard, Briefcase, Users, CalendarDays, Map as MapIcon, Megaphone, SearchCheck, Wallet, Bot, Settings, Lock, X , type LucideIcon } from 'lucide-react';
+import { LayoutDashboard, Briefcase, Users, CalendarDays, Map as MapIcon, Megaphone, SearchCheck, Wallet, Bot, Settings, Lock, X, Truck, type LucideIcon } from 'lucide-react';
 import { C } from '../ui/theme';
 
 export type NavTarget = { kind: 'mode'; mode: 'ops' | 'seo' | 'money' } | { kind: 'section'; id: string } | { kind: 'href'; href: string } | { kind: 'view'; view: { type: string; [k: string]: unknown } };
@@ -12,6 +12,7 @@ export const NAV: NavItem[] = [
   { key: 'jobs', label: 'Jobs', icon: Briefcase, target: { kind: 'view', view: { type: 'jobList', status: 'active' } } },
   { key: 'customers', label: 'Customers', icon: Users, target: { kind: 'view', view: { type: 'customers' } } },
   { key: 'calendar', label: 'Calendar', icon: CalendarDays, target: { kind: 'view', view: { type: 'calendar', mode: 'week' } } },
+  { key: 'fleet', label: 'Fleet', icon: Truck, target: { kind: 'view', view: { type: 'fleet' } } },
   { key: 'map', label: 'Map', icon: MapIcon, target: { kind: 'section', id: 'cc-route' } },
   { key: 'marketing', label: 'Marketing', icon: Megaphone, target: { kind: 'section', id: 'cc-marketing' } },
   { key: 'seo', label: 'SEO', icon: SearchCheck, target: { kind: 'mode', mode: 'seo' } },

@@ -10,7 +10,7 @@ import {
   type FleetAccount, type FleetVehicle, type FleetJob, type VehicleStatus, type CalendarEntry,
 } from '../../shared/fleet.js';
 import { phoenixToday } from '../../shared/business-rules.js';
-import { loadFleet, fleetPost, fleetContext, type FleetData } from './fleetData';
+import { loadFleet, fleetPost, fleetContext, fleetUi, type FleetData } from './fleetData';
 
 export type Skin = 'admin' | 'jarvis';
 type CompanyTab = 'overview' | 'vehicles' | 'history' | 'calendar';
@@ -74,7 +74,10 @@ export function FleetApp({ skin, target, onOpenJob, reloadKey = 0 }: { skin: Ski
   const today = phoenixToday();
   const [data, setData] = useState<FleetData | null>(null);
   const [error, setError] = useState('');
-  const [route, setRoute] = useState<Route>({ level: 'home' });
+  const [route, setRoute] = useState<Route>(() => {
+    if (fleetUi.target !== (target ?? null)) { fleetUi.target = target ?? null; fleetUi.route = null; fleetUi.applied = false; }
+    return (fleetUi.route as Route | null) ?? { level: 'home' };
+  });
   const [dialog, setDialog] = useState<ReactNode>(null);
   const [notice, setNotice] = useState('');
 
@@ -85,17 +88,18 @@ export function FleetApp({ skin, target, onOpenJob, reloadKey = 0 }: { skin: Ski
   useEffect(() => { void reload(); }, [reload, reloadKey]);
 
   const go = useCallback((r: Route) => {
-    setRoute(r); setNotice('');
+    setRoute(r); setNotice(''); fleetUi.route = r;
     fleetContext.fleetId = r.level === 'company' || r.level === 'vehicle' ? r.fleetId : null;
   }, []);
 
-  // Apply a target (voice / typed / deep link) once the data is in.
-  const [applied, setApplied] = useState<string | null>(null);
+  // A new command while the fleet screen is already open: apply the new target.
   useEffect(() => {
-    if (!data) return;
-    const key = JSON.stringify(target || {});
-    if (applied === key) return;
-    setApplied(key);
+    if (fleetUi.target !== (target ?? null)) { fleetUi.target = target ?? null; fleetUi.applied = false; }
+  }, [target]);
+  // Apply a target (voice / typed / deep link) once, when the data is in.
+  useEffect(() => {
+    if (!data || fleetUi.applied) return;
+    fleetUi.applied = true;
     const t = target || {};
     let fleetId = t.fleetId || null;
     if (!fleetId && t.company) {
@@ -250,7 +254,7 @@ function Home({ k, data, today, go, onNew }: { k: K; data: FleetData; today: str
 
 function Tabs<T extends string>({ k, value, options, onChange }: { k: K; value: T; options: [T, string][]; onChange: (t: T) => void }) {
   return (
-    <div role="tablist" className={`flex gap-0 border-b ${k.divide} overflow-x-auto`}>
+    <div role="tablist" className={`flex flex-wrap gap-0 border-b ${k.divide}`}>
       {options.map(([v, label]) => (
         <button key={v} role="tab" aria-selected={v === value} type="button" onClick={() => onChange(v)}
           className={`text-[12px] font-bold uppercase tracking-widest px-4 sm:px-5 py-3 border-b-2 -mb-px whitespace-nowrap ${v === value ? k.tabOn : k.tabOff}`}>{label}</button>
