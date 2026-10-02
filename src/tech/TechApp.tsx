@@ -105,6 +105,7 @@ function JobScreen({ id, onBack, onChanged }: { id: string; onBack: () => void; 
   const [busy, setBusy] = useState(false);
   const [notes, setNotes] = useState('');
   const [notesSaved, setNotesSaved] = useState(true);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => { getJobById(id).then(j => { if (!j) setError('Job not found.'); else { setJob(j); setNotes(j.garageNotes || ''); } }, e => setError(String(e?.message || e))); }, [id]);
   const update = (j: Job) => { setJob(j); onChanged(); };
@@ -188,9 +189,15 @@ function JobScreen({ id, onBack, onChanged }: { id: string; onBack: () => void; 
                 <p className="text-4xl font-black tabular-nums mt-1">{money(job.jobStatus === 'PAID' ? m.amountPaid : due)}</p>
                 {m.invoiceTotal != null && <p className="text-gray-500 text-[12px] mt-1">Invoice {money(m.invoiceTotal)} incl. tax{m.amountPaid ? ` · paid ${money(m.amountPaid)}` : ''}</p>}
               </div>
+              {job.jobStatus !== 'PAID' && due > 0 && (
+                <button type="button" onClick={() => { void navigator.clipboard?.writeText(due.toFixed(2)); setCopied(true); setTimeout(() => setCopied(false), 2500); }}
+                  className="w-full border border-gray-700 active:border-red-600 text-gray-100 text-[13px] font-bold uppercase tracking-widest py-3">
+                  {copied ? `✓ ${due.toFixed(2)} copied — paste it in Bluevine` : `📋 Copy amount (${due.toFixed(2)}) for Bluevine Tap to Pay`}
+                </button>
+              )}
               {job.jobStatus !== 'PAID' && due > 0 && <>
                 <button type="button" onClick={sharePay} className="w-full bg-emerald-600 active:bg-emerald-700 text-white text-[14px] font-black uppercase tracking-widest py-3.5">💳 Send pay link to customer</button>
-                <p className="text-gray-500 text-[12px] leading-relaxed">They pay by card on their own phone. For an in-person tap, take it in the Bluevine app, then record it below as "Card (Tap to Pay)".</p>
+                <p className="text-gray-500 text-[12px] leading-relaxed">They pay by card on their own phone. For an in-person tap: copy the amount, take the tap in the Bluevine app, then record it below as "Card (Tap to Pay)".</p>
               </>}
               <PaymentPanel job={job} onUpdate={update} />
             </div>
