@@ -340,6 +340,12 @@ export interface Job {
   paymentLink: string | null;
   // inspection
   inspectionData: InspectionData | null;
+  // Fleet link (fleet_migration.sql; FLEET_PLAN.md). Null on retail jobs.
+  fleetId?: string | null;
+  fleetVehicleId?: string | null;
+  fleetNumber?: number | null;
+  fleetName?: string | null;
+  fleetUnit?: string | null;
 }
 
 export interface ScanDoc {
@@ -634,6 +640,11 @@ function mapJob(b: any): Job {
     postScan: b.post_scan ? (typeof b.post_scan === 'string' ? JSON.parse(b.post_scan) : b.post_scan) : null,
     paymentLink: b.payment_link || null,
     inspectionData: b.inspection_data ? (typeof b.inspection_data === 'string' ? JSON.parse(b.inspection_data) : b.inspection_data) : null,
+    fleetId: b.fleet_id ?? null,
+    fleetVehicleId: b.fleet_vehicle_id ?? null,
+    fleetNumber: b.fleet_accounts?.company_number ?? null,
+    fleetName: b.fleet_accounts?.name ?? null,
+    fleetUnit: b.fleet_vehicles?.unit_number ?? null,
   };
 }
 
@@ -6891,7 +6902,7 @@ export function JobsTab() {
       // select the Cancelled filter explicitly to see them. Nothing is
       // deleted, just tucked out of the default view.
       const matchStatus = filterStatus === 'ALL' ? (j.jobStatus !== 'CANCELLED' && !j.dateTbd) : j.jobStatus === filterStatus;
-      const matchSearch = !search || `${j.fname} ${j.lname} ${j.vehicle} ${j.phone} ${j.stripeTransactionId || ''}`.toLowerCase().includes(search.toLowerCase());
+      const matchSearch = !search || `${j.fname} ${j.lname} ${j.vehicle} ${j.phone} ${j.stripeTransactionId || ''} ${j.fleetNumber ? `fleet #${j.fleetNumber}` : ''} ${j.fleetUnit ? `#${j.fleetUnit} unit ${j.fleetUnit}` : ''}`.toLowerCase().includes(search.toLowerCase());
       return matchStatus && matchSearch;
     })
     .sort((a, b) => {
@@ -7080,6 +7091,7 @@ export function JobsTab() {
                 <div className="flex-shrink-0">
                   <div className="text-white font-bold text-sm">{job.fname} {job.lname}</div>
                   <div className="text-gray-500 text-xs">{job.vehicle}</div>
+                  {job.fleetId && <div className="mt-1 inline-block text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 border border-sky-700 text-sky-300">{job.fleetNumber ? `Fleet #${job.fleetNumber}` : 'Fleet'}{job.fleetUnit ? ` · #${job.fleetUnit}` : ''}</div>}
                 </div>
                 <div className="hidden sm:block text-gray-600 text-xs">
                   <div>{resolveServiceName(job.service, job.notes)}</div>

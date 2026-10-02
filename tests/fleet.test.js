@@ -193,3 +193,15 @@ test('API before the migration: a clear "run fleet_migration.sql" message', asyn
   const { ctx } = fakeDb({ migrated: false });
   await assert.rejects(handleFleetAction('fleet-data', {}, ctx), new RegExp(NEEDS_MIGRATION.slice(0, 30)));
 });
+
+test('date-only helpers: no timezone shift, month arithmetic, month ends', async () => {
+  const { fmtYmd, shiftMonth, monthEnd } = await import('../shared/fleet.js');
+  assert.equal(fmtYmd('2026-09-30'), 'Sep 30, 2026');
+  assert.equal(fmtYmd('2026-10-01'), 'Oct 1, 2026');
+  assert.equal(fmtYmd('bad'), '—');
+  assert.equal(shiftMonth('2026-12', 1), '2027-01');
+  assert.equal(shiftMonth('2026-01', -1), '2025-12');
+  assert.equal(monthEnd('2026-02'), '2026-02-28');
+  assert.equal(monthEnd('2028-02'), '2028-02-29');
+  assert.equal(monthEnd('2026-09'), '2026-09-30');
+});

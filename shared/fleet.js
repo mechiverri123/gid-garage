@@ -223,3 +223,22 @@ export function fleetJobRow({ account, vehicle = null, date, time = 'TBD', servi
     fleet_id: account.id, fleet_vehicle_id: vehicle ? vehicle.id : null,
   };
 }
+
+// ---- date-only display (no timezone conversion: the value is a calendar day) -----------------------
+
+export function fmtYmd(ymd, opts = { month: 'short', day: 'numeric', year: 'numeric' }) {
+  if (!isValidYmd(String(ymd || ''))) return '—';
+  const [y, m, d] = ymd.split('-').map(Number);
+  return new Date(Date.UTC(y, m - 1, d, 12)).toLocaleDateString('en-US', { ...opts, timeZone: 'UTC' });
+}
+// "2026-10" ± k months, by arithmetic on the numbers.
+export function shiftMonth(ym, k) {
+  const [y, m] = String(ym).split('-').map(Number);
+  const t = y * 12 + (m - 1) + k;
+  return `${Math.floor(t / 12)}-${String((t % 12) + 1).padStart(2, '0')}`;
+}
+export function monthEnd(ym) {
+  const [y, m] = String(ym).split('-').map(Number);
+  const last = [31, (y % 4 === 0 && (y % 100 !== 0 || y % 400 === 0)) ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31][m - 1];
+  return `${ym}-${String(last).padStart(2, '0')}`;
+}
