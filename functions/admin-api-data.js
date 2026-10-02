@@ -85,6 +85,7 @@ function namesLikelyMatch(fnameA, lnameA, fnameB, lnameB) {
 }
 
 import { verifyAccess } from './_lib/access-auth.js';
+import { handleFleetAction, FleetError } from './_lib/fleet.js';
 
 export async function onRequestPost({ request, env }) {
   // Defense-in-depth: cryptographically verify the Access JWT, not just its presence.
@@ -143,6 +144,15 @@ export async function onRequestPost({ request, env }) {
   const { action } = payload;
 
   try {
+    // Fleet (functions/_lib/fleet.js, FLEET_PLAN.md): its own fleet-* actions.
+    if (typeof action === 'string' && action.startsWith('fleet-')) {
+      try {
+        return json(await handleFleetAction(action, payload, { base, headers }));
+      } catch (e) {
+        if (e instanceof FleetError) return json({ error: e.message }, 400);
+        throw e;
+      }
+    }
     switch (action) {
       case 'list-bookings': {
         const limit = Number(payload.limit) || 2000;
@@ -163,10 +173,20 @@ export async function onRequestPost({ request, env }) {
           'invoice_sent_count', 'invoice_last_sent_at', 'parts_cost', 'parts_receipts',
           'review_left_at', 'date_tbd',
         ].join(',');
-        const res = await fetch(
-          `${base}/bookings?select=${listColumns}&order=date.desc,time.desc&limit=${limit}`,
+        // Fleet link + label for the Jobs badge and the retail-calendar filter.
+        // Before fleet_migration.sql has run those columns don't exist, so fall
+        // back to exactly the old column list (nothing else changes).
+        const fleetColumns = ',fleet_id,fleet_vehicle_id,fleet_accounts!bookings_fleet_id_fkey(company_number,name),fleet_vehicles!bookings_fleet_vehicle_id_fkey(unit_number)';
+        let res = await fetch(
+          `${base}/bookings?select=${listColumns}${fleetColumns}&order=date.desc,time.desc&limit=${limit}`,
           { headers }
         );
+        if (!res.ok) {
+          res = await fetch(
+            `${base}/bookings?select=${listColumns}&order=date.desc,time.desc&limit=${limit}`,
+            { headers }
+          );
+        }
         if (!res.ok) return json({ error: await res.text() }, 502);
         return json(await res.json());
       }
