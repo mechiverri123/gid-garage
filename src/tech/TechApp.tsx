@@ -25,6 +25,16 @@ const dayLabel = (ymd: string, today: string) => (ymd === today ? 'Today' : ymd 
 const digits = (p: string) => String(p || '').replace(/\D/g, '');
 const money = (n: number | null | undefined) => (n == null ? '—' : `$${n.toFixed(2)}`);
 
+// Calls and texts go through Google Voice (owner's choice), with a switch back
+// to the iPhone's own Phone/Messages. Google documents the call link
+// (support.google.com/voice/answer/3379129); the text link opens that thread.
+type Dialer = 'gvoice' | 'phone';
+const DIALER_KEY = 'gid-tech-dialer';
+const getDialer = (): Dialer => { try { return localStorage.getItem(DIALER_KEY) === 'phone' ? 'phone' : 'gvoice'; } catch { return 'gvoice'; } };
+const e164 = (p: string) => { const d = digits(p); return d.length === 10 ? `+1${d}` : d.length === 11 && d.startsWith('1') ? `+${d}` : `+${d}`; };
+const callHref = (p: string, d: Dialer) => (d === 'gvoice' ? `https://voice.google.com/u/0/calls?a=nc,${encodeURIComponent(e164(p))}` : `tel:${digits(p)}`);
+const textHref = (p: string, d: Dialer, body = '') => (d === 'gvoice' ? `https://voice.google.com/u/0/messages?itemId=t.${encodeURIComponent(e164(p))}` : `sms:${digits(p)}${body ? `&body=${encodeURIComponent(body)}` : ''}`);
+
 function Chip({ status }: { status: string }) {
   return <span className={`text-[11px] font-bold uppercase tracking-wider px-2 py-0.5 border ${STATUS_TONE[status] || 'text-gray-400 border-gray-700'}`}>{STATUS_LABEL[status] || status}</span>;
 }
@@ -106,6 +116,9 @@ function JobScreen({ id, onBack, onChanged }: { id: string; onBack: () => void; 
   const [notes, setNotes] = useState('');
   const [notesSaved, setNotesSaved] = useState(true);
   const [copied, setCopied] = useState(false);
+  const [dialer, setDialerState] = useState<Dialer>(getDialer);
+  const setDialer = (d: Dialer) => { setDialerState(d); try { localStorage.setItem(DIALER_KEY, d); } catch { /* ignore */ } };
+  const [payNote, setPayNote] = useState('');
 
   useEffect(() => { getJobById(id).then(j => { if (!j) setError('Job not found.'); else { setJob(j); setNotes(j.garageNotes || ''); } }, e => setError(String(e?.message || e))); }, [id]);
   const update = (j: Job) => { setJob(j); onChanged(); };
@@ -133,8 +146,15 @@ function JobScreen({ id, onBack, onChanged }: { id: string; onBack: () => void; 
   }
   async function sharePay() {
     const text = `GID Garage — your balance is ${money(due)}. Pay securely here: ${payUrl}`;
+    if (dialer === 'gvoice') {
+      // Google Voice links can't pre-fill a message: copy it, then open the thread to paste.
+      try { await navigator.clipboard?.writeText(text); } catch { /* ignore */ }
+      setPayNote('Message copied — paste it in Google Voice and send.');
+      window.open(textHref(job!.phone, 'gvoice'), '_blank');
+      return;
+    }
     if (navigator.share) { try { await navigator.share({ title: 'GID Garage payment', text, url: payUrl }); return; } catch { /* cancelled */ } }
-    location.href = `sms:${digits(job!.phone)}&body=${encodeURIComponent(text)}`;
+    location.href = textHref(job!.phone, 'phone', text);
   }
 
   const tabs: [Tab, string][] = [['job', 'Job'], ['photos', 'Photos'], ['next', recs ? `Next (${recs})` : 'Next'], ['parts', 'Parts'], ['pay', 'Pay']];
@@ -148,11 +168,19 @@ function JobScreen({ id, onBack, onChanged }: { id: string; onBack: () => void; 
           <span className="text-gray-400 text-[13px]">{job.dateTbd ? 'Date TBD' : `${new Date(`${job.date}T12:00:00`).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })} · ${job.time}`}</span>
         </div>
         <div className="grid grid-cols-4 gap-2">
-          {job.phone ? action(`tel:${digits(job.phone)}`, 'Call', '📞') : <span />}
-          {job.phone ? action(`sms:${digits(job.phone)}`, 'Text', '💬') : <span />}
+          {job.phone ? action(callHref(job.phone, dialer), 'Call', '📞') : <span />}
+          {job.phone ? action(textHref(job.phone, dialer), 'Text', '💬') : <span />}
           {job.serviceAddress ? action(mapsUrl, 'Drive', '🧭') : <span />}
           <button type="button" onClick={() => job.vin && navigator.clipboard?.writeText(job.vin)} disabled={!job.vin} className="flex flex-col items-center gap-1 py-2.5 bg-gray-900 border border-gray-800 text-[12px] font-bold uppercase tracking-wider text-gray-200 disabled:opacity-30"><span className="text-lg leading-none">🔢</span>VIN</button>
         </div>
+        {job.phone && (
+          <div className="flex items-center justify-end gap-1 text-[11px] text-gray-500">
+            Calls &amp; texts via
+            {(['gvoice', 'phone'] as Dialer[]).map(d => (
+              <button key={d} type="button" onClick={() => setDialer(d)} aria-pressed={dialer === d} className={`px-2 py-0.5 border font-bold uppercase tracking-wider ${dialer === d ? 'border-red-600 text-white' : 'border-gray-800 text-gray-500'}`}>{d === 'gvoice' ? 'Google Voice' : 'Phone'}</button>
+            ))}
+          </div>
+        )}
         {step && <button type="button" onClick={advance} disabled={busy} className="w-full bg-red-600 active:bg-red-700 disabled:opacity-50 text-white text-[14px] font-black uppercase tracking-widest py-3.5">{busy ? 'Saving…' : step.label}</button>}
 
         <div role="tablist" className="grid grid-cols-5 border-b border-gray-800">
@@ -197,6 +225,7 @@ function JobScreen({ id, onBack, onChanged }: { id: string; onBack: () => void; 
               )}
               {job.jobStatus !== 'PAID' && due > 0 && <>
                 <button type="button" onClick={sharePay} className="w-full bg-emerald-600 active:bg-emerald-700 text-white text-[14px] font-black uppercase tracking-widest py-3.5">💳 Send pay link to customer</button>
+                {payNote && <p role="status" className="text-emerald-400 text-[13px]">{payNote}</p>}
                 <p className="text-gray-500 text-[12px] leading-relaxed">They pay by card on their own phone. For an in-person tap: copy the amount, take the tap in the Bluevine app, then record it below as "Card (Tap to Pay)".</p>
               </>}
               <PaymentPanel job={job} onUpdate={update} />
