@@ -1795,7 +1795,7 @@ function GarageNotesField({ booking, onSave }: { booking: Booking; onSave: (id: 
       <textarea
         value={text}
         onChange={e => handleChange(e.target.value)}
-        placeholder="Internal notes about this visit — not visible to the customer…"
+        placeholder="Shown on the customer's invoice as Technician Notes…"
         rows={2}
         className="w-full bg-black/30 border border-gray-800 focus:border-yellow-700 text-white/80 text-sm px-3 py-2 outline-none resize-none placeholder-gray-700 transition-colors"
       />

@@ -4,7 +4,7 @@
 // next-visit check, parts cost, and getting paid. Reuses the admin panels and
 // the same bookings rows/calls as /admin; admin itself is unchanged.
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { getAllJobs, getJobById, patchJob, syncTaxRate, resolveServiceName, PhotoPanel, VideoPanel, PartsCostPanel, PaymentPanel, type Job } from '../JobOps';
+import { getAllJobs, getJobById, patchJob, syncTaxRate, resolveServiceName, useAutoSave, PhotoPanel, VideoPanel, PartsCostPanel, PaymentPanel, type Job } from '../JobOps';
 import { NextVisitCheck } from '../nextVisit/NextVisitCheck';
 import { recommendations } from '../../shared/next-visit.js';
 import { statusChangeFields, isCancelled, jobMoney, phoenixToday } from '../../shared/business-rules.js';
@@ -109,13 +109,18 @@ function JobScreen({ id, onBack, onChanged }: { id: string; onBack: () => void; 
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [notes, setNotes] = useState('');
-  const [notesSaved, setNotesSaved] = useState(true);
   const [copied, setCopied] = useState(false);
   const [payNote, setPayNote] = useState('');
   const [voiceNote, setVoiceNote] = useState('');
 
-  useEffect(() => { getJobById(id).then(j => { if (!j) setError('Job not found.'); else { setJob(j); setNotes(j.garageNotes || ''); } }, e => setError(String(e?.message || e))); }, [id]);
+  useEffect(() => { getJobById(id).then(j => { if (!j) setError('Job not found.'); else { setJob(j); setNotes(j.estimateNotes || ''); } }, e => setError(String(e?.message || e))); }, [id]);
   const update = (j: Job) => { setJob(j); onChanged(); };
+  // Notes = the admin Estimate tab's Scope Notes; saved 3s after typing stops.
+  const notesDirty = !!job && job.id === id && notes !== (job.estimateNotes || '');
+  useAutoSave(id, notes, notesDirty, async (jid, v) => {
+    await patchJob(jid, { estimate_notes: v });
+    setJob(prev => (prev && prev.id === jid ? { ...prev, estimateNotes: v } : prev));
+  });
 
   if (error) return <Shell onBack={onBack} title="Job"><p className="text-red-300 text-sm p-4">{error}</p></Shell>;
   if (!job) return <Shell onBack={onBack} title="Job"><p className="text-gray-500 text-sm p-6 text-center">Loading…</p></Shell>;
@@ -133,10 +138,6 @@ function JobScreen({ id, onBack, onChanged }: { id: string; onBack: () => void; 
     setBusy(true);
     try { const f = statusChangeFields(job.jobStatus, step.to); await patchJob(job.id, f); update({ ...job, jobStatus: step.to as Job['jobStatus'] }); } catch (e) { setError(String((e as Error)?.message || e)); }
     setBusy(false);
-  }
-  async function saveNotes() {
-    if (!job) return;
-    await patchJob(job.id, { garage_notes: notes }); setNotesSaved(true); update({ ...job, garageNotes: notes });
   }
   async function sharePay() {
     const text = `GID Garage — your balance is ${money(due)}. Pay securely here: ${payUrl}`;
@@ -183,9 +184,8 @@ function JobScreen({ id, onBack, onChanged }: { id: string; onBack: () => void; 
               {job.lineItems?.length > 0 && <Info label="Work on this job">{job.lineItems.map(li => <div key={li.id} className="flex justify-between gap-3"><span>{li.label}</span><span className="text-gray-400 tabular-nums">{money(li.amount)}</span></div>)}</Info>}
               {job.notes && <Info label="Booking notes"><span className="whitespace-pre-wrap">{job.notes}</span></Info>}
               <div>
-                <p className="text-gray-500 text-[11px] font-bold uppercase tracking-widest mb-1">Technician notes <span className="normal-case tracking-normal font-normal text-gray-600">(shown on the invoice)</span></p>
-                <textarea value={notes} onChange={e => { setNotes(e.target.value); setNotesSaved(false); }} rows={4} className="w-full bg-gray-900 border border-gray-700 text-white px-3 py-2 text-[15px] outline-none focus:border-red-600" />
-                {!notesSaved && <button type="button" onClick={saveNotes} className="mt-2 w-full border border-gray-700 text-gray-200 text-[12px] font-bold uppercase tracking-widest py-2.5">Save notes</button>}
+                <p className="text-gray-500 text-[11px] font-bold uppercase tracking-widest mb-1">Technician notes <span className="normal-case tracking-normal font-normal text-gray-600">(Scope of Work on the invoice · {notesDirty ? 'saving…' : 'saved'})</span></p>
+                <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={4} className="w-full bg-gray-900 border border-gray-700 text-white px-3 py-2 text-[15px] outline-none focus:border-red-600" />
               </div>
             </div>
           )}

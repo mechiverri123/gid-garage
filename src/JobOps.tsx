@@ -2332,6 +2332,24 @@ export function InspectionPanel({ job, onUpdate }: { job: Job; onUpdate: (j: Job
   );
 }
 
+// Saves a text field `ms` after typing stops — only that one field, no reload,
+// so photos and other edits on screen stay put. `key` is the job id: switching
+// jobs saves the previous job's pending text first, and leaving saves right away.
+export function useAutoSave(key: string, value: string, dirty: boolean, save: (key: string, value: string) => Promise<void>, ms = 3000) {
+  const saveRef = useRef(save); saveRef.current = save;
+  const pending = useRef<{ key: string; value: string } | null>(null);
+  useEffect(() => {
+    const p = pending.current;
+    if (p && p.key !== key) void saveRef.current(p.key, p.value);
+    pending.current = null;
+    if (!dirty) return;
+    pending.current = { key, value };
+    const t = setTimeout(() => { pending.current = null; void saveRef.current(key, value).catch(e => console.warn('Autosave failed', e)); }, ms);
+    return () => clearTimeout(t);
+  }, [key, value, dirty, ms]);
+  useEffect(() => () => { const p = pending.current; if (p) void saveRef.current(p.key, p.value).catch(() => {}); }, []);
+}
+
 // ── ESTIMATE PANEL (inside admin job detail) ──────────────────────────────────
 
 export function EstimatePanel({ job, onUpdate }: { job: Job; onUpdate: (j: Job) => void }) {
@@ -2356,6 +2374,13 @@ export function EstimatePanel({ job, onUpdate }: { job: Job; onUpdate: (j: Job) 
   const [showShopComparison, setShowShopComparison] = useState(true);
   const prevJobId = useRef(job.id);
   const hasLocalEdits = useRef(false);
+  // Scope notes save themselves 3s after typing (same field the Tech app edits).
+  const jobRef = useRef(job); jobRef.current = job;
+  const notesDirty = prevJobId.current === job.id && (notes || '') !== (job.estimateNotes || '');
+  useAutoSave(job.id, notes || '', notesDirty, async (id, v) => {
+    await patchJob(id, { estimate_notes: v });
+    if (jobRef.current.id === id) onUpdate({ ...jobRef.current, estimateNotes: v });
+  });
 
   // The job list is slim (no line items, for load speed), so this panel can
   // mount before the full record arrives a beat later. Catch up once it does,
@@ -2595,7 +2620,7 @@ export function EstimatePanel({ job, onUpdate }: { job: Job; onUpdate: (j: Job) 
 
       {/* Scope notes */}
       <div>
-        <label className="text-gray-500 text-xs font-bold uppercase tracking-widest block mb-1">Scope Notes <span className="text-gray-700 normal-case font-normal">(shown to customer)</span></label>
+        <label className="text-gray-500 text-xs font-bold uppercase tracking-widest block mb-1">Scope Notes <span className="text-gray-700 normal-case font-normal">(shown to customer · saves automatically{notesDirty ? '' : notes ? ' · ✓ saved' : ''})</span></label>
         <textarea
           value={notes}
           onChange={e => { hasLocalEdits.current = true; setNotes(e.target.value); }}
@@ -4918,7 +4943,7 @@ export function CustomersTab() {
       return;
     }
     setJobs(prev => prev.map(j => j.id === updated.id ? updated : j));
-    setSelected(updated);
+    setSelected(prev => (prev && prev.id === updated.id ? updated : prev)); // a late autosave never reopens a closed job
   }
 
   const openCustomer = filtered.find(c => c.key === openKey) || customers.find(c => c.key === openKey);
@@ -6866,7 +6891,7 @@ export function JobsTab() {
       return;
     }
     setJobs(prev => prev.map(j => j.id === updated.id ? updated : j));
-    setSelected(updated);
+    setSelected(prev => (prev && prev.id === updated.id ? updated : prev)); // a late autosave never reopens a closed job
   }
 
   // list-bookings now returns only list-view columns (for load-time speed),
