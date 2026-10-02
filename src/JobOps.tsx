@@ -588,6 +588,13 @@ async function apiPost(action: string, args: Record<string, any> = {}) {
   return txt ? JSON.parse(txt) : null;
 }
 
+// One malformed stored value must not break every job screen: fall back to empty.
+function parseJson<T>(v: unknown, fallback: T): T {
+  if (v == null || v === '') return fallback;
+  if (typeof v !== 'string') return v as T;
+  try { return JSON.parse(v) as T; } catch { return fallback; }
+}
+
 function mapJob(b: any): Job {
   return {
     id: b.id,
@@ -611,7 +618,7 @@ function mapJob(b: any): Job {
     createdAt: b.created_at,
     estimateAmount: b.estimate_amount ?? null,
     estimateNotes: b.estimate_notes || '',
-    lineItems: b.line_items ? (typeof b.line_items === 'string' ? JSON.parse(b.line_items) : b.line_items) : [],
+    lineItems: parseJson(b.line_items, []),
     taxAmount: b.tax_amount ?? null,
     taxRateSnapshot: b.tax_rate_snapshot ?? null,
     preExistingDamage: b.pre_existing_damage || '',
@@ -630,16 +637,16 @@ function mapJob(b: any): Job {
     invoiceSentCount: b.invoice_sent_count ?? 0,
     invoiceLastSentAt: b.invoice_last_sent_at ?? null,
     amountPaid: b.amount_paid ?? null,
-    payments: b.payments ? (typeof b.payments === 'string' ? JSON.parse(b.payments) : b.payments) : [],
+    payments: parseJson(b.payments, []),
     partsCost: b.parts_cost ?? null,
-    partsReceipts: b.parts_receipts ? (typeof b.parts_receipts === 'string' ? JSON.parse(b.parts_receipts) : b.parts_receipts) : [],
-    jobPhotos: b.job_photos ? (typeof b.job_photos === 'string' ? JSON.parse(b.job_photos) : b.job_photos) : [],
-    jobVideos: b.job_videos ? (typeof b.job_videos === 'string' ? JSON.parse(b.job_videos) : b.job_videos) : [],
-    adminPhotos: b.admin_photos ? (typeof b.admin_photos === 'string' ? JSON.parse(b.admin_photos) : b.admin_photos) : [],
-    preScan: b.pre_scan ? (typeof b.pre_scan === 'string' ? JSON.parse(b.pre_scan) : b.pre_scan) : null,
-    postScan: b.post_scan ? (typeof b.post_scan === 'string' ? JSON.parse(b.post_scan) : b.post_scan) : null,
+    partsReceipts: parseJson(b.parts_receipts, []),
+    jobPhotos: parseJson(b.job_photos, []),
+    jobVideos: parseJson(b.job_videos, []),
+    adminPhotos: parseJson(b.admin_photos, []),
+    preScan: parseJson(b.pre_scan, null),
+    postScan: parseJson(b.post_scan, null),
     paymentLink: b.payment_link || null,
-    inspectionData: b.inspection_data ? (typeof b.inspection_data === 'string' ? JSON.parse(b.inspection_data) : b.inspection_data) : null,
+    inspectionData: parseJson(b.inspection_data, null),
     fleetId: b.fleet_id ?? null,
     fleetVehicleId: b.fleet_vehicle_id ?? null,
     fleetNumber: b.fleet_accounts?.company_number ?? null,
@@ -4620,7 +4627,8 @@ function CustomerFileModal({ customerId, jobs, onClose, onSelectJob }: {
   const accent = accentFor(fullName || customerId || '');
   const vehicles = Array.from(new Set(customerJobs.map(j => j.vehicle).filter(Boolean)));
   const filteredJobs = vehicleFilter ? customerJobs.filter(j => j.vehicle === vehicleFilter) : customerJobs;
-  const totalRevenue = filteredJobs.reduce((sum, j) => sum + (j.amountPaid || 0), 0);
+  // Lifetime collected, with the canonical revenue rule (same as Jarvis Customers).
+  const totalRevenue = collectedRevenue(filteredJobs, () => true).total;
   const firstVisit = filteredJobs[filteredJobs.length - 1]?.date;
   const sinceLabel = firstVisit ? new Date(firstVisit + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : '—';
 
@@ -4777,6 +4785,7 @@ interface CustomerAgg {
 function aggregateCustomers(jobs: Job[]): CustomerAgg[] {
   const map = new Map<string, CustomerAgg>();
   for (const j of jobs) {
+    if (j.fleetId) continue; // fleet companies live under Fleet, not Customers (FLEET_PLAN.md)
     const key = j.customerId || `nm:${normStr(j.fname)}|${normStr(j.lname)}|${(j.phone || '').replace(/\D/g, '')}`;
     let c = map.get(key);
     if (!c) {
@@ -4790,14 +4799,17 @@ function aggregateCustomers(jobs: Job[]): CustomerAgg[] {
     }
     c.jobs.push(j);
     c.jobCount += 1;
-    c.totalRevenue += j.amountPaid || 0;
     if (j.vehicle && !c.vehicles.includes(j.vehicle)) c.vehicles.push(j.vehicle);
     if (j.date > c.lastVisit) { c.lastVisit = j.date; c.lastStatus = j.jobStatus; }
     if (j.date < c.firstVisit) c.firstVisit = j.date;
     // Prefer the most recently-entered contact info on the aggregate.
     if (j.date >= c.lastVisit) { c.phone = j.phone || c.phone; c.email = j.email || c.email; }
   }
-  for (const c of map.values()) c.jobs.sort((a, b) => (b.date + b.time).localeCompare(a.date + a.time));
+  for (const c of map.values()) {
+    c.jobs.sort((a, b) => (b.date + b.time).localeCompare(a.date + a.time));
+    // Lifetime collected, canonical rule (same as Jarvis Customers).
+    c.totalRevenue = collectedRevenue(c.jobs, () => true).total;
+  }
   return Array.from(map.values());
 }
 

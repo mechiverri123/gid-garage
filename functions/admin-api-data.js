@@ -52,7 +52,8 @@ import { runBackup, readBackupStatus, listBackups, restoreBackup, inspectBackupB
 import { reportError } from './_lib/sentry.js';
 import { trendSeries, activityFeed, todayRoute, weatherToday, monthStats, collectedTotals } from './_lib/command-center-extras.js';
 import { createBusinessOps } from './_lib/business-data.js';
-import { phoenixYmd, addDaysYmd } from '../shared/business-metrics.js';
+import { phoenixYmd, addDaysYmd, jobFromRow } from '../shared/business-metrics.js';
+import { unpaidJobs } from '../shared/business-rules.js';
 
 const GBP_REVIEW_URL = 'https://g.page/r/CdERSypGqVdlEBM/review';
 
@@ -1672,12 +1673,12 @@ export async function onRequestPost({ request, env }) {
         }
 
         if (q.includes('unpaid') || q.includes('invoice')) {
-          const res = await fetch(`${base}/bookings?select=fname,lname,invoice_amount,amount_paid&job_status=eq.INVOICED&paid_at=is.null`, { headers });
-          const rows = res.ok ? await res.json() : [];
-          const owedRows = rows.filter(b => Number(b.invoice_amount || 0) > Number(b.amount_paid || 0));
-          if (!owedRows.length) return json({ text: 'No unpaid invoices right now.' });
-          const total = owedRows.reduce((s, b) => s + (Number(b.invoice_amount || 0) - Number(b.amount_paid || 0)), 0);
-          return json({ text: `${owedRows.length} unpaid invoice(s) totaling $${total.toFixed(2)}: ${owedRows.slice(0, 6).map(b => `${b.fname || ''} ${b.lname || ''}`.trim()).join(', ')}.` });
+          // Canonical unpaid rule (shared/business-rules.js): invoice + tax − paid.
+          const res = await fetch(`${base}/bookings?select=*&job_status=in.(COMPLETED,INVOICED)`, { headers });
+          const owed = unpaidJobs((res.ok ? await res.json() : []).map(jobFromRow));
+          if (!owed.length) return json({ text: 'No unpaid invoices right now.' });
+          const total = owed.reduce((s, u) => s + u.balance, 0);
+          return json({ text: `${owed.length} unpaid invoice(s) totaling $${total.toFixed(2)}: ${owed.slice(0, 6).map(u => `${u.job.fname || ''} ${u.job.lname || ''}`.trim()).join(', ')}.` });
         }
 
         if (q.includes('ads') || q.includes('marketing') || q.includes('google ads') || q.includes('facebook ads') || q.includes('meta ads')) {

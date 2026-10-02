@@ -68,6 +68,8 @@ function safeEqual(a, b) {
   return diff === 0;
 }
 
+export const PRIVATE_JOB_FIELDS = ['parts_cost', 'parts_receipts', 'admin_photos', 'stripe_customer_id', 'signed_ip', 'customer_id', 'fleet_id', 'fleet_vehicle_id'];
+
 export async function onRequestPost({ request, env }) {
   const supabaseUrl = env.SUPABASE_URL ?? env.VITE_SUPABASE_URL;
   const serviceKey = env.SUPABASE_SERVICE_KEY;
@@ -268,6 +270,10 @@ export async function onRequestPost({ request, env }) {
         const rows = await res.json();
         const booking = rows[0] ?? null;
         if (!booking) return json(null);
+        // Public estimate/invoice link: never send the owner's internal fields
+        // (parts cost/receipts = margins, admin-only photos, Stripe customer id,
+        // the signer's IP, internal links). No customer page uses them.
+        for (const k of PRIVATE_JOB_FIELDS) delete booking[k];
         booking.currentTaxRate = await fetchCurrentTaxRate();
         return json(booking);
       }

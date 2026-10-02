@@ -42,3 +42,17 @@ test('public customer upload refuses an HTML file; admin upload needs a verified
   assert.ok(noLogin.status === 401 || noLogin.status === 500, String(noLogin.status)); // 500 = Access not configured: fails closed
   assert.equal(put.length, 1);
 });
+
+test('public estimate/invoice lookup never sends the owner\'s internal fields', async () => {
+  const { onRequestPost } = await import('../functions/api-customer.js');
+  const row = { id: 'GID-1', fname: 'Jill', garage_notes: 'Rotors were rusted', invoice_amount: 300, parts_cost: 120, parts_receipts: '[{"url":"x"}]', admin_photos: '[]', stripe_customer_id: 'cus_123', signed_ip: '1.2.3.4', customer_id: 'c1' };
+  const saved = globalThis.fetch;
+  globalThis.fetch = async url => new Response(JSON.stringify(String(url).includes('business_settings') ? [{ tax_rate: 0.09 }] : [{ ...row }]), { status: 200 });
+  try {
+    const res = await onRequestPost({ request: new Request('https://x/api-customer', { method: 'POST', body: JSON.stringify({ action: 'get-job', id: 'GID-1' }) }), env: { SUPABASE_URL: 'https://sb', SUPABASE_SERVICE_KEY: 'k' } });
+    const job = await res.json();
+    assert.equal(job.garage_notes, 'Rotors were rusted'); // shown to the customer as Technician Notes
+    assert.equal(job.invoice_amount, 300);
+    for (const k of ['parts_cost', 'parts_receipts', 'admin_photos', 'stripe_customer_id', 'signed_ip', 'customer_id']) assert.ok(!(k in job), k);
+  } finally { globalThis.fetch = saved; }
+});
