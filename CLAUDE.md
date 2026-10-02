@@ -153,6 +153,16 @@ Jarvis is the interactive command interface for GID Garage, not primarily a chat
 - **Owner's equity totals come from the admin Owner's Equity ledger** (`equity_entries`, Hub → Banking & Credit). Bank transfers are only matched against it (same amount, ±5 days), and ones missing from the ledger are shown separately. Never compute equity from bank transfers or Zoho funding.
 - **"Why net profit isn't your bank balance" card:** net + sales tax still owed + equity net = what the business should have. The remainder beyond the bank balance is cash/Stripe/Venmo in transit or spending after the last upload.
 
+# 0.38 TECH APP (2026-10-01)
+
+- **Where it lives:** `/jarvis/tech` (`src/tech/TechApp.tsx`), the phone app saved to the home screen (manifest `public/manifests/tech.json`). It's under /jarvis, so Access protects it.
+- **What it does:**
+  - Job picker: Today / Upcoming / Recent / Search.
+  - Job screen: call / text / drive / copy VIN, one next-status button (`statusChangeFields`), and tabs Job (technician notes), Photos (`PhotoPanel`/`VideoPanel`), Next (`NextVisitCheck`), Parts (`PartsCostPanel`) and Pay.
+  - Pay shows the balance from `jobMoney`, sends the `/invoice?action=pay` link, and includes `PaymentPanel`.
+- **Same data as admin:** the same bookings and calls (`getAllJobs`, `getJobById`, `patchJob`). Admin's UI is unchanged.
+- **Tap to Pay:** impossible from a web page (Apple allows it only in native apps). Take it in the Bluevine app and record it in Pay.
+
 # 0.37 NEXT-VISIT CHECK (2026-10-01)
 
 - **What it is:** a free "what's next" checklist on any job (admin → job → Inspection tab → Next-Visit Check, `src/nextVisit/NextVisitCheck.tsx`). Each item is Good / Soon / Now.

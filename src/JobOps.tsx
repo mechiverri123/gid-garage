@@ -1758,7 +1758,7 @@ export function PartsCostPanel({ job, onUpdate }: { job: Job; onUpdate: (j: Job)
   );
 }
 
-function PhotoPanel({ job, onUpdate }: { job: Job; onUpdate: (j: Job) => void }) {
+export function PhotoPanel({ job, onUpdate }: { job: Job; onUpdate: (j: Job) => void }) {
   const [photos, setPhotos] = useState<JobPhoto[]>(job.jobPhotos || []);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
@@ -2011,7 +2011,7 @@ function PhotoPanel({ job, onUpdate }: { job: Job; onUpdate: (j: Job) => void })
 // ── VIDEO PANEL (customer-facing — shown on the invoice page) ───────────────
 const MAX_VIDEO_BYTES = 80 * 1024 * 1024; // 80MB safety cap — matches customer-upload-video.js
 
-function VideoPanel({ job, onUpdate }: { job: Job; onUpdate: (j: Job) => void }) {
+export function VideoPanel({ job, onUpdate }: { job: Job; onUpdate: (j: Job) => void }) {
   const [videos, setVideos] = useState<JobVideo[]>(job.jobVideos || []);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);

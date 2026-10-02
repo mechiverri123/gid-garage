@@ -222,9 +222,9 @@
     "semantic_hash": "861c63dd430d890bfbbd07dd2ef1013a"
   },
   "src/App.tsx": {
-    "mtime": 1790915690.0461845,
-    "seen": 1790915934.0838456,
-    "ast_hash": "8e76f6f2826b1b5b163741db46dc1c98",
+    "mtime": 1790916378.0946665,
+    "seen": 1790916484.8577456,
+    "ast_hash": "acab5c44ba7f8ac509e4bef6db574659",
     "semantic_hash": ""
   },
   "src/BookingWidget.tsx": {
@@ -264,9 +264,9 @@
     "semantic_hash": "3047f29215eca92279e18755912d44b1"
   },
   "src/JobOps.tsx": {
-    "mtime": 1790915726.8985312,
-    "seen": 1790915934.0848258,
-    "ast_hash": "6324aac015eae2e53f1e2596274ba8f1",
+    "mtime": 1790916378.0924075,
+    "seen": 1790916484.8581226,
+    "ast_hash": "7cdb3767e16df456d44a0ad6dd9eaec0",
     "semantic_hash": ""
   },
   "src/PromptGenerator.tsx": {
@@ -570,9 +570,9 @@
     "semantic_hash": "a643d83b7626b709e8beeda21099b3f0"
   },
   "CLAUDE.md": {
-    "mtime": 1790915894.7498322,
-    "seen": 1790915934.1230383,
-    "ast_hash": "33cd834910f4280d4281c75ce828891f",
+    "mtime": 1790916457.3711412,
+    "seen": 1790916484.871274,
+    "ast_hash": "9f6db38801340bb9774e803677130bbc",
     "semantic_hash": ""
   },
   "CODEBASE.md": {
@@ -612,9 +612,9 @@
     "semantic_hash": "d64dacd95675737d6ca07775d01ab26d"
   },
   "index.html": {
-    "mtime": 1790914600.5920954,
-    "seen": 1790915934.1245978,
-    "ast_hash": "c11c67944257af646904f10e768fe378",
+    "mtime": 1790916378.0951715,
+    "seen": 1790916484.8718946,
+    "ast_hash": "ccce8bba72911eeaf23add66c99dcd64",
     "semantic_hash": ""
   },
   "jarvis-agent/README.md": {
@@ -2292,9 +2292,9 @@
     "semantic_hash": ""
   },
   "public/manifests/tech.json": {
-    "mtime": 1790914600.5331156,
-    "seen": 1790915934.0774858,
-    "ast_hash": "d081d1ce300c2f2eacefbe06eaef57ac",
+    "mtime": 1790916378.095675,
+    "seen": 1790916484.8554447,
+    "ast_hash": "209e5ca65d84424051805b8d3bef6133",
     "semantic_hash": ""
   },
   "shared/booking-slots.d.ts": {
@@ -2355,6 +2355,12 @@
     "mtime": 1790915593.876938,
     "seen": 1790915934.1056218,
     "ast_hash": "7b4f0de02bdb1b77bd86230c98af623a",
+    "semantic_hash": ""
+  },
+  "src/tech/TechApp.tsx": {
+    "mtime": 1790916457.3711412,
+    "seen": 1790916484.8636932,
+    "ast_hash": "27058e2bc5300114b6463b949e87fe0c",
     "semantic_hash": ""
   }
 }

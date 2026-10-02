@@ -19,6 +19,7 @@ const EstimatePage = lazy(() => import('./JobOps').then(m => ({ default: m.Estim
 const InvoicePage = lazy(() => import('./JobOps').then(m => ({ default: m.InvoicePage })));
 const PPIPage = lazy(() => import('./JobOps').then(m => ({ default: m.PPIPage })));
 const InspectionPage = lazy(() => import('./JobOps').then(m => ({ default: m.InspectionPage })));
+const TechApp = lazy(() => import('./tech/TechApp'));
 const GamesPage = lazy(() => import('./GamesPage'));
 const JarvisPage = lazy(() => import('./JarvisPage'));
 const ServicePage = lazy(() => import('./ServicePages').then(m => ({ default: m.ServicePage })));
@@ -1307,6 +1308,8 @@ export default function App() {
   const cancelToken = params.get('token');
   const isAdmin = window.location.pathname === '/admin' || window.location.hash === '#admin';
   const isJarvis = window.location.pathname === '/jarvis';
+  // The tech phone app — under /jarvis so Cloudflare Access protects it.
+  const isTech = window.location.pathname.replace(/\/+$/, '') === '/jarvis/tech';
   const isPromptGenerator = window.location.pathname === '/prompt';
   const isEstimate = window.location.pathname === '/estimate';
   const isInvoice = window.location.pathname === '/invoice';
@@ -1323,14 +1326,14 @@ export default function App() {
 
   // Lenis is a marketing-site polish feature — never touch admin, ops
   // (estimate/invoice/PPI), games, or the cancel flow.
-  const isAdminOrOps = isAdmin || isJarvis || isEstimate || isInvoice || isInspection || isPPI || isGames || isGameRedeem || (!!cancelId && !!cancelToken);
+  const isAdminOrOps = isAdmin || isJarvis || isTech || isEstimate || isInvoice || isInspection || isPPI || isGames || isGameRedeem || (!!cancelId && !!cancelToken);
   useSmoothScroll(!isAdminOrOps);
 
   // Utility/account pages (quotes, invoices, games, cancellations, admin) aren't
   // content pages — indexing them creates thin/duplicate results that dilute
   // the pages we actually want ranking. Keep home, service-area, and privacy indexable.
   useEffect(() => {
-    const shouldNoindex = isEstimate || isInvoice || isInspection || isPPI || isGames || isGameRedeem || isReview || isAdmin || isJarvis || isPromptGenerator || (!!cancelId && !!cancelToken);
+    const shouldNoindex = isEstimate || isInvoice || isInspection || isTech || isPPI || isGames || isGameRedeem || isReview || isAdmin || isJarvis || isPromptGenerator || (!!cancelId && !!cancelToken);
     let meta = document.querySelector('meta[name="robots"]');
     if (!meta) {
       meta = document.createElement('meta');
@@ -1338,7 +1341,7 @@ export default function App() {
       document.head.appendChild(meta);
     }
     meta.setAttribute('content', shouldNoindex ? 'noindex, nofollow' : 'index, follow');
-  }, [isEstimate, isInvoice, isInspection, isPPI, isGames, isGameRedeem, isReview, isAdmin, isJarvis, isPromptGenerator, cancelId, cancelToken]);
+  }, [isEstimate, isInvoice, isInspection, isTech, isPPI, isGames, isGameRedeem, isReview, isAdmin, isJarvis, isPromptGenerator, cancelId, cancelToken]);
 
   function handleBookService(id: string) {
     setBookingServiceId(id);
@@ -1354,6 +1357,7 @@ export default function App() {
   if (isJarvis) return <Suspense fallback={null}><JarvisPage /></Suspense>;
   if (isPromptGenerator) return <Suspense fallback={null}><PromptGenerator /></Suspense>;
   if (isEstimate) return <Suspense fallback={null}><EstimatePage /></Suspense>;
+  if (isTech) return <Suspense fallback={null}><TechApp /></Suspense>;
   if (isInvoice) return <Suspense fallback={null}><InvoicePage /></Suspense>;
   if (isInspection) return <Suspense fallback={null}><InspectionPage /></Suspense>;
   if (isPPI) return <Suspense fallback={null}><PPIPage /></Suspense>;

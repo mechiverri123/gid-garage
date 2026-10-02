@@ -36,9 +36,9 @@
     "semantic_hash": ""
   },
   "functions/admin-api-data.js": {
-    "mtime": 1790912549.6404705,
-    "seen": 1790912656.5905254,
-    "ast_hash": "7d2e92d4b58ea49137a65bdea037bcaa",
+    "mtime": 1790915386.092926,
+    "seen": 1790915934.0705378,
+    "ast_hash": "e2f07dd8a27ec5a97f3ded45ca7bc887",
     "semantic_hash": ""
   },
   "functions/admin-charge.js": {
@@ -78,9 +78,9 @@
     "semantic_hash": ""
   },
   "functions/api-customer.js": {
-    "mtime": 1790912487.3468893,
-    "seen": 1790912656.5909784,
-    "ast_hash": "569b8c9042b134ba201e472356bfc551",
+    "mtime": 1790915593.7499986,
+    "seen": 1790915934.07168,
+    "ast_hash": "1b810cfcfb12c78406541a99ebef6ffa",
     "semantic_hash": ""
   },
   "functions/api-game.js": {
@@ -222,15 +222,15 @@
     "semantic_hash": "861c63dd430d890bfbbd07dd2ef1013a"
   },
   "src/App.tsx": {
-    "mtime": 1790750084.1220539,
-    "seen": 1790750147.4317017,
-    "ast_hash": "bb840525b2defd36cbf7dfdbb4374e69",
+    "mtime": 1790915690.0461845,
+    "seen": 1790915934.0838456,
+    "ast_hash": "8e76f6f2826b1b5b163741db46dc1c98",
     "semantic_hash": ""
   },
   "src/BookingWidget.tsx": {
-    "mtime": 1790912402.6385324,
-    "seen": 1790912656.601928,
-    "ast_hash": "cbdccfb193ac0ea1fa4a5fce3fcec2ba",
+    "mtime": 1790915323.268795,
+    "seen": 1790915934.0838487,
+    "ast_hash": "381f6d735d7bdad9d0ed49429324d5e4",
     "semantic_hash": ""
   },
   "src/CommandCenter.tsx": {
@@ -264,9 +264,9 @@
     "semantic_hash": "3047f29215eca92279e18755912d44b1"
   },
   "src/JobOps.tsx": {
-    "mtime": 1790912591.1488855,
-    "seen": 1790912656.6026638,
-    "ast_hash": "c4b3eee2d2bf13c4594c33cdc5473127",
+    "mtime": 1790915726.8985312,
+    "seen": 1790915934.0848258,
+    "ast_hash": "6324aac015eae2e53f1e2596274ba8f1",
     "semantic_hash": ""
   },
   "src/PromptGenerator.tsx": {
@@ -570,9 +570,9 @@
     "semantic_hash": "a643d83b7626b709e8beeda21099b3f0"
   },
   "CLAUDE.md": {
-    "mtime": 1790909431.095787,
-    "seen": 1790909483.315537,
-    "ast_hash": "4da397df4bd26c428b98feb5009fdcbf",
+    "mtime": 1790915894.7498322,
+    "seen": 1790915934.1230383,
+    "ast_hash": "33cd834910f4280d4281c75ce828891f",
     "semantic_hash": ""
   },
   "CODEBASE.md": {
@@ -612,9 +612,9 @@
     "semantic_hash": "d64dacd95675737d6ca07775d01ab26d"
   },
   "index.html": {
-    "mtime": 1790750089.3427415,
-    "seen": 1790750147.44453,
-    "ast_hash": "701736049d1dfab061b36757d61653ca",
+    "mtime": 1790914600.5920954,
+    "seen": 1790915934.1245978,
+    "ast_hash": "c11c67944257af646904f10e768fe378",
     "semantic_hash": ""
   },
   "jarvis-agent/README.md": {
@@ -2265,6 +2265,96 @@
     "mtime": 1790912500.1689403,
     "seen": 1790912656.6191757,
     "ast_hash": "55b9ec38dc3dd60d715157659bf6ccb9",
+    "semantic_hash": ""
+  },
+  "functions/_lib/labor-hours.js": {
+    "mtime": 1790915385.5730917,
+    "seen": 1790915934.067695,
+    "ast_hash": "e1280095155039e1a7690199c8b70fbd",
+    "semantic_hash": ""
+  },
+  "public/manifests/admin.json": {
+    "mtime": 1790914600.4405336,
+    "seen": 1790915934.0774794,
+    "ast_hash": "22c8a08a1c5996ce1b15a72961d164cd",
+    "semantic_hash": ""
+  },
+  "public/manifests/jarvis.json": {
+    "mtime": 1790914600.4713101,
+    "seen": 1790915934.0774825,
+    "ast_hash": "1e026120c72fb12d72eee3cf74020829",
+    "semantic_hash": ""
+  },
+  "public/manifests/prompt.json": {
+    "mtime": 1790914600.500277,
+    "seen": 1790915934.0774844,
+    "ast_hash": "6ebcb98b6d616e648bee98af90229f13",
+    "semantic_hash": ""
+  },
+  "public/manifests/tech.json": {
+    "mtime": 1790914600.5331156,
+    "seen": 1790915934.0774858,
+    "ast_hash": "d081d1ce300c2f2eacefbe06eaef57ac",
+    "semantic_hash": ""
+  },
+  "shared/booking-slots.d.ts": {
+    "mtime": 1790915323.3089721,
+    "seen": 1790915934.0780387,
+    "ast_hash": "e966484e548637571fe65316d63205cb",
+    "semantic_hash": ""
+  },
+  "shared/booking-slots.js": {
+    "mtime": 1790915257.3279889,
+    "seen": 1790915934.078041,
+    "ast_hash": "4842452aa08c01e4a48942d7b964c2dc",
+    "semantic_hash": ""
+  },
+  "shared/next-visit.d.ts": {
+    "mtime": 1790915443.664781,
+    "seen": 1790915934.079676,
+    "ast_hash": "318d17b7fbf9b4fab3c03280efc8076c",
+    "semantic_hash": ""
+  },
+  "shared/next-visit.js": {
+    "mtime": 1790915240.8874636,
+    "seen": 1790915934.079678,
+    "ast_hash": "deacd791783341133b2fac9c16093407",
+    "semantic_hash": ""
+  },
+  "src/nextVisit/ChecklistSettings.tsx": {
+    "mtime": 1790915743.614756,
+    "seen": 1790915934.1004775,
+    "ast_hash": "13a6d37e0b4c3b231e1f579d9fee9d30",
+    "semantic_hash": ""
+  },
+  "src/nextVisit/NextVisitCheck.tsx": {
+    "mtime": 1790915571.1435988,
+    "seen": 1790915934.1004806,
+    "ast_hash": "158f94fe55baa820c0e28ba8d1795979",
+    "semantic_hash": ""
+  },
+  "src/nextVisit/NextVisitPublic.tsx": {
+    "mtime": 1790915678.7908843,
+    "seen": 1790915934.1004822,
+    "ast_hash": "f63339082733a8f0d231151cc009b5f0",
+    "semantic_hash": ""
+  },
+  "src/nextVisit/media.ts": {
+    "mtime": 1790915443.7361434,
+    "seen": 1790915934.100484,
+    "ast_hash": "1acc0bebb46fd570353e6d2314a31a5c",
+    "semantic_hash": ""
+  },
+  "tests/labor-hours.test.js": {
+    "mtime": 1790915399.2408319,
+    "seen": 1790915934.1053202,
+    "ast_hash": "d5913e297bdcbe70ac445ed216627bc7",
+    "semantic_hash": ""
+  },
+  "tests/next-visit.test.js": {
+    "mtime": 1790915593.876938,
+    "seen": 1790915934.1056218,
+    "ast_hash": "7b4f0de02bdb1b77bd86230c98af623a",
     "semantic_hash": ""
   }
 }

@@ -15,11 +15,11 @@
       // icon saved from /prompt always opens /prompt (iOS otherwise treats every
       // icon from this site as one app and reopens whatever page it last showed).
       (function () {
-        var apps = { '/admin': 'GID Admin', '/jarvis': 'Jarvis', '/prompt': 'GID Prompt', '/tech': 'GID Tech' };
+        var apps = { '/admin': ['admin', 'GID Admin'], '/jarvis': ['jarvis', 'Jarvis'], '/prompt': ['prompt', 'GID Prompt'], '/jarvis/tech': ['tech', 'GID Tech'] };
         var p = location.pathname.replace(/\/+$/, '');
         if (!apps[p]) return;
-        document.getElementById('app-manifest').setAttribute('href', '/manifests' + p + '.json');
-        var t = document.createElement('meta'); t.name = 'apple-mobile-web-app-title'; t.content = apps[p];
+        document.getElementById('app-manifest').setAttribute('href', '/manifests/' + apps[p][0] + '.json');
+        var t = document.createElement('meta'); t.name = 'apple-mobile-web-app-title'; t.content = apps[p][1];
         document.head.appendChild(t);
       })();
     </script>
