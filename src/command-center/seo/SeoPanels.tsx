@@ -348,7 +348,7 @@ export function CompetitorPanel({ c }: { c?: { you?: Comp | null; landscape: Com
   ];
   return (
     <div className="flex flex-col gap-4">
-      <p className="text-[13.5px]" style={{ color: C.text2 }}>{yourPlace != null && <b style={{ color: C.text }}>You're #{yourPlace} of {c.landscape.length + 1}. </b>}{c.note} Your review pace: {c.ourReviewVelocity ?? '—'} per 30 days.</p>
+      <p className="text-[13.5px]" style={{ color: C.text2 }}>{yourPlace != null && <b style={{ color: C.text }}>Strength score: you're #{yourPlace} of {c.landscape.length + 1} (an estimate from reviews and rating, not your Google position). </b>}{c.note} Your review pace: {c.ourReviewVelocity ?? '—'} per 30 days.</p>
       <DataTable columns={cols} rows={rows} rowKey={x => x.id} />
       {c.recentChanges.length > 0 && <div className="text-[13.5px]" style={{ color: C.text2 }}>Recent changes: {c.recentChanges.slice(0, 5).map(ch => `${ch.name} ${ch.change_type.replace(/_/g, ' ')}`).join('; ')}</div>}
       {c.searchResultCompetitors.length > 0 && <div className="text-[13px]" style={{ color: C.muted }}>Search-result competitors (not businesses): {c.searchResultCompetitors.join(', ')}</div>}

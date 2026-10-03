@@ -423,7 +423,7 @@ export function whereYouRank({ own = null, competitors = [], grid = null, ai = n
   const out = [];
   if (own) {
     const you = strengthOf({ weight: 1, reviewCount: own.count, rating: own.rating });
-    out.push({ id: 'strength', label: 'Local strength vs competitors', rank: place(you, rivals.map(strengthOf)), of: rivals.length + 1, detail: 'Mobile mechanics count most, then local shops, then dealers and chains.' });
+    out.push({ id: 'strength', label: 'Strength score vs competitors', rank: place(you, rivals.map(strengthOf)), of: rivals.length + 1, detail: "Reviews × rating, weighted by competitor type. GID's own estimate, not Google's ranking." });
     const withCount = rivals.filter(c => c.review_count != null);
     out.push({ id: 'reviews', label: 'Google review count', rank: place(own.count, withCount.map(c => Number(c.review_count))), of: withCount.length + 1, detail: `${own.count ?? '—'} reviews` });
     const withRating = rivals.filter(c => c.rating != null);
