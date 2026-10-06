@@ -894,6 +894,8 @@ export async function onRequestPost({ request, env }) {
       // enough). Returns one-way driving miles; caller doubles for round trip.
       case 'calc-distance': {
         const { origin, destination } = payload;
+        // Lookup failures answer 424, not 502: Cloudflare swaps a 502 for its own
+        // edge page, which hid Google's reason (e.g. REQUEST_DENIED) from the screen.
         if (!origin || !destination) return json({ error: 'Missing origin or destination' }, 400);
         // Separate key from GOOGLE_PLACES_API_KEY on purpose — that key powers
         // the review-request feature and shouldn't be touched. Falls back to
@@ -910,20 +912,20 @@ export async function onRequestPost({ request, env }) {
           console.log('calc-distance: got response', res.status);
         } catch (fetchErr) {
           console.log('calc-distance: fetch threw', String(fetchErr));
-          return json({ error: `Distance lookup timed out or failed to reach Google: ${fetchErr.message}` }, 502);
+          return json({ error: `Distance lookup timed out or failed to reach Google: ${fetchErr.message}` }, 424);
         } finally {
           clearTimeout(timer);
         }
         if (!res.ok) {
           const bodyText = await res.text();
           console.log('calc-distance: non-ok body', bodyText.slice(0, 300));
-          return json({ error: `Google returned ${res.status}: ${bodyText}` }, 502);
+          return json({ error: `Google returned ${res.status}: ${bodyText.slice(0, 300)}` }, 424);
         }
-        const data = await res.json();
+        const data = await res.json().catch(() => ({}));
         const el = data?.rows?.[0]?.elements?.[0];
         if (data.status !== 'OK' || !el || el.status !== 'OK') {
           console.log('calc-distance: bad status', data.status, el?.status);
-          return json({ error: `Distance lookup failed: ${el?.status || data.status || 'unknown error'}` }, 502);
+          return json({ error: `Distance lookup failed: ${el?.status || data.status || 'unknown error'}${data?.error_message ? ` — ${data.error_message}` : ''}` }, 424);
         }
         const miles = el.distance.value / 1609.344; // meters -> miles
         console.log('calc-distance: success', miles);
