@@ -110,3 +110,67 @@ test('pay actions: data, validated writes, migration message, payouts never thro
   assert.deepEqual(await loadPayouts({ ...ctx, fetchImpl: empty.fetchImpl }), []);
   assert.deepEqual(await loadPayouts({ ...ctx, fetchImpl: async () => { throw new Error('down'); } }), []);
 });
+
+test("owner's own pay is an owner's draw: never lowers net profit or counts as helper pay", () => {
+  const now = new Date('2026-10-08T18:00:00Z');
+  const oct = resolvePeriodWindow('this_month', now);
+  const payouts = [{ paid_on: '2026-10-05', amount: 500, owner_draw: true }, { paid_on: '2026-10-06', amount: 60 }];
+  assert.equal(laborPaid(payouts, oct.inWindow), 60);
+  const bank = [{ id: 'bv:1', date: '2026-10-06', amount: -500, desc: 'TRANSFER TO SOFI' }, { id: 'bv:2', date: '2026-10-07', amount: -60, desc: 'VENMO *KASS, NY' }];
+  const equity = [{ entry_type: 'draw', amount: 500, entry_date: '2026-10-05' }];
+  const { entries } = buildLedger({ bank, payouts, equity });
+  const by = Object.fromEntries(entries.map(e => [e.id, e]));
+  assert.equal(by['bv:1'].kind, 'owner_out'); assert.equal(by['bv:1'].inLedger, true);
+  assert.equal(by['bv:2'].kind, 'helper_pay');
+  const s = summarize(entries, '2026-10-01', '2026-10-31', { collected: 1000, salesTax: 0 }, equity, payouts);
+  assert.equal(s.helperPay, 60);
+  assert.equal(s.net, 940);
+  assert.equal(s.ownerPaidBack, 500);
+});
+
+test('weeks run Monday–Sunday; weekly hours, earned and paid per person', async () => {
+  const { weekStart, weeklySummary } = await import('../shared/pay.js');
+  assert.equal(weekStart('2026-10-05'), '2026-10-05'); // Monday
+  assert.equal(weekStart('2026-10-11'), '2026-10-05'); // Sunday
+  assert.equal(weekStart('2026-01-01'), '2025-12-29'); // across the year
+  const entries = [
+    { person_id: 'me', work_date: '2026-10-06', hours: 6, amount: 180 },
+    { person_id: 'me', work_date: '2026-10-11', hours: 2, amount: 60 },
+    { person_id: 'me', work_date: '2026-10-04', hours: 5, amount: 150 },
+    { person_id: 'other', work_date: '2026-10-06', hours: 9, amount: 900 },
+  ];
+  const [thisWeek, lastWeek] = weeklySummary('me', entries, [{ person_id: 'me', paid_on: '2026-10-05', amount: 150 }], '2026-10-08', 2);
+  assert.deepEqual(thisWeek, { start: '2026-10-05', end: '2026-10-11', hours: 8, earned: 240, paid: 150 });
+  assert.deepEqual([lastWeek.start, lastWeek.hours, lastWeek.earned], ['2026-09-28', 5, 150]);
+});
+
+test('1099 flag is for contractors only', () => {
+  const people = [{ id: 'c', role: 'contractor' }, { id: 'e', role: 'employee' }, { id: 'o', role: 'owner' }];
+  const payouts = ['c', 'e', 'o'].map(id => ({ person_id: id, amount: 3000, paid_on: '2026-05-01' }));
+  assert.deepEqual(balances(people, [], payouts, '2026').map(b => b.needs1099), [true, false, false]);
+});
+
+test("paying the owner writes the Owner's Equity draw and links it; deleting removes both", async () => {
+  const calls = [];
+  const tables = { pay_people: [{ id: 'o', name: 'Miko', role: 'owner' }], equity_entries: [], pay_payouts: [] };
+  const fetchImpl = async (url, init = {}) => {
+    const method = init.method || 'GET'; const table = url.split('/').pop().split('?')[0];
+    calls.push({ table, method, body: init.body ? JSON.parse(init.body) : null });
+    if (method === 'POST') return new Response(JSON.stringify([{ id: `${table}-1`, ...JSON.parse(init.body) }]), { status: 201 });
+    if (method === 'DELETE') return new Response(JSON.stringify(table === 'pay_payouts' ? [{ id: 'p', equity_entry_id: 'equity_entries-1' }] : []), { status: 200 });
+    return new Response(JSON.stringify(tables[table]), { status: 200 });
+  };
+  const ctx = { base: 'https://db/rest/v1', headers: {}, fetchImpl };
+  const row = await handlePayAction('pay-payout-add', { fields: { person_id: 'o', paid_on: '2026-10-09', amount: 480, method: 'Bank transfer', note: 'Week of Oct 5' } }, ctx);
+  assert.equal(row.owner_draw, true);
+  assert.equal(row.equity_entry_id, 'equity_entries-1');
+  const eq = calls.find(c => c.table === 'equity_entries' && c.method === 'POST').body;
+  assert.deepEqual([eq.entry_type, eq.amount, eq.entry_date], ['draw', 480, '2026-10-09']);
+  await handlePayAction('pay-payout-delete', { id: 'p' }, ctx);
+  assert.ok(calls.some(c => c.table === 'equity_entries' && c.method === 'DELETE'));
+  // a contractor's payout never touches the equity ledger
+  tables.pay_people = [{ id: 'c', name: 'Kass', role: 'contractor' }]; calls.length = 0;
+  const c = await handlePayAction('pay-payout-add', { fields: { person_id: 'c', paid_on: '2026-10-09', amount: 60 } }, ctx);
+  assert.equal(c.owner_draw, undefined);
+  assert.ok(!calls.some(x => x.table === 'equity_entries'));
+});

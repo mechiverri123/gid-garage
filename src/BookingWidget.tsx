@@ -2261,7 +2261,7 @@ export function AdminSchedule() {
           {(['jobs', 'schedule', 'customers', 'fleet', 'mileage', 'hub', 'pay', 'helpers'] as const).map(tab => (
             <button key={tab} onClick={() => setAdminTab(tab)}
               className={`text-xs font-bold uppercase tracking-widest px-6 py-3 transition-colors border-b-2 -mb-px ${adminTab === tab ? 'border-red-600 text-white' : 'border-transparent text-gray-500 hover:text-gray-300'}`}>
-              {tab === 'jobs' ? '💼 Jobs' : tab === 'schedule' ? '📅 Schedule' : tab === 'customers' ? '👥 Customers' : tab === 'fleet' ? '🚚 Fleet' : tab === 'mileage' ? '🚗 Mileage' : tab === 'hub' ? '🏢 Hub' : tab === 'pay' ? '💵 Pay' : '👷 Helpers'}
+              {tab === 'jobs' ? '💼 Jobs' : tab === 'schedule' ? '📅 Schedule' : tab === 'customers' ? '👥 Customers' : tab === 'fleet' ? '🚚 Fleet' : tab === 'mileage' ? '🚗 Mileage' : tab === 'hub' ? '🏢 Hub' : tab === 'pay' ? '💵 Pay' : '👷 Team'}
             </button>
           ))}
         </div>
@@ -2549,7 +2549,7 @@ export function AdminSchedule() {
       {adminTab === 'helpers' && (
         <div className="max-w-3xl mx-auto py-4 px-3 sm:px-6">
           <p className="text-red-600 text-xs font-bold uppercase tracking-[0.25em] mb-1">Admin · GID Garage</p>
-          <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tight mb-5">Helper Pay <a href="/admin/pay" className="text-gray-600 hover:text-white text-xs font-bold tracking-widest align-middle ml-2">/admin/pay ↗</a></h2>
+          <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tight mb-5">Team &amp; Pay <a href="/admin/pay" className="text-gray-600 hover:text-white text-xs font-bold tracking-widest align-middle ml-2">/admin/pay ↗</a></h2>
           <HelperPay />
         </div>
       )}

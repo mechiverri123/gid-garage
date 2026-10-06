@@ -1,7 +1,7 @@
 // Helper pay actions for /admin-api-data (already Access-verified there).
 // Rules: shared/pay.js. Tables: pay_migration.sql. Writes only the pay_* tables.
 //   pay-data           {}                         -> { people, entries, payouts }
-//   pay-payouts        {}                         -> [{ id, person_id, paid_on, amount, method }] ([] before the migration)
+//   pay-payouts        {}                         -> payout rows incl. owner_draw ([] before the migration)
 //   pay-person-save    { id?, fields }            -> person
 //   pay-entry-add      { fields }                 -> entry
 //   pay-entry-delete   { id }                     -> { ok }
@@ -9,7 +9,10 @@
 //   pay-payout-delete  { id }                     -> { ok }
 // loadPayouts(): the payouts for net profit / Money ([] before the migration).
 // Tests: tests/pay.test.js
-import { cleanEntry, cleanPayout } from '../../shared/pay.js';
+// The owner's own pay (role 'owner') is an owner's draw: the payout is marked
+// owner_draw and a matching 'draw' row goes into equity_entries (the Owner's
+// Equity ledger the Money tab trusts), linked by equity_entry_id. Never an expense.
+import { cleanEntry, cleanPayout, ROLES } from '../../shared/pay.js';
 
 export const NEEDS_MIGRATION = 'Helper pay is not set up yet: run pay_migration.sql once in the Supabase SQL editor.';
 const MISSING = /42P01|PGRST205|PGRST200|42703|does not exist|Could not find the/i;
@@ -32,6 +35,7 @@ export function personFields(f = {}, { creating = false } = {}) {
   if ('hourly_rate' in f) out.hourly_rate = rate(f.hourly_rate);
   if ('job_rate' in f) out.job_rate = rate(f.job_rate);
   if ('active' in f) out.active = !!f.active;
+  if (creating || 'role' in f) { const r = f.role || 'contractor'; if (!ROLES[r]) throw new PayError('Pick owner, contractor or employee.'); out.role = r; }
   return out;
 }
 
@@ -42,7 +46,9 @@ function caller({ base, headers, fetchImpl }) {
     let body = null; try { body = text ? JSON.parse(text) : null; } catch { body = text; }
     if (!res.ok) {
       const msg = typeof body === 'object' && body ? `${body.code || ''} ${body.message || ''} ${body.details || ''}` : String(body);
+      if (MISSING.test(msg) && /role|owner_draw|equity_entry_id/i.test(msg)) throw new PayError('Run pay_migration.sql again (it adds roles and owner pay; safe to re-run).');
       if (MISSING.test(msg) && /pay_/i.test(msg + path)) throw new PayError(NEEDS_MIGRATION);
+      if (body?.code === '23505' && /owner/i.test(msg)) throw new PayError('Only one person can be the owner.');
       throw new PayError(body?.message || `Database error ${res.status}`);
     }
     return body;
@@ -53,7 +59,8 @@ function caller({ base, headers, fetchImpl }) {
 // read error) net profit simply has no helper pay to subtract.
 export async function loadPayouts({ base, headers, fetchImpl = (...a) => fetch(...a) }) {
   try {
-    const res = await fetchImpl(`${base}/pay_payouts?select=id,person_id,paid_on,amount,method&order=paid_on.asc`, { headers });
+    // select=* so this keeps working whether or not the v2 columns exist yet.
+    const res = await fetchImpl(`${base}/pay_payouts?select=*&order=paid_on.asc`, { headers });
     if (!res.ok) return [];
     const rows = await res.json();
     return Array.isArray(rows) ? rows : [];
@@ -88,13 +95,30 @@ export async function handlePayAction(action, p, { base, headers, fetchImpl = (.
       return loadPayouts({ base, headers, fetchImpl });
     case 'pay-entry-add':
       return insert('pay_entries', guard(() => cleanEntry(p.fields)));
-    case 'pay-payout-add':
-      return insert('pay_payouts', guard(() => cleanPayout(p.fields)));
-    case 'pay-entry-delete':
-    case 'pay-payout-delete': {
-      const table = action === 'pay-entry-delete' ? 'pay_entries' : 'pay_payouts';
-      const rows = await call(`${table}?id=eq.${id()}`, { method: 'DELETE', headers: { Prefer: 'return=representation' } });
+    case 'pay-payout-add': {
+      const row = guard(() => cleanPayout(p.fields));
+      const [person] = await call(`pay_people?id=eq.${encodeURIComponent(row.person_id)}&select=id,name,role`);
+      if (!person) throw new PayError('Person not found.');
+      if (person.role !== 'owner') return insert('pay_payouts', row);
+      // Owner's draw: ledger row first, then the payout; undo the ledger row if the payout fails.
+      const eq = await insert('equity_entries', { entry_type: 'draw', amount: row.amount, entry_date: row.paid_on, note: `Owner pay (from /admin/pay)${row.note ? ` — ${row.note}` : ''}` });
+      try {
+        return await insert('pay_payouts', { ...row, owner_draw: true, equity_entry_id: eq.id });
+      } catch (e) {
+        await call(`equity_entries?id=eq.${encodeURIComponent(eq.id)}`, { method: 'DELETE' }).catch(() => {});
+        throw e;
+      }
+    }
+    case 'pay-entry-delete': {
+      const rows = await call(`pay_entries?id=eq.${id()}`, { method: 'DELETE', headers: { Prefer: 'return=representation' } });
       if (!rows?.length) throw new PayError('Already deleted.');
+      return { ok: true };
+    }
+    case 'pay-payout-delete': {
+      const rows = await call(`pay_payouts?id=eq.${id()}`, { method: 'DELETE', headers: { Prefer: 'return=representation' } });
+      if (!rows?.length) throw new PayError('Already deleted.');
+      // An owner's draw also leaves the Owner's Equity ledger.
+      if (rows[0].equity_entry_id) await call(`equity_entries?id=eq.${encodeURIComponent(rows[0].equity_entry_id)}`, { method: 'DELETE' });
       return { ok: true };
     }
     default:

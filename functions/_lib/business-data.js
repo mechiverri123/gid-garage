@@ -90,7 +90,7 @@ export function createBusinessOps({ sbGet, sbPatch, sbInsert = null, now = () =>
   });
   // Helper payouts (/admin/pay) for net profit. [] before pay_migration.sql runs.
   // ponytail: any read error also reads as "no helper pay"; split if that ever hides a real outage.
-  const loadPayouts = () => sbGet('pay_payouts', { select: 'paid_on,amount', order: 'paid_on.asc' }).catch(() => []);
+  const loadPayouts = () => sbGet('pay_payouts', { select: '*', order: 'paid_on.asc' }).catch(() => []);
   // Every job that isn't closed out — the set unpaid/stale/queue rules need.
   const loadOpenJobs = () => sbGet('bookings', { select: QUEUE_COLUMNS, job_status: 'not.in.(PAID,CANCELLED)', order: 'date.asc', limit: '1000' });
 

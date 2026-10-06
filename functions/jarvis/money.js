@@ -48,7 +48,7 @@ export async function handleMoney({ request, env, verify = verifyAccess, fetchIm
     const eqRes = await fetchImpl(`${supabaseUrl}/rest/v1/equity_entries?select=entry_type,amount,entry_date,note&order=entry_date.asc`, { headers: { apikey: env.SUPABASE_SERVICE_KEY, Authorization: `Bearer ${env.SUPABASE_SERVICE_KEY}` } });
     const equity = eqRes.ok ? await eqRes.json() : [];
     // Helper payouts (/admin/pay) are the helper-pay source of truth; [] before pay_migration.sql.
-    const payRes = await fetchImpl(`${supabaseUrl}/rest/v1/pay_payouts?select=paid_on,amount&order=paid_on.asc`, { headers: { apikey: env.SUPABASE_SERVICE_KEY, Authorization: `Bearer ${env.SUPABASE_SERVICE_KEY}` } }).catch(() => null);
+    const payRes = await fetchImpl(`${supabaseUrl}/rest/v1/pay_payouts?select=*&order=paid_on.asc`, { headers: { apikey: env.SUPABASE_SERVICE_KEY, Authorization: `Bearer ${env.SUPABASE_SERVICE_KEY}` } }).catch(() => null);
     const payouts = payRes?.ok ? await payRes.json() : [];
     const { bv, zb, decisions } = await load();
     const { entries, bankStart } = buildLedger({ bank: bv.rows, zoho: zb.rows, overrides: decisions, equity, payouts });

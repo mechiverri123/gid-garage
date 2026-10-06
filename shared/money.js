@@ -140,7 +140,8 @@ const dayNum = s => Math.round(Date.parse(`${s}T12:00:00Z`) / 86400000);
 // overrides: { [entryId]: { kind?, category?, funding? } }  (the owner's decisions)
 // equity: rows of the admin Owner's Equity ledger { entry_date, entry_type: contribution|draw, amount }.
 // payouts: helper payouts from /admin/pay { paid_on, amount } (the helper-pay source of truth).
-export function buildLedger({ bank = [], zoho = [], overrides = {}, equity = [], payouts = [] }) {
+export function buildLedger({ bank = [], zoho = [], overrides = {}, equity = [], payouts: allPayouts = [] }) {
+  const payouts = allPayouts.filter(p => p?.owner_draw !== true); // the owner's own pay is equity (its equity_entries row)
   const bankStart = bank.length ? bank.reduce((m, r) => (r.date < m ? r.date : m), bank[0].date) : null;
   const debits = bank.filter(r => r.amount < 0);
   const used = new Set();
@@ -290,7 +291,7 @@ export function summarize(entries, from, to, revenue = { collected: 0, salesTax:
   // Helper pay: the /admin/pay payouts in the period (cash, Venmo, anything),
   // plus bank transfers marked helper pay that were never logged there. Each once.
   let helperLogged = 0;
-  for (const q of payouts) { const day = String(q.paid_on).slice(0, 10); if (day >= from && day <= to) helperLogged += Number(q.amount) || 0; }
+  for (const q of payouts) { if (q?.owner_draw === true) continue; const day = String(q.paid_on).slice(0, 10); if (day >= from && day <= to) helperLogged += Number(q.amount) || 0; }
   const helperPay = helperLogged + helperBankOnly;
   const collected = r2(revenue.collected || 0); const salesTax = r2(revenue.salesTax || 0);
   const net = r2(collected - salesTax - expenses - helperPay + income);

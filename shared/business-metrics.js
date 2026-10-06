@@ -236,8 +236,9 @@ const payoutInstant = p => {
   const d = p?.paid_on ?? p?.paidOn;
   return /^\d{4}-\d{2}-\d{2}$/.test(String(d || '')) ? `${d}T12:00:00Z` : null;
 };
+// The owner's own pay (owner_draw) is an owner's draw, not a cost — never counted.
 export function laborPaid(payouts, inWindow) {
-  return (payouts || []).reduce((sum, p) => sum + (inWindow(payoutInstant(p)) ? num(p.amount) : 0), 0);
+  return (payouts || []).reduce((sum, p) => sum + (p?.owner_draw !== true && inWindow(payoutInstant(p)) ? num(p.amount) : 0), 0);
 }
 
 // Dashboard net profit: the margin attached to money actually collected in

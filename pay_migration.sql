@@ -59,3 +59,22 @@ alter table pay_payouts enable row level security;
 
 -- Verify:
 --   select count(*) from pay_people; select count(*) from pay_entries; select count(*) from pay_payouts;
+
+-- ---- v2 (2026-10-06): roles + the owner's own pay. Safe to re-run. ----------
+-- role: owner (you — your pay is an owner's draw, recorded in equity_entries,
+-- never an expense), contractor (1099), employee (W-2; real payroll is done
+-- outside this app). At most one owner.
+alter table pay_people add column if not exists role text not null default 'contractor';
+do $$ begin
+  if not exists (select 1 from pg_constraint where conname = 'pay_people_role_check') then
+    alter table pay_people add constraint pay_people_role_check check (role in ('owner', 'contractor', 'employee'));
+  end if;
+end $$;
+create unique index if not exists pay_people_one_owner on pay_people (role) where role = 'owner';
+-- A payout to the owner is a draw: it doesn't lower net profit, and its
+-- matching Owner's Equity ledger row is linked here so deleting one deletes both.
+alter table pay_payouts add column if not exists owner_draw boolean not null default false;
+alter table pay_payouts add column if not exists equity_entry_id uuid;
+
+-- Verify v2:
+--   select column_name from information_schema.columns where table_name in ('pay_people','pay_payouts') and column_name in ('role','owner_draw','equity_entry_id');

@@ -155,11 +155,12 @@ Jarvis is the interactive command interface for GID Garage, not primarily a chat
 
 # 0.39 HELPER PAY (2026-10-06)
 
-- **Where it lives:** `/admin/pay` (Access via /admin/*, same PIN as /admin) and the admin "👷 Helpers" tab. Component `src/pay/HelperPay.tsx`. The older admin "💵 Pay" tab is the owner's own take-home calculator, a different thing.
+- **Where it lives:** `/admin/pay` (Access via /admin/*, same PIN as /admin) and the admin "👷 Team" tab. Component `src/pay/HelperPay.tsx`. The older admin "💵 Pay" tab is the owner's own take-home calculator, a different thing.
 - **Data:** `pay_migration.sql` (additive; the owner runs it): `pay_people`, `pay_entries` (earned: hours × rate, or a flat amount for a job/bonus, optional `booking_id`), `pay_payouts` (paid: date-only `paid_on`). Owed = earned − paid. Rules `shared/pay.js`; server `functions/_lib/pay.js` (`pay-*` in /admin-api-data). Tests `tests/pay.test.js`.
 - **Money (owner decision):** helper PAYOUTS are a business cost on the day paid. `netProfit(jobs, inWindow, payouts)` and `laborPaid` in `shared/business-metrics.js` — dashboard card/breakdown, Hub chart, Owner Pay, Jarvis revenue/compare/take-home all pass payouts. Date-only `paid_on` is tested as noon UTC (same Arizona day).
 - **Money tab:** a bank transfer out (Venmo) with the same amount as a logged payout (±5 days) becomes `helper_pay`, not owner equity; "Paid a helper" marks one by hand; the owner's explicit decision wins. Helper pay totals come from the payouts ledger plus marked bank transfers never logged, each once.
 - **1099-NEC:** flagged at $2,000+ paid to one person in a calendar year (2026 rule).
+- **Team & owner pay (v2):** `pay_people.role` = owner | contractor | employee (one owner). The owner logs labor hours; weeks are Mon–Sun (`weekStart`/`weeklySummary`). GID is a single-owner LLC (owner decision 2026-10-06), so paying the owner is an OWNER'S DRAW: `pay-payout-add` writes an `equity_entries` draw first, then the payout with `owner_draw: true` + `equity_entry_id` (deleting the payout deletes the draw). `laborPaid` and the Money tab skip `owner_draw` payouts. Employees (W-2) need outside payroll; only contractors get the 1099 flag. Admin tab "👷 Team".
 
 # 0.38 TECH APP (2026-10-01)
 

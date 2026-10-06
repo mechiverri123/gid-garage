@@ -4,10 +4,17 @@
 //   earned  = pay_entries  (hours × rate, or a flat amount for a job / bonus)
 //   paid    = pay_payouts  (the money you actually sent — the business cost)
 //   owed    = earned − paid
-// Net profit subtracts PAYOUTS on the day paid (shared/business-metrics.js laborPaid).
+// Net profit subtracts PAYOUTS on the day paid (shared/business-metrics.js laborPaid),
+// except the owner's own pay: GID is a single-owner LLC (owner decision
+// 2026-10-06), so paying yourself is an owner's draw (equity_entries), never an expense.
+
+import { addDaysYmd } from './business-metrics.js';
 
 export const PAY_KINDS = { hours: 'Hours', job: 'Flat for a job', bonus: 'Bonus / other' };
-export const PAYOUT_METHODS = ['Venmo', 'Cash', 'Zelle', 'Check', 'Other'];
+export const PAYOUT_METHODS = ['Venmo', 'Cash', 'Zelle', 'Check', 'Bank transfer', 'Other'];
+export const ROLES = { owner: 'Owner (you)', contractor: 'Contractor (1099)', employee: 'Employee (W-2)' };
+// A payout that is the owner's draw (not a business expense).
+export const isOwnerDraw = p => p?.owner_draw === true;
 // Form 1099-NEC is required once one person is paid this much in a calendar
 // year (raised from $600 for payments from 2026; inflation-adjusted from 2027).
 export const NEC_THRESHOLD = 2000;
@@ -58,5 +65,27 @@ export function balances(people = [], entries = [], payouts = [], year = null) {
     b.paid += Number(p.amount || 0);
     if (year && String(p.paid_on).slice(0, 4) === String(year)) b.paidYear += Number(p.amount || 0);
   }
-  return [...by.values()].map(b => ({ ...b, earned: cents(b.earned), paid: cents(b.paid), owed: cents(b.earned - b.paid), paidYear: cents(b.paidYear), needs1099: b.paidYear >= NEC_THRESHOLD }));
+  // Only contractors get a 1099-NEC (employees get a W-2; the owner gets neither).
+  return [...by.values()].map(b => ({ ...b, earned: cents(b.earned), paid: cents(b.paid), owed: cents(b.earned - b.paid), paidYear: cents(b.paidYear), needs1099: (b.person.role || 'contractor') === 'contractor' && b.paidYear >= NEC_THRESHOLD }));
+}
+
+// Weeks run Monday–Sunday on the Arizona calendar (date-only values, shifted
+// with the shared date-only helper).
+export function weekStart(ymd) {
+  const [y, m, d] = ymd.split('-').map(Number);
+  const dow = (new Date(Date.UTC(y, m - 1, d)).getUTCDay() + 6) % 7; // Monday = 0
+  return addDaysYmd(ymd, -dow);
+}
+
+// One person's last `count` weeks (newest first): hours worked, earned, paid.
+export function weeklySummary(personId, entries = [], payouts = [], today, count = 6) {
+  const first = weekStart(today);
+  const weeks = Array.from({ length: count }, (_, i) => {
+    const start = addDaysYmd(first, -7 * i);
+    return { start, end: addDaysYmd(start, 6), hours: 0, earned: 0, paid: 0 };
+  });
+  const find = ymd => weeks.find(w => ymd >= w.start && ymd <= w.end);
+  for (const e of entries) { if (e.person_id !== personId) continue; const w = find(String(e.work_date)); if (w) { w.hours += Number(e.hours || 0); w.earned += Number(e.amount || 0); } }
+  for (const p of payouts) { if (p.person_id !== personId) continue; const w = find(String(p.paid_on)); if (w) w.paid += Number(p.amount || 0); }
+  return weeks.map(w => ({ ...w, hours: cents(w.hours), earned: cents(w.earned), paid: cents(w.paid) }));
 }
