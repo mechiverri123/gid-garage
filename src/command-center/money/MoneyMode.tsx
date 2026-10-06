@@ -24,8 +24,8 @@ function rangeFor(p: Period, today: string): [string, string] {
   return ['2000-01-01', today];
 }
 
-const KIND_LABEL: Record<string, string> = { expense: 'Expense', tax_paid: 'Sales tax paid', owner_out: 'Paid you back', owner_in: 'You put in', deposit: 'Customer money in', income: 'Interest', excluded: 'Not counted' };
-const KIND_TONE: Record<string, any> = { expense: 'muted', tax_paid: 'amber', owner_out: 'purple', owner_in: 'purple', deposit: 'green', income: 'green', excluded: 'muted' };
+const KIND_LABEL: Record<string, string> = { expense: 'Expense', tax_paid: 'Sales tax paid', owner_out: 'Paid you back', owner_in: 'You put in', deposit: 'Customer money in', income: 'Interest', excluded: 'Not counted', helper_pay: 'Helper pay' };
+const KIND_TONE: Record<string, any> = { expense: 'muted', tax_paid: 'amber', owner_out: 'purple', owner_in: 'purple', deposit: 'green', income: 'green', excluded: 'muted', helper_pay: 'amber' };
 const FILTERS = [
   { value: 'expense', label: 'Expenses' }, { value: 'equity', label: "Owner's equity" }, { value: 'deposit', label: 'Money in' },
   { value: 'tax_paid', label: 'Sales tax' }, { value: 'review', label: 'Needs review' }, { value: 'all', label: 'Everything' },
@@ -63,6 +63,7 @@ function Decide({ e, categories, onDone }: { e: Any; categories: string[]; onDon
         </select>
       )}
       {e.amount > 0 && e.source !== 'zoho' && <ActionButton size="sm" variant="secondary" disabled={busy} onClick={() => go({ kind: 'owner_out' })}>Personal (paid me back)</ActionButton>}
+      {e.amount > 0 && e.source !== 'zoho' && e.kind !== 'helper_pay' && <ActionButton size="sm" variant="secondary" disabled={busy} onClick={() => go({ kind: 'helper_pay' })}>Paid a helper</ActionButton>}
       {e.funding === 'outside' && <>
         <ActionButton size="sm" variant="secondary" disabled={busy} onClick={() => go({ funding: 'personal' })}>My personal card</ActionButton>
         <ActionButton size="sm" variant="secondary" disabled={busy} onClick={() => go({ funding: 'business_cash' })}>Business cash</ActionButton>
@@ -183,7 +184,7 @@ export function MoneyMode({ summary, onOpenView }: { summary: CommandCenterSumma
         <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 xl:grid-cols-4">
           <Stat label="Revenue collected" value={money(s.revenue, 2)} sub={`From your jobs (same as the dashboard). Includes ${money(s.salesTaxCollected, 2)} sales tax.`} color={C.green} />
           <Stat label="Expenses" value={money(s.expenses, 2)} sub={s.paidOutsideBank ? `${money(s.paidOutsideBank, 2)} paid outside Bluevine` : 'Bluevine + Zoho, each counted once'} />
-          <Stat label="Net profit" value={money(s.net, 2)} sub="Revenue − sales tax − expenses (+ interest). Not reduced by paying yourself back." color={s.net >= 0 ? C.cyan : C.red} />
+          <Stat label="Net profit" value={money(s.net, 2)} sub={`Revenue − sales tax − expenses${s.helperPay ? ` − ${money(s.helperPay, 2)} helper pay` : ''} (+ interest). Not reduced by paying yourself back.`} color={s.net >= 0 ? C.cyan : C.red} />
           <Stat label="Paid yourself back" value={money(s.ownerPaidBack, 2)} sub={`Owner's equity repaid this period · you put in ${money(s.ownerPutIn, 2)}`} color={C.purple} />
         </div>
 

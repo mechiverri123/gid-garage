@@ -32,13 +32,16 @@ export function resolvePeriodWindow(period: string, now?: Date): PeriodWindow;
 export function moneyEntriesForJob(job: MetricJob): Array<{ date: string; amount: number; method: string | null; stripeId: string | null; source: 'payment_entry' | 'paid_remainder_fallback'; share: number; taxAmount: number; partsCost: number; netProfit: number }>;
 export function jobContribution(job: MetricJob, inWindow: PeriodWindow['inWindow']): { id: unknown; collected: number; basis: string | null; paymentDates: string[]; closedInWindow: boolean; allocationShare: number; netProfit: number; taxAmount: number; partsCost: number };
 export function collectedRevenue(jobs: MetricJob[], inWindow: PeriodWindow['inWindow']): { total: number; jobCount: number };
-export function netProfit(jobs: MetricJob[], inWindow: PeriodWindow['inWindow']): number;
+export interface MetricPayout { paid_on?: string | null; paidOn?: string | null; amount: number | string }
+export function laborPaid(payouts: MetricPayout[] | null | undefined, inWindow: PeriodWindow['inWindow']): number;
+export function netProfit(jobs: MetricJob[], inWindow: PeriodWindow['inWindow'], payouts?: MetricPayout[]): number;
 export function cardRevenue(jobs: MetricJob[], inWindow: PeriodWindow['inWindow']): number;
 export function ownerPaySettings(row?: Record<string, unknown>): OwnerPaySettings;
 export function ownerTakeHome(
   jobs: MetricJob[],
   window: Pick<PeriodWindow, 'inWindow' | 'days'>,
   settings: OwnerPaySettings,
+  payouts?: MetricPayout[],
 ): {
   jobMargin: number; stripeFees: number; overhead: number; businessNet: number;
   inDeficit: boolean; taxReserve: number; takeHome: number;

@@ -47,13 +47,16 @@ export async function handleMoney({ request, env, verify = verifyAccess, fetchIm
     // The owner's own Owner's Equity ledger (admin Hub → Banking & Credit) is the equity source of truth.
     const eqRes = await fetchImpl(`${supabaseUrl}/rest/v1/equity_entries?select=entry_type,amount,entry_date,note&order=entry_date.asc`, { headers: { apikey: env.SUPABASE_SERVICE_KEY, Authorization: `Bearer ${env.SUPABASE_SERVICE_KEY}` } });
     const equity = eqRes.ok ? await eqRes.json() : [];
+    // Helper payouts (/admin/pay) are the helper-pay source of truth; [] before pay_migration.sql.
+    const payRes = await fetchImpl(`${supabaseUrl}/rest/v1/pay_payouts?select=paid_on,amount&order=paid_on.asc`, { headers: { apikey: env.SUPABASE_SERVICE_KEY, Authorization: `Bearer ${env.SUPABASE_SERVICE_KEY}` } }).catch(() => null);
+    const payouts = payRes?.ok ? await payRes.json() : [];
     const { bv, zb, decisions } = await load();
-    const { entries, bankStart } = buildLedger({ bank: bv.rows, zoho: zb.rows, overrides: decisions, equity });
+    const { entries, bankStart } = buildLedger({ bank: bv.rows, zoho: zb.rows, overrides: decisions, equity, payouts });
     const latest = bv.rows.find(r => r.balance != null) || null; // rows are newest first
     return json({
       from, to, categories: EXPENSE_CATEGORIES, kinds: KINDS,
-      summary: summarize(entries, from, to, revenueFor(jobs, from, to), equity),
-      allTime: summarize(entries, '2000-01-01', '2999-12-31', revenueFor(jobs, '2000-01-01', '2999-12-31'), equity),
+      summary: summarize(entries, from, to, revenueFor(jobs, from, to), equity, payouts),
+      allTime: summarize(entries, '2000-01-01', '2999-12-31', revenueFor(jobs, '2000-01-01', '2999-12-31'), equity, payouts),
       equityLedger: { ok: eqRes.ok, rows: equity.length },
       entries: entries.filter(e => e.date >= from && e.date <= to),
       reviewAll: entries.filter(e => e.review).length,

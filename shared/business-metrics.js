@@ -228,10 +228,23 @@ export function netProfitByDay(jobs, dayOf) {
   return out;
 }
 
+// Helper pay (pay_payouts, /admin/pay; owner decision 2026-10-06): a business
+// cost on the day it was paid, the same cash clock as revenue. paid_on is a
+// date-only Arizona day; noon UTC of that date is the same calendar day in
+// Arizona, so the window test can't shift it a day (see CLAUDE.md §0.45).
+const payoutInstant = p => {
+  const d = p?.paid_on ?? p?.paidOn;
+  return /^\d{4}-\d{2}-\d{2}$/.test(String(d || '')) ? `${d}T12:00:00Z` : null;
+};
+export function laborPaid(payouts, inWindow) {
+  return (payouts || []).reduce((sum, p) => sum + (inWindow(payoutInstant(p)) ? num(p.amount) : 0), 0);
+}
+
 // Dashboard net profit: the margin attached to money actually collected in
-// the window, using the same payment timestamps as revenue.
-export function netProfit(jobs, inWindow) {
-  return jobs.reduce((sum, j) => sum + jobContribution(j, inWindow).netProfit, 0);
+// the window, using the same payment timestamps as revenue, minus helper pay
+// paid in the window.
+export function netProfit(jobs, inWindow, payouts = []) {
+  return jobs.reduce((sum, j) => sum + jobContribution(j, inWindow).netProfit, 0) - laborPaid(payouts, inWindow);
 }
 
 const cents = n => Math.round(n * 100) / 100;
@@ -239,7 +252,7 @@ const cents = n => Math.round(n * 100) / 100;
 // Exact job-by-job explanation of why two periods differ. Every job whose
 // collected or net-profit contribution differs between A and B is listed;
 // the listed differences sum exactly to the total differences.
-export function compareRevenuePeriods(jobs, windowA, windowB) {
+export function compareRevenuePeriods(jobs, windowA, windowB, payouts = []) {
   const rows = [];
   let totalA = 0; let totalB = 0; let netA = 0; let netB = 0; let shared = 0;
   for (const j of jobs) {
@@ -259,9 +272,13 @@ export function compareRevenuePeriods(jobs, windowA, windowB) {
     });
   }
   rows.sort((x, y) => Math.abs(y.collectedDifference) - Math.abs(x.collectedDifference));
+  // Helper pay isn't a job's; it's its own line so the job rows still sum exactly.
+  const laborA = laborPaid(payouts, windowA.inWindow); const laborB = laborPaid(payouts, windowB.inWindow);
+  netA -= laborA; netB -= laborB;
   return {
-    a: { key: windowA.key, label: windowA.label, collected: cents(totalA), netProfit: cents(netA) },
-    b: { key: windowB.key, label: windowB.label, collected: cents(totalB), netProfit: cents(netB) },
+    a: { key: windowA.key, label: windowA.label, collected: cents(totalA), netProfit: cents(netA), helperPay: cents(laborA) },
+    b: { key: windowB.key, label: windowB.label, collected: cents(totalB), netProfit: cents(netB), helperPay: cents(laborB) },
+    helperPayDifference: cents(laborB - laborA),
     collectedDifference: cents(totalB - totalA),
     netProfitDifference: cents(netB - netA),
     sharedJobCount: shared,
@@ -300,11 +317,11 @@ export function ownerPaySettings(row = {}) {
 }
 
 // Owner take-home, identical to the Hub → Owner Pay panel:
-// job margin (net profit) − Stripe fees on card revenue − overhead
+// job margin (net profit, after helper pay) − Stripe fees on card revenue − overhead
 // (monthly total prorated to window.days / 30), then the tax reserve comes out
 // of whatever is left. A deficit leaves nothing to take home.
-export function ownerTakeHome(jobs, window, settings) {
-  const jobMargin = netProfit(jobs, window.inWindow);
+export function ownerTakeHome(jobs, window, settings, payouts = []) {
+  const jobMargin = netProfit(jobs, window.inWindow, payouts);
   const stripeFees = cardRevenue(jobs, window.inWindow) * settings.stripeFeePct;
   const overhead = (settings.monthlyOverhead / 30) * window.days;
   const businessNet = jobMargin - overhead - stripeFees;

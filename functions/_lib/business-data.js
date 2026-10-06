@@ -5,7 +5,7 @@
 // Used by admin-ai-chat.js (web + Telegram) and jarvis-business.js (voice).
 
 import {
-  resolvePeriodWindow, collectedRevenue, netProfit, jobFromRow, ownerPaySettings, ownerTakeHome,
+  resolvePeriodWindow, collectedRevenue, netProfit, laborPaid, jobFromRow, ownerPaySettings, ownerTakeHome,
   revenueContributions, compareRevenuePeriods, collectedByDay, resolveDayRange, dayRangeWindow, addDaysYmd, phoenixYmd,
 } from '../../shared/business-metrics.js';
 import {
@@ -88,6 +88,9 @@ export function createBusinessOps({ sbGet, sbPatch, sbInsert = null, now = () =>
     order: 'date.desc,time.desc',
     limit: '2000',
   });
+  // Helper payouts (/admin/pay) for net profit. [] before pay_migration.sql runs.
+  // ponytail: any read error also reads as "no helper pay"; split if that ever hides a real outage.
+  const loadPayouts = () => sbGet('pay_payouts', { select: 'paid_on,amount', order: 'paid_on.asc' }).catch(() => []);
   // Every job that isn't closed out — the set unpaid/stale/queue rules need.
   const loadOpenJobs = () => sbGet('bookings', { select: QUEUE_COLUMNS, job_status: 'not.in.(PAID,CANCELLED)', order: 'date.asc', limit: '1000' });
 
@@ -99,15 +102,17 @@ export function createBusinessOps({ sbGet, sbPatch, sbInsert = null, now = () =>
 
   async function revenueSummary({ period, include_contributions = false } = {}) {
     const win = resolvePeriodWindow(period || 'this_month', now());
-    const jobs = (await loadMetricJobs()).map(jobFromRow);
+    const [rows, payouts] = await Promise.all([loadMetricJobs(), loadPayouts()]);
+    const jobs = rows.map(jobFromRow);
     const revenue = collectedRevenue(jobs, win.inWindow);
     const out = {
       period: win.label,
       periodKey: win.key,
       jobsContributing: revenue.jobCount,
       grossCollected: money(revenue.total),
-      netProfit: money(netProfit(jobs, win.inWindow)),
-      definition: 'Same numbers as the Schedule dashboard. Revenue = customer money collected in the period. Net profit = amount paid minus sales tax minus parts cost, for jobs closed out in the period.',
+      netProfit: money(netProfit(jobs, win.inWindow, payouts)),
+      helperPay: money(laborPaid(payouts, win.inWindow)),
+      definition: 'Same numbers as the Schedule dashboard. Revenue = customer money collected in the period. Net profit = amount paid minus sales tax minus parts cost, for jobs closed out in the period, minus helper pay paid in the period.',
     };
     if (include_contributions) {
       out.contributions = revenueContributions(jobs, win.inWindow)
@@ -124,7 +129,8 @@ export function createBusinessOps({ sbGet, sbPatch, sbInsert = null, now = () =>
     const r = resolveDayRange(spec, n);
     const win = dayRangeWindow(r.from, r.to);
     const prevWin = dayRangeWindow(addDaysYmd(r.from, -r.days), addDaysYmd(r.from, -1));
-    const jobs = (await loadMetricJobs()).map(jobFromRow);
+    const [rows, payouts] = await Promise.all([loadMetricJobs(), loadPayouts()]);
+    const jobs = rows.map(jobFromRow);
     const rev = collectedRevenue(jobs, win.inWindow);
     const prev = collectedRevenue(jobs, prevWin.inWindow);
     const perDay = collectedByDay(jobs, iso => phoenixYmd(new Date(iso)));
@@ -135,14 +141,15 @@ export function createBusinessOps({ sbGet, sbPatch, sbInsert = null, now = () =>
     return {
       from: r.from, to: r.to, days: r.days, key: r.key,
       collected: round(rev.total),
-      netProfit: round(netProfit(jobs, win.inWindow)),
+      netProfit: round(netProfit(jobs, win.inWindow, payouts)),
+      helperPay: round(laborPaid(payouts, win.inWindow)),
       jobsPaid: rev.jobCount,
       averageTicket: rev.jobCount ? round(rev.total / rev.jobCount) : null,
       previous: { from: prevWin.from, to: prevWin.to, collected: round(prev.total) },
       changePct: prev.total > 0 ? Math.round(((rev.total - prev.total) / prev.total) * 1000) / 10 : null,
       outstanding: { count: owed.length, total: round(owed.reduce((t, u) => t + u.balance, 0)) },
       series,
-      definition: 'Collected = customer money received on these Arizona calendar days (dashboard logic). Net profit = paid minus sales tax minus parts, for jobs closed out in the range. Outstanding = all completed/invoiced jobs with a balance, as of now.',
+      definition: 'Collected = customer money received on these Arizona calendar days (dashboard logic). Net profit = paid minus sales tax minus parts, for jobs closed out in the range, minus helper pay paid in the range. Outstanding = all completed/invoiced jobs with a balance, as of now.',
     };
   }
 
@@ -188,13 +195,15 @@ export function createBusinessOps({ sbGet, sbPatch, sbInsert = null, now = () =>
   // Exact job-by-job reason two periods differ (e.g. last_30_days vs this_month).
   async function comparePeriods({ period_a = 'this_month', period_b = 'last_30_days' } = {}) {
     const n = now();
-    const jobs = (await loadMetricJobs()).map(jobFromRow);
-    const cmp = compareRevenuePeriods(jobs, resolvePeriodWindow(period_a, n), resolvePeriodWindow(period_b, n));
+    const [rows, payouts] = await Promise.all([loadMetricJobs(), loadPayouts()]);
+    const jobs = rows.map(jobFromRow);
+    const cmp = compareRevenuePeriods(jobs, resolvePeriodWindow(period_a, n), resolvePeriodWindow(period_b, n), payouts);
     return {
       periodA: { ...cmp.a, collected: money(cmp.a.collected), netProfit: money(cmp.a.netProfit) },
       periodB: { ...cmp.b, collected: money(cmp.b.collected), netProfit: money(cmp.b.netProfit) },
       collectedDifference: money(cmp.collectedDifference),
       netProfitDifference: money(cmp.netProfitDifference),
+      helperPayDifference: money(cmp.helperPayDifference),
       sharedJobsWithSameAmounts: cmp.sharedJobCount,
       differences: cmp.differences.map(d => ({
         bookingId: d.job.id, customer: fullName(d.job) || null, vehicle: d.job.vehicle || null, where: d.where,
@@ -202,19 +211,20 @@ export function createBusinessOps({ sbGet, sbPatch, sbInsert = null, now = () =>
         netProfitDifference: money(d.netProfitDifference),
         paymentDatesInA: d.a.paymentDates, paymentDatesInB: d.b.paymentDates,
       })),
-      explanation: 'differences lists every job whose contribution differs between the two periods; its collectedDifference values add up exactly to collectedDifference (B minus A).',
+      explanation: 'differences lists every job whose contribution differs between the two periods; its collectedDifference values add up exactly to collectedDifference (B minus A). Net profit also subtracts helper pay, shown as its own helperPayDifference.',
     };
   }
 
   async function ownerPaySummary({ period, periodDays } = {}) {
     const key = period || (periodDays ? `last_${Math.round(Number(periodDays))}_days` : 'last_30_days');
     const win = resolvePeriodWindow(key, now());
-    const [rows, settingsRows] = await Promise.all([
+    const [rows, settingsRows, payouts] = await Promise.all([
       loadMetricJobs(),
       sbGet('business_settings', { select: 'owner_tax_reserve_pct,owner_stripe_fee_pct,owner_overhead_items', id: 'eq.default', limit: '1' }),
+      loadPayouts(),
     ]);
     const settings = ownerPaySettings(settingsRows[0] || {});
-    const t = ownerTakeHome(rows.map(jobFromRow), win, settings);
+    const t = ownerTakeHome(rows.map(jobFromRow), win, settings, payouts);
     return {
       period: win.label,
       periodKey: win.key,

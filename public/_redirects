@@ -8,6 +8,7 @@
 
 /bookings  /app-shell  200
 /admin  /app-shell  200
+/admin/pay  /app-shell  200
 /jarvis  /app-shell  200
 /jarvis/tech  /app-shell  200
 /prompt  /app-shell  200

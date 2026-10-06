@@ -5,7 +5,7 @@
 
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { decodeVin, cleanVin, vinCheckDigitOk } from './vinDecode';
-import { resolvePeriodWindow, collectedRevenue, netProfit, cardRevenue, ownerTakeHome, jobContribution, moneyEntriesForJob, jobFromRow, phoenixDateParts, phoenixYmd } from '../shared/business-metrics.js';
+import { resolvePeriodWindow, collectedRevenue, netProfit, laborPaid, cardRevenue, ownerTakeHome, jobContribution, moneyEntriesForJob, jobFromRow, phoenixDateParts, phoenixYmd } from '../shared/business-metrics.js';
 import { isAwaitingPayment, statusChangeFields } from '../shared/business-rules.js';
 import { NextVisitCheck } from './nextVisit/NextVisitCheck';
 import { NextVisitInvoice, NextVisitReport } from './nextVisit/NextVisitPublic';
@@ -545,7 +545,7 @@ function useGlobalErrorReporting(context: Record<string, any> = {}) {
 // ── SECURE WORKER HELPERS ────────────────────────────────────────────────────
 // Admin ops -> /admin-api/data (service key, behind Cloudflare Access).
 // Customer ops (estimate/invoice view + e-sign) -> /api/customer (self-validating).
-async function adminPost(action: string, args: Record<string, any> = {}) {
+export async function adminPost(action: string, args: Record<string, any> = {}) {
   const res = await fetch('/admin-api-data', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -2348,6 +2348,15 @@ export function useAutoSave(key: string, value: string, dirty: boolean, save: (k
     return () => clearTimeout(t);
   }, [key, value, dirty, ms]);
   useEffect(() => () => { const p = pending.current; if (p) void saveRef.current(p.key, p.value).catch(() => {}); }, []);
+}
+
+// Helper payouts (/admin/pay) — net profit subtracts them on the day paid.
+// [] until pay_migration.sql has run (the server answers [] then).
+export type HelperPayout = { paid_on: string; amount: number };
+export function useHelperPayouts(): HelperPayout[] {
+  const [payouts, setPayouts] = useState<HelperPayout[]>([]);
+  useEffect(() => { adminPost('pay-payouts').then((r: unknown) => setPayouts(Array.isArray(r) ? r as HelperPayout[] : []), () => {}); }, []);
+  return payouts;
 }
 
 // ── ESTIMATE PANEL (inside admin job detail) ──────────────────────────────────
@@ -6743,6 +6752,7 @@ export function JobsTab() {
   const [showTbd, setShowTbd] = useState(false);
   const [revenueView, setRevenueView] = useState<'month' | 'year'>('month');
   const [netProfitView, setNetProfitView] = useState<'month' | 'year'>('month');
+  const helperPayouts = useHelperPayouts();
   const [showBreakdown, setShowBreakdown] = useState(false);
   const [mileageJobIds, setMileageJobIds] = useState<Set<string>>(new Set());
 
@@ -6921,8 +6931,8 @@ export function JobsTab() {
   const paidThisMonth = jobs.filter(j => j.jobStatus === 'PAID' && j.paidAt && isThisMonth(j.paidAt));
   const monthRevenue = collectedRevenue(jobs, isThisMonth).total;
   const yearRevenue = collectedRevenue(jobs, isThisYear).total;
-  const monthNetProfit = netProfit(jobs, isThisMonth);
-  const yearNetProfit = netProfit(jobs, isThisYear);
+  const monthNetProfit = netProfit(jobs, isThisMonth, helperPayouts);
+  const yearNetProfit = netProfit(jobs, isThisYear, helperPayouts);
 
   // Breakdown uses the exact same payment ledger as revenue/net profit. If a
   // job is paid across multiple months, billed lines, tax and parts cost are
@@ -6948,6 +6958,7 @@ export function JobsTab() {
   const activeBreakdown = netProfitView === 'month' ? monthBreakdown : yearBreakdown;
   const activeBreakdownLabel = netProfitView === 'month' ? 'This Month' : `${phoenixDateParts(now).year}`;
   const partsMargin = activeBreakdown.partsBilled - activeBreakdown.partsCost;
+  const activeHelperPay = laborPaid(helperPayouts, netProfitView === 'month' ? isThisMonth : isThisYear);
 
   const JOB_STATUS_ORDER: Record<string, number> = {
     BOOKED: 0, ESTIMATE_SENT: 1, SIGNED: 2, IN_PROGRESS: 3,
@@ -7003,7 +7014,7 @@ export function JobsTab() {
           type="button"
           onClick={() => setNetProfitView(v => v === 'month' ? 'year' : 'month')}
           className="bg-gray-900 border border-gray-800 p-5 text-left hover:border-cyan-800 active:bg-gray-800 transition-colors"
-          title="Tap to toggle Month / Year — revenue minus sales tax collected minus parts cost"
+          title="Tap to toggle Month / Year — revenue minus sales tax collected minus parts cost minus helper pay"
         >
           <div className={`text-2xl font-black mb-1 ${(netProfitView === 'month' ? monthNetProfit : yearNetProfit) >= 0 ? 'text-cyan-400' : 'text-red-500'}`}>
             ${(netProfitView === 'month' ? monthNetProfit : yearNetProfit).toFixed(2)}
@@ -7057,6 +7068,12 @@ export function JobsTab() {
               <div className="text-gray-400 font-mono font-bold">-${activeBreakdown.taxCollected.toFixed(2)}</div>
               <div className="text-gray-600 text-[10px] font-bold uppercase tracking-wider">Sales Tax (Not Income)</div>
             </div>
+            {activeHelperPay > 0 && (
+              <div>
+                <div className="text-red-400 font-mono font-bold">-${activeHelperPay.toFixed(2)}</div>
+                <div className="text-gray-600 text-[10px] font-bold uppercase tracking-wider">Helper Pay</div>
+              </div>
+            )}
             <div>
               <div className="text-gray-400 font-mono font-bold">{activeBreakdown.jobCount}</div>
               <div className="text-gray-600 text-[10px] font-bold uppercase tracking-wider">Paid Jobs</div>
@@ -9623,6 +9640,7 @@ function nextBiweeklyDate(anchorDate: string, today: string): string {
 interface OverheadItem { id: string; name: string; amount: number }
 
 export function OwnerPayPanel() {
+  const helperPayouts = useHelperPayouts();
   const [jobs, setJobs] = useState<Job[] | null>(null);
   const [jobsError, setJobsError] = useState<string | null>(null);
 
@@ -9712,7 +9730,7 @@ export function OwnerPayPanel() {
   const cardRevenue30 = jobs ? cardRevenue(jobs, window30.inWindow) : null;
   const pay = jobs ? ownerTakeHome(jobs, window30, {
     taxReservePct: taxPctNum, stripeFeePct: stripePctNum, monthlyOverhead: overheadTotal,
-  }) : null;
+  }, helperPayouts) : null;
   const jobMargin30 = pay ? pay.jobMargin : null;
   const estStripeFees30 = pay ? pay.stripeFees : 0;
   const businessNetProfit30 = pay ? pay.businessNet : null;
@@ -10263,6 +10281,7 @@ function inDateRange(iso: string, start: string, end: string): boolean {
 
 function RevenuePanel() {
   const [rows, setRows] = useState<any[]>([]);
+  const helperPayouts = useHelperPayouts();
   const [loading, setLoading] = useState(true);
   const [mode, setMode] = useState<'month' | 'year' | 'range'>('month');
   const [monthOffset, setMonthOffset] = useState(0); // 0 = current month
@@ -10280,7 +10299,8 @@ function RevenuePanel() {
   if (loading) return <p className="text-gray-600 text-xs py-8 text-center animate-pulse">Loading revenue…</p>;
 
   const allEntries = rows.flatMap(revenueEntriesFor).filter(e => e.date);
-  const allNetProfitEntries = rows.flatMap(netProfitEntriesFor).filter(e => e.date);
+  // Helper pay comes off net profit on the day it was paid (noon UTC = same Arizona day).
+  const allNetProfitEntries = [...rows.flatMap(netProfitEntriesFor), ...helperPayouts.map(p => ({ date: `${p.paid_on}T12:00:00Z`, amount: -Number(p.amount || 0) }))].filter(e => e.date);
 
   const now = new Date();
   const nowPhx = phoenixDateParts(now);

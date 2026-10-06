@@ -108,7 +108,7 @@ export function AnalyticsView({ range, dispatch }: { range: Spec; dispatch: Disp
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <Stat icon={Receipt} label="Jobs paid" value={data ? String(data.jobsPaid) : '—'} sub="jobs with money in this period" />
         <Stat icon={TrendingUp} label="Avg ticket" value={data ? money(data.averageTicket, 2) : '—'} sub="collected ÷ jobs paid" />
-        <Stat icon={Wallet} label="Net profit" value={data ? money(data.netProfit, 2) : '—'} sub="after sales tax and parts" color={C.green} />
+        <Stat icon={Wallet} label="Net profit" value={data ? money(data.netProfit, 2) : '—'} sub="after sales tax, parts and helper pay" color={C.green} />
         <Stat icon={AlertCircle} label="Outstanding" value={data ? money(data.outstanding.total, 2) : '—'} sub={data ? `${data.outstanding.count} unpaid job${data.outstanding.count === 1 ? '' : 's'}, as of now` : undefined} color={C.amber} />
       </div>
     </div>

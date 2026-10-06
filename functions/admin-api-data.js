@@ -87,6 +87,7 @@ function namesLikelyMatch(fnameA, lnameA, fnameB, lnameB) {
 
 import { verifyAccess } from './_lib/access-auth.js';
 import { handleFleetAction, FleetError } from './_lib/fleet.js';
+import { handlePayAction, PayError } from './_lib/pay.js';
 import { suggestLaborHours } from './_lib/labor-hours.js';
 import { cleanTemplate, DEFAULT_CHECKLIST } from '../shared/next-visit.js';
 
@@ -153,6 +154,15 @@ export async function onRequestPost({ request, env }) {
         return json(await handleFleetAction(action, payload, { base, headers }));
       } catch (e) {
         if (e instanceof FleetError) return json({ error: e.message }, 400);
+        throw e;
+      }
+    }
+    // Helper pay (functions/_lib/pay.js, /admin/pay): its own pay-* actions.
+    if (typeof action === 'string' && action.startsWith('pay-')) {
+      try {
+        return json(await handlePayAction(action, payload, { base, headers }));
+      } catch (e) {
+        if (e instanceof PayError) return json({ error: e.message }, 400);
         throw e;
       }
     }

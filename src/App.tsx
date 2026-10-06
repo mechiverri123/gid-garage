@@ -20,6 +20,9 @@ const InvoicePage = lazy(() => import('./JobOps').then(m => ({ default: m.Invoic
 const PPIPage = lazy(() => import('./JobOps').then(m => ({ default: m.PPIPage })));
 const InspectionPage = lazy(() => import('./JobOps').then(m => ({ default: m.InspectionPage })));
 const TechApp = lazy(() => import('./tech/TechApp'));
+// /admin/pay (helper pay): same PIN gate as /admin; Access guards /admin/*.
+const HelperPayPage = lazy(() => Promise.all([import('./pay/HelperPay'), import('./BookingWidget')])
+  .then(([p, b]) => ({ default: () => <p.default Gate={b.AdminPasswordGate} /> })));
 const GamesPage = lazy(() => import('./GamesPage'));
 const JarvisPage = lazy(() => import('./JarvisPage'));
 const ServicePage = lazy(() => import('./ServicePages').then(m => ({ default: m.ServicePage })));
@@ -1311,6 +1314,7 @@ export default function App() {
   // The tech phone app — under /jarvis so Cloudflare Access protects it.
   const isTech = window.location.pathname.replace(/\/+$/, '') === '/jarvis/tech';
   const isPromptGenerator = window.location.pathname === '/prompt';
+  const isHelperPay = window.location.pathname.replace(/\/+$/, '') === '/admin/pay';
   const isEstimate = window.location.pathname === '/estimate';
   const isInvoice = window.location.pathname === '/invoice';
   const isInspection = window.location.pathname === '/inspection';
@@ -1326,14 +1330,14 @@ export default function App() {
 
   // Lenis is a marketing-site polish feature — never touch admin, ops
   // (estimate/invoice/PPI), games, or the cancel flow.
-  const isAdminOrOps = isAdmin || isJarvis || isTech || isEstimate || isInvoice || isInspection || isPPI || isGames || isGameRedeem || (!!cancelId && !!cancelToken);
+  const isAdminOrOps = isAdmin || isHelperPay || isJarvis || isTech || isEstimate || isInvoice || isInspection || isPPI || isGames || isGameRedeem || (!!cancelId && !!cancelToken);
   useSmoothScroll(!isAdminOrOps);
 
   // Utility/account pages (quotes, invoices, games, cancellations, admin) aren't
   // content pages — indexing them creates thin/duplicate results that dilute
   // the pages we actually want ranking. Keep home, service-area, and privacy indexable.
   useEffect(() => {
-    const shouldNoindex = isEstimate || isInvoice || isInspection || isTech || isPPI || isGames || isGameRedeem || isReview || isAdmin || isJarvis || isPromptGenerator || (!!cancelId && !!cancelToken);
+    const shouldNoindex = isEstimate || isInvoice || isInspection || isTech || isHelperPay || isPPI || isGames || isGameRedeem || isReview || isAdmin || isJarvis || isPromptGenerator || (!!cancelId && !!cancelToken);
     let meta = document.querySelector('meta[name="robots"]');
     if (!meta) {
       meta = document.createElement('meta');
@@ -1341,7 +1345,7 @@ export default function App() {
       document.head.appendChild(meta);
     }
     meta.setAttribute('content', shouldNoindex ? 'noindex, nofollow' : 'index, follow');
-  }, [isEstimate, isInvoice, isInspection, isTech, isPPI, isGames, isGameRedeem, isReview, isAdmin, isJarvis, isPromptGenerator, cancelId, cancelToken]);
+  }, [isEstimate, isInvoice, isInspection, isTech, isHelperPay, isPPI, isGames, isGameRedeem, isReview, isAdmin, isJarvis, isPromptGenerator, cancelId, cancelToken]);
 
   function handleBookService(id: string) {
     setBookingServiceId(id);
@@ -1354,6 +1358,7 @@ export default function App() {
   }
 
   if (isAdmin) return <Suspense fallback={null}><AdminSchedule /></Suspense>;
+  if (isHelperPay) return <Suspense fallback={null}><HelperPayPage /></Suspense>;
   if (isJarvis) return <Suspense fallback={null}><JarvisPage /></Suspense>;
   if (isPromptGenerator) return <Suspense fallback={null}><PromptGenerator /></Suspense>;
   if (isEstimate) return <Suspense fallback={null}><EstimatePage /></Suspense>;

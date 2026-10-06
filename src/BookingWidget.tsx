@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, type Dispatch, type SetStateAction } from 'react';
 import { JobsTab, BusinessHub, MileageTab, JobDetailPanel, getJobById, getAllJobs, OwnerPayPanel, CustomersTab, type Job } from './JobOps';
 import { FleetAdminTab } from './fleet/FleetAdminTab';
+import { HelperPay } from './pay/HelperPay';
 import { WEEKDAY_SLOTS, WEEKEND_SLOTS, slotsForDate } from '../shared/booking-slots.js';
 import { getEngines } from './engineData';
 import { getTrims } from './trimData';
@@ -1933,9 +1934,9 @@ export function AdminSchedule() {
   const [unlocked, setUnlocked] = useState(() => sessionStorage.getItem('gg_admin_auth') === '1');
   const [bookings, setBookings] = useState<Booking[]>([]);
   // ?tab= deep links from the Command Center sidebar (/admin?tab=customers …).
-  const [adminTab, setAdminTab] = useState<'jobs' | 'schedule' | 'customers' | 'fleet' | 'mileage' | 'hub' | 'pay'>(() => {
+  const [adminTab, setAdminTab] = useState<'jobs' | 'schedule' | 'customers' | 'fleet' | 'mileage' | 'hub' | 'pay' | 'helpers'>(() => {
     const t = new URLSearchParams(window.location.search).get('tab');
-    return t === 'schedule' || t === 'customers' || t === 'fleet' || t === 'mileage' || t === 'hub' || t === 'pay' ? t : 'jobs';
+    return t === 'schedule' || t === 'customers' || t === 'fleet' || t === 'mileage' || t === 'hub' || t === 'pay' || t === 'helpers' ? t : 'jobs';
   });
   const [filter, setFilter] = useState<'all' | 'confirmed' | 'completed' | 'cancelled'>('all');
   const [view, setView] = useState<'list' | 'month' | 'week' | 'day'>('month');
@@ -2257,10 +2258,10 @@ export function AdminSchedule() {
 
         {/* Main Tabs */}
         <div className="flex flex-wrap gap-0 mb-8 border-b border-gray-800">
-          {(['jobs', 'schedule', 'customers', 'fleet', 'mileage', 'hub', 'pay'] as const).map(tab => (
+          {(['jobs', 'schedule', 'customers', 'fleet', 'mileage', 'hub', 'pay', 'helpers'] as const).map(tab => (
             <button key={tab} onClick={() => setAdminTab(tab)}
               className={`text-xs font-bold uppercase tracking-widest px-6 py-3 transition-colors border-b-2 -mb-px ${adminTab === tab ? 'border-red-600 text-white' : 'border-transparent text-gray-500 hover:text-gray-300'}`}>
-              {tab === 'jobs' ? '💼 Jobs' : tab === 'schedule' ? '📅 Schedule' : tab === 'customers' ? '👥 Customers' : tab === 'fleet' ? '🚚 Fleet' : tab === 'mileage' ? '🚗 Mileage' : tab === 'hub' ? '🏢 Hub' : '💵 Pay'}
+              {tab === 'jobs' ? '💼 Jobs' : tab === 'schedule' ? '📅 Schedule' : tab === 'customers' ? '👥 Customers' : tab === 'fleet' ? '🚚 Fleet' : tab === 'mileage' ? '🚗 Mileage' : tab === 'hub' ? '🏢 Hub' : tab === 'pay' ? '💵 Pay' : '👷 Helpers'}
             </button>
           ))}
         </div>
@@ -2545,6 +2546,13 @@ export function AdminSchedule() {
       {adminTab === 'fleet' && <FleetAdminTab />}
       {adminTab === 'mileage' && <div className="max-w-4xl mx-auto py-4 px-3 sm:px-6"><MileageTab /></div>}
       {adminTab === 'hub' && <BusinessHub />}
+      {adminTab === 'helpers' && (
+        <div className="max-w-3xl mx-auto py-4 px-3 sm:px-6">
+          <p className="text-red-600 text-xs font-bold uppercase tracking-[0.25em] mb-1">Admin · GID Garage</p>
+          <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tight mb-5">Helper Pay <a href="/admin/pay" className="text-gray-600 hover:text-white text-xs font-bold tracking-widest align-middle ml-2">/admin/pay ↗</a></h2>
+          <HelperPay />
+        </div>
+      )}
       {adminTab === 'pay' && (
         <div className="max-w-2xl mx-auto py-4 px-3 sm:px-6">
           <p className="text-red-600 text-xs font-bold uppercase tracking-[0.25em] mb-1">Admin · GID Garage</p>
