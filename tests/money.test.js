@@ -130,3 +130,44 @@ test('/jarvis/money: Access verified, uploads merge by id, revenue from jobs, de
   assert.equal(g.summary.ownerPaidBack, 550);
   assert.ok(g.entries.every(e => e.date >= '2026-09-01' && e.date <= '2026-09-30'));
 });
+
+test('Stripe fees: real fees per Arizona day become one expense each, counted once; payouts ignored', async () => {
+  const { stripeFeeEntries } = await import('../shared/money.js');
+  const { phoenixYmd } = await import('../shared/business-metrics.js');
+  const dayOf = iso => phoenixYmd(new Date(iso));
+  const txns = [
+    { id: 'a', created: Date.parse('2026-10-01T02:30:00Z') / 1000, fee: 291, type: 'charge' }, // Sep 30, 7:30 PM Arizona
+    { id: 'b', created: Date.parse('2026-09-30T18:00:00Z') / 1000, fee: 1172, type: 'payment' },
+    { id: 'c', created: Date.parse('2026-10-02T18:00:00Z') / 1000, fee: 0, type: 'refund' },
+    { id: 'd', created: Date.parse('2026-10-02T18:00:00Z') / 1000, fee: 25, type: 'payout' },
+  ];
+  const fees = stripeFeeEntries(txns, dayOf);
+  assert.deepEqual(fees.map(f => [f.date, f.amount, f.category]), [['2026-09-30', 14.63, 'Card Processing Fees']]);
+  const { entries } = buildLedger({ bank: [], zoho: [], stripeFees: fees });
+  const s = summarize(entries, '2026-09-01', '2026-09-30', { collected: 500, salesTax: 0 });
+  assert.equal(s.expenses, 14.63);
+  assert.equal(s.byCategory['Card Processing Fees'], 14.63);
+  assert.equal(s.net, 485.37);
+});
+
+test('Stripe fees load read-only from the API, cache for 6 hours, and fail soft', async () => {
+  const { loadStripeFees, MONEY_KEYS } = await import('../functions/jarvis/money.js');
+  const store = new Map();
+  const bucket = { get: async k => (store.has(k) ? { json: async () => JSON.parse(store.get(k)) } : null), put: async (k, v) => { store.set(k, v); } };
+  let calls = 0;
+  const fetchImpl = async (url, init) => {
+    calls++;
+    assert.match(url, /^https:\/\/api\.stripe\.com\/v1\/balance_transactions/);
+    assert.equal(init.method, undefined, 'GET only');
+    return new Response(JSON.stringify(calls === 1 ? { data: [{ id: 't1', created: 1, fee: 100, type: 'charge' }], has_more: true } : { data: [{ id: 't2', created: 2, fee: 50, type: 'charge' }], has_more: false }));
+  };
+  const now = Date.parse('2026-10-06T12:00:00Z');
+  const r = await loadStripeFees({ STRIPE_SECRET_KEY: 'sk_test' }, bucket, fetchImpl, now);
+  assert.equal(r.txns.length, 2); assert.equal(calls, 2);
+  await loadStripeFees({ STRIPE_SECRET_KEY: 'sk_test' }, bucket, fetchImpl, now + 3600 * 1000);
+  assert.equal(calls, 2, 'served from the 6-hour cache');
+  assert.ok(store.has(MONEY_KEYS.stripe));
+  const down = await loadStripeFees({ STRIPE_SECRET_KEY: 'sk_test' }, bucket, async () => { throw new Error('down'); }, now + 7 * 3600 * 1000);
+  assert.equal(down.stale, true); assert.equal(down.txns.length, 2);
+  assert.equal((await loadStripeFees({}, bucket, fetchImpl, now)).ok, false);
+});

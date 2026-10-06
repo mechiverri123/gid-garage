@@ -149,6 +149,7 @@ Jarvis is the interactive command interface for GID Garage, not primarily a chat
   - Revenue is the canonical collected figure from the jobs, not bank deposits.
   - Net = revenue − sales tax collected − expenses + interest.
   - Owner's equity out (Venmo, SoFi, anything marked "Personal") and TPT payments never count as expenses.
+- **Stripe fees:** read-only from the Stripe API (`loadStripeFees` in `functions/jarvis/money.js`, the existing `STRIPE_SECRET_KEY`, cached 6 h in R2 `private/money/stripe-fees.json`, fails soft). `stripeFeeEntries` makes one "Card Processing Fees" expense per Arizona day (`st:fees:YYYY-MM-DD`). Revenue is gross and Stripe pays out net, so nothing else records these; they never double count.
 - **Decisions:** the owner's choices (`decide`) are kept separately from the uploads.
 - **Owner's equity totals come from the admin Owner's Equity ledger** (`equity_entries`, Hub → Banking & Credit). Bank transfers are only matched against it (same amount, ±5 days), and ones missing from the ledger are shown separately. Never compute equity from bank transfers or Zoho funding.
 - **"Why net profit isn't your bank balance" card:** net + sales tax still owed + equity net = what the business should have. The remainder beyond the bank balance is cash/Stripe/Venmo in transit or spending after the last upload.

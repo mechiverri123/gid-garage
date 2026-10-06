@@ -19,8 +19,23 @@
 
 export const EXPENSE_CATEGORIES = [
   'Parts', 'Tools and Equipment', 'Shop Supplies', 'Advertising and Marketing', 'Software and Subscriptions',
-  'Insurance', 'Repair Info', 'Fuel', 'Bank and Payment Fees', 'Customer Refunds', 'Other Business Expense',
+  'Insurance', 'Repair Info', 'Fuel', 'Bank and Payment Fees', 'Card Processing Fees', 'Customer Refunds', 'Other Business Expense',
 ];
+
+// Stripe's actual fees (read from Stripe's balance transactions), one expense per
+// Arizona day. Revenue is counted at the full price the customer paid, and Stripe
+// pays out net of fees, so without these the fees are a hidden cost.
+// txns: [{ id, created (unix seconds), fee (cents), type }]; dayOf(iso) -> 'YYYY-MM-DD'.
+export function stripeFeeEntries(txns = [], dayOf) {
+  const byDay = new Map();
+  for (const t of txns) {
+    if (t.type === 'payout' || !(Number(t.fee) > 0)) continue;
+    const day = dayOf(new Date(Number(t.created) * 1000).toISOString());
+    const o = byDay.get(day) || { cents: 0, n: 0 };
+    o.cents += Number(t.fee); o.n += 1; byDay.set(day, o);
+  }
+  return [...byDay].map(([day, o]) => ({ id: `st:fees:${day}`, date: day, amount: o.cents / 100, kind: 'expense', category: 'Card Processing Fees', desc: `Stripe fees (${o.n} payment${o.n === 1 ? '' : 's'})`, source: 'stripe', funding: 'stripe' }));
+}
 // Kinds: expense | tax_paid | owner_out (equity repayment) | owner_in (contribution)
 //   | helper_pay (paying a helper, /admin/pay — a business cost, owner decision 2026-10-06)
 //   | owner_pay (the owner paying himself for his work, /admin/pay — NOT an expense and NOT
@@ -142,7 +157,7 @@ const dayNum = s => Math.round(Date.parse(`${s}T12:00:00Z`) / 86400000);
 // overrides: { [entryId]: { kind?, category?, funding? } }  (the owner's decisions)
 // equity: rows of the admin Owner's Equity ledger { entry_date, entry_type: contribution|draw, amount }.
 // payouts: helper payouts from /admin/pay { paid_on, amount } (the helper-pay source of truth).
-export function buildLedger({ bank = [], zoho = [], overrides = {}, equity = [], payouts: allPayouts = [] }) {
+export function buildLedger({ bank = [], zoho = [], overrides = {}, equity = [], payouts: allPayouts = [], stripeFees = [] }) {
   const payouts = allPayouts.filter(p => p?.owner_draw !== true); // team pay
   const ownerPayouts = allPayouts.filter(p => p?.owner_draw === true); // the owner's pay for his work
   const bankStart = bank.length ? bank.reduce((m, r) => (r.date < m ? r.date : m), bank[0].date) : null;
@@ -229,6 +244,9 @@ export function buildLedger({ bank = [], zoho = [], overrides = {}, equity = [],
     if (c.kind === 'expense' && !c.review && !c.refund && b.amount < 0) e.noReceipt = true;
     entries.push(e);
   }
+
+  // Stripe fees come straight from Stripe; nothing else records them, so they never double count.
+  for (const f of stripeFees) entries.push({ ...f });
 
   // Apply the owner's decisions.
   for (const e of entries) {

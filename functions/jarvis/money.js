@@ -10,11 +10,36 @@
 // Money shows the same revenue as the dashboard. Nothing here writes to bookings.
 import { verifyAccess } from '../_lib/access-auth.js';
 import { readJson, writeJson } from '../_lib/jarvis-feeds.js';
-import { detectKind, parseBluevine, parseZoho, mergeRows, buildLedger, summarize, EXPENSE_CATEGORIES, KINDS } from '../../shared/money.js';
-import { jobFromRow, collectedRevenue, jobContribution, dayRangeWindow } from '../../shared/business-metrics.js';
+import { detectKind, parseBluevine, parseZoho, mergeRows, buildLedger, summarize, stripeFeeEntries, EXPENSE_CATEGORIES, KINDS } from '../../shared/money.js';
+import { jobFromRow, collectedRevenue, jobContribution, dayRangeWindow, phoenixYmd } from '../../shared/business-metrics.js';
 
 const json = (body, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' } });
-export const MONEY_KEYS = { bluevine: 'private/money/bluevine.json', zoho: 'private/money/zoho.json', decisions: 'private/money/decisions.json' };
+export const MONEY_KEYS = { bluevine: 'private/money/bluevine.json', zoho: 'private/money/zoho.json', decisions: 'private/money/decisions.json', stripe: 'private/money/stripe-fees.json' };
+
+// Stripe's real fees, read-only from the Stripe API (the site's existing secret
+// key), cached in R2 for 6 hours. Any failure just means no fee rows this time.
+export async function loadStripeFees(env, bucket, fetchImpl, now = Date.now()) {
+  if (!env.STRIPE_SECRET_KEY) return { ok: false, reason: 'STRIPE_SECRET_KEY not set', txns: [] };
+  const cached = await readJson(bucket, MONEY_KEYS.stripe);
+  if (cached?.fetchedAt && now - Date.parse(cached.fetchedAt) < 6 * 3600 * 1000) return { ok: true, ...cached };
+  try {
+    const txns = [];
+    let after = '';
+    for (let page = 0; page < 30; page++) {
+      const res = await fetchImpl(`https://api.stripe.com/v1/balance_transactions?limit=100${after ? `&starting_after=${after}` : ''}`, { headers: { Authorization: `Bearer ${env.STRIPE_SECRET_KEY}` } });
+      if (!res.ok) throw new Error(`Stripe ${res.status}`);
+      const body = await res.json();
+      for (const t of body.data || []) txns.push({ id: t.id, created: t.created, fee: t.fee, type: t.type });
+      if (!body.has_more || !body.data?.length) break;
+      after = body.data[body.data.length - 1].id;
+    }
+    const value = { fetchedAt: new Date(now).toISOString(), txns };
+    await writeJson(bucket, MONEY_KEYS.stripe, value);
+    return { ok: true, ...value };
+  } catch (e) {
+    return cached ? { ok: true, stale: true, ...cached } : { ok: false, reason: e.message, txns: [] };
+  }
+}
 const isYmd = s => /^\d{4}-\d{2}-\d{2}$/.test(String(s || ''));
 const FUNDING = ['bank', 'personal', 'business_cash', 'outside'];
 
@@ -51,13 +76,16 @@ export async function handleMoney({ request, env, verify = verifyAccess, fetchIm
     const payRes = await fetchImpl(`${supabaseUrl}/rest/v1/pay_payouts?select=*&order=paid_on.asc`, { headers: { apikey: env.SUPABASE_SERVICE_KEY, Authorization: `Bearer ${env.SUPABASE_SERVICE_KEY}` } }).catch(() => null);
     const payouts = payRes?.ok ? await payRes.json() : [];
     const { bv, zb, decisions } = await load();
-    const { entries, bankStart } = buildLedger({ bank: bv.rows, zoho: zb.rows, overrides: decisions, equity, payouts });
+    const stripe = await loadStripeFees(env, bucket, fetchImpl);
+    const stripeFees = stripeFeeEntries(stripe.txns, iso => phoenixYmd(new Date(iso)));
+    const { entries, bankStart } = buildLedger({ bank: bv.rows, zoho: zb.rows, overrides: decisions, equity, payouts, stripeFees });
     const latest = bv.rows.find(r => r.balance != null) || null; // rows are newest first
     return json({
       from, to, categories: EXPENSE_CATEGORIES, kinds: KINDS,
       summary: summarize(entries, from, to, revenueFor(jobs, from, to), equity, payouts),
       allTime: summarize(entries, '2000-01-01', '2999-12-31', revenueFor(jobs, '2000-01-01', '2999-12-31'), equity, payouts),
       equityLedger: { ok: eqRes.ok, rows: equity.length },
+      stripeFees: { ok: stripe.ok, reason: stripe.reason || null, stale: !!stripe.stale, fetchedAt: stripe.fetchedAt || null, total: Math.round(stripeFees.reduce((s, f) => s + f.amount, 0) * 100) / 100 },
       entries: entries.filter(e => e.date >= from && e.date <= to),
       reviewAll: entries.filter(e => e.review).length,
       sources: {

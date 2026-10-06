@@ -184,7 +184,7 @@ export function MoneyMode({ summary, onOpenView }: { summary: CommandCenterSumma
       {s && <>
         <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 xl:grid-cols-4">
           <Stat label="Revenue collected" value={money(s.revenue, 2)} sub={`From your jobs (same as the dashboard). Includes ${money(s.salesTaxCollected, 2)} sales tax.`} color={C.green} />
-          <Stat label="Expenses" value={money(s.expenses, 2)} sub={s.paidOutsideBank ? `${money(s.paidOutsideBank, 2)} paid outside Bluevine` : 'Bluevine + Zoho, each counted once'} />
+          <Stat label="Expenses" value={money(s.expenses, 2)} sub={`${s.paidOutsideBank ? `${money(s.paidOutsideBank, 2)} paid outside Bluevine · ` : 'Bluevine + Zoho, each counted once · '}${data?.stripeFees?.ok ? 'Stripe fees from Stripe' : 'Stripe fees not loaded'}`} />
           <Stat label="Net profit" value={money(s.net, 2)} sub={`Revenue − sales tax − expenses${s.helperPay ? ` − ${money(s.helperPay, 2)} helper pay` : ''} (+ interest). Not reduced by your pay or by paying yourself back.`} color={s.net >= 0 ? C.cyan : C.red} />
           <Stat label="Paid yourself back" value={money(s.ownerPaidBack, 2)} sub={`Owner's equity repaid this period · you put in ${money(s.ownerPutIn, 2)}`} color={C.purple} />
         </div>
