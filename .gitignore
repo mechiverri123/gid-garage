@@ -31,3 +31,6 @@ jarvis-agent/__pycache__/
 
 jarvis-agent/secrets.env
 .wrangler/
+
+# Owner financial exports for audits (bank/Zoho CSVs) — never commit
+audit/
