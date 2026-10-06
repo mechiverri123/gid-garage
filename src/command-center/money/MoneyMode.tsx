@@ -52,6 +52,7 @@ function Stat({ label, value, sub, color = C.text }: { label: string; value: str
 // One entry's decision: what it is (and, for an expense, its category / how it was paid).
 function Decide({ e, categories, onDone }: { e: Any; categories: string[]; onDone: () => void }) {
   const [busy, setBusy] = useState(false); const [err, setErr] = useState('');
+  const [splitting, setSplitting] = useState(false); const [bizPart, setBizPart] = useState('');
   const go = async (d: Record<string, unknown>) => { setBusy(true); setErr(''); try { await post({ action: 'decide', id: e.id, ...d }); onDone(); } catch (x) { setErr(x instanceof Error ? x.message : String(x)); } setBusy(false); };
   const sel = { background: 'rgba(3,10,17,0.9)', border: `1px solid ${C.borderStrong}`, color: C.text };
   return (
@@ -76,7 +77,16 @@ function Decide({ e, categories, onDone }: { e: Any; categories: string[]; onDon
         <ActionButton size="sm" variant="secondary" disabled={busy} onClick={() => go({ kind: 'owner_in' })}>My own money</ActionButton>
         <ActionButton size="sm" variant="secondary" disabled={busy} onClick={() => go({ kind: 'expense', category: 'Other Business Expense' })}>A refund</ActionButton>
       </>}
-      {e.reviewed && <ActionButton size="sm" variant="ghost" disabled={busy} onClick={async () => { setBusy(true); try { await post({ action: 'undecide', id: e.id }); onDone(); } finally { setBusy(false); } }}>Undo my choice</ActionButton>}
+      {e.splitOf ? (
+        <ActionButton size="sm" variant="ghost" disabled={busy} onClick={async () => { setBusy(true); try { await post({ action: 'undecide', id: e.splitOf }); onDone(); } finally { setBusy(false); } }}>Undo split</ActionButton>
+      ) : e.source === 'bank' && e.amount > 0 && e.kind === 'expense' && (splitting ? (
+        <span className="inline-flex items-center gap-2">
+          <input autoFocus inputMode="decimal" value={bizPart} onChange={x => setBizPart(x.target.value.replace(/[^\d.]/g, ''))} placeholder="Business part $" aria-label="Business part in dollars" className="h-9 w-32 rounded-lg px-2 text-[13.5px]" style={sel} />
+          <ActionButton size="sm" variant="secondary" disabled={busy || !(Number(bizPart) > 0 && Number(bizPart) < e.amount)} onClick={() => go({ split: Number(bizPart) })}>Save split</ActionButton>
+          <span className="text-[13px]" style={{ color: C.muted }}>rest {Number(bizPart) > 0 && Number(bizPart) < e.amount ? money(e.amount - Number(bizPart), 2) : '—'} personal</span>
+        </span>
+      ) : <ActionButton size="sm" variant="ghost" disabled={busy} onClick={() => setSplitting(true)}>Part personal…</ActionButton>)}
+      {e.reviewed && !e.splitOf && <ActionButton size="sm" variant="ghost" disabled={busy} onClick={async () => { setBusy(true); try { await post({ action: 'undecide', id: e.id }); onDone(); } finally { setBusy(false); } }}>Undo my choice</ActionButton>}
       {err && <span className="text-[13px] w-full" style={{ color: C.amber }}>{err}</span>}
     </div>
   );

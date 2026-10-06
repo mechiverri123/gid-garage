@@ -171,3 +171,22 @@ test('Stripe fees load read-only from the API, cache for 6 hours, and fail soft'
   assert.equal(down.stale, true); assert.equal(down.txns.length, 2);
   assert.equal((await loadStripeFees({}, bucket, fetchImpl, now)).ok, false);
 });
+
+test('split a bank charge: business part matches its Zoho receipt, the rest is a personal purchase, nothing double counts', () => {
+  const bank = [{ id: 'bv:or', date: '2026-08-04', amount: -129.02, desc: "O'REILLY 2654, FLAGSTAFF, AZUS" }];
+  const zoho = [{ id: 'zb:42', date: '2026-08-03', amount: 42.82, account: 'Parts', vendor: '' }];
+  const before = buildLedger({ bank, zoho });
+  const s0 = summarize(before.entries, '2026-08-01', '2026-08-31');
+  assert.equal(s0.expenses, 171.84, 'without the split the $42.82 is counted twice (charge + unmatched Zoho receipt)');
+  const { entries } = buildLedger({ bank, zoho, overrides: { 'bv:or': { split: 42.82 } } });
+  const biz = entries.find(e => e.zohoId === 'zb:42');
+  assert.equal(biz.source, 'both'); assert.equal(biz.bankId, 'bv:or#business');
+  const personal = entries.find(e => e.id === 'bv:or#personal');
+  assert.deepEqual([personal.kind, personal.amount, personal.splitOf], ['owner_out', 86.2, 'bv:or']);
+  const s = summarize(entries, '2026-08-01', '2026-08-31');
+  assert.equal(s.expenses, 42.82);
+  assert.equal(s.bankDrawsNotInLedger, 86.2);
+  assert.equal(entries.length, 2, 'every dollar of the charge lands exactly once');
+  // a split amount that isn't smaller than the charge is ignored
+  assert.equal(buildLedger({ bank, overrides: { 'bv:or': { split: 500 } } }).entries.length, 1);
+});

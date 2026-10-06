@@ -154,10 +154,21 @@ const dayNum = s => Math.round(Date.parse(`${s}T12:00:00Z`) / 86400000);
 
 // ---- the ledger ---------------------------------------------------------------------------------
 
-// overrides: { [entryId]: { kind?, category?, funding? } }  (the owner's decisions)
+// overrides: { [entryId]: { kind?, category?, funding?, split? } }  (the owner's decisions)
+// split (bank charges only): the business part in dollars; the rest of that charge
+// is a personal purchase (owner equity). The two parts are separate entries, so a
+// Zoho receipt for just the business part matches it exactly.
 // equity: rows of the admin Owner's Equity ledger { entry_date, entry_type: contribution|draw, amount }.
 // payouts: helper payouts from /admin/pay { paid_on, amount } (the helper-pay source of truth).
-export function buildLedger({ bank = [], zoho = [], overrides = {}, equity = [], payouts: allPayouts = [], stripeFees = [] }) {
+export function buildLedger({ bank: rawBank = [], zoho = [], overrides = {}, equity = [], payouts: allPayouts = [], stripeFees = [] }) {
+  const bank = rawBank.flatMap(b => {
+    const total = cents(-b.amount); const biz = cents(overrides[b.id]?.split);
+    if (!(b.amount < 0) || !(biz > 0) || biz >= total) return [b];
+    return [
+      { ...b, id: `${b.id}#business`, amount: -biz / 100, splitOf: b.id },
+      { ...b, id: `${b.id}#personal`, amount: -(total - biz) / 100, splitOf: b.id, personalPart: true },
+    ];
+  });
   const payouts = allPayouts.filter(p => p?.owner_draw !== true); // team pay
   const ownerPayouts = allPayouts.filter(p => p?.owner_draw === true); // the owner's pay for his work
   const bankStart = bank.length ? bank.reduce((m, r) => (r.date < m ? r.date : m), bank[0].date) : null;
@@ -236,8 +247,9 @@ export function buildLedger({ bank = [], zoho = [], overrides = {}, equity = [],
 
   for (const b of bank) {
     if (used.has(b.id)) continue;
-    const c = classifyBank(b);
+    const c = b.personalPart ? { kind: 'owner_out', category: 'Personal purchase (owner equity)' } : classifyBank(b);
     const e = { id: b.id, date: b.date, amount: -b.amount, category: c.category, kind: c.kind, desc: b.desc, source: 'bank', bankId: b.id, funding: 'bank' };
+    if (b.splitOf) { e.splitOf = b.splitOf; e.note = b.personalPart ? 'Personal part of a split charge' : 'Business part of a split charge'; }
     if (c.refund) { e.amount = -b.amount; e.note = 'Refund from the merchant'; } // negative expense
     if (c.review) e.review = c.review;
     // A bank charge with no Zoho receipt is still counted (receipt missing is flagged, not hidden).

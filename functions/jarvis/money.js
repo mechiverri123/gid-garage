@@ -121,6 +121,11 @@ export async function handleMoney({ request, env, verify = verifyAccess, fetchIm
       if (body.kind != null) { if (!KINDS.includes(body.kind)) return json({ error: 'Bad kind' }, 400); d.kind = body.kind; }
       if (body.category != null) { if (!EXPENSE_CATEGORIES.includes(body.category)) return json({ error: 'Bad category' }, 400); d.category = body.category; }
       if (body.funding != null) { if (!FUNDING.includes(body.funding)) return json({ error: 'Bad funding' }, 400); d.funding = body.funding; }
+      if (body.split != null) {
+        const n = Math.round(Number(body.split) * 100) / 100;
+        if (!/^bv:/.test(id) || !(n > 0) || n > 100000) return json({ error: 'Split needs a bank charge and a business amount above $0' }, 400);
+        d.split = n;
+      }
       if (!Object.keys(d).length) return json({ error: 'Nothing to change' }, 400);
       decisions[id] = { ...decisions[id], ...d, at: new Date().toISOString() };
     }
