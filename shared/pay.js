@@ -6,14 +6,15 @@
 //   owed    = earned − paid
 // Net profit subtracts PAYOUTS on the day paid (shared/business-metrics.js laborPaid),
 // except the owner's own pay: GID is a single-owner LLC (owner decision
-// 2026-10-06), so paying yourself is an owner's draw (equity_entries), never an expense.
+// 2026-10-06), so paying yourself for your work is owner pay — never an
+// expense, and separate from the Owner's Equity ledger (money put in / paid back).
 
 import { addDaysYmd } from './business-metrics.js';
 
 export const PAY_KINDS = { hours: 'Hours', job: 'Flat for a job', bonus: 'Bonus / other' };
 export const PAYOUT_METHODS = ['Venmo', 'Cash', 'Zelle', 'Check', 'Bank transfer', 'Other'];
 export const ROLES = { owner: 'Owner (you)', contractor: 'Contractor (1099)', employee: 'Employee (W-2)' };
-// A payout that is the owner's draw (not a business expense).
+// A payout that is the owner's pay for his work (not a business expense).
 export const isOwnerDraw = p => p?.owner_draw === true;
 // Form 1099-NEC is required once one person is paid this much in a calendar
 // year (raised from $600 for payments from 2026; inflation-adjusted from 2027).

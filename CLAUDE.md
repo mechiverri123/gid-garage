@@ -160,7 +160,7 @@ Jarvis is the interactive command interface for GID Garage, not primarily a chat
 - **Money (owner decision):** helper PAYOUTS are a business cost on the day paid. `netProfit(jobs, inWindow, payouts)` and `laborPaid` in `shared/business-metrics.js` — dashboard card/breakdown, Hub chart, Owner Pay, Jarvis revenue/compare/take-home all pass payouts. Date-only `paid_on` is tested as noon UTC (same Arizona day).
 - **Money tab:** a bank transfer out (Venmo) with the same amount as a logged payout (±5 days) becomes `helper_pay`, not owner equity; "Paid a helper" marks one by hand; the owner's explicit decision wins. Helper pay totals come from the payouts ledger plus marked bank transfers never logged, each once.
 - **1099-NEC:** flagged at $2,000+ paid to one person in a calendar year (2026 rule).
-- **Team & owner pay (v2):** `pay_people.role` = owner | contractor | employee (one owner). The owner logs labor hours; weeks are Mon–Sun (`weekStart`/`weeklySummary`). GID is a single-owner LLC (owner decision 2026-10-06), so paying the owner is an OWNER'S DRAW: `pay-payout-add` writes an `equity_entries` draw first, then the payout with `owner_draw: true` + `equity_entry_id` (deleting the payout deletes the draw). `laborPaid` and the Money tab skip `owner_draw` payouts. Employees (W-2) need outside payroll; only contractors get the 1099 flag. Admin tab "👷 Team".
+- **Team & owner pay (v2):** `pay_people.role` = owner | contractor | employee (one owner). The owner logs labor hours; weeks are Mon–Sun (`weekStart`/`weeklySummary`). GID is a single-owner LLC (owner decision 2026-10-06): paying himself for his work is **OWNER PAY** — never an expense (`laborPaid` skips `owner_draw` payouts) and **kept separate from the Owner's Equity ledger**, which is only money he put in and got back. Payouts to the owner are stored with `owner_draw: true` and write nothing to `equity_entries` (rows from before this split that have `equity_entry_id` delete that ledger row with them). Money tab: a transfer matching a logged owner payout (±5 days) is kind `owner_pay` ("Your pay" section), not `owner_out`; "My pay (for my work)" marks one by hand; the bank-balance card subtracts owner pay. Employees (W-2) need outside payroll; only contractors get the 1099 flag. Admin tab "👷 Team".
 
 # 0.38 TECH APP (2026-10-01)
 
@@ -759,7 +759,7 @@ This may be useful, but it is not revenue and is not necessarily the dashboard's
 ## Owner's equity (owner's decision, 2026-09-30)
 
 - **The owner doesn't pay himself a salary or draw.** He paid for GID with his own money, and still does (gas on his personal card, early tools and parts).
-- **Transfers from the business account to the owner's personal accounts are repayment of owner's equity** (for example Venmo payments and transfers to his SoFi account). They are:
+- **Transfers from the business account to the owner's personal accounts are repayment of owner's equity** (for example Venmo payments and transfers to his SoFi account), **unless they are his pay for his work recorded in Team & Pay (`/admin/pay`), which is "owner pay": its own section, also not an expense (owner decision 2026-10-06; see §0.39).** Either way they are:
   - not a business expense;
   - not owner pay or take-home;
   - not a reduction of revenue or net profit.

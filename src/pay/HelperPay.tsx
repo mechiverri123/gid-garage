@@ -2,8 +2,8 @@
 // (owner), contractors, employees — what they earned (hours or a flat amount
 // for a job), what you paid, what's owed, and your own weekly pay.
 // Team payouts are the business cost: net profit subtracts them on the day paid
-// (shared/business-metrics.js laborPaid). Your own pay is an owner's draw
-// (Owner's Equity ledger), never an expense. Rules: shared/pay.js. Server:
+// (shared/business-metrics.js laborPaid). Your own pay for your work is owner
+// pay: never an expense, and separate from the Owner's Equity ledger. Rules: shared/pay.js. Server:
 // functions/_lib/pay.js (pay-* actions in /admin-api-data). Tables: pay_migration.sql.
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { adminPost, getAllJobs, type Job } from '../JobOps';
@@ -93,7 +93,7 @@ export function HelperPay() {
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0">
               <p className="text-white font-bold truncate">{ownerRow.person.name} <span className="text-emerald-400 text-xs font-bold uppercase tracking-wider">· You</span></p>
-              <p className="text-gray-500 text-xs">{ownerRow.person.hourly_rate != null ? `${$(ownerRow.person.hourly_rate)}/hr` : 'Set your hourly rate (Edit)'} · paid as an owner's draw</p>
+              <p className="text-gray-500 text-xs">{ownerRow.person.hourly_rate != null ? `${$(ownerRow.person.hourly_rate)}/hr` : 'Set your hourly rate (Edit)'} · owner pay (not an expense)</p>
             </div>
             <button type="button" onClick={() => setPanel({ type: 'person', person: ownerRow.person as Person })} className="text-gray-500 hover:text-white text-xs underline flex-shrink-0">Edit</button>
           </div>
@@ -173,7 +173,7 @@ export function HelperPay() {
               const job = a.kind === 'entry' && a.e.booking_id ? jobById.get(a.e.booking_id) : null;
               const what = a.kind === 'entry'
                 ? `${a.e.kind === 'hours' ? `${a.e.hours} hr × ${$(a.e.rate)}` : PAY_KINDS[a.e.kind]}${job ? ` · ${jobLabel(job)}` : a.e.booking_id ? ' · job' : ''}${a.e.note ? ` · ${a.e.note}` : ''}`
-                : `${a.p.owner_draw ? "Owner's draw" : 'Paid'}${a.p.method ? ` by ${a.p.method}` : ''}${a.p.reference ? ` · ${a.p.reference}` : ''}${a.p.note ? ` · ${a.p.note}` : ''}`;
+                : `${a.p.owner_draw ? 'Owner pay' : 'Paid'}${a.p.method ? ` by ${a.p.method}` : ''}${a.p.reference ? ` · ${a.p.reference}` : ''}${a.p.note ? ` · ${a.p.note}` : ''}`;
               return (
                 <div key={`${a.kind}-${a.id}`} className="flex items-center gap-3 px-3 py-2.5 text-sm">
                   <span className="text-gray-500 text-xs w-20 flex-shrink-0">{fmtDay(a.date)}</span>
@@ -194,7 +194,7 @@ export function HelperPay() {
       <details className="bg-gray-900 border border-gray-800 p-4 text-sm text-gray-400">
         <summary className="cursor-pointer text-white font-bold">How does pay work here?</summary>
         <div className="mt-3 space-y-2 leading-relaxed">
-          <p><b className="text-white">Your own pay</b>: log your labor hours (per day or per job), and each week pay yourself what you earned at your rate. As a single-owner LLC that's an <b className="text-white">owner's draw</b>: it's added to your Owner's Equity ledger as "paid you back", it does not lower net profit, and no tax is withheld. You pay income tax on the business profit, so keep setting aside your tax reserve (the Pay tab estimates it).</p>
+          <p><b className="text-white">Your own pay</b>: log your labor hours (per day or per job), and each week pay yourself what you earned at your rate. As a single-owner LLC that's <b className="text-white">owner pay</b> (in tax terms, a draw): it does not lower net profit, no tax is withheld, and it's kept separate from your Owner's Equity ledger, which is only money you put in and got back. You pay income tax on the business profit, so keep setting aside your tax reserve (the Pay tab estimates it).</p>
           <p><b className="text-white">Employees (W-2)</b> need real payroll with tax withholding (Gusto, QuickBooks Payroll…). This page tracks their hours and pay; it doesn't withhold taxes.</p>
           <p><b className="text-white">Hourly</b> is the simplest and fairest for someone who comes along to help: log the hours after each job and pay the total.</p>
           <p><b className="text-white">Flat per job</b> (e.g. $40 a job) is easier if jobs are similar in length; set a per-job rate and pick the job.</p>
@@ -237,7 +237,7 @@ function PersonForm({ person, hasOwner, onClose, onSaved }: { person?: Person; h
         <select className={input} value={f.role} onChange={e => setF({ ...f, role: e.target.value as Role })}>
           {(Object.keys(ROLES) as Role[]).filter(r => r !== 'owner' || !hasOwner).map(r => <option key={r} value={r}>{ROLES[r]}</option>)}
         </select></label>
-      {f.role === 'owner' && <p className="text-gray-500 text-xs">Your pay is an owner's draw: it goes into your Owner's Equity ledger and never lowers net profit. Set your hourly rate below.</p>}
+      {f.role === 'owner' && <p className="text-gray-500 text-xs">Your pay for your work never lowers net profit, and it's tracked apart from money you put in and got back. Set your hourly rate below.</p>}
       {f.role === 'employee' && <p className="text-amber-400/80 text-xs">Employees need real payroll with tax withholding (Gusto, QuickBooks Payroll…). This tracks their hours and pay only.</p>}
       <div className="grid gap-3 sm:grid-cols-2">
         <label><span className={label}>Name</span><input className={input} value={f.name} onChange={set('name')} placeholder="First and last name" /></label>
@@ -334,7 +334,7 @@ function PayoutForm({ people, rows, personId, today, onClose, onSaved }: { peopl
       </div>
       {method === 'Venmo' && <label><span className={label}>Venmo note or ID (optional)</span><input className={input} value={reference} onChange={e => setReference(e.target.value)} /></label>}
       <p className="text-gray-500 text-xs">{toOwner
-        ? "Recorded as an owner's draw in your Owner's Equity ledger (paid you back). It doesn't lower net profit. Use the same amount as the transfer so the Money tab matches it."
+        ? "Recorded as owner pay for your work — not an expense, and separate from money you put in and got back. Use the same amount as the transfer so the Money tab matches it."
         : 'This lowers net profit on the day you paid. If the Venmo went out from Bluevine, use the same amount and the Money tab will match it.'}</p>
       {err && <p className="text-red-400 text-sm" role="alert">{err}</p>}
       <button type="button" disabled={busy || !pid || !(Number(amount) > 0)} onClick={() => run('pay-payout-add', { fields: { person_id: pid, paid_on: date, amount, method, reference, note } })}

@@ -23,8 +23,10 @@ export const EXPENSE_CATEGORIES = [
 ];
 // Kinds: expense | tax_paid | owner_out (equity repayment) | owner_in (contribution)
 //   | helper_pay (paying a helper, /admin/pay — a business cost, owner decision 2026-10-06)
+//   | owner_pay (the owner paying himself for his work, /admin/pay — NOT an expense and NOT
+//     equity repayment: its own section, owner decision 2026-10-06)
 //        | deposit (customer money into the bank) | income (interest) | excluded (duplicate / not business)
-export const KINDS = ['expense', 'tax_paid', 'owner_out', 'owner_in', 'deposit', 'income', 'excluded', 'helper_pay'];
+export const KINDS = ['expense', 'tax_paid', 'owner_out', 'owner_in', 'deposit', 'income', 'excluded', 'helper_pay', 'owner_pay'];
 
 // ---- CSV ---------------------------------------------------------------------------------------
 
@@ -141,7 +143,8 @@ const dayNum = s => Math.round(Date.parse(`${s}T12:00:00Z`) / 86400000);
 // equity: rows of the admin Owner's Equity ledger { entry_date, entry_type: contribution|draw, amount }.
 // payouts: helper payouts from /admin/pay { paid_on, amount } (the helper-pay source of truth).
 export function buildLedger({ bank = [], zoho = [], overrides = {}, equity = [], payouts: allPayouts = [] }) {
-  const payouts = allPayouts.filter(p => p?.owner_draw !== true); // the owner's own pay is equity (its equity_entries row)
+  const payouts = allPayouts.filter(p => p?.owner_draw !== true); // team pay
+  const ownerPayouts = allPayouts.filter(p => p?.owner_draw === true); // the owner's pay for his work
   const bankStart = bank.length ? bank.reduce((m, r) => (r.date < m ? r.date : m), bank[0].date) : null;
   const debits = bank.filter(r => r.amount < 0);
   const used = new Set();
@@ -249,6 +252,16 @@ export function buildLedger({ bank = [], zoho = [], overrides = {}, equity = [],
     else if (e.kind === 'helper_pay') { e.category = 'Helper pay'; e.notInPayLedger = true; }
   }
 
+  // Owner pay: a transfer to the owner with the same amount as a logged owner
+  // payout (±5 days) is his pay for his work, not equity repayment. Same rules.
+  const usedOwner = new Set();
+  for (const e of entries.filter(x => x.source === 'bank' && (x.kind === 'owner_pay' || (x.kind === 'owner_out' && !overrides[x.id]?.kind))).sort((a, b) => a.date.localeCompare(b.date))) {
+    const want = cents(e.amount); const d = dayNum(e.date);
+    const hit = ownerPayouts.find((q, i) => !usedOwner.has(i) && cents(q.amount) === want && Math.abs(dayNum(String(q.paid_on).slice(0, 10)) - d) <= 5);
+    if (hit) { usedOwner.add(ownerPayouts.indexOf(hit)); e.kind = 'owner_pay'; e.category = 'Owner pay'; e.inPayLedger = true; }
+    else if (e.kind === 'owner_pay') { e.category = 'Owner pay'; e.notInPayLedger = true; }
+  }
+
   // Owner transfers vs the Owner's Equity ledger: same amount, within 5 days.
   const usedEq = new Set();
   for (const e of entries.filter(x => x.kind === 'owner_out' || x.kind === 'owner_in').sort((a, b) => a.date.localeCompare(b.date))) {
@@ -268,7 +281,7 @@ export function summarize(entries, from, to, revenue = { collected: 0, salesTax:
   const inR = e => e.date >= from && e.date <= to;
   const list = entries.filter(inR);
   const byCat = {};
-  let expenses = 0, taxPaid = 0, ownerOut = 0, ownerIn = 0, deposits = 0, income = 0, review = 0, outside = 0, helperBankOnly = 0;
+  let expenses = 0, taxPaid = 0, ownerOut = 0, ownerIn = 0, deposits = 0, income = 0, review = 0, outside = 0, helperBankOnly = 0, ownerPayBankOnly = 0;
   for (const e of list) {
     if (e.review) review++;
     if (e.kind === 'expense') {
@@ -277,6 +290,7 @@ export function summarize(entries, from, to, revenue = { collected: 0, salesTax:
     } else if (e.kind === 'tax_paid') taxPaid += e.amount;
     else if (e.kind === 'owner_out') { if (e.notInLedger) ownerOut += e.amount; }
     else if (e.kind === 'helper_pay') { if (e.notInPayLedger) helperBankOnly += e.amount; }
+    else if (e.kind === 'owner_pay') { if (e.notInPayLedger) ownerPayBankOnly += e.amount; }
     else if (e.kind === 'owner_in') { if (e.notInLedger) ownerIn += -e.amount; } // deposits are negative outflows
     else if (e.kind === 'deposit') deposits += -e.amount;
     else if (e.kind === 'income') income += -e.amount;
@@ -290,15 +304,20 @@ export function summarize(entries, from, to, revenue = { collected: 0, salesTax:
   }
   // Helper pay: the /admin/pay payouts in the period (cash, Venmo, anything),
   // plus bank transfers marked helper pay that were never logged there. Each once.
-  let helperLogged = 0;
-  for (const q of payouts) { if (q?.owner_draw === true) continue; const day = String(q.paid_on).slice(0, 10); if (day >= from && day <= to) helperLogged += Number(q.amount) || 0; }
+  // Owner pay the same way (never in net: paying yourself isn't a business cost).
+  let helperLogged = 0, ownerLogged = 0;
+  for (const q of payouts) {
+    const day = String(q.paid_on).slice(0, 10); if (day < from || day > to) continue;
+    if (q?.owner_draw === true) ownerLogged += Number(q.amount) || 0; else helperLogged += Number(q.amount) || 0;
+  }
   const helperPay = helperLogged + helperBankOnly;
+  const ownerPay = ownerLogged + ownerPayBankOnly;
   const collected = r2(revenue.collected || 0); const salesTax = r2(revenue.salesTax || 0);
   const net = r2(collected - salesTax - expenses - helperPay + income);
   return {
     from, to, revenue: collected, salesTaxCollected: salesTax, salesTaxPaid: r2(taxPaid), salesTaxOwed: r2(salesTax - taxPaid),
     expenses: r2(expenses), byCategory: Object.fromEntries(Object.entries(byCat).map(([k, v]) => [k, r2(v)]).sort((a, b) => b[1] - a[1])),
-    interest: r2(income), net, helperPay: r2(helperPay), helperPayNotInLedger: r2(helperBankOnly),
+    interest: r2(income), net, helperPay: r2(helperPay), helperPayNotInLedger: r2(helperBankOnly), ownerPay: r2(ownerPay), ownerPayNotInLedger: r2(ownerPayBankOnly),
     ownerPaidBack: r2(paidBack), ownerPutIn: r2(putIn), ownerEquityNet: r2(putIn - paidBack),
     bankDrawsNotInLedger: r2(ownerOut), bankContributionsNotInLedger: r2(ownerIn),
     deposits: r2(deposits), paidOutsideBank: r2(outside), needsReview: review, count: list.length,

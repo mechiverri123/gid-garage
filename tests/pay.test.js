@@ -111,21 +111,35 @@ test('pay actions: data, validated writes, migration message, payouts never thro
   assert.deepEqual(await loadPayouts({ ...ctx, fetchImpl: async () => { throw new Error('down'); } }), []);
 });
 
-test("owner's own pay is an owner's draw: never lowers net profit or counts as helper pay", () => {
+test("owner pay: never lowers net profit, isn't helper pay, and isn't equity repayment", () => {
   const now = new Date('2026-10-08T18:00:00Z');
   const oct = resolvePeriodWindow('this_month', now);
   const payouts = [{ paid_on: '2026-10-05', amount: 500, owner_draw: true }, { paid_on: '2026-10-06', amount: 60 }];
   assert.equal(laborPaid(payouts, oct.inWindow), 60);
-  const bank = [{ id: 'bv:1', date: '2026-10-06', amount: -500, desc: 'TRANSFER TO SOFI' }, { id: 'bv:2', date: '2026-10-07', amount: -60, desc: 'VENMO *KASS, NY' }];
-  const equity = [{ entry_type: 'draw', amount: 500, entry_date: '2026-10-05' }];
+  const bank = [
+    { id: 'bv:1', date: '2026-10-06', amount: -500, desc: 'TRANSFER TO SOFI' },        // = logged owner pay
+    { id: 'bv:2', date: '2026-10-07', amount: -60, desc: 'VENMO *KASS, NY' },          // = logged helper pay
+    { id: 'bv:3', date: '2026-10-08', amount: -200, desc: 'TRANSFER TO SOFI' },        // = equity repayment in the ledger
+  ];
+  const equity = [{ entry_type: 'draw', amount: 200, entry_date: '2026-10-08' }];
   const { entries } = buildLedger({ bank, payouts, equity });
   const by = Object.fromEntries(entries.map(e => [e.id, e]));
-  assert.equal(by['bv:1'].kind, 'owner_out'); assert.equal(by['bv:1'].inLedger, true);
+  assert.equal(by['bv:1'].kind, 'owner_pay'); assert.equal(by['bv:1'].inPayLedger, true);
   assert.equal(by['bv:2'].kind, 'helper_pay');
+  assert.equal(by['bv:3'].kind, 'owner_out'); assert.equal(by['bv:3'].inLedger, true);
   const s = summarize(entries, '2026-10-01', '2026-10-31', { collected: 1000, salesTax: 0 }, equity, payouts);
   assert.equal(s.helperPay, 60);
-  assert.equal(s.net, 940);
-  assert.equal(s.ownerPaidBack, 500);
+  assert.equal(s.ownerPay, 500);
+  assert.equal(s.ownerPaidBack, 200, 'owner pay is not counted as paying yourself back');
+  assert.equal(s.net, 940, 'only helper pay lowers net');
+});
+
+test('a transfer marked "my pay" but never recorded in Team & Pay still counts once as your pay', () => {
+  const bank = [{ id: 'bv:9', date: '2026-10-10', amount: -300, desc: 'TRANSFER TO SOFI' }];
+  const { entries } = buildLedger({ bank, overrides: { 'bv:9': { kind: 'owner_pay' } } });
+  assert.equal(entries[0].notInPayLedger, true);
+  const s = summarize(entries, '2026-10-01', '2026-10-31', { collected: 0, salesTax: 0 }, [], []);
+  assert.deepEqual([s.ownerPay, s.ownerPayNotInLedger, s.ownerPaidBack, s.bankDrawsNotInLedger], [300, 300, 0, 0]);
 });
 
 test('weeks run Monday–Sunday; weekly hours, earned and paid per person', async () => {
@@ -150,27 +164,26 @@ test('1099 flag is for contractors only', () => {
   assert.deepEqual(balances(people, [], payouts, '2026').map(b => b.needs1099), [true, false, false]);
 });
 
-test("paying the owner writes the Owner's Equity draw and links it; deleting removes both", async () => {
+test('paying the owner marks owner pay and never touches the equity ledger', async () => {
   const calls = [];
-  const tables = { pay_people: [{ id: 'o', name: 'Miko', role: 'owner' }], equity_entries: [], pay_payouts: [] };
+  const tables = { pay_people: [{ id: 'o', name: 'Miko', role: 'owner' }], pay_payouts: [] };
   const fetchImpl = async (url, init = {}) => {
     const method = init.method || 'GET'; const table = url.split('/').pop().split('?')[0];
-    calls.push({ table, method, body: init.body ? JSON.parse(init.body) : null });
+    calls.push({ table, method });
     if (method === 'POST') return new Response(JSON.stringify([{ id: `${table}-1`, ...JSON.parse(init.body) }]), { status: 201 });
-    if (method === 'DELETE') return new Response(JSON.stringify(table === 'pay_payouts' ? [{ id: 'p', equity_entry_id: 'equity_entries-1' }] : []), { status: 200 });
+    if (method === 'DELETE') return new Response(JSON.stringify([{ id: 'p', equity_entry_id: table === 'pay_payouts' && url.includes('old') ? 'eq-old' : null }]), { status: 200 });
     return new Response(JSON.stringify(tables[table]), { status: 200 });
   };
   const ctx = { base: 'https://db/rest/v1', headers: {}, fetchImpl };
-  const row = await handlePayAction('pay-payout-add', { fields: { person_id: 'o', paid_on: '2026-10-09', amount: 480, method: 'Bank transfer', note: 'Week of Oct 5' } }, ctx);
+  const row = await handlePayAction('pay-payout-add', { fields: { person_id: 'o', paid_on: '2026-10-09', amount: 480, method: 'Bank transfer' } }, ctx);
   assert.equal(row.owner_draw, true);
-  assert.equal(row.equity_entry_id, 'equity_entries-1');
-  const eq = calls.find(c => c.table === 'equity_entries' && c.method === 'POST').body;
-  assert.deepEqual([eq.entry_type, eq.amount, eq.entry_date], ['draw', 480, '2026-10-09']);
+  assert.equal(row.equity_entry_id, undefined);
   await handlePayAction('pay-payout-delete', { id: 'p' }, ctx);
+  assert.ok(!calls.some(c => c.table === 'equity_entries'));
+  // an old row that did link a ledger entry gets that entry removed with it
+  await handlePayAction('pay-payout-delete', { id: 'old' }, ctx);
   assert.ok(calls.some(c => c.table === 'equity_entries' && c.method === 'DELETE'));
-  // a contractor's payout never touches the equity ledger
-  tables.pay_people = [{ id: 'c', name: 'Kass', role: 'contractor' }]; calls.length = 0;
+  tables.pay_people = [{ id: 'c', name: 'Kass', role: 'contractor' }];
   const c = await handlePayAction('pay-payout-add', { fields: { person_id: 'c', paid_on: '2026-10-09', amount: 60 } }, ctx);
   assert.equal(c.owner_draw, undefined);
-  assert.ok(!calls.some(x => x.table === 'equity_entries'));
 });

@@ -24,8 +24,8 @@ function rangeFor(p: Period, today: string): [string, string] {
   return ['2000-01-01', today];
 }
 
-const KIND_LABEL: Record<string, string> = { expense: 'Expense', tax_paid: 'Sales tax paid', owner_out: 'Paid you back', owner_in: 'You put in', deposit: 'Customer money in', income: 'Interest', excluded: 'Not counted', helper_pay: 'Helper pay' };
-const KIND_TONE: Record<string, any> = { expense: 'muted', tax_paid: 'amber', owner_out: 'purple', owner_in: 'purple', deposit: 'green', income: 'green', excluded: 'muted', helper_pay: 'amber' };
+const KIND_LABEL: Record<string, string> = { expense: 'Expense', tax_paid: 'Sales tax paid', owner_out: 'Paid you back', owner_in: 'You put in', deposit: 'Customer money in', income: 'Interest', excluded: 'Not counted', helper_pay: 'Helper pay', owner_pay: 'Your pay' };
+const KIND_TONE: Record<string, any> = { expense: 'muted', tax_paid: 'amber', owner_out: 'purple', owner_in: 'purple', deposit: 'green', income: 'green', excluded: 'muted', helper_pay: 'amber', owner_pay: 'purple' };
 const FILTERS = [
   { value: 'expense', label: 'Expenses' }, { value: 'equity', label: "Owner's equity" }, { value: 'deposit', label: 'Money in' },
   { value: 'tax_paid', label: 'Sales tax' }, { value: 'review', label: 'Needs review' }, { value: 'all', label: 'Everything' },
@@ -64,6 +64,7 @@ function Decide({ e, categories, onDone }: { e: Any; categories: string[]; onDon
       )}
       {e.amount > 0 && e.source !== 'zoho' && <ActionButton size="sm" variant="secondary" disabled={busy} onClick={() => go({ kind: 'owner_out' })}>Personal (paid me back)</ActionButton>}
       {e.amount > 0 && e.source !== 'zoho' && e.kind !== 'helper_pay' && <ActionButton size="sm" variant="secondary" disabled={busy} onClick={() => go({ kind: 'helper_pay' })}>Paid a helper</ActionButton>}
+      {e.amount > 0 && e.source !== 'zoho' && e.kind !== 'owner_pay' && <ActionButton size="sm" variant="secondary" disabled={busy} onClick={() => go({ kind: 'owner_pay' })}>My pay (for my work)</ActionButton>}
       {e.funding === 'outside' && <>
         <ActionButton size="sm" variant="secondary" disabled={busy} onClick={() => go({ funding: 'personal' })}>My personal card</ActionButton>
         <ActionButton size="sm" variant="secondary" disabled={busy} onClick={() => go({ funding: 'business_cash' })}>Business cash</ActionButton>
@@ -149,7 +150,7 @@ export function MoneyMode({ summary, onOpenView }: { summary: CommandCenterSumma
 
   const rows = useMemo(() => {
     const list: Any[] = data?.entries || [];
-    const f = list.filter(e => filter === 'all' ? true : filter === 'review' ? !!e.review : filter === 'equity' ? e.kind === 'owner_out' || e.kind === 'owner_in' || e.funding === 'personal' : filter === 'deposit' ? e.kind === 'deposit' || e.kind === 'income' : e.kind === filter);
+    const f = list.filter(e => filter === 'all' ? true : filter === 'review' ? !!e.review : filter === 'equity' ? e.kind === 'owner_out' || e.kind === 'owner_in' || e.kind === 'owner_pay' || e.funding === 'personal' : filter === 'deposit' ? e.kind === 'deposit' || e.kind === 'income' : e.kind === filter);
     const s = q.trim().toLowerCase().replace(/[$,]/g, '');
     return s ? f.filter(e => `${e.desc} ${e.category} ${e.zohoAccount || ''} ${e.bankDesc || ''} ${Math.abs(e.amount).toFixed(2)}`.toLowerCase().includes(s)) : f;
   }, [data, filter, q]);
@@ -184,7 +185,7 @@ export function MoneyMode({ summary, onOpenView }: { summary: CommandCenterSumma
         <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 xl:grid-cols-4">
           <Stat label="Revenue collected" value={money(s.revenue, 2)} sub={`From your jobs (same as the dashboard). Includes ${money(s.salesTaxCollected, 2)} sales tax.`} color={C.green} />
           <Stat label="Expenses" value={money(s.expenses, 2)} sub={s.paidOutsideBank ? `${money(s.paidOutsideBank, 2)} paid outside Bluevine` : 'Bluevine + Zoho, each counted once'} />
-          <Stat label="Net profit" value={money(s.net, 2)} sub={`Revenue − sales tax − expenses${s.helperPay ? ` − ${money(s.helperPay, 2)} helper pay` : ''} (+ interest). Not reduced by paying yourself back.`} color={s.net >= 0 ? C.cyan : C.red} />
+          <Stat label="Net profit" value={money(s.net, 2)} sub={`Revenue − sales tax − expenses${s.helperPay ? ` − ${money(s.helperPay, 2)} helper pay` : ''} (+ interest). Not reduced by your pay or by paying yourself back.`} color={s.net >= 0 ? C.cyan : C.red} />
           <Stat label="Paid yourself back" value={money(s.ownerPaidBack, 2)} sub={`Owner's equity repaid this period · you put in ${money(s.ownerPutIn, 2)}`} color={C.purple} />
         </div>
 
@@ -214,6 +215,16 @@ export function MoneyMode({ summary, onOpenView }: { summary: CommandCenterSumma
             </CommandCard>
 
             <CommandCard className="p-5">
+              <SectionHeader icon={Wallet} tone="purple" title="Your pay" subtitle="What you paid yourself for your work (Team & Pay). Not an expense, not equity." />
+              <div className="grid grid-cols-2 gap-2 text-center">
+                <div><div className="text-[12px] uppercase tracking-wider" style={{ color: C.muted }}>This period</div><div className="text-[18px] font-bold tabular-nums" style={{ color: C.text }}>{money(s.ownerPay, 2)}</div></div>
+                <div><div className="text-[12px] uppercase tracking-wider" style={{ color: C.muted }}>All time</div><div className="text-[18px] font-bold tabular-nums" style={{ color: C.text }}>{money(all?.ownerPay, 2)}</div></div>
+              </div>
+              {all?.ownerPayNotInLedger > 0 && <p className="text-[13px] mt-3" style={{ color: C.amber }}>{money(all.ownerPayNotInLedger, 2)} marked as your pay in Bluevine but not recorded in Team &amp; Pay — record it there so your weekly totals are right.</p>}
+              <div className="mt-2"><ActionButton size="sm" variant="ghost" onClick={() => { window.location.href = '/admin/pay'; }}>Open Team &amp; Pay</ActionButton></div>
+            </CommandCard>
+
+            <CommandCard className="p-5">
               <SectionHeader icon={PiggyBank} tone="purple" title="Owner's equity (all time)" subtitle="From your Owner's Equity ledger in admin (Hub → Banking & Credit)" />
               <div className="grid grid-cols-3 gap-2 text-center">
                 <div><div className="text-[12px] uppercase tracking-wider" style={{ color: C.muted }}>You put in</div><div className="text-[18px] font-bold tabular-nums" style={{ color: C.text }}>{money(all?.ownerPutIn, 2)}</div></div>
@@ -232,7 +243,7 @@ export function MoneyMode({ summary, onOpenView }: { summary: CommandCenterSumma
 
         {all && src?.bluevine?.balance != null && (() => {
           const taxHeld = Math.max(0, all.salesTaxOwed);
-          const shouldHave = all.net + taxHeld + all.ownerEquityNet;
+          const shouldHave = all.net + taxHeld + all.ownerEquityNet - (all.ownerPay || 0);
           const rest = shouldHave - src.bluevine.balance;
           const line = (label: string, v: number, bold = false) => (
             <div className="flex justify-between gap-3 py-1" style={{ borderTop: bold ? `1px solid ${C.border}` : undefined }}>
@@ -247,6 +258,7 @@ export function MoneyMode({ summary, onOpenView }: { summary: CommandCenterSumma
                 {line('Net profit (everything uploaded)', all.net)}
                 {line('+ Sales tax collected, not yet paid to AZ', taxHeld)}
                 {line(`${all.ownerEquityNet >= 0 ? '+' : '−'} You put in more than you took out (equity ledger)`, Math.abs(all.ownerEquityNet))}
+                {(all.ownerPay || 0) > 0 && line('− Your pay for your work (Team & Pay)', all.ownerPay)}
                 {line('= Money the business should have somewhere', shouldHave, true)}
                 {line(`Bluevine balance on ${src.bluevine.balanceDate}`, src.bluevine.balance)}
                 {line('= Not in the bank on that date', rest, true)}

@@ -9,9 +9,9 @@
 //   pay-payout-delete  { id }                     -> { ok }
 // loadPayouts(): the payouts for net profit / Money ([] before the migration).
 // Tests: tests/pay.test.js
-// The owner's own pay (role 'owner') is an owner's draw: the payout is marked
-// owner_draw and a matching 'draw' row goes into equity_entries (the Owner's
-// Equity ledger the Money tab trusts), linked by equity_entry_id. Never an expense.
+// The owner's own pay (role 'owner') is OWNER PAY for his work: the payout is
+// marked owner_draw, never an expense, and kept apart from the Owner's Equity
+// ledger (that ledger is only money he put in and got back). Owner decision 2026-10-06.
 import { cleanEntry, cleanPayout, ROLES } from '../../shared/pay.js';
 
 export const NEEDS_MIGRATION = 'Helper pay is not set up yet: run pay_migration.sql once in the Supabase SQL editor.';
@@ -99,15 +99,7 @@ export async function handlePayAction(action, p, { base, headers, fetchImpl = (.
       const row = guard(() => cleanPayout(p.fields));
       const [person] = await call(`pay_people?id=eq.${encodeURIComponent(row.person_id)}&select=id,name,role`);
       if (!person) throw new PayError('Person not found.');
-      if (person.role !== 'owner') return insert('pay_payouts', row);
-      // Owner's draw: ledger row first, then the payout; undo the ledger row if the payout fails.
-      const eq = await insert('equity_entries', { entry_type: 'draw', amount: row.amount, entry_date: row.paid_on, note: `Owner pay (from /admin/pay)${row.note ? ` — ${row.note}` : ''}` });
-      try {
-        return await insert('pay_payouts', { ...row, owner_draw: true, equity_entry_id: eq.id });
-      } catch (e) {
-        await call(`equity_entries?id=eq.${encodeURIComponent(eq.id)}`, { method: 'DELETE' }).catch(() => {});
-        throw e;
-      }
+      return insert('pay_payouts', person.role === 'owner' ? { ...row, owner_draw: true } : row);
     }
     case 'pay-entry-delete': {
       const rows = await call(`pay_entries?id=eq.${id()}`, { method: 'DELETE', headers: { Prefer: 'return=representation' } });
@@ -117,7 +109,7 @@ export async function handlePayAction(action, p, { base, headers, fetchImpl = (.
     case 'pay-payout-delete': {
       const rows = await call(`pay_payouts?id=eq.${id()}`, { method: 'DELETE', headers: { Prefer: 'return=representation' } });
       if (!rows?.length) throw new PayError('Already deleted.');
-      // An owner's draw also leaves the Owner's Equity ledger.
+      // Rows saved before owner pay was split from equity had a linked ledger row; remove it too.
       if (rows[0].equity_entry_id) await call(`equity_entries?id=eq.${encodeURIComponent(rows[0].equity_entry_id)}`, { method: 'DELETE' });
       return { ok: true };
     }
