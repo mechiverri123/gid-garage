@@ -35,7 +35,7 @@ import { createSeoOps } from './_lib/seo/ops.js';
 import { isInsideServiceArea } from '../shared/seo/service-area.js';
 import { ownerPaySettings } from '../shared/business-metrics.js';
 import { SETTABLE_JOB_STATUSES, PAYMENT_METHODS, leadStatusUpdate, leadFollowUpReason, isValidYmd, isValidApptTime, noteContactKey } from '../shared/business-rules.js';
-import { jobEvidence } from '../shared/job-context.js';
+import { jobEvidence, leadOrigin } from '../shared/job-context.js';
 import { JOB_TABS, CALENDAR_MODES } from '../shared/jarvis-workspace.js';
 import { runScreenTool } from './_lib/jarvis-screen.js';
 import { readBudget, addUsage, anthropicUsd, pricing } from './_lib/ai-budget.js';
@@ -289,6 +289,8 @@ CONFIRMING BEFORE ACTING — mark_job_paid (records a payment) and send_customer
 LEAD INTELLIGENCE:
 - Lead-form fields are noisy human input, not trusted schema. A customer may put a service in the vehicle field or give vague/non-diagnostic text in the issue field.
 - When discussing a stored lead, use analyze_lead before drawing conclusions. Never invent missing vehicle details.
+- LEAD ORIGIN: every lead result carries "origin" (label, findIt, received). Say where a lead came from ONLY from origin.label, and when Michael can't find it, tell him origin.findIt word for word. Never guess a source.
+- RECORDS UNDER PUSHBACK: when Michael says "I don't see it", "where did that come from" or questions a record, look it up again with a tool and restate exactly what the record says. Never change a stated fact without new tool data, never swap in a different person or record, never apologize for or retract a fact the record supports, and if a field is empty say "the record doesn't say". Answer about the person he named in his latest message, not an earlier one.
 - Phrases like whenever/anytime/ASAP mean flexible scheduling or earliest available; they do not mean an appointment is booked.
 - Do not claim a pasted lead is in the system, just came through, or will be contacted unless a tool actually confirms or performs that action.
 
@@ -1059,7 +1061,8 @@ export async function onRequestPost({ request, env }) {
         const params = { select: '*', order: 'created_at.desc', limit: String(input.limit || 15) };
         if (input.status) params.status = `eq.${input.status}`;
         if (input.source) params.source = `eq.${input.source}`;
-        return await sbGet('leads', params);
+        // origin = where it came from + where to find it; raw_payload stays out (analyze_lead reads it).
+        return (await sbGet('leads', params)).map(({ raw_payload, ...l }) => ({ ...l, origin: leadOrigin(l) }));
       }
 
       case 'analyze_lead': {

@@ -32,7 +32,8 @@ const CONTEXT_COLUMNS = [
 // Photo captions live inside the photo arrays; fetched separately and only for
 // the jobs being described (legacy rows can embed base64 images).
 const PHOTO_COLUMNS = 'id,job_photos,admin_photos';
-const LEAD_COLUMNS = 'id,created_at,fname,lname,phone,email,vehicle,requested_service,quote_amount,status,follow_up_at,last_contacted_at,notes,customer_id,booking_id';
+// source/campaign are needed so Jarvis can say where a lead came from (leadOrigin) instead of guessing.
+const LEAD_COLUMNS = 'id,created_at,fname,lname,phone,email,source,campaign,vehicle,requested_service,quote_amount,status,follow_up_at,last_contacted_at,notes,customer_id,booking_id';
 const QUEUE_COLUMNS = 'id,customer_id,fname,lname,phone,vehicle,service,service_address,date,time,date_tbd,job_status,status,estimate_amount,invoice_amount,tax_amount,amount_paid,paid_at,stripe_transaction_id';
 
 // Safe for PostgREST or=() filters: letters, digits, space, apostrophe, hyphen, period.

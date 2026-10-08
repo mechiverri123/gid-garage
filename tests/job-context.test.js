@@ -145,3 +145,16 @@ test('P1: command words in front of a name never break resolution', () => {
   }
   assert.equal(resolvePerson('Summarize Nobody', cust, rows).status, 'not_found');
 });
+
+test('leadOrigin: where a lead came from and where to find it, from the stored source only', async () => {
+  const { leadOrigin, buildCustomerHistory } = await import('../shared/job-context.js');
+  const meta = leadOrigin({ source: 'meta_ads', campaign: 'New Leads Campaign', created_at: '2026-10-05T14:45:01Z' });
+  assert.match(meta.label, /Facebook\/Instagram ad lead form, campaign "New Leads Campaign"/);
+  assert.match(meta.findIt, /Leads Center/); assert.match(meta.findIt, /not show up in Messenger/);
+  assert.equal(meta.received, '2026-10-05T14:45:01Z');
+  assert.match(leadOrigin({ source: 'website_form' }).label, /gidgarage\.com quote form/);
+  assert.equal(leadOrigin({}).label, 'Not recorded');
+  assert.equal(leadOrigin({ source: 'tiktok' }).label, 'Other (tiktok)');
+  const h = buildCustomerHistory({ person: { name: 'Lakisha Chee', jobIds: [], sources: ['lead'] }, leads: [{ id: 'l1', created_at: '2026-10-05T14:45:01Z', source: 'meta_ads', campaign: 'New Leads Campaign', status: 'new' }] });
+  assert.equal(h.leads[0].origin.source, 'meta_ads');
+});

@@ -368,6 +368,23 @@ export function noteMatch(note, person) {
 
 const byDateAsc = (a, b) => String(a.date || '').localeCompare(String(b.date || '')) || String(a.time || '').localeCompare(String(b.time || ''));
 
+// Where a lead came from and where the owner can find it, from the stored
+// `source` (and `campaign`). Jarvis states this verbatim instead of guessing.
+// Meta instant-form leads never appear in Messenger; that's the usual confusion.
+const LEAD_ORIGINS = {
+  meta_ads: ['Facebook/Instagram ad lead form', 'Meta Business Suite app → All tools → Leads Center (or Ads Manager → the ad → Leads). Form leads do not show up in Messenger.'],
+  facebook_organic: ['Facebook Page (not an ad)', 'Facebook Page inbox / notifications'],
+  google_ads: ['Google Ads lead form', 'Google Ads → Leads'],
+  website_form: ['gidgarage.com quote form', 'Admin → Jobs (the form also created a booking request) and Leads'],
+  website_booking: ['gidgarage.com online booking', 'Admin → Schedule / Jobs'],
+  referral: ['Referral (entered by hand)', 'Leads'],
+  organic: ['Found GID on their own (entered by hand)', 'Leads'],
+};
+export function leadOrigin(lead = {}) {
+  const [label, findIt] = LEAD_ORIGINS[lead.source] || [lead.source ? `Other (${lead.source})` : 'Not recorded', 'Leads'];
+  return { source: lead.source || null, label: lead.campaign && lead.source === 'meta_ads' ? `${label}, campaign "${lead.campaign}"` : label, findIt, received: lead.created_at || null };
+}
+
 export function buildCustomerHistory({ person, jobRows = [], leads = [], calls = [], notes = [], reminders = [] }, now = new Date()) {
   const today = phoenixToday(now);
   const rows = [...jobRows].sort(byDateAsc);
@@ -417,7 +434,7 @@ export function buildCustomerHistory({ person, jobRows = [], leads = [], calls =
     openItems,
     lastInteraction: interactions[0] || null,
     latestOwnerNote: sortedNotes[0] ? { id: sortedNotes[0].id, created_at: sortedNotes[0].created_at, summary: sortedNotes[0].summary, raw_text: clip(sortedNotes[0].raw_text, 600), match: sortedNotes[0].match } : null,
-    leads: leads.map(l => ({ id: l.id, created_at: l.created_at, status: l.status, requested_service: l.requested_service, vehicle: l.vehicle, quoteAmountAsEntered: l.quote_amount ?? null, follow_up_at: l.follow_up_at, last_contacted_at: l.last_contacted_at, notes: clip(l.notes, 800) || null })),
+    leads: leads.map(l => ({ id: l.id, created_at: l.created_at, origin: leadOrigin(l), status: l.status, requested_service: l.requested_service, vehicle: l.vehicle, quoteAmountAsEntered: l.quote_amount ?? null, follow_up_at: l.follow_up_at, last_contacted_at: l.last_contacted_at, notes: clip(l.notes, 800) || null })),
     calls: calls.slice(0, 10).map(c => ({ at: c.created_at, direction: c.direction, outcome: c.outcome, notes: clip(c.notes, 400) || null })),
     ownerNotes: sortedNotes.map(n => ({ id: n.id, created_at: n.created_at, status: n.status, match: n.match, summary: n.summary, vehicle: n.vehicle, service: n.service, quoted_amount: n.quoted_amount ?? null, preferred_timing: n.preferred_timing, action_needed: n.action_needed, raw_text: clip(n.raw_text, 600) })),
   };
