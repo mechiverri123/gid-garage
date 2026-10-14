@@ -796,11 +796,11 @@ const CYA_TERMS = [...CYA_TERMS_CORE, ...CYA_TERMS_EXTENDED];
 // only, regardless of which Tailwind color utility classes it's using
 // on-screen, and normalizes the page to a standard letter-size sheet.
 const PRINT_DOC_STYLES = `
-  @page { margin: 0.5in; size: letter; }
+  @page { margin: 0.35in 0.4in; size: letter; }
   html, body, #root { background: #ffffff !important; }
   .no-print { display: none !important; }
-  .print-full { max-width: 100% !important; width: 100% !important; margin: 0 !important; padding: 0 24px !important; }
-  .print-banner { max-height: 70px !important; width: auto !important; display: block !important; }
+  .print-full { max-width: 100% !important; width: 100% !important; margin: 0 !important; padding: 0 !important; }
+  .print-banner { max-height: 48px !important; width: auto !important; display: block !important; }
   table { page-break-inside: avoid; }
   .page-break-avoid { page-break-inside: avoid; }
   .print-doc, .print-doc * {
@@ -7460,11 +7460,11 @@ export function InvoicePage() {
             print via no-print. Styled after a plain professional invoice
             layout: logo + company block, bill-to/invoice meta, itemized
             table, totals, terms. */}
-        <div className="hidden print:block mb-6 text-base">
-          <div className="flex items-start justify-between mb-4">
-            <div style={{ width: 330 }}>
-              <img src={`${img('download.png')}?v=2`} alt="GID Garage" style={{ width: '100%', height: 'auto', objectFit: 'contain' }} className="mb-2" />
-              <div className="text-base whitespace-nowrap">
+        <div className="hidden print:block text-sm leading-snug">
+          <div className="flex items-start justify-between mb-3">
+            <div>
+              <img src={`${img('download.png')}?v=2`} alt="GID Garage" style={{ width: 190, height: 'auto', objectFit: 'contain' }} className="mb-2" />
+              <div className="whitespace-nowrap">
                 <div className="flex gap-3"><span className="font-bold">Invoice:</span><span>{invoiceNumber}</span></div>
                 <div className="flex gap-3"><span className="font-bold">Invoice Date:</span><span>{serviceDateStr}</span></div>
                 {isPaid && paidDateStr && (
@@ -7476,8 +7476,8 @@ export function InvoicePage() {
                 </div>
               </div>
             </div>
-            <div className="text-right text-sm leading-relaxed">
-              <p className="font-bold text-lg">GID Garage</p>
+            <div className="text-right text-xs leading-snug pt-1">
+              <p className="font-bold text-sm">GID Garage</p>
               <p>Flagstaff, AZ</p>
               <p>Phone: 480-757-0476</p>
               <p>Website: gidgarage.com</p>
@@ -7485,14 +7485,14 @@ export function InvoicePage() {
           </div>
           <div className="border-t border-gray-300" />
 
-          <div className="flex items-start justify-between mt-4 mb-4">
+          <div className="flex items-start justify-between mt-3 mb-3">
             <div>
               <p className="font-bold text-sm uppercase tracking-wide mb-1">Bill To:</p>
-              <p className="text-base">{job.fname} {job.lname}</p>
-              {job.phone && <p className="text-base">{fmtPhone(job.phone)}</p>}
-              {job.serviceAddress && <p className="text-base">{job.serviceAddress}</p>}
+              <p className="text-sm">{job.fname} {job.lname}</p>
+              {job.phone && <p className="text-sm">{fmtPhone(job.phone)}</p>}
+              {job.serviceAddress && <p className="text-sm">{job.serviceAddress}</p>}
             </div>
-            <div className="text-right text-base">
+            <div className="text-right text-sm">
               <p className="font-bold text-sm uppercase tracking-wide mb-1">Vehicle Details</p>
               <p>{job.vehicle}</p>
               {job.vin && <p className="text-sm">VIN: {job.vin}</p>}
@@ -7501,26 +7501,26 @@ export function InvoicePage() {
           </div>
 
           {/* Line items table */}
-          <table className="w-full text-base border-collapse">
+          <table className="w-full text-sm border-collapse">
             <thead>
               <tr className="border-t border-b border-gray-300">
-                <th className="text-left font-bold uppercase text-xs tracking-wide py-2">Description</th>
-                <th className="text-right font-bold uppercase text-xs tracking-wide py-2">Amount</th>
+                <th className="text-left font-bold uppercase text-xs tracking-wide py-1.5">Description</th>
+                <th className="text-right font-bold uppercase text-xs tracking-wide py-1.5">Amount</th>
               </tr>
             </thead>
             <tbody>
               {job.lineItems?.map(item => (
                 <tr key={item.id} className="border-b border-gray-200">
-                  <td className="py-2 pr-3 align-top">{item.label}</td>
-                  <td className="py-2 text-right align-top whitespace-nowrap">
+                  <td className="py-1.5 pr-3 align-top">{item.label}</td>
+                  <td className="py-1.5 text-right align-top whitespace-nowrap">
                     {item.amount === 0 ? 'FREE' : (item.amount < 0 ? `-$${Math.abs(item.amount).toFixed(2)}` : `$${item.amount.toFixed(2)}`)}
                   </td>
                 </tr>
               ))}
               {isPaid && job.adjustmentAmount != null && Math.abs(job.adjustmentAmount) > 0.01 && (
                 <tr className="border-b border-gray-200">
-                  <td className="py-2 pr-3 italic">Price Adjustment{job.adjustmentReason ? ` — ${job.adjustmentReason}` : ''}</td>
-                  <td className="py-2 text-right whitespace-nowrap">
+                  <td className="py-1.5 pr-3 italic">Price Adjustment{job.adjustmentReason ? ` — ${job.adjustmentReason}` : ''}</td>
+                  <td className="py-1.5 text-right whitespace-nowrap">
                     {job.adjustmentAmount < 0 ? '-' : '+'}${Math.abs(job.adjustmentAmount).toFixed(2)}
                   </td>
                 </tr>
@@ -7534,13 +7534,13 @@ export function InvoicePage() {
 
           {/* Totals */}
           <div className="flex justify-end mt-3">
-            <div className="w-64 text-base">
+            <div className="w-64 text-sm">
               <div className="flex justify-between py-1"><span>Subtotal</span><span>${amount?.toFixed(2)}</span></div>
               <div className="flex justify-between py-1 border-b border-gray-300"><span>AZ TPT ({taxRatePercentLabel(job.taxRateSnapshot ?? TAX_RATE)}%)</span><span>${(job.taxAmount || 0).toFixed(2)}</span></div>
               {isPartiallyPaid && (
                 <div className="flex justify-between py-1"><span>Amount Paid</span><span>-${(job.amountPaid || 0).toFixed(2)}</span></div>
               )}
-              <div className="flex justify-between py-1.5 font-bold text-lg">
+              <div className="flex justify-between py-1.5 font-bold text-base">
                 <span>{isPaid ? 'Total Paid' : isPartiallyPaid ? 'Balance Due' : 'Total Due'}</span>
                 <span>${isPaid ? ((job.invoiceAmount || 0) + (job.taxAmount || 0)).toFixed(2) : isPartiallyPaid ? balanceDue.toFixed(2) : (amount ? ((amount) + (job.taxAmount || 0)).toFixed(2) : '0.00')}</span>
               </div>
@@ -7561,18 +7561,18 @@ export function InvoicePage() {
 
           {/* Signed-off + technician notes */}
           {(job.customerAgreed || job.garageNotes) && (
-            <div className="mt-5 border-t border-gray-300 pt-3">
+            <div className="mt-4 border-t border-gray-300 pt-3">
               {job.customerAgreed && (
-                <p className="text-base flex items-baseline gap-2 flex-wrap">
+                <p className="text-sm flex items-baseline gap-2 flex-wrap">
                   <span>Estimate approved by</span>
-                  <span className="text-2xl leading-none" style={{ fontFamily: "'Dancing Script', cursive" }}>{job.customerSignature}</span>
+                  <span className="text-xl leading-none" style={{ fontFamily: "'Dancing Script', cursive" }}>{job.customerSignature}</span>
                   <span>
                     {job.signedAt ? `on ${new Date(job.signedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'America/Phoenix' })}` : ''}.
                   </span>
                 </p>
               )}
               {job.garageNotes && (
-                <p className="text-base mt-1"><span className="font-bold">Technician Notes: </span>{job.garageNotes}</p>
+                <p className="text-sm mt-1"><span className="font-bold">Technician Notes: </span>{job.garageNotes}</p>
               )}
             </div>
           )}
