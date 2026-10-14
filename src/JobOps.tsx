@@ -7529,7 +7529,7 @@ export function InvoicePage() {
           </table>
 
           {job.estimateNotes && (
-            <p className="text-sm text-gray-700 mt-2"><span className="font-bold">Scope of Work: </span>{job.estimateNotes}</p>
+            <div className="text-sm text-gray-700 mt-2"><p className="font-bold">Scope of Work:</p><p className="whitespace-pre-wrap">{job.estimateNotes}</p></div>
           )}
 
           {/* Totals */}
@@ -7572,7 +7572,7 @@ export function InvoicePage() {
                 </p>
               )}
               {job.garageNotes && (
-                <p className="text-sm mt-1"><span className="font-bold">Technician Notes: </span>{job.garageNotes}</p>
+                <div className="text-sm mt-1"><p className="font-bold">Technician Notes:</p><p className="whitespace-pre-wrap">{job.garageNotes}</p></div>
               )}
             </div>
           )}
