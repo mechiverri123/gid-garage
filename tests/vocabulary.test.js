@@ -2,7 +2,7 @@
 // and Deepgram keyterms (names + short terms, capped).
 import { test, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
-import { cleanEntry, upsertEntry, removeEntry, vocabularyPrompt, voiceKeyterms, loadVocabulary, saveVocabulary, VOCAB_KEY, MAX_ENTRIES } from '../functions/_lib/vocabulary.js';
+import { cleanEntry, upsertEntry, removeEntry, vocabularyPrompt, voiceKeyterms, loadVocabulary, saveVocabulary, VOCAB_KEY, MAX_ENTRIES, DEFAULT_VOCABULARY } from '../functions/_lib/vocabulary.js';
 import { handleVoice, keytermNames } from '../functions/jarvis/voice.js';
 import { onRequestPost } from '../functions/admin-ai-chat.js';
 import { fakeSupabase, fakeFetch, claudeText } from './fake-supabase.js';
@@ -51,7 +51,10 @@ test('storage round trip; a missing bucket reads as empty and refuses to save', 
   await saveVocabulary(bucket, [{ id: 'a', said: 'Kass', meant: 'Kassidy' }]);
   assert.ok(bucket.store.has(VOCAB_KEY));
   assert.equal((await loadVocabulary(bucket))[0].said, 'Kass');
-  assert.deepEqual(await loadVocabulary(null), []);
+  assert.equal(await loadVocabulary(null), DEFAULT_VOCABULARY, 'never saved: the starter list');
+  assert.equal(await loadVocabulary(fakeBucket()), DEFAULT_VOCABULARY);
+  await saveVocabulary(bucket, []);
+  assert.deepEqual(await loadVocabulary(bucket), [], 'an emptied list stays empty (defaults never come back)');
   await assert.rejects(saveVocabulary(null, []), /Storage/);
 });
 
@@ -94,6 +97,18 @@ test('chat: vocabulary goes in its own block after the cached prompt (cache unto
   assert.deepEqual(withVocab.system[0].cache_control, { type: 'ephemeral', ttl: '1h' });
   assert.equal(withVocab.system[1].cache_control, undefined);
   assert.match(withVocab.system[1].text, /"Kass" means: Kassidy/);
-  const without = await chat(ENV);
-  assert.equal(without.system.length, 1);
+  const empty = await chat({ ...ENV, GID_PHOTOS: fakeBucket({ [VOCAB_KEY]: { entries: [] } }) });
+  assert.equal(empty.system.length, 1, 'an emptied list adds no block');
+  const starter = await chat(ENV);
+  assert.match(starter.system[1].text, /"Kass" means: Kassidy Altomar/, 'never saved: the starter list is used');
+});
+
+test('starter list: valid entries, unique words, keyterm-friendly, survives a first save', () => {
+  const words = DEFAULT_VOCABULARY.map(e => e.said.toLowerCase());
+  assert.equal(new Set(words).size, words.length);
+  for (const e of DEFAULT_VOCABULARY) assert.deepEqual(cleanEntry(e), { said: e.said, meant: e.meant });
+  const first = upsertEntry(DEFAULT_VOCABULARY, { said: 'Joe', meant: 'Joe Smith' });
+  assert.equal(first.length, DEFAULT_VOCABULARY.length + 1);
+  assert.equal(removeEntry(DEFAULT_VOCABULARY, 'default-ppi').some(e => e.said === 'PPI'), false);
+  assert.ok(voiceKeyterms({ entries: DEFAULT_VOCABULARY }).includes('Bluevine'));
 });
