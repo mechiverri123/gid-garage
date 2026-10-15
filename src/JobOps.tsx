@@ -3,6 +3,7 @@
 // In App.tsx, add the EstimatePage route and Jobs tab to AdminSchedule
 // ────────────────────────────────────────────────────────────────────────────
 
+import { JobAISummary } from './JobAISummary';
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { decodeVin, cleanVin, vinCheckDigitOk } from './vinDecode';
 import { resolvePeriodWindow, collectedRevenue, netProfit, laborPaid, cardRevenue, ownerTakeHome, jobContribution, moneyEntriesForJob, jobFromRow, phoenixDateParts, phoenixYmd } from '../shared/business-metrics.js';
@@ -4282,6 +4283,7 @@ export function JobDetailPanel({ job: initialJob, onClose, onJobUpdate, backLabe
           {/* OVERVIEW TAB */}
           {tab === 'overview' && (
             <div className="space-y-6">
+              <JobAISummary job={job} />
               {/* Pre/Post health scan documents — optional links shown on the customer invoice */}
               <div className="no-print grid grid-cols-2 gap-3">
                 <ScanUploadBox job={job} stage="pre" onUpdate={handleUpdate} />

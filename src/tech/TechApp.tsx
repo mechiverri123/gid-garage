@@ -6,6 +6,7 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { getAllJobs, getJobById, patchJob, syncTaxRate, resolveServiceName, useAutoSave, PhotoPanel, VideoPanel, PartsCostPanel, PaymentPanel, type Job } from '../JobOps';
 import { NextVisitCheck } from '../nextVisit/NextVisitCheck';
+import { JobAISummary } from '../JobAISummary';
 import { recommendations } from '../../shared/next-visit.js';
 import { statusChangeFields, isCancelled, jobMoney, phoenixToday } from '../../shared/business-rules.js';
 import { addDaysYmd as addDays } from '../../shared/business-metrics.js';
@@ -178,6 +179,7 @@ function JobScreen({ id, onBack, onChanged }: { id: string; onBack: () => void; 
         <div className="pb-10">
           {tab === 'job' && (
             <div className="space-y-4">
+              <JobAISummary job={job} />
               <Info label="Service">{resolveServiceName(job.service, job.notes)}</Info>
               {job.serviceAddress && <Info label="Address"><a href={mapsUrl} className="underline">{job.serviceAddress}</a></Info>}
               {job.vin && <Info label="VIN"><span className="font-mono">{job.vin}</span></Info>}

@@ -38,6 +38,7 @@
 //   upsert-job-mileage    { job_id, fields }     -> MileageLog     (one entry per job — internal only)
 //   get-home-address       {}                     -> { homeAddress }
 //   set-home-address       { homeAddress }        -> { ok }
+//   job-summary            { id, cachedOnly? }               -> { summary, at, cached }  (AI overview, cached until the job changes)
 //   calc-distance           { origin, destination } -> { miles }  (one-way; Google Distance Matrix, uses GOOGLE_DISTANCE_API_KEY)
 //   add-mileage           { row }                -> MileageLog
 //   patch-mileage         { id, fields }          -> { ok }
@@ -90,6 +91,7 @@ import { verifyAccess } from './_lib/access-auth.js';
 import { handleFleetAction, FleetError } from './_lib/fleet.js';
 import { handlePayAction, PayError } from './_lib/pay.js';
 import { suggestLaborHours } from './_lib/labor-hours.js';
+import { jobSummary } from './_lib/job-summary.js';
 import { cleanTemplate, DEFAULT_CHECKLIST } from '../shared/next-visit.js';
 
 export async function onRequestPost({ request, env }) {
@@ -874,6 +876,12 @@ export async function onRequestPost({ request, env }) {
       case 'suggest-labor-hours': {
         try {
           return json(await suggestLaborHours({ base, headers, env, vin: payload.vin, vehicle: payload.vehicle, service: payload.service, note: payload.note }));
+        } catch (e) { return json({ error: e.message }, 400); }
+      }
+
+      case 'job-summary': {
+        try {
+          return json(await jobSummary({ base, headers, env, bucket: env.GID_PHOTOS, id: payload.id, cachedOnly: payload.cachedOnly === true }));
         } catch (e) { return json({ error: e.message }, 400); }
       }
 
