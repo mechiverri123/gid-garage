@@ -4,7 +4,7 @@ import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import Lenis from 'lenis';
 import GameRedeem from './GameRedeem';
-import { pageForPath, caseStudyForPath, SERVICE_PAGES, WHY_US } from '../shared/site-pages.js';
+import { pageForPath, caseStudyForPath, SERVICE_PAGES, WHY_US, HOW_IT_WORKS, AUTO_REPAIR } from '../shared/site-pages.js';
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -490,6 +490,60 @@ function Services({ onBookService }: { onBookService: (id: string) => void }) {
         <div className="mt-12 text-center">
           <p className="text-white/50 text-sm mb-6">Don't see what you need? Call us — we handle virtually all automotive repair.</p>
           <a href={`tel:${PHONE}`} className="btn-primary inline-flex gap-2 items-center text-xs"><Phone className="w-4 h-4" />{PHONE}</a>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// "Auto repair in Flagstaff": what we fix (with prices), real job photos, how a
+// visit works and three FAQs. Content lives in shared/site-pages.js (also pre-rendered).
+function AutoRepair() {
+  return (
+    <section id="auto-repair" className="py-20 md:py-28 bg-dark border-t border-white/5">
+      <div className="max-w-7xl mx-auto px-5 md:px-8">
+        <Reveal>
+          <p className="text-red-500 text-xs font-bold uppercase tracking-[0.25em] mb-3">Auto Repair · Flagstaff, AZ</p>
+          <h2 className="text-white font-extrabold tracking-tight text-3xl md:text-5xl max-w-3xl">{AUTO_REPAIR.heading}</h2>
+          <p className="text-white/60 text-base mt-4 max-w-2xl leading-relaxed">{AUTO_REPAIR.intro}</p>
+        </Reveal>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mt-10">
+          {AUTO_REPAIR.jobs.map(j => (
+            <a key={j.path} href={j.path} className="bg-white/5 border border-white/10 p-5 hover:border-red-600/40 hover:bg-white/10 transition-colors">
+              <p className="text-white font-bold">{j.label}</p>
+              <p className="text-red-400 text-sm mt-1">{j.price}</p>
+              <p className="text-white/40 text-xs mt-3">Details →</p>
+            </a>
+          ))}
+        </div>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-3">
+          {AUTO_REPAIR.photos.map(p => (
+            <div key={p.src} className="aspect-[4/3] overflow-hidden bg-white/5">
+              <img src={p.src} alt={p.alt} className="w-full h-full object-cover" loading="lazy" decoding="async" />
+            </div>
+          ))}
+        </div>
+        <div className="grid md:grid-cols-2 gap-10 mt-12">
+          <div>
+            <h3 className="text-white font-bold text-xl mb-4">How a repair visit works</h3>
+            <ol className="space-y-4">
+              {HOW_IT_WORKS.map((s, i) => (
+                <li key={s.title} className="flex gap-4">
+                  <span className="text-red-600 font-extrabold text-2xl leading-none w-6 flex-shrink-0">{i + 1}</span>
+                  <div><p className="text-white font-semibold text-sm">{s.title}</p><p className="text-white/60 text-sm leading-relaxed">{s.text}</p></div>
+                </li>
+              ))}
+            </ol>
+            <a href="/case-studies" className="inline-block mt-6 text-xs text-white/60 hover:text-white underline underline-offset-4">See real repair jobs from around Flagstaff →</a>
+          </div>
+          <div className="space-y-3">
+            {AUTO_REPAIR.faq.map(f => (
+              <details key={f.q} className="bg-white/5 border border-white/10 px-5 py-4 group">
+                <summary className="text-white font-semibold text-sm md:text-base cursor-pointer list-none flex justify-between gap-4">{f.q}<span className="text-red-500 text-xl leading-none group-open:rotate-45 transition-transform">+</span></summary>
+                <p className="text-white/60 text-sm leading-relaxed mt-3">{f.a}</p>
+              </details>
+            ))}
+          </div>
         </div>
       </div>
     </section>
@@ -1384,6 +1438,7 @@ export default function App() {
       <MissionStatement />
       <QuickQuoteForm />
       <Services onBookService={handleBookService} />
+      <AutoRepair />
       <WhyUs />
       <RealJobsStrip />
       <StatsBar />

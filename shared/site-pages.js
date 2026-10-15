@@ -149,10 +149,30 @@ export const AREAS_PAGE = {
 
 export const HOME_PAGE = {
   path: '/', canonical: `${SITE}/`,
-  title: 'Mobile Mechanic Flagstaff, AZ — We Come to You | GID Garage',
+  title: 'Mobile Mechanic & Auto Repair in Flagstaff, AZ | GID Garage',
   description: "Flagstaff's mobile mechanic — we come to your home or work. Full synthetic oil change $79.99, brakes from $149.99/axle, diagnostics $89.99. Call 480-757-0476.",
   h1: 'Flagstaff Mobile Mechanic',
   intro: 'We come to you — Flagstaff, Bellemont, Kachina, Fort Valley & beyond. Honest pricing, expert work, no shop wait. Car care at 7,000 feet.',
+};
+
+// Homepage "Auto Repair in Flagstaff" section (SEO agent: "auto repair flagstaff"
+// was close to page one). Prices come from the service pages, so they never drift.
+const fromPage = id => SERVICE_PAGES.find(p => p.serviceId === id);
+export const AUTO_REPAIR = {
+  heading: 'Auto Repair in Flagstaff, Done Where You Park',
+  intro: 'GID Garage handles real auto repair, not just oil changes: brakes, suspension, check engine lights and misfires, batteries, leaks and hoses. All of it at your home or work anywhere in the Flagstaff area, so there is no tow, no waiting room and no ride back.',
+  jobs: ['brakes', 'suspension', 'diag', 'oil'].map(id => { const p = fromPage(id); return { label: p.label, path: p.path, price: p.pricing[0].detail.split(' · ')[0] }; }),
+  photos: [
+    { src: '/photos/brake-rotor-after.webp', alt: 'Brake job: new rotor on the same wheel' },
+    { src: '/photos/susp-crv-new-strut.webp', alt: 'Honda CR-V: new front strut installed' },
+    { src: '/photos/diag-failed-injector.webp', alt: 'Failed fuel injector found diagnosing a Jeep Wrangler' },
+    { src: '/photos/diag-coolant-hose.webp', alt: 'New coolant hose on a Honda Civic after finding the leak' },
+  ],
+  faq: [
+    { q: "Can a mobile mechanic do real auto repair, not just oil changes?", a: "Yes. Brakes, struts and control arms, check engine lights and misfires, coil packs and spark plugs, batteries, coolant hoses and oil leaks are all fixed where your vehicle is parked. The few jobs that need a lift or special equipment (wheel alignments, A/C system work, transmission overhauls, welding) we refer to a shop that specializes in them." },
+    { q: "How do your prices compare to an auto repair shop in Flagstaff?", a: "There's no shop building to pay for, so prices run well below local shops: brake pads start at $149.99 per axle where Flagstaff shops average $240–320, and a full synthetic oil change is $79.99 where shops charge $110–140. You get a clear estimate before any work starts." },
+    { q: "What happens if you find something else wrong during the repair?", a: "We stop and contact you first. Nothing beyond the approved estimate is done without your OK. Labor is warranted for 30 days and parts carry the manufacturer's warranty." },
+  ],
 };
 
 export const PRIVACY_PAGE = { path: '/privacy', canonical: `${SITE}/privacy`, title: 'Privacy Policy | GID Garage', description: 'How GID Garage collects, uses and protects your information.', h1: 'Privacy Policy' };

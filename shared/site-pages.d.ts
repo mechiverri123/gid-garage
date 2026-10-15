@@ -17,6 +17,7 @@ export const AREAS: Area[];
 export const AREAS_PAGE: SimplePage;
 export const HOME_PAGE: SimplePage;
 export const PRIVACY_PAGE: SimplePage;
+export const AUTO_REPAIR: { heading: string; intro: string; jobs: { label: string; path: string; price: string }[]; photos: { src: string; alt: string }[]; faq: Faq[] };
 export function pageForPath(path: string): ServicePageData | null;
 export interface CaseStudy {
   slug: string; serviceId: string; month: string; vehicle: string; mileage: string | null; path: string; canonical: string;
