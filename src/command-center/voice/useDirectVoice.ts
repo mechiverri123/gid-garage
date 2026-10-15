@@ -71,7 +71,7 @@ class PcmFrames extends AudioWorkletProcessor {
 }
 registerProcessor('pcm-frames', PcmFrames);`;
 
-type Session = { deepgram: { token: string }; cartesia: { token: string; voiceId: string; model: string; version: string }; budget?: { state?: string; pct?: number } };
+type Session = { deepgram: { token: string; keyterms?: string[] }; cartesia: { token: string; voiceId: string; model: string; version: string }; budget?: { state?: string; pct?: number } };
 
 export function useDirectVoice({ onUtterance, onBargeIn }: { onUtterance: (text: string) => void; onBargeIn?: () => void }) {
   const [state, setStateRaw] = useState<RealtimeVoiceState>('off');
@@ -280,7 +280,9 @@ export function useDirectVoice({ onUtterance, onBargeIn }: { onUtterance: (text:
   const openStt = useCallback(async (): Promise<void> => {
     const s = r.session; if (!s) return;
     const q = new URLSearchParams({ model: 'nova-3', encoding: 'linear16', sample_rate: '16000', channels: '1', interim_results: 'true', smart_format: 'true', punctuate: 'true', endpointing: '300' });
-    for (const k of ['Jarvis', 'GID Garage']) q.append('keyterm', k);
+    // Names and the owner's vocabulary from the server (voice.js keytermNames), else the brand words.
+    const terms: string[] = Array.isArray(s.deepgram.keyterms) && s.deepgram.keyterms.length ? s.deepgram.keyterms : ['Jarvis', 'GID Garage'];
+    for (const k of terms) q.append('keyterm', k);
     const ws = new WebSocket(`wss://api.deepgram.com/v1/listen?${q}`, ['bearer', s.deepgram.token]);
     ws.binaryType = 'arraybuffer';
     await new Promise<void>((resolve, reject) => { ws.onopen = () => resolve(); ws.onerror = () => reject(new Error('speech-to-text connection failed')); });

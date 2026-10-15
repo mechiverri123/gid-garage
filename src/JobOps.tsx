@@ -3,6 +3,7 @@
 // In App.tsx, add the EstimatePage route and Jobs tab to AdminSchedule
 // ────────────────────────────────────────────────────────────────────────────
 
+import { VocabularySettings } from './VocabularySettings';
 import { JobAISummary } from './JobAISummary';
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { decodeVin, cleanVin, vinCheckDigitOk } from './vinDecode';
@@ -8554,6 +8555,7 @@ const HUB_CATEGORIES: HubCategory[] = [
   { id: 'ops',      icon: '⚙️', label: 'Operations',         color: 'text-blue-400',    border: 'border-blue-800',   bg: 'bg-blue-900/10'   },
   { id: 'legal',    icon: '⚖️', label: 'Legal & Licensing',  color: 'text-purple-400',  border: 'border-purple-800', bg: 'bg-purple-900/10' },
   { id: 'nextvisit', icon: '✅', label: 'Next-Visit Checklist', color: 'text-emerald-400', border: 'border-emerald-800', bg: 'bg-emerald-900/10' },
+  { id: 'vocabulary', icon: '🧠', label: 'Jarvis Vocabulary', color: 'text-cyan-400', border: 'border-cyan-800', bg: 'bg-cyan-900/10' },
   { id: 'pricing',  icon: '💲', label: 'Pricing & Labor',    color: 'text-green-400',   border: 'border-green-800',  bg: 'bg-green-900/10'  },
   { id: 'vendors',  icon: '🔩', label: 'Vendors & Parts',    color: 'text-orange-400',  border: 'border-orange-800', bg: 'bg-orange-900/10' },
   { id: 'banking',  icon: '🏦', label: 'Banking & Credit',   color: 'text-cyan-400',    border: 'border-cyan-800',   bg: 'bg-cyan-900/10'   },
@@ -10793,6 +10795,7 @@ function HubCategoryPanel({ cat }: { cat: HubCategory }) {
   if (cat.id === 'revenue') return <RevenuePanel />;
   if (cat.id === 'recovery') return <RecoveryPanel />;
   if (cat.id === 'nextvisit') return <ChecklistSettings />;
+  if (cat.id === 'vocabulary') return <VocabularySettings />;
 
   return (
     <div>

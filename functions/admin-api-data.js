@@ -39,6 +39,7 @@
 //   get-home-address       {}                     -> { homeAddress }
 //   set-home-address       { homeAddress }        -> { ok }
 //   job-summary            { id, cachedOnly? }               -> { summary, at, cached }  (AI overview, cached until the job changes)
+//   vocab-list / vocab-save { said, meant, source?, id? } / vocab-remove { id } -> { entries }  (Jarvis vocabulary, R2)
 //   calc-distance           { origin, destination } -> { miles }  (one-way; Google Distance Matrix, uses GOOGLE_DISTANCE_API_KEY)
 //   add-mileage           { row }                -> MileageLog
 //   patch-mileage         { id, fields }          -> { ok }
@@ -92,6 +93,7 @@ import { handleFleetAction, FleetError } from './_lib/fleet.js';
 import { handlePayAction, PayError } from './_lib/pay.js';
 import { suggestLaborHours } from './_lib/labor-hours.js';
 import { jobSummary } from './_lib/job-summary.js';
+import { loadVocabulary, saveVocabulary, upsertEntry, removeEntry } from './_lib/vocabulary.js';
 import { cleanTemplate, DEFAULT_CHECKLIST } from '../shared/next-visit.js';
 
 export async function onRequestPost({ request, env }) {
@@ -878,6 +880,18 @@ export async function onRequestPost({ request, env }) {
           return json(await suggestLaborHours({ base, headers, env, vin: payload.vin, vehicle: payload.vehicle, service: payload.service, note: payload.note }));
         } catch (e) { return json({ error: e.message }, 400); }
       }
+
+      // Jarvis vocabulary (Hub → Jarvis Vocabulary, and the "Wrong?" button on /jarvis).
+      case 'vocab-list':
+        return json({ entries: await loadVocabulary(env.GID_PHOTOS) });
+      case 'vocab-save': {
+        try {
+          const list = upsertEntry(await loadVocabulary(env.GID_PHOTOS), { said: payload.said, meant: payload.meant }, { source: payload.source, id: payload.id });
+          return json({ entries: await saveVocabulary(env.GID_PHOTOS, list) });
+        } catch (e) { return json({ error: e.message }, 400); }
+      }
+      case 'vocab-remove':
+        return json({ entries: await saveVocabulary(env.GID_PHOTOS, removeEntry(await loadVocabulary(env.GID_PHOTOS), String(payload.id || ''))) });
 
       case 'job-summary': {
         try {

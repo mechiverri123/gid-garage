@@ -163,6 +163,22 @@ Jarvis is the interactive command interface for GID Garage, not primarily a chat
 - **1099-NEC:** flagged at $2,000+ paid to one person in a calendar year (2026 rule).
 - **Team & owner pay (v2):** `pay_people.role` = owner | contractor | employee (one owner). The owner logs labor hours; weeks are Mon–Sun (`weekStart`/`weeklySummary`). GID is a single-owner LLC (owner decision 2026-10-06): paying himself for his work is **OWNER PAY** — never an expense (`laborPaid` skips `owner_draw` payouts) and **kept separate from the Owner's Equity ledger**, which is only money he put in and got back. Payouts to the owner are stored with `owner_draw: true` and write nothing to `equity_entries` (rows from before this split that have `equity_entry_id` delete that ledger row with them). Money tab: a transfer matching a logged owner payout (±5 days) is kind `owner_pay` ("Your pay" section), not `owner_out`; "My pay (for my work)" marks one by hand; the bank-balance card subtracts owner pay. Employees (W-2) need outside payroll; only contractors get the 1099 flag. Admin tab "👷 Team".
 
+# 0.40 AI JOB SUMMARY + JARVIS VOCABULARY (2026-10-15)
+
+- **AI summary button** (`src/JobAISummary.tsx`): admin job panel Overview tab (so Jarvis "Full editor" too) and Tech app Job tab. Server `functions/_lib/job-summary.js` via `/admin-api-data` `job-summary { id, cachedOnly? }`.
+  - **Input:** `jobEvidence(row, {detail:true})` (the same fact sheet Jarvis reads), plus the Next-Visit recommendations/answers and up to 5 past jobs for the customer. Address, phone, email and last name are never sent.
+  - **Model:** Haiku, "facts only", under 90 words.
+  - **Caching:** R2 `private/job-summaries/<id>.json`, keyed by a SHA-256 of the input plus `VERSION`. An unchanged job costs nothing; opening a job shows the saved summary via `cachedOnly`, with no AI call.
+  - **Cost and budget:** about 0.2¢ per summary, governed by the AI budget. Bump `VERSION` when you change the prompt or input. Tests: `tests/job-summary.test.js`.
+- **Jarvis vocabulary** (`functions/_lib/vocabulary.js`, R2 `private/jarvis-vocabulary.json`, max 80 entries):
+  - **Entries:** "when I say X I mean Y".
+  - **Where it's edited:**
+    - Hub → 🧠 Jarvis Vocabulary (`src/VocabularySettings.tsx`, which Jarvis Settings opens);
+    - the "Wrong?" button under the latest reply on /jarvis (saves a `correction`).
+  - **Chat:** `admin-ai-chat.js` adds `vocabularyPrompt()` as a second, UNCACHED system block after the cached `SYSTEM_PROMPT`, so edits never break the prompt cache. Telegram gets it too, because it's the same brain.
+  - **Voice:** `jarvis/voice.js` session returns `deepgram.keyterms` = brand words + short vocabulary terms + names of customers with jobs ±14 days and of open leads. That's at most 50 terms and about 1,400 chars, under Deepgram's 500-token limit; failures fall back to the brand words.
+  - Tests: `tests/vocabulary.test.js`.
+
 # 0.38 TECH APP (2026-10-01)
 
 - **Where it lives:** `/jarvis/tech` (`src/tech/TechApp.tsx`), the phone app saved to the home screen (manifest `public/manifests/tech.json`). It's under /jarvis, so Access protects it.

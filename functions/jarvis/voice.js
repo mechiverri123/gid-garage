@@ -7,7 +7,7 @@
 // here. The master keys (DEEPGRAM_API_KEY, CARTESIA_API_KEY) never leave the
 // server. Claude runs server-side in admin-ai-chat.js as it always has.
 //
-// POST { action: 'session' } -> { deepgram: { token }, cartesia: { token, voiceId, model, version }, budget }
+// POST { action: 'session' } -> { deepgram: { token, keyterms }, cartesia: { token, voiceId, model, version }, budget }
 //   refused with { error, reason: 'budget' | 'not_configured' | 'provider' } when voice can't start
 // POST { action: 'usage', sttSeconds, ttsChars } -> records estimated voice spend
 // GET  ?action=usage -> monthly budget summary for Settings -> Usage
@@ -16,6 +16,22 @@
 
 import { verifyAccess } from '../_lib/access-auth.js';
 import { readBudget, addUsage, pricing, sttUsd, ttsUsd } from '../_lib/ai-budget.js';
+import { loadVocabulary, voiceKeyterms } from '../_lib/vocabulary.js';
+import { phoenixToday } from '../../shared/business-rules.js';
+import { addDaysYmd } from '../../shared/business-metrics.js';
+
+// Names Deepgram should listen for: customers with jobs two weeks either side of
+// today, then open leads. Any failure just means fewer keyterms, never no voice.
+export async function keytermNames(db, fetchImpl, now = new Date()) {
+  if (!db) return [];
+  const today = phoenixToday(now);
+  const get = q => fetchImpl(`${db.base}/${q}`, { headers: db.headers }).then(r => (r.ok ? r.json() : [])).catch(() => []);
+  const [jobs, leads] = await Promise.all([
+    get(`bookings?select=fname,lname&date=gte.${addDaysYmd(today, -14)}&date=lte.${addDaysYmd(today, 14)}&order=date.desc&limit=60`),
+    get('leads?select=fname,lname&status=not.in.(booked,lost)&order=created_at.desc&limit=40'),
+  ]);
+  return [...(Array.isArray(jobs) ? jobs : []), ...(Array.isArray(leads) ? leads : [])].map(r => [r.fname, r.lname].filter(Boolean).join(' '));
+}
 
 const CARTESIA_VERSION = '2026-08-14';
 const TOKEN_TTL_S = 600;
@@ -136,13 +152,15 @@ export async function handleVoice({ request, env, fetchImpl = (...a) => fetch(..
     const b = await budget();
     if (b.state === 'blocked') return json({ error: 'Monthly Jarvis AI budget reached.', reason: 'budget', budget: b }, 402);
     try {
-      const [dg, ct, voice] = await Promise.all([
+      const [dg, ct, voice, keyterms] = await Promise.all([
         tagged('deepgram', () => deepgramToken(env, fetchImpl)),
         tagged('cartesia', () => cartesiaToken(env, fetchImpl)),
         tagged('cartesia', () => resolveVoice(env, fetchImpl)),
+        Promise.all([loadVocabulary(env.GID_PHOTOS), keytermNames(db, fetchImpl)])
+          .then(([entries, names]) => voiceKeyterms({ entries, names }), () => voiceKeyterms()),
       ]);
       return json({
-        deepgram: { token: dg.token, expiresIn: dg.expiresIn },
+        deepgram: { token: dg.token, expiresIn: dg.expiresIn, keyterms },
         cartesia: { token: ct, voiceId: voice.id, model: env.CARTESIA_MODEL || 'sonic-3', version: CARTESIA_VERSION },
         budget: b,
       });

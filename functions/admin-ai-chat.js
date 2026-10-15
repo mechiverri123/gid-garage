@@ -26,6 +26,7 @@
 //   { type: 'error', message: string }
 // A conversation with no tool calls just streams a single 'final' line.
 
+import { loadVocabulary, vocabularyPrompt } from './_lib/vocabulary.js';
 import { createBusinessOps, cleanSearchText, writeResult } from './_lib/business-data.js';
 import { verifyAccess } from './_lib/access-auth.js';
 import { planTurn, updateContext, guardFinalText, projectForFacet } from './_lib/jarvis-context.js';
@@ -1738,6 +1739,10 @@ export async function onRequestPost({ request, env }) {
         messages.push({ role: 'assistant', content: [{ type: 'tool_use', id, name: plan.prefetch.tool, input: plan.prefetch.input }] });
         messages.push({ role: 'user', content: [{ type: 'tool_result', tool_use_id: id, content }] });
       }
+      // The owner's own shorthand (Hub → Jarvis Vocabulary). Its own uncached block
+      // after the cached prompt, so editing it never invalidates the prompt cache.
+      const vocabText = vocabularyPrompt(await loadVocabulary(env.GID_PHOTOS));
+      const system = [{ type: 'text', text: SYSTEM_PROMPT, cache_control: { type: 'ephemeral', ttl: '1h' } }, ...(vocabText ? [{ type: 'text', text: vocabText }] : [])];
       for (let turn = 0; turn < MAX_TOOL_TURNS; turn++) {
         const res = await fetch(CLAUDE_API_URL, {
           method: 'POST',
@@ -1752,7 +1757,7 @@ export async function onRequestPost({ request, env }) {
             // Static instructions + tool list are cached (billed at ~10% on reuse).
             // 1-hour cache: Jarvis is used in bursts through the day, so a 5-minute
             // cache kept expiring and being rewritten (writes cost 2x, reads 0.1x).
-            system: [{ type: 'text', text: SYSTEM_PROMPT, cache_control: { type: 'ephemeral', ttl: '1h' } }],
+            system,
             tools: toolsForTurn,
             messages,
             ...(streamSay ? { stream: true } : {}),
