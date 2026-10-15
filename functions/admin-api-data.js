@@ -1,13 +1,11 @@
-// fixed
-// Cloudflare Pages Function — POST /admin-api/data
+// Cloudflare Pages Function — POST /admin-api-data
 // All ADMIN reads/writes go through here using the Supabase SERVICE key.
 // The public anon key can no longer read the bookings table at all.
 //
-// SECURITY: This route MUST be covered by your Cloudflare Access application
-// (the same one protecting /admin). Access blocks unauthenticated requests
-// before they reach this function. As defense-in-depth we also require the
-// Cf-Access-Jwt-Assertion header to be present (Access injects it on every
-// authenticated request).
+// SECURITY: covered by the Cloudflare Access application that protects /admin
+// and /jarvis (same AUD, checked 2026-10-15). As defense-in-depth every request
+// is also cryptographically verified here with verifyAccess() (signature,
+// issuer, audience, expiry), not just header presence.
 //
 // Body: { action: string, ...args }
 //   list-bookings                          -> Booking[]   (full rows)
