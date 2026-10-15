@@ -39,8 +39,11 @@ export function CommandTopBar({ title, attention, onSearch, onOpenMenu, onRefres
   const iconBtn = 'cc-btn relative w-10 h-10 rounded-lg flex items-center justify-center shrink-0';
   const iconStyle = { border: `1px solid ${C.border}`, background: 'rgba(52,214,255,0.04)', color: C.text2 };
 
+  // relative z-30: the blur makes the header its own stacking context, so its
+  // dropdowns (bell, account) can only sit above the page if the header does.
+  // Below the z-40+ overlays (workspace, drawers, palette).
   return (
-    <header className="flex items-center gap-3 px-4 sm:px-6 h-[68px] border-b shrink-0" style={{ borderColor: C.border, background: 'rgba(5,13,21,0.82)', backdropFilter: 'blur(14px)' }}>
+    <header className="relative z-30 flex items-center gap-3 px-4 sm:px-6 h-[68px] border-b shrink-0" style={{ borderColor: C.border, background: 'rgba(5,13,21,0.82)', backdropFilter: 'blur(14px)' }}>
       <button type="button" onClick={onOpenMenu} className={`${iconBtn} lg:hidden`} style={iconStyle} aria-label="Open menu"><Menu size={20} /></button>
       <div className="min-w-0 shrink-0 hidden sm:block">
         <h1 className="text-[22px] md:text-[24px] font-bold leading-tight truncate" style={{ color: C.text }}>{title}</h1>
