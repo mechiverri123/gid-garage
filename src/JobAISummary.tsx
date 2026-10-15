@@ -1,7 +1,7 @@
 // "AI summary" card for one job: admin job panel (Overview tab) and the Tech
 // app (Job tab). Opening a job shows the saved summary if the job hasn't changed
 // (no AI call); the button makes a new one. Server: functions/_lib/job-summary.js.
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { adminPost, type Job } from './JobOps';
 
 type Result = { summary: string | null; at?: string; cached?: boolean; stale?: boolean };
@@ -11,34 +11,46 @@ const errText = (e: unknown) => {
   try { return JSON.parse(raw).error || raw; } catch { return raw || 'Something went wrong.'; }
 };
 
+// Only the fields the summary is built from (functions/_lib/job-summary.js). Photo
+// links and other refresh noise are left out, so an auto-refresh never looks like
+// an edit; when this changes, the server decides whether the summary is stale.
+function factsKey(j: Job) {
+  const captions = [...(j.jobPhotos || []), ...(j.adminPhotos || [])].map((p: { note?: string }) => p?.note || '');
+  return JSON.stringify([j.service, j.date, j.time, j.dateTbd, j.vehicle, j.vin, j.mileage, j.notes, j.garageNotes, j.jobStatus, j.status,
+    j.estimateAmount, j.estimateNotes, j.lineItems, j.taxAmount, j.preExistingDamage, j.invoiceAmount, j.paidAt, j.adjustmentReason,
+    j.adjustmentAmount, j.amountPaid, j.payments, j.partsCost, j.partsReceipts, j.inspectionData, j.signedAt, j.invoiceSentCount, captions]);
+}
+
 export function JobAISummary({ job }: { job: Job }) {
   const [res, setRes] = useState<Result | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
   const [changed, setChanged] = useState(false);
-  const shown = useRef<string | null>(null); // the job as it was when the summary was made
+  const facts = factsKey(job);
 
-  // Saved summary on open (free); reset when switching jobs.
+  // New job: start clean.
+  useEffect(() => { setRes(null); setErr(''); setChanged(false); }, [job.id]);
+
+  // Saved summary on open, and again only when the job's facts really change (free: no
+  // AI call). `facts` is a string, so a refresh with the same facts doesn't re-run this.
   useEffect(() => {
     let live = true;
-    setRes(null); setErr(''); setChanged(false); shown.current = null;
     adminPost('job-summary', { id: job.id, cachedOnly: true })
-      .then((r: Result) => { if (live) { setRes(r); shown.current = JSON.stringify(job); } })
+      .then((r: Result) => {
+        if (!live) return;
+        if (r.summary) { setRes(r); setChanged(false); }
+        else if (r.stale) setChanged(true); // keep showing the old one, flagged
+        else setRes(r);
+      })
       .catch(() => { /* no saved summary is fine */ });
     return () => { live = false; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [job.id]);
-
-  // Edits made while the card is open: offer an update instead of showing old facts as current.
-  useEffect(() => {
-    if (res?.summary && shown.current && shown.current !== JSON.stringify(job)) setChanged(true);
-  }, [job, res]);
+  }, [job.id, facts]);
 
   async function make() {
     setBusy(true); setErr('');
     try {
       const r: Result = await adminPost('job-summary', { id: job.id });
-      setRes(r); setChanged(false); shown.current = JSON.stringify(job);
+      setRes(r); setChanged(false);
     } catch (e) { setErr(errText(e)); } finally { setBusy(false); }
   }
 
