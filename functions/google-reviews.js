@@ -8,9 +8,8 @@
  * free-tier quota even with real site traffic.
  *
  * Setup required (Cloudflare Pages → Settings → Environment variables):
- *   - GOOGLE_PLACES_API_KEY  — from Google Cloud Console: create a project,
- *     enable "Places API" (the classic one, not just "Places API (New)"),
- *     create an API key, and restrict it to the Places API for safety.
+ *   - GOOGLE_PLACES_API_KEY  — from Google Cloud Console: enable "Places API (New)"
+ *     (and "Routes API" for mileage), create an API key, restrict it to those APIs.
  *   - GOOGLE_PLACE_ID        — GID Garage's Place ID. Look it up for free at
  *     https://developers.google.com/maps/documentation/places/web-service/place-id
  *     (search "GID Garage" + your address, copy the Place ID it shows you).
@@ -18,6 +17,8 @@
  * Google's API only ever returns up to 5 reviews (their ToS caps it, not a
  * limitation of this code), sorted by "most relevant."
  */
+
+import { placeDetails } from './_lib/google-maps.js';
 
 const CACHE_KEY = 'cache/google-reviews.json';
 const CACHE_TTL_MS = 6 * 60 * 60 * 1000; // 6 hours
@@ -27,13 +28,7 @@ async function fetchFromGoogle(env) {
   const placeId = env.GOOGLE_PLACE_ID;
   if (!apiKey || !placeId) return null;
 
-  const url = `https://maps.googleapis.com/maps/api/place/details/json?place_id=${encodeURIComponent(placeId)}&fields=name,rating,user_ratings_total,reviews&key=${apiKey}`;
-  const res = await fetch(url);
-  if (!res.ok) throw new Error(`Places API HTTP ${res.status}`);
-  const data = await res.json();
-  if (data.status !== 'OK') throw new Error(`Places API status: ${data.status} ${data.error_message ?? ''}`);
-
-  const result = data.result || {};
+  const result = await placeDetails(apiKey, placeId, ['name', 'rating', 'user_ratings_total', 'reviews']);
   return {
     fetchedAt: new Date().toISOString(),
     rating: result.rating ?? null,

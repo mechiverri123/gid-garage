@@ -33,12 +33,12 @@ function fakePostgrest(tables) {
   };
 }
 
-const EXTERNAL = url => {
+const EXTERNAL = (url, init) => {
   if (url.includes('pagespeedonline')) return json({ lighthouseResult: { categories: { performance: { score: 0.8 }, seo: { score: 0.9 } } } });
   if (url.includes('api.weather.gov/points')) return json({ properties: { forecast: 'https://api.weather.gov/gridpoints/FGZ/1,1/forecast' } });
   if (url.includes('api.weather.gov/gridpoints')) return json({ properties: { periods: [{ startTime: '2026-09-29T06:00:00-07:00', isDaytime: true, temperature: 60, shortForecast: 'Sunny' }] } });
-  if (url.includes('place/details')) return json({ status: 'OK', result: { rating: 4.9, user_ratings_total: 50 } });
-  if (url.includes('place/textsearch')) return json({ status: 'OK', results: [{ place_id: `p-${url.length}`, name: 'Rival Mobile Mechanic', types: ['car_repair'], geometry: { location: { lat: 35.2, lng: -111.65 } } }] });
+  if (url.includes('v1/places/')) return json({ rating: 4.9, userRatingCount: 50 });
+  if (url.includes('v1/places:searchText')) return json({ places: [{ id: `p-${String(init?.body).length}`, displayName: { text: 'Rival Mobile Mechanic' }, types: ['car_repair'], location: { latitude: 35.2, longitude: -111.65 } }] });
   if (url.includes('competitor')) return new Response('<title>Competitor</title><p>oil change</p>');
   return new Response('<html><head><title>GID Garage Flagstaff</title></head></html>');
 };
@@ -57,7 +57,7 @@ function world({ keyPages = 12, competitors = 15, lastSync = null } = {}) {
   globalThis.fetch = async (url, init) => {
     const external = !String(url).startsWith('https://db.test');
     current.total += 1; if (external) current.external += 1;
-    return external ? EXTERNAL(String(url)) : supabase(url, init);
+    return external ? EXTERNAL(String(url), init) : supabase(url, init);
   };
   const store = createSeoStore({ supabaseUrl: 'https://db.test', serviceKey: 'svc' });
   const env = { GOOGLE_PLACES_API_KEY: 'k', GOOGLE_PLACE_ID: 'own' };
@@ -116,10 +116,10 @@ test('the cron keeps the weekly cadence and does not restart a finished run ever
 test('one failing provider does not block the others; the run ends partial and is retryable', async () => {
   const w = world({ keyPages: 1, competitors: 1 });
   const inner = globalThis.fetch;
-  globalThis.fetch = async (url, init) => (String(url).includes('place/details') ? json({ status: 'REQUEST_DENIED', error_message: 'bad key' }) : inner(url, init));
+  globalThis.fetch = async (url, init) => (String(url).includes('v1/places/') ? json({ error: { code: 403, message: 'bad key', status: 'PERMISSION_DENIED' } }, 403) : inner(url, init));
   const outs = await w.runToEnd({ manual: true });
   const results = outs.flatMap(o => o.results);
-  assert.match(results.find(r => r.provider === 'places').error, /REQUEST_DENIED/);
+  assert.match(results.find(r => r.provider === 'places').error, /PERMISSION_DENIED/);
   for (const id of ['pagespeed', 'site_audit', 'competitor_pages', 'weather_forecast']) assert.ok(results.find(r => r.provider === id && r.rows != null), id);
   assert.equal(outs.at(-1).runStatus, 'partial');
   assert.equal(w.tables.seo_provider_status.find(r => r.provider === SYNC_RUN_KEY).status, 'partial');

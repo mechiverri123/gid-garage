@@ -12,7 +12,7 @@ import { fakeSeoStore, syncToEnd } from './seo-fake-store.js';
 const NOW = new Date('2026-09-28T19:00:00Z');
 const realFetch = globalThis.fetch;
 afterEach(() => { globalThis.fetch = realFetch; _clearAccessCertCache(); });
-const json = body => new Response(JSON.stringify(body), { headers: { 'Content-Type': 'application/json' } });
+const json = (body, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
 
 // Workers-style native fetch: only a plain call (this = undefined/globalThis) is legal.
 function workersFetch(route) {
@@ -26,8 +26,8 @@ const ROUTES = url => {
   if (url.includes('pagespeedonline')) return json({ lighthouseResult: { categories: { performance: { score: 0.8 }, seo: { score: 0.9 } } } });
   if (url.includes('api.weather.gov/points')) return json({ properties: { forecast: 'https://api.weather.gov/gridpoints/FGZ/1,1/forecast' } });
   if (url.includes('api.weather.gov/gridpoints')) return json({ properties: { periods: [{ startTime: '2026-09-29T06:00:00-07:00', isDaytime: true, temperature: 60, shortForecast: 'Sunny' }] } });
-  if (url.includes('place/details')) return json({ status: 'OK', result: { rating: 4.9, user_ratings_total: 50 } });
-  if (url.includes('place/textsearch')) return json({ status: 'OK', results: [] });
+  if (url.includes('v1/places/')) return json({ rating: 4.9, userRatingCount: 50 });
+  if (url.includes('v1/places:searchText')) return json({ places: [] });
   if (url.includes('GetQueryStats')) return json({ d: [] });
   if (url.includes('ncei.noaa.gov')) return json({ results: [] });
   if (url.includes('graph.facebook.com') && url.includes('insights?fields')) return json({ data: [] });
@@ -113,14 +113,14 @@ test('run gate: running blocks everyone; completed throttles only manual; failed
 });
 
 test('a partial run is recorded as partial and can be retried manually right away', async () => {
-  globalThis.fetch = workersFetch(url => (url.includes('place/details') ? json({ status: 'REQUEST_DENIED', error_message: 'bad key' }) : ROUTES(url)));
+  globalThis.fetch = workersFetch(url => (url.includes('v1/places/') ? json({ error: { code: 403, message: 'bad key', status: 'PERMISSION_DENIED' } }, 403) : ROUTES(url)));
   const store = fakeSeoStore();
   const env = { GOOGLE_PLACES_API_KEY: 'k', GOOGLE_PLACE_ID: 'own' };
   const first = await syncToEnd(runSeoSync, { env, store, now: NOW, mode: 'force', manual: true, only: ['places', 'pagespeed'] });
   assert.equal(first.runStatus, 'partial');
   const run = store.tables.seo_provider_status.find(r => r.provider === SYNC_RUN_KEY);
   assert.equal(run.status, 'partial');
-  assert.match(run.last_error, /places: .*REQUEST_DENIED/);
+  assert.match(run.last_error, /places: .*PERMISSION_DENIED/);
   const retry = await syncToEnd(runSeoSync, { env, store, now: NOW, mode: 'force', manual: true, only: ['pagespeed'] });
   assert.equal(retry.last.blocked, undefined);
   assert.equal(retry.runStatus, 'completed');

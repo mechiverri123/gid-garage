@@ -38,13 +38,14 @@ test('new reviews in 7 days: timestamps, or the total-count history when more th
 test('reviews feed: newest-first Places call, cached, history recorded, review links', async () => {
   const bucket = fakeBucket();
   let calls = 0;
-  const fetchImpl = async url => {
+  const fetchImpl = async (url, init) => {
     calls++;
-    assert.match(String(url), /reviews_sort=newest/);
-    return jsonRes({ status: 'OK', result: { rating: 5, user_ratings_total: 22, url: 'https://maps.google.com/?cid=1', reviews: [
-      { author_name: 'Jill', rating: 5, text: 'Great', relative_time_description: 'a day ago', time: Math.floor((NOW - 86400_000) / 1000) },
-      { author_name: 'Bob', rating: 5, text: 'Fast', relative_time_description: 'a month ago', time: Math.floor((NOW - 30 * 86400_000) / 1000) },
-    ] } });
+    assert.match(String(url), /places\.googleapis\.com\/v1\/places\/ChIJx/);
+    assert.match(init.headers['X-Goog-FieldMask'], /reviews/);
+    return jsonRes({ rating: 5, userRatingCount: 22, googleMapsUri: 'https://maps.google.com/?cid=1', reviews: [
+      { authorAttribution: { displayName: 'Jill' }, rating: 5, text: { text: 'Great' }, relativePublishTimeDescription: 'a day ago', publishTime: daysAgo(1) },
+      { authorAttribution: { displayName: 'Bob' }, rating: 5, text: { text: 'Fast' }, relativePublishTimeDescription: 'a month ago', publishTime: daysAgo(30) },
+    ] });
   };
   const env = { GOOGLE_PLACES_API_KEY: 'k', GOOGLE_PLACE_ID: 'ChIJx' };
   const r = await reviewsFeed({ env, bucket, now: NOW, fetchImpl });
@@ -251,7 +252,7 @@ test('reviews: when Google answers with an HTML page, the last saved copy is sho
   const r = await reviewsFeed({ env, bucket, now: NOW, fetchImpl: html });
   assert.equal(r.total, 12);
   assert.equal(r.stale, true);
-  assert.match(r.staleReason, /HTTP 403/);
+  assert.match(r.staleReason, /Google 403/);
   // Nothing saved yet: the clear error still surfaces.
-  await assert.rejects(reviewsFeed({ env, bucket: fakeBucket(), now: NOW, fetchImpl: html }), /Google Places: HTTP 403/);
+  await assert.rejects(reviewsFeed({ env, bucket: fakeBucket(), now: NOW, fetchImpl: html }), /Google Places: Google 403/);
 });

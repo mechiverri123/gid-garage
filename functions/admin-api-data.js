@@ -48,6 +48,7 @@
 //   get-owner-pay-settings   {}                     -> { taxReservePct, payAnchorDate, overheadItems, stripeFeePct }
 //   set-owner-pay-settings   { taxReservePct, payAnchorDate, overheadItems, stripeFeePct } -> { ok }
 
+import { drivingMeters } from './_lib/google-maps.js';
 import { runBackup, readBackupStatus, listBackups, restoreBackup, inspectBackupBookings } from './_lib/backup.js';
 import { reportError } from './_lib/sentry.js';
 import { trendSeries, activityFeed, todayRoute, weatherToday, monthStats, collectedTotals } from './_lib/command-center-extras.js';
@@ -898,10 +899,9 @@ export async function onRequestPost({ request, env }) {
         return json({ ok: true, homeAddress });
       }
 
-      // ---- Driving distance between two addresses (Google Distance Matrix) -
-      // Reuses GOOGLE_PLACES_API_KEY — the "Distance Matrix API" must also be
-      // enabled for that key in Google Cloud Console (Places API alone isn't
-      // enough). Returns one-way driving miles; caller doubles for round trip.
+      // ---- Driving distance between two addresses (Google Routes API) -----
+      // "Routes API" must be enabled for the key in Google Cloud Console.
+      // Returns one-way driving miles; caller doubles for round trip.
       case 'calc-distance': {
         const { origin, destination } = payload;
         // Lookup failures answer 424, not 502: Cloudflare swaps a 502 for its own
@@ -913,31 +913,18 @@ export async function onRequestPost({ request, env }) {
         const apiKey = env.GOOGLE_DISTANCE_API_KEY || env.GOOGLE_PLACES_API_KEY;
         if (!apiKey) return json({ error: 'GOOGLE_DISTANCE_API_KEY not configured' }, 500);
         console.log('calc-distance: starting lookup', origin, '->', destination);
-        const url = `https://maps.googleapis.com/maps/api/distancematrix/json?units=imperial&origins=${encodeURIComponent(origin)}&destinations=${encodeURIComponent(destination)}&key=${apiKey}`;
         const controller = new AbortController();
         const timer = setTimeout(() => controller.abort(), 10000);
-        let res;
+        let meters;
         try {
-          res = await fetch(url, { signal: controller.signal });
-          console.log('calc-distance: got response', res.status);
-        } catch (fetchErr) {
-          console.log('calc-distance: fetch threw', String(fetchErr));
-          return json({ error: `Distance lookup timed out or failed to reach Google: ${fetchErr.message}` }, 424);
+          meters = await drivingMeters(apiKey, origin, destination, { signal: controller.signal });
+        } catch (e) {
+          console.log('calc-distance: failed', e.message);
+          return json({ error: `Distance lookup failed: ${e.message}` }, 424);
         } finally {
           clearTimeout(timer);
         }
-        if (!res.ok) {
-          const bodyText = await res.text();
-          console.log('calc-distance: non-ok body', bodyText.slice(0, 300));
-          return json({ error: `Google returned ${res.status}: ${bodyText.slice(0, 300)}` }, 424);
-        }
-        const data = await res.json().catch(() => ({}));
-        const el = data?.rows?.[0]?.elements?.[0];
-        if (data.status !== 'OK' || !el || el.status !== 'OK') {
-          console.log('calc-distance: bad status', data.status, el?.status);
-          return json({ error: `Distance lookup failed: ${el?.status || data.status || 'unknown error'}${data?.error_message ? ` — ${data.error_message}` : ''}` }, 424);
-        }
-        const miles = el.distance.value / 1609.344; // meters -> miles
+        const miles = meters / 1609.344; // meters -> miles
         console.log('calc-distance: success', miles);
         return json({ miles: Math.round(miles * 10) / 10 });
       }

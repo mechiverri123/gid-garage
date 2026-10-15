@@ -14,6 +14,7 @@
 // "3 new reviews this week" and "12 new likes overnight" need no new tables.
 // Tests: tests/jarvis-feeds.test.js.
 
+import { placeDetails } from './google-maps.js';
 import { phoenixYmd } from '../../shared/business-metrics.js';
 import { weatherToday } from './command-center-extras.js';
 import { normalizeMetaLead } from '../lead-capture.js';
@@ -83,12 +84,7 @@ export async function reviewsFeed({ env, bucket, now = Date.now(), force = false
   const key = env.GOOGLE_PLACES_API_KEY; const placeId = env.GOOGLE_PLACE_ID;
   if (!key || !placeId) return { connected: false, reason: 'GOOGLE_PLACES_API_KEY / GOOGLE_PLACE_ID not set' };
   const data = await cached(bucket, 'cache/jarvis-reviews.json', FEED_TTL.reviews, async () => {
-    const url = `https://maps.googleapis.com/maps/api/place/details/json?place_id=${encodeURIComponent(placeId)}&fields=rating,user_ratings_total,reviews,url&reviews_sort=newest&key=${key}`;
-    const res = await fetchImpl(url);
-    const body = await res.json().catch(() => null);
-    if (!body) throw new Error(`Google Places: HTTP ${res.status}, not a data response (check the Google Cloud project and billing)`);
-    if (body.status !== 'OK') throw new Error(`Google Places: ${body.status} ${body.error_message || ''}`.trim());
-    const r = body.result || {};
+    const r = await placeDetails(key, placeId, ['rating', 'user_ratings_total', 'reviews', 'url'], fetchImpl).catch(e => { throw new Error(`Google Places: ${e.message}`); });
     return {
       rating: r.rating ?? null, total: r.user_ratings_total ?? null, mapsUrl: r.url || null,
       reviews: (r.reviews || []).map(v => ({

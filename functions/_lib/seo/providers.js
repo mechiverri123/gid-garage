@@ -7,6 +7,7 @@
 //   pending_approval | manual_only | error
 // ctx = { env, fetch, store, now, settings }. Tests: tests/seo-providers.test.js
 
+import { placeDetails, textSearch } from '../google-maps.js';
 import { serviceAccountToken, refreshTokenAccess, googleApiError, parseServiceAccount, ProviderError } from './google-auth.js';
 import { classifyQuery, gscLocality, cityLocality } from '../../../shared/seo/local-intent.js';
 import { classifyCompetitor, parsePublicPage } from '../../../shared/seo/competitors.js';
@@ -271,18 +272,18 @@ export const places = {
   status(env) { return envStatus(env, this.env, 'Already used by the homepage reviews widget. Mobile competitors that hide their address may not appear — add them manually.'); },
   async sync(ctx) {
     const key = ctx.env.GOOGLE_PLACES_API_KEY;
-    const get = async url => { const r = await ctx.fetch(url); const d = await r.json(); if (d.status && !['OK', 'ZERO_RESULTS'].includes(d.status)) throw new ProviderError(d.status === 'REQUEST_DENIED' ? 'needs_authorization' : 'error', `Places: ${d.status} ${d.error_message || ''}`); return d; };
+    const g = fn => fn().catch(e => { throw new ProviderError(e.denied ? 'needs_authorization' : 'error', `Places: ${e.message}`); });
     let written = 0;
     if (ctx.env.GOOGLE_PLACE_ID) {
-      const own = await get(`https://maps.googleapis.com/maps/api/place/details/json?place_id=${encodeURIComponent(ctx.env.GOOGLE_PLACE_ID)}&fields=rating,user_ratings_total&key=${key}`);
-      await ctx.store.insert('seo_review_snapshots', [{ subject: 'own', rating: own.result?.rating ?? null, review_count: own.result?.user_ratings_total ?? null }]);
+      const own = await g(() => placeDetails(key, ctx.env.GOOGLE_PLACE_ID, ['rating', 'user_ratings_total'], ctx.fetch));
+      await ctx.store.insert('seo_review_snapshots', [{ subject: 'own', rating: own.rating ?? null, review_count: own.user_ratings_total ?? null }]);
       written += 1;
     }
     const found = new Map();
     const { lat, lng } = SERVICE_AREA.center;
     for (const q of ['mobile mechanic', 'auto repair', 'mobile auto repair']) {
-      const d = await get(`https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(q)}&location=${lat},${lng}&radius=48280&key=${key}`);
-      for (const r of d.results || []) if (r.place_id !== ctx.env.GOOGLE_PLACE_ID) found.set(r.place_id, r);
+      const results = await g(() => textSearch(key, q, { lat, lng, radius: 48280 }, ctx.fetch));
+      for (const r of results) if (r.place_id !== ctx.env.GOOGLE_PLACE_ID) found.set(r.place_id, r);
     }
     const rows = [...found.values()].map(r => {
       const loc = r.geometry?.location ? { lat: r.geometry.location.lat, lng: r.geometry.location.lng } : null;
@@ -300,8 +301,8 @@ export const places = {
     const needSite = await ctx.store.select('seo_competitors', { select: 'id,name', website: 'is.null', inside_service_area: 'eq.true', weight: 'gt.0', status: 'eq.active', order: 'review_count.desc.nullslast', limit: '6' }).catch(() => []);
     let sites = 0;
     for (const c of needSite) {
-      const d = await get(`https://maps.googleapis.com/maps/api/place/details/json?place_id=${encodeURIComponent(c.id)}&fields=website&key=${key}`).catch(() => null);
-      const website = d?.result?.website || null;
+      const d = await placeDetails(key, c.id, ['website'], ctx.fetch).catch(() => null);
+      const website = d?.website || null;
       let domain = null;
       try { domain = website ? new URL(website).hostname.replace(/^www\./, '') : null; } catch { /* bad url */ }
       // No website on Google: remember that ('none') so it isn't looked up every week.

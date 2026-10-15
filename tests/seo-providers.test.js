@@ -110,10 +110,10 @@ test('PageSpeed prefers field data; own-site audit applies SAB/NAU guards and fi
 test('Places discovery weights mobile mechanics inside the radius; outside businesses get weight 0', async () => {
   const store = fakeSeoStore();
   const r = router([
-    ['place/details', json({ status: 'OK', result: { rating: 4.9, user_ratings_total: 57 } })],
-    ['place/textsearch', json({ status: 'OK', results: [
-      { place_id: 'p1', name: 'Peak Mobile Mechanic', geometry: { location: { lat: 35.2, lng: -111.64 } }, rating: 4.8, user_ratings_total: 40, types: ['car_repair'] },
-      { place_id: 'p2', name: 'Valley Auto Repair', geometry: { location: { lat: 33.45, lng: -112.07 } }, rating: 4.5, user_ratings_total: 300, types: ['car_repair'] },
+    ['v1/places/', json({ rating: 4.9, userRatingCount: 57 })],
+    ['v1/places:searchText', json({ places: [
+      { id: 'p1', displayName: { text: 'Peak Mobile Mechanic' }, location: { latitude: 35.2, longitude: -111.64 }, rating: 4.8, userRatingCount: 40, types: ['car_repair'] },
+      { id: 'p2', displayName: { text: 'Valley Auto Repair' }, location: { latitude: 33.45, longitude: -112.07 }, rating: 4.5, userRatingCount: 300, types: ['car_repair'] },
     ] })],
   ]);
   await places.sync({ env: { GOOGLE_PLACES_API_KEY: 'k', GOOGLE_PLACE_ID: 'own' }, fetch: r.fetch, store, now: NOW });
