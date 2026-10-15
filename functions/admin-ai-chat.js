@@ -34,7 +34,7 @@ import { createSeoStore } from './_lib/seo/store.js';
 import { createSeoOps } from './_lib/seo/ops.js';
 import { isInsideServiceArea } from '../shared/seo/service-area.js';
 import { ownerPaySettings } from '../shared/business-metrics.js';
-import { SETTABLE_JOB_STATUSES, PAYMENT_METHODS, leadStatusUpdate, leadFollowUpReason, isValidYmd, isValidApptTime, noteContactKey } from '../shared/business-rules.js';
+import { SETTABLE_JOB_STATUSES, PAYMENT_METHODS, leadStatusUpdate, leadFollowUpReason, followUpsToClose, isValidYmd, isValidApptTime, noteContactKey } from '../shared/business-rules.js';
 import { jobEvidence, leadOrigin } from '../shared/job-context.js';
 import { JOB_TABS, CALENDAR_MODES } from '../shared/jarvis-workspace.js';
 import { runScreenTool } from './_lib/jarvis-screen.js';
@@ -305,6 +305,7 @@ OWNER ASSISTANT BEHAVIOR:
 - When capture_business_note returns owner_question, the person already had open notes: after confirming the save, ask that question word for word. Do not close anything yourself — a "yes" next turn closes them.
 - Reminders are private owner tasks, not customer appointments. create_reminder may create them without confirmation. Never convert flexible customer scheduling language into a booking.
 - For lead follow-up questions, use list_lead_followups. A lead needing attention does not mean the customer was contacted.
+- To close, clear or dismiss lead follow-ups (all or several), use close_lead_followups: first without confirmed, say how many and who, then with confirmed=true once he agrees. Report the closed count from the result; never say they're closed without it.
 - When Michael reports that he called/texted/spoke with a lead, use log_lead_contact so last_contacted_at and notes stay accurate. Only set a future follow-up when he asks for one or clearly states one.
 - Times for reminders/follow-ups are Flagstaff/Phoenix local time (America/Phoenix, UTC-07:00).
 - CRITICAL: For relative reminders like 'in 2 minutes', 'in 3 hours', or 'in 2 days', NEVER calculate a clock time yourself. Use create_reminder with due_in_minutes (2 minutes = 2, 3 hours = 180, 2 days = 2880). Use due_at_local only when Michael gives a calendar/clock time like 'tomorrow at 9 AM' or 'Friday at 3'.
@@ -493,6 +494,17 @@ const TOOLS = [
       properties: {
         scope: { type: 'string', description: 'needs_attention, overdue, due_today, uncontacted, or upcoming' },
         limit: { type: 'number' },
+      },
+    },
+  },
+  {
+    name: 'close_lead_followups',
+    description: "Close lead follow-ups in one step (\"close/clear/dismiss my lead follow-ups\"): marks every lead that currently needs follow-up as lost, or only the given lead_ids. Two steps: call without confirmed to get the list, tell Michael who will be closed, then call again with confirmed=true after he says yes. Never logs a contact.",
+    input_schema: {
+      type: 'object',
+      properties: {
+        lead_ids: { type: 'array', items: { type: 'string' }, description: 'Optional: only these leads. Omit to close all current lead follow-ups.' },
+        confirmed: { type: 'boolean', description: 'Must be true to actually close them. Omit first to get the list.' },
       },
     },
   },
@@ -1205,6 +1217,18 @@ export async function onRequestPost({ request, env }) {
             return av - bv;
           })
           .slice(0, limit);
+      }
+
+      case 'close_lead_followups': {
+        const active = await sbGet('leads', { select: 'id,created_at,fname,lname,status,follow_up_at,last_contacted_at', status: 'not.in.(booked,lost)', limit: '500' });
+        const ids = Array.isArray(input.lead_ids) ? input.lead_ids.map(String) : null;
+        const targets = followUpsToClose(active, new Date(), ids);
+        const names = targets.map(l => `${l.fname || ''} ${l.lname || ''}`.trim() || 'Unnamed lead');
+        if (!targets.length) return { closed: 0, message: 'No lead follow-ups are open.' };
+        if (input.confirmed !== true) return { needs_confirmation: true, count: targets.length, leads: names, will_do: `Mark these ${targets.length} leads lost so their follow-ups close. No contact is logged.` };
+        const fields = leadStatusUpdate('lost');
+        for (const l of targets) await ops.patch('leads', l.id, fields);
+        return { closed: targets.length, status: 'lost', leads: names };
       }
 
       case 'set_lead_followup': {

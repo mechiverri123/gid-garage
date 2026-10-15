@@ -54,7 +54,7 @@ import { reportError } from './_lib/sentry.js';
 import { trendSeries, activityFeed, todayRoute, weatherToday, monthStats, collectedTotals } from './_lib/command-center-extras.js';
 import { createBusinessOps } from './_lib/business-data.js';
 import { phoenixYmd, addDaysYmd, jobFromRow } from '../shared/business-metrics.js';
-import { unpaidJobs } from '../shared/business-rules.js';
+import { unpaidJobs, leadFollowUpReason } from '../shared/business-rules.js';
 
 const GBP_REVIEW_URL = 'https://g.page/r/CdERSypGqVdlEBM/review';
 
@@ -1555,15 +1555,13 @@ export async function onRequestPost({ request, env }) {
         // ---- Needs Attention ----
         const needsAttention = [];
         for (const l of leads) {
-          if (l.status === 'booked' || l.status === 'lost') continue;
-          const ageMs = now.getTime() - new Date(l.created_at).getTime();
-          const overdueFollowUp = l.follow_up_at && new Date(l.follow_up_at).getTime() <= now.getTime();
-          const staleNoContact = !l.last_contacted_at && ageMs > 2 * 86400000; // 2+ days, never contacted
-          if (overdueFollowUp || staleNoContact) {
+          const reason = leadFollowUpReason(l, now); // same rule as Jarvis
+          if (reason) {
+            const ageMs = now.getTime() - new Date(l.created_at).getTime();
             needsAttention.push({
               type: 'lead_follow_up',
               label: `${l.fname || ''} ${l.lname || ''}`.trim() || l.phone || 'Unknown lead',
-              detail: overdueFollowUp ? 'Follow-up is due' : `No contact in ${Math.floor(ageMs / 86400000)}d`,
+              detail: reason === 'follow_up_due' ? 'Follow-up is due' : `No contact in ${Math.floor(ageMs / 86400000)}d`,
               leadId: l.id,
             });
           }

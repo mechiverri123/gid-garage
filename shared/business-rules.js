@@ -148,6 +148,14 @@ export function leadFollowUpReason(lead, now = new Date()) {
   return null;
 }
 
+// "Close my lead follow-ups": the leads that currently need follow-up (optionally
+// only the given ids). Closing one marks it lost, which is the only honest way to
+// stop the reminder without pretending contact happened.
+export function followUpsToClose(leads = [], now = new Date(), ids = null) {
+  const pick = ids?.length ? new Set(ids) : null;
+  return leads.filter(l => leadFollowUpReason(l, now) && (!pick || pick.has(l.id)));
+}
+
 // Fields update_lead_status may write. Contact time is only stamped when the
 // new status itself says contact happened.
 export function leadStatusUpdate(status, now = new Date()) {

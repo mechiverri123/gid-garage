@@ -224,3 +224,16 @@ test('repeating reminders: "Repeats every N days/weeks" in notes; next due skips
   // Worker was down for a month: the next one is the first future cycle, not a backlog.
   assert.equal(nextRepeatDue('2026-10-02T16:00:00.000Z', 14, new Date('2026-11-01T00:00:00Z')), '2026-11-13T16:00:00.000Z');
 });
+
+test('close lead follow-ups: only leads that need follow-up, optionally only the given ids', async () => {
+  const { followUpsToClose } = await import('../shared/business-rules.js');
+  const now = new Date('2026-10-15T16:00:00Z');
+  const leads = [
+    { id: 'a', status: 'new', created_at: '2026-10-05T00:00:00Z' },                                  // uncontacted 10 days
+    { id: 'b', status: 'new', created_at: '2026-10-15T15:00:00Z' },                                  // fresh: not due
+    { id: 'c', status: 'contacted', created_at: '2026-10-01T00:00:00Z', last_contacted_at: '2026-10-02T00:00:00Z', follow_up_at: '2026-10-14T00:00:00Z' }, // overdue
+    { id: 'd', status: 'lost', created_at: '2026-10-01T00:00:00Z' },                                 // already closed
+  ];
+  assert.deepEqual(followUpsToClose(leads, now).map(l => l.id), ['a', 'c']);
+  assert.deepEqual(followUpsToClose(leads, now, ['c', 'b']).map(l => l.id), ['c']);
+});

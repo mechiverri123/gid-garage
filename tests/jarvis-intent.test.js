@@ -59,3 +59,8 @@ test('owner notes are captured, including tentative waiting-on statements', () =
   assert.equal(route('Record $200 cash on Jill\'s job'), 'jobs');
   assert.ok(tools('Record $200 cash on Jill\'s job').includes('mark_job_paid'));
 });
+
+test('"close my lead follow-ups" routes to leads with the bulk close tool offered', () => {
+  for (const t of ['close lead follow ups', 'clear my follow-ups', 'dismiss all the follow ups']) assert.equal(classifyFocusedIntent(t), 'leads', t);
+  assert.ok(INTENT_TOOL_NAMES.leads.includes('close_lead_followups'));
+});

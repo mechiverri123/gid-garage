@@ -90,7 +90,7 @@ export function classifyFocusedIntent(text) {
   if (/\b(what needs my attention|what should i handle next|action center|what do i need to handle)\b/i.test(lower)) return 'action_center';
   if (/\b(data health|data (problems|issues)|inconsisten\w*|bad records|anything (look )?(off|wrong) (in|with) the (data|records|books))\b/i.test(lower)) return 'data_health';
   if (/\b(remind me|reminder|reminders|what reminders|mark .*reminder|complete .*reminder)\b/i.test(lower)) return 'reminders';
-  if (/\b(lead follow[- ]?up|lead followups|who needs.*follow|which leads.*follow|uncontacted leads?|open leads?|new leads?|lead status)\b/i.test(lower)) return 'leads';
+  if (/\b((close|clear|dismiss)\b.*\bfollow[- ]?ups?|lead follow[- ]?up|lead followups|who needs.*follow|which leads.*follow|uncontacted leads?|open leads?|new leads?|lead status)\b/i.test(lower)) return 'leads';
   if (/\b(unpaid|balance owed|outstanding balance|who owes|owes me|invoices? (outstanding|due|unpaid)|unpaid invoices?)\b/i.test(lower)) return 'unpaid';
   // Take-home alone gets only the owner-pay tool — no revenue/net-profit preamble.
   if (/\b(take[- ]?home|owner pay|pay myself|owner draw)\b|\bhow much can i (realistically )?(take|pay myself|draw)\b/i.test(lower)
@@ -110,7 +110,7 @@ export const INTENT_TOOL_NAMES = {
   waiting_on: ['get_action_center', 'get_customer_context'],
   data_health: ['get_data_health'],
   reminders: ['create_reminder', 'list_reminders', 'complete_reminder', 'cleanup_test_reminders'],
-  leads: ['list_lead_followups', 'list_leads', 'analyze_lead', 'set_lead_followup', 'log_lead_contact', 'update_lead_status', 'create_reminder'],
+  leads: ['list_lead_followups', 'close_lead_followups', 'list_leads', 'analyze_lead', 'set_lead_followup', 'log_lead_contact', 'update_lead_status', 'create_reminder'],
   unpaid: ['get_unpaid_jobs', 'get_customer_context'],
   money: ['get_revenue_summary', 'get_owner_pay_summary', 'list_marketing_spend'],
   money_compare: ['compare_revenue_periods', 'get_revenue_summary'],
