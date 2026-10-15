@@ -38,10 +38,15 @@ export async function writeJson(bucket, key, value) {
 }
 
 // Cached fetcher: returns the cached value while fresh, else runs `load` and stores it.
-async function cached(bucket, key, ttl, load, { now = Date.now(), force = false } = {}) {
-  const hit = force ? null : await readJson(bucket, key);
-  if (hit?.at && now - hit.at < ttl) return hit.value;
-  const value = await load();
+// If the provider fails, the last saved copy is served (marked stale) instead of an error.
+export async function cached(bucket, key, ttl, load, { now = Date.now(), force = false } = {}) {
+  const hit = await readJson(bucket, key);
+  if (!force && hit?.at && now - hit.at < ttl) return hit.value;
+  let value;
+  try { value = await load(); } catch (e) {
+    if (hit?.value && typeof hit.value === 'object') return { ...hit.value, stale: true, staleSince: new Date(hit.at).toISOString(), staleReason: e.message };
+    throw e;
+  }
   await writeJson(bucket, key, { at: now, value });
   return value;
 }
@@ -80,7 +85,8 @@ export async function reviewsFeed({ env, bucket, now = Date.now(), force = false
   const data = await cached(bucket, 'cache/jarvis-reviews.json', FEED_TTL.reviews, async () => {
     const url = `https://maps.googleapis.com/maps/api/place/details/json?place_id=${encodeURIComponent(placeId)}&fields=rating,user_ratings_total,reviews,url&reviews_sort=newest&key=${key}`;
     const res = await fetchImpl(url);
-    const body = await res.json();
+    const body = await res.json().catch(() => null);
+    if (!body) throw new Error(`Google Places: HTTP ${res.status}, not a data response (check the Google Cloud project and billing)`);
     if (body.status !== 'OK') throw new Error(`Google Places: ${body.status} ${body.error_message || ''}`.trim());
     const r = body.result || {};
     return {

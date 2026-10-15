@@ -242,3 +242,16 @@ test('messenger send: refuses without both confirmations, replies as the page, m
   assert.deepEqual(tries, ['RESPONSE', 'MESSAGE_TAG']);
   await assert.rejects(sendMessenger({ env: {}, bucket, psid: 'abc', text: 'Hi', reviewed: true, confirmed: true, fetchImpl: ok }), /No Messenger conversation/);
 });
+
+test('reviews: when Google answers with an HTML page, the last saved copy is shown (stale), not an error', async () => {
+  const env = { GOOGLE_PLACES_API_KEY: 'k', GOOGLE_PLACE_ID: 'p' };
+  const saved = { rating: 5, total: 12, mapsUrl: null, reviews: [] };
+  const bucket = fakeBucket({ 'cache/jarvis-reviews.json': { at: NOW - 86400_000, value: saved } });
+  const html = async () => new Response('<!DOCTYPE html><html></html>', { status: 403, headers: { 'Content-Type': 'text/html' } });
+  const r = await reviewsFeed({ env, bucket, now: NOW, fetchImpl: html });
+  assert.equal(r.total, 12);
+  assert.equal(r.stale, true);
+  assert.match(r.staleReason, /HTTP 403/);
+  // Nothing saved yet: the clear error still surfaces.
+  await assert.rejects(reviewsFeed({ env, bucket: fakeBucket(), now: NOW, fetchImpl: html }), /Google Places: HTTP 403/);
+});

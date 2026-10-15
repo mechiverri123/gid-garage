@@ -98,6 +98,7 @@ export function ReviewsCard({ compact = false, onOpen }: { compact?: boolean; on
       <span className="text-[14px] font-semibold px-3 py-1 rounded-full" style={data.new7 > 0 ? { color: C.green, background: 'rgba(32,229,139,0.08)', border: '1px solid rgba(32,229,139,0.35)' } : { color: C.text2, border: `1px solid ${C.border}` }}>
         {data.new7 > 0 ? `${data.new7} new in the past 7 days` : 'No new reviews this week'}
       </span>
+      {data.stale && <span className="text-[13px] basis-full" style={{ color: C.amber }} title={data.staleReason}>Google isn't answering right now. Showing reviews saved {new Date(data.staleSince).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'America/Phoenix' })}.</span>}
     </div>
   );
   return (
