@@ -321,12 +321,12 @@ function VehicleSelector({ form, setForm, errors, clearError }: {
 
   const baseSelect = 'w-full bg-gray-900 text-white text-sm px-3 py-2.5 outline-none transition-colors disabled:text-gray-600 disabled:cursor-not-allowed appearance-none border';
   const sc = (field: string) => baseSelect + (errors[field] ? ' border-red-500 focus:border-red-400' : ' border-gray-800 focus:border-red-600');
-  const baseInput = 'w-full bg-gray-900 text-white text-sm px-3 py-2.5 outline-none transition-colors disabled:text-gray-600 disabled:cursor-not-allowed placeholder-gray-600 border';
+  const baseInput = 'w-full bg-gray-900 text-white text-sm px-3 py-2.5 outline-none transition-colors disabled:text-gray-600 disabled:cursor-not-allowed placeholder-gray-500 border';
   const ic = (field: string) => baseInput + (errors[field] ? ' border-red-500 focus:border-red-400' : ' border-gray-800 focus:border-red-600');
 
   return (
     <div className="col-span-2">
-      <label className={`block text-xs font-bold uppercase tracking-wider mb-1.5 ${(errors.vehicleYear||errors.vehicleMake||errors.vehicleModel) ? 'text-red-500' : 'text-gray-500'}`}>Vehicle</label>
+      <label className={`block text-xs font-bold uppercase tracking-wider mb-1.5 ${(errors.vehicleYear||errors.vehicleMake||errors.vehicleModel) ? 'text-red-500' : 'text-gray-400'}`}>Vehicle</label>
       {/* Year / Make / Model — from NHTSA API */}
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mb-2">
         <div>
@@ -369,7 +369,7 @@ function VehicleSelector({ form, setForm, errors, clearError }: {
               />
               {models.length > 0 && (
                 <button type="button" onClick={() => { setModelOther(false); setForm(p => ({ ...p, vehicleModel: '', vehicleEngine: '', vehicleTrim: '' })); }}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-red-400 text-[10px] font-bold uppercase tracking-wider">
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-red-400 text-[11px] font-bold uppercase tracking-wider">
                   ← list
                 </button>
               )}
@@ -407,7 +407,7 @@ function VehicleSelector({ form, setForm, errors, clearError }: {
                 />
                 {trimOptions.length > 0 && (
                   <button type="button" onClick={() => { setTrimOther(false); setForm(p => ({ ...p, vehicleTrim: '' })); }}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-red-400 text-[10px] font-bold uppercase tracking-wider">
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-red-400 text-[11px] font-bold uppercase tracking-wider">
                     ← list
                   </button>
                 )}
@@ -441,7 +441,7 @@ function VehicleSelector({ form, setForm, errors, clearError }: {
                 />
                 {engineOptions.length > 0 && (
                   <button type="button" onClick={() => { setEngineOther(false); setForm(p => ({ ...p, vehicleEngine: '' })); }}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-red-400 text-[10px] font-bold uppercase tracking-wider">
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-red-400 text-[11px] font-bold uppercase tracking-wider">
                     ← list
                   </button>
                 )}
@@ -603,8 +603,8 @@ function BrakePadSelector({ value, onChange }: { value: string | null; onChange:
   return (
     <div>
       <div className="flex items-center gap-2 mb-2">
-        <label className="block text-gray-500 text-xs font-bold uppercase tracking-wider">Pad Type</label>
-        <span className="text-gray-600 text-xs">(optional)</span>
+        <label className="block text-gray-400 text-xs font-bold uppercase tracking-wider">Pad Type</label>
+        <span className="text-gray-400 text-xs">(optional)</span>
       </div>
       <div className="grid grid-cols-2 gap-2">
         {PAD_OPTIONS.map(pad => (
@@ -617,14 +617,14 @@ function BrakePadSelector({ value, onChange }: { value: string | null; onChange:
               <div className="flex items-start justify-between gap-1">
                 <div>
                   <div className="text-white text-sm font-bold">{pad.label}</div>
-                  <div className="text-gray-500 text-xs">{pad.brand}</div>
+                  <div className="text-gray-400 text-xs">{pad.brand}</div>
                 </div>
                 <div className="flex items-center gap-1.5 flex-shrink-0">
-                  <span className="text-gray-500 text-xs font-mono">{pad.price}</span>
+                  <span className="text-gray-400 text-xs font-mono">{pad.price}</span>
                   <button
                     type="button"
                     onClick={e => { e.stopPropagation(); setInfoOpen(infoOpen === pad.id ? null : pad.id); }}
-                    className="w-5 h-5 rounded-full border border-gray-600 text-gray-400 hover:border-red-500 hover:text-red-400 flex items-center justify-center text-[10px] font-bold transition-colors flex-shrink-0"
+                    className="w-5 h-5 rounded-full border border-gray-600 text-gray-400 hover:border-red-500 hover:text-red-400 flex items-center justify-center text-[11px] font-bold transition-colors flex-shrink-0"
                     aria-label={`Info about ${pad.label}`}
                   >i</button>
                 </div>
@@ -640,17 +640,17 @@ function BrakePadSelector({ value, onChange }: { value: string | null; onChange:
                   ['Best for', pad.details.best],
                 ].map(([k, v]) => (
                   <div key={k} className="flex gap-2">
-                    <span className="text-gray-600 text-[10px] font-bold uppercase tracking-wider w-14 flex-shrink-0 pt-px">{k}</span>
+                    <span className="text-gray-400 text-[11px] font-bold uppercase tracking-wider w-14 flex-shrink-0 pt-px">{k}</span>
                     <span className="text-gray-300 text-xs leading-snug">{v}</span>
                   </div>
                 ))}
-                <p className="text-red-400/80 text-[10px] leading-snug mt-1 pt-1 border-t border-gray-800">{pad.details.note}</p>
+                <p className="text-red-400/80 text-[11px] leading-snug mt-1 pt-1 border-t border-gray-800">{pad.details.note}</p>
               </div>
             )}
           </div>
         ))}
       </div>
-      <p className="text-gray-600 text-xs mt-1.5">Not sure? We'll recommend the right fit for your vehicle when we follow up.</p>
+      <p className="text-gray-400 text-xs mt-1.5">Not sure? We'll recommend the right fit for your vehicle when we follow up.</p>
     </div>
   );
 }
@@ -760,7 +760,7 @@ function ReturningCustomerBanner({
         <div className="mt-3 pt-3 border-t border-red-900/50 space-y-3">
           <p className="text-gray-400 text-xs">Enter your updated card details below and we'll have it on file for your appointment.</p>
           <div>
-            <label className="block text-gray-500 text-xs font-bold uppercase tracking-wider mb-2">New Card Details</label>
+            <label className="block text-gray-400 text-xs font-bold uppercase tracking-wider mb-2">New Card Details</label>
             <div ref={mountRef} className="bg-gray-900 border border-gray-700 p-3.5 focus-within:border-red-600 transition-colors" />
             {cardError && <p className="text-red-400 text-[11px] mt-1">{cardError}</p>}
           </div>
@@ -914,7 +914,7 @@ function CardOnFileStep({ serviceId, bookingId, customerName, customerEmail, onC
           <div key={t.label} className="bg-gray-900 border border-gray-800 p-3 text-center">
             <div className="text-xl mb-1">{t.icon}</div>
             <div className="text-white text-xs font-bold">{t.label}</div>
-            <div className="text-gray-500 text-[10px]">{t.sub}</div>
+            <div className="text-gray-400 text-[11px]">{t.sub}</div>
           </div>
         ))}
       </div>
@@ -922,7 +922,7 @@ function CardOnFileStep({ serviceId, bookingId, customerName, customerEmail, onC
       {STRIPE_PK ? (
         <>
           <div className="mb-3">
-            <label className="block text-gray-500 text-xs font-bold uppercase tracking-wider mb-2">Card Details</label>
+            <label className="block text-gray-400 text-xs font-bold uppercase tracking-wider mb-2">Card Details</label>
             <div ref={mountRef} className="bg-gray-900 border border-gray-700 p-3.5 focus-within:border-red-600 transition-colors" />
             {cardError && <p className="text-red-400 text-xs mt-1.5">{cardError}</p>}
           </div>
@@ -937,7 +937,7 @@ function CardOnFileStep({ serviceId, bookingId, customerName, customerEmail, onC
             />
             <div>
               <p className="text-gray-300 text-xs font-semibold mb-0.5">Payment secured by Stripe</p>
-              <p className="text-gray-500 text-[10px] leading-relaxed">
+              <p className="text-gray-400 text-[11px] leading-relaxed">
                 Your card info is encrypted and never stored on GID Garage's servers. Stripe is certified to <span className="text-gray-400">PCI Service Provider Level 1</span> — the highest level of payment security. <a href="https://stripe.com/privacy" target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:text-blue-300 underline underline-offset-2 transition-colors">Stripe Privacy Policy ↗</a>
               </p>
             </div>
@@ -1254,7 +1254,7 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
           onMouseDown={(e) => { backdropDown.current = e.target === e.currentTarget; }}
           onClick={(e) => { if (e.target === e.currentTarget && backdropDown.current) closeModal(); backdropDown.current = false; }}>
           <div className="bg-dark w-full max-w-2xl relative p-8 md:p-10 my-4">
-            <button onClick={closeModal} className="absolute top-4 right-4 w-8 h-8 border border-gray-700 text-gray-500 hover:border-red-600 hover:text-white flex items-center justify-center text-lg transition-colors" aria-label="Close">✕</button>
+            <button onClick={closeModal} className="absolute top-4 right-4 w-8 h-8 border border-gray-700 text-gray-400 hover:border-red-600 hover:text-white flex items-center justify-center text-lg transition-colors" aria-label="Close">✕</button>
 
             {submitted ? (
               <div className="text-center py-10">
@@ -1269,18 +1269,18 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
                   <p className="text-gray-400 text-sm leading-relaxed">
                     We've received your quote request for <span className="text-red-500 font-bold">{svc?.name}</span> on <span className="text-red-500 font-bold">{dateStr} at {s.time}</span>. We'll call you to confirm availability and finalize pricing.<br /><br />
                     A confirmation has been sent to {form.email || 'your email'}.<br />
-                    <span className="text-gray-500 text-xs">If you don't see it, check your junk or spam folder.</span>
+                    <span className="text-gray-400 text-xs">If you don't see it, check your junk or spam folder.</span>
                   </p>
                 )}
                 {s.service === 'audio' && (
                   <p className="text-yellow-500/80 text-xs mt-4 max-w-xs mx-auto">Note: If parts need to be sourced, we'll reach out to confirm a deposit and lead time before your appointment.</p>
                 )}
-                <p className="text-gray-600 text-xs mt-4">Questions? Call <a href={`tel:${PHONE.replace(/-/g,'')}`} className="text-red-600 font-bold">{PHONE}</a></p>
-                <button onClick={reset} className="mt-6 border border-red-600 text-red-600 hover:bg-red-600 hover:text-white text-xs font-bold uppercase tracking-widest px-5 py-2.5 transition-colors">New Request</button>
+                <p className="text-gray-400 text-xs mt-4">Questions? Call <a href={`tel:${PHONE.replace(/-/g,'')}`} className="text-red-500 font-bold">{PHONE}</a></p>
+                <button onClick={reset} className="mt-6 border border-red-600 text-red-500 hover:bg-red-600 hover:text-white text-xs font-bold uppercase tracking-widest px-5 py-2.5 transition-colors">New Request</button>
               </div>
             ) : (
               <>
-                <p className="text-red-600 text-xs font-bold uppercase tracking-[0.25em] mb-1">Get a Quote</p>
+                <p className="text-red-500 text-xs font-bold uppercase tracking-[0.25em] mb-1">Get a Quote</p>
                 <h2 className="text-3xl font-black text-white tracking-tight mb-6">Request a Quote</h2>
 
                 {s.service !== 'other' && (
@@ -1297,7 +1297,7 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
                       className={`text-left p-3.5 border transition-all ${s.service === sv.id ? 'border-l-4 border-red-600 bg-red-950/30' : 'border-gray-800 bg-gray-900 hover:border-red-600'}`}>
                       <div className="text-xl mb-2">{sv.icon}</div>
                       <div className="text-white text-sm font-bold mb-0.5">{sv.name}</div>
-                      <div className="text-gray-500 text-xs leading-snug">{sv.desc}</div>
+                      <div className="text-gray-400 text-xs leading-snug">{sv.desc}</div>
                       <div className="text-red-500 text-xs font-bold mt-1">{sv.startingAt ? `Starting at ${sv.startingAt}` : sv.duration}</div>
                     </button>
                   ))}
@@ -1311,11 +1311,11 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1">
                         <span className="text-white text-sm font-black tracking-tight">Don't See Your Problem Listed?</span>
-                        {s.service === 'other' && <span className="text-[10px] font-bold uppercase tracking-widest text-red-500 bg-red-950/60 px-2 py-0.5">Selected</span>}
+                        {s.service === 'other' && <span className="text-[11px] font-bold uppercase tracking-widest text-red-500 bg-red-950/60 px-2 py-0.5">Selected</span>}
                       </div>
                       <p className="text-gray-400 text-xs leading-relaxed">No worries — we handle all kinds of jobs. Tell us what's going on and we'll point you in the right direction with a custom quote.</p>
                       <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mt-2.5">
-                        <a href={`tel:${PHONE.replace(/-/g,'')}`} onClick={e => e.stopPropagation()} className="flex items-center gap-1.5 text-red-500 hover:text-red-400 text-xs font-bold transition-colors whitespace-nowrap">
+                        <a href={`tel:${PHONE.replace(/-/g,'')}`} onClick={e => e.stopPropagation()} className="flex items-center gap-1.5 min-h-6 py-1 text-red-500 hover:text-red-400 text-xs font-bold transition-colors whitespace-nowrap">
                           <span>📞</span> {PHONE}
                         </a>
                         <a href="mailto:info@gidgarage.com" onClick={e => e.stopPropagation()} className="flex items-center gap-1.5 text-gray-400 hover:text-gray-300 text-xs font-bold transition-colors whitespace-nowrap">
@@ -1342,7 +1342,7 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
                         { id: 'email', label: 'Email', placeholder: 'you@email.com', type: 'email' },
                       ].map(f => (
                         <div key={f.id}>
-                          <label className={`block text-xs font-bold uppercase tracking-wider mb-1.5 ${fieldErrors[f.id] ? 'text-red-500' : 'text-gray-500'}`}>{f.label}</label>
+                          <label className={`block text-xs font-bold uppercase tracking-wider mb-1.5 ${fieldErrors[f.id] ? 'text-red-500' : 'text-gray-400'}`}>{f.label}</label>
                           <input type={f.type} placeholder={f.placeholder}
                             value={form[f.id as keyof FormData] as string}
                             onChange={e => { setForm(p => ({ ...p, [f.id]: e.target.value })); setFieldErrors(p => ({ ...p, [f.id]: '' })); }}
@@ -1357,7 +1357,7 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
 
                     {/* Problem description */}
                     <div>
-                      <label className={`block text-xs font-bold uppercase tracking-wider mb-1.5 ${fieldErrors.notes ? 'text-red-500' : 'text-gray-500'}`}>
+                      <label className={`block text-xs font-bold uppercase tracking-wider mb-1.5 ${fieldErrors.notes ? 'text-red-500' : 'text-gray-400'}`}>
                         Describe Your Problem <span className="text-red-500">*</span>
                       </label>
                       <textarea
@@ -1365,10 +1365,10 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
                         value={form.notes}
                         onChange={e => { setForm(p => ({ ...p, notes: e.target.value })); setFieldErrors(p => ({ ...p, notes: '' })); }}
                         rows={5}
-                        className={`w-full bg-gray-900 text-white text-sm px-3 py-2.5 outline-none transition-colors resize-y placeholder:text-gray-600 leading-relaxed border ${fieldErrors.notes ? 'border-red-500 focus:border-red-400' : 'border-gray-800 focus:border-red-600'}`}
+                        className={`w-full bg-gray-900 text-white text-sm px-3 py-2.5 outline-none transition-colors resize-y placeholder:text-gray-500 leading-relaxed border ${fieldErrors.notes ? 'border-red-500 focus:border-red-400' : 'border-gray-800 focus:border-red-600'}`}
                       />
                       {fieldErrors.notes && <p className="text-red-500 text-xs mt-1">{fieldErrors.notes}</p>}
-                      <p className="text-gray-600 text-[10px] mt-1">Be as specific as you can — sounds, when it happens, how long it's been going on. The more detail, the faster we can help.</p>
+                      <p className="text-gray-400 text-[11px] mt-1">Be as specific as you can — sounds, when it happens, how long it's been going on. The more detail, the faster we can help.</p>
                     </div>
 
                     {submitError && <div className="bg-red-950/50 border border-red-700 text-red-400 text-sm px-4 py-3">{submitError}</div>}
@@ -1386,7 +1386,7 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
                 {s.service === 'suspension' && (
                   <div className="mt-3 space-y-3">
                     <div>
-                      <label className="block text-gray-500 text-xs font-bold uppercase tracking-wider mb-1.5">What are you looking to replace?</label>
+                      <label className="block text-gray-400 text-xs font-bold uppercase tracking-wider mb-1.5">What are you looking to replace?</label>
                       <select value={s.suspensionPart ?? ''} onChange={e => setS(p => ({ ...p, suspensionPart: e.target.value, suspensionPosition: null }))}
                         className="w-full bg-gray-900 border border-gray-800 text-white text-sm px-3 py-2.5 outline-none focus:border-red-600 transition-colors">
                         <option value="">Select a part...</option>
@@ -1399,7 +1399,7 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
                     </div>
                     {s.suspensionPart && (
                       <div>
-                        <label className="block text-gray-500 text-xs font-bold uppercase tracking-wider mb-1.5">Which ones?</label>
+                        <label className="block text-gray-400 text-xs font-bold uppercase tracking-wider mb-1.5">Which ones?</label>
                         <select value={s.suspensionPosition ?? ''} onChange={e => setS(p => ({ ...p, suspensionPosition: e.target.value }))}
                           className="w-full bg-gray-900 border border-gray-800 text-white text-sm px-3 py-2.5 outline-none focus:border-red-600 transition-colors">
                           <option value="">Select position...</option>
@@ -1422,14 +1422,14 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
                         <p className="text-yellow-200/70">Replacing {s.suspensionPart === 'struts' ? 'struts' : s.suspensionPart === 'control_arms' ? 'control arms' : 'tie rods'} affects your vehicle's alignment. We do not perform alignments — you'll need to visit an alignment shop after this service to ensure proper tire wear and handling.</p>
                       </div>
                     )}
-                    <p className="text-gray-600 text-xs">Pricing varies per vehicle — get a free estimate when you book!</p>
+                    <p className="text-gray-400 text-xs">Pricing varies per vehicle — get a free estimate when you book!</p>
                   </div>
                 )}
 
                 {s.service === 'brakes' && (
                   <div className="mt-3 space-y-3">
                     <div>
-                      <label className="block text-gray-500 text-xs font-bold uppercase tracking-wider mb-1.5">What brake service do you need?</label>
+                      <label className="block text-gray-400 text-xs font-bold uppercase tracking-wider mb-1.5">What brake service do you need?</label>
                       <select value={s.brakeService ?? ''} onChange={e => setS(p => ({ ...p, brakeService: e.target.value, brakePosition: null, brakePadType: null }))}
                         className="w-full bg-gray-900 border border-gray-800 text-white text-sm px-3 py-2.5 outline-none focus:border-red-600 transition-colors">
                         <option value="">Select a service...</option>
@@ -1440,7 +1440,7 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
                     </div>
                     {s.brakeService && (
                       <div>
-                        <label className="block text-gray-500 text-xs font-bold uppercase tracking-wider mb-1.5">Which ones?</label>
+                        <label className="block text-gray-400 text-xs font-bold uppercase tracking-wider mb-1.5">Which ones?</label>
                         <select value={s.brakePosition ?? ''} onChange={e => setS(p => ({ ...p, brakePosition: e.target.value }))}
                           className="w-full bg-gray-900 border border-gray-800 text-white text-sm px-3 py-2.5 outline-none focus:border-red-600 transition-colors">
                           <option value="">Select position...</option>
@@ -1462,13 +1462,13 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
                         onChange={v => setS(p => ({ ...p, brakePadType: v }))}
                       />
                     )}
-                    <p className="text-gray-600 text-xs">Pricing varies per vehicle — get a free estimate when you book!</p>
+                    <p className="text-gray-400 text-xs">Pricing varies per vehicle — get a free estimate when you book!</p>
                   </div>
                 )}
 
                 {s.service === 'audio' && (
                   <div className="mt-3">
-                    <label className="block text-gray-500 text-xs font-bold uppercase tracking-wider mb-1.5">What audio service do you need?</label>
+                    <label className="block text-gray-400 text-xs font-bold uppercase tracking-wider mb-1.5">What audio service do you need?</label>
                     <select value={s.audioPackage ?? ''} onChange={e => setS(p => ({ ...p, audioPackage: e.target.value }))}
                       className="w-full bg-gray-900 border border-gray-800 text-white text-sm px-3 py-2.5 outline-none focus:border-red-600 transition-colors">
                       <option value="">Select a package...</option>
@@ -1486,7 +1486,7 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
                 )}
 
                 {s.service === 'oil' && (
-                  <p className="text-gray-600 text-xs mt-2">*Mobile service fee included. Price may vary by vehicle. Full synthetic only.</p>
+                  <p className="text-gray-400 text-xs mt-2">*Mobile service fee included. Price may vary by vehicle. Full synthetic only.</p>
                 )}
 
                 {s.step >= 2 && s.service !== 'other' && (<>
@@ -1497,12 +1497,12 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
                     <p className="text-yellow-400/90 text-xs font-semibold">Preferred date &amp; time — we'll confirm availability when we follow up.</p>
                   </div>
                   <div className="flex items-center justify-between mb-4">
-                    <button onClick={prevMonth} className="w-7 h-7 border border-gray-700 text-gray-500 hover:border-red-600 hover:text-white flex items-center justify-center transition-colors">‹</button>
+                    <button onClick={prevMonth} className="w-7 h-7 border border-gray-700 text-gray-400 hover:border-red-600 hover:text-white flex items-center justify-center transition-colors">‹</button>
                     <span className="text-white text-sm font-black uppercase tracking-wider">{MONTHS[s.calMonth]} {s.calYear}</span>
-                    <button onClick={nextMonth} className="w-7 h-7 border border-gray-700 text-gray-500 hover:border-red-600 hover:text-white flex items-center justify-center transition-colors">›</button>
+                    <button onClick={nextMonth} className="w-7 h-7 border border-gray-700 text-gray-400 hover:border-red-600 hover:text-white flex items-center justify-center transition-colors">›</button>
                   </div>
                   <div className="grid grid-cols-7 gap-1 mb-2">
-                    {DAY_LABELS.map(d => <div key={d} className="text-center text-gray-600 text-xs font-bold uppercase py-1">{d}</div>)}
+                    {DAY_LABELS.map(d => <div key={d} className="text-center text-gray-400 text-xs font-bold uppercase py-1">{d}</div>)}
                     {Array.from({ length: firstDay }).map((_, i) => <div key={`e${i}`} />)}
                     {Array.from({ length: daysInMonth }, (_, i) => i + 1).map(d => {
                       const k = dateKey(s.calYear, s.calMonth, d);
@@ -1516,7 +1516,7 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
                       );
                     })}
                   </div>
-                  <p className="text-gray-700 text-[10px] mt-1">Mon–Fri: 1:30 PM–8 PM · Sat–Sun: 5 AM–8 PM</p>
+                  <p className="text-gray-400 text-[11px] mt-1">Mon–Fri: 1:30 PM–8 PM · Sat–Sun: 5 AM–8 PM</p>
                 </>)}
 
                 {s.step >= 3 && s.date && (<>
@@ -1546,14 +1546,14 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
                   <div className="border-l-4 border-red-600 bg-gray-900 px-4 py-3 mb-5 grid grid-cols-2 gap-x-6 gap-y-1">
                     {[['Service', `${svc?.icon} ${svc?.name}`], ['Date', dateStr], ['Time', s.time], ['Est. Duration', svc?.duration ?? '']].map(([k, v]) => (
                       <div key={k} className="flex justify-between">
-                        <span className="text-gray-500 text-xs font-bold uppercase tracking-wider">{k}</span>
+                        <span className="text-gray-400 text-xs font-bold uppercase tracking-wider">{k}</span>
                         <span className="text-white text-xs font-semibold">{v}</span>
                       </div>
                     ))}
                   </div>
                   {/* Returning customer banner */}
                   {lookingUpCustomer && (
-                    <div className="col-span-2 flex items-center gap-2 text-gray-500 text-xs animate-pulse mb-1">
+                    <div className="col-span-2 flex items-center gap-2 text-gray-400 text-xs animate-pulse mb-1">
                       <span className="inline-block w-3 h-3 border-2 border-gray-500 border-t-transparent rounded-full animate-spin" />
                       Checking for your account...
                     </div>
@@ -1578,7 +1578,7 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
                       { id: 'email', label: 'Email', placeholder: 'you@email.com', type: 'email' },
                     ].map(f => (
                       <div key={f.id}>
-                        <label className={`block text-xs font-bold uppercase tracking-wider mb-1.5 ${fieldErrors[f.id] ? 'text-red-500' : 'text-gray-500'}`}>{f.label}</label>
+                        <label className={`block text-xs font-bold uppercase tracking-wider mb-1.5 ${fieldErrors[f.id] ? 'text-red-500' : 'text-gray-400'}`}>{f.label}</label>
                         <input type={f.type} placeholder={f.placeholder}
                           value={form[f.id as keyof FormData] as string}
                           onChange={e => { setForm(p => ({ ...p, [f.id]: e.target.value })); setFieldErrors(p => ({ ...p, [f.id]: '' })); }}
@@ -1588,8 +1588,8 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
                     ))}
                     <VehicleSelector form={form} setForm={setForm} errors={fieldErrors} clearError={(k) => setFieldErrors(p => ({ ...p, [k]: '' }))} />
                     <div className="col-span-2">
-                      <label className="block text-gray-500 text-xs font-bold uppercase tracking-wider mb-1.5">
-                        License Plate or VIN <span className="normal-case font-normal text-gray-600">(optional — helps us get the exact fit for your vehicle)</span>
+                      <label className="block text-gray-400 text-xs font-bold uppercase tracking-wider mb-1.5">
+                        License Plate or VIN <span className="normal-case font-normal text-gray-400">(optional — helps us get the exact fit for your vehicle)</span>
                       </label>
                       <input type="text" placeholder="e.g. AZ ABC1234 or 1HGCM82633A123456"
                         value={form.licensePlate}
@@ -1597,7 +1597,7 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
                         className="w-full bg-gray-900 text-white text-sm px-3 py-2.5 outline-none transition-colors border border-gray-800 focus:border-red-600" />
                     </div>
                     <div className="col-span-2">
-                      <label className={`block text-xs font-bold uppercase tracking-wider mb-1.5 ${fieldErrors.serviceAddress ? 'text-red-500' : 'text-gray-500'}`}>Service Address <span className="text-red-500">*</span> <span className="normal-case font-normal text-gray-600">(where we service your vehicle)</span></label>
+                      <label className={`block text-xs font-bold uppercase tracking-wider mb-1.5 ${fieldErrors.serviceAddress ? 'text-red-500' : 'text-gray-400'}`}>Service Address <span className="text-red-500">*</span> <span className="normal-case font-normal text-gray-400">(where we service your vehicle)</span></label>
                       <input type="text" placeholder="123 Main St, Flagstaff, AZ 86001"
                         value={form.serviceAddress}
                         onChange={e => { setForm(p => ({ ...p, serviceAddress: e.target.value })); setFieldErrors(p => ({ ...p, serviceAddress: '' })); }}
@@ -1605,7 +1605,7 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
                       {fieldErrors.serviceAddress && <p className="text-red-500 text-xs mt-1">{fieldErrors.serviceAddress}</p>}
                     </div>
                     <div className="col-span-2">
-                      <label className={`block text-xs font-bold uppercase tracking-wider mb-1.5 ${fieldErrors.notes ? 'text-red-500' : 'text-gray-500'}`}>
+                      <label className={`block text-xs font-bold uppercase tracking-wider mb-1.5 ${fieldErrors.notes ? 'text-red-500' : 'text-gray-400'}`}>
                         {s.service === 'diag'
                           ? <>What Is the Vehicle Doing? <span className="text-red-500">*</span></>
                           : 'Notes (optional)'}
@@ -1619,14 +1619,14 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
                         rows={3}
                         className={`w-full bg-gray-900 text-white text-sm px-3 py-2.5 outline-none transition-colors resize-y border ${fieldErrors.notes ? 'border-red-500 focus:border-red-400' : 'border-gray-800 focus:border-red-600'}`} />
                       {fieldErrors.notes && <p className="text-red-500 text-xs mt-1">{fieldErrors.notes}</p>}
-                      <p className="text-gray-600 text-xs mt-1">
+                      <p className="text-gray-400 text-xs mt-1">
                         {s.service === 'diag'
                           ? 'The more detail you can provide, the more accurately we can scope the diagnostic.'
                           : <>💡 Include a preferred date &amp; time — we'll confirm availability. Note: we may need to assess your vehicle first before finalizing the scope of work.</>}
                       </p>
                     </div>
                   </div>
-                  <p className="text-gray-600 text-xs mt-3">By booking, you agree to our <button type="button" onClick={() => setShowCancelPolicy(true)} className="text-red-500 hover:text-red-400 underline underline-offset-2 transition-colors">cancellation policy</button>. Please cancel at least 24 hours in advance to avoid a cancellation fee.</p>
+                  <p className="text-gray-400 text-xs mt-3">By booking, you agree to our <button type="button" onClick={() => setShowCancelPolicy(true)} className="text-red-500 hover:text-red-400 underline underline-offset-2 transition-colors">cancellation policy</button>. Please cancel at least 24 hours in advance to avoid a cancellation fee.</p>
                   {submitError && (
                     <div className="mt-4 bg-red-950/50 border border-red-700 text-red-400 text-sm px-4 py-3">
                       {submitError}
@@ -1654,7 +1654,7 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
                     </div>
                   )}
                   {submitting && (
-                    <div className="mt-3 text-center text-gray-500 text-sm animate-pulse">Submitting your request...</div>
+                    <div className="mt-3 text-center text-gray-400 text-sm animate-pulse">Submitting your request...</div>
                   )}
                 </>)}
               </>
@@ -1666,7 +1666,7 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
       {showCancelPolicy && (
         <div className="fixed inset-0 z-[10000] bg-black/80 flex items-center justify-center p-4" onClick={() => setShowCancelPolicy(false)}>
           <div className="bg-[#1a1a1a] border border-gray-700 w-full max-w-md p-8 relative" onClick={(e) => e.stopPropagation()}>
-            <button onClick={() => setShowCancelPolicy(false)} className="absolute top-4 right-4 w-8 h-8 border border-gray-700 text-gray-500 hover:border-red-600 hover:text-white flex items-center justify-center text-lg transition-colors" aria-label="Close">✕</button>
+            <button onClick={() => setShowCancelPolicy(false)} className="absolute top-4 right-4 w-8 h-8 border border-gray-700 text-gray-400 hover:border-red-600 hover:text-white flex items-center justify-center text-lg transition-colors" aria-label="Close">✕</button>
             <div className="w-8 h-1 bg-red-600 mb-5" />
             <h3 className="text-white text-xl font-extrabold tracking-tight mb-4">Cancellation Policy</h3>
             <div className="space-y-3 text-gray-400 text-sm leading-relaxed">
@@ -1691,7 +1691,7 @@ function StepHeader({ n, current, label }: { n: number; current: number; label: 
       <div className={`w-6 h-6 flex items-center justify-center text-xs font-black text-white flex-shrink-0 ${done ? 'bg-green-600' : n === current ? 'bg-red-600' : 'bg-gray-800'}`}>
         {done ? '✓' : n}
       </div>
-      <span className={`text-xs font-bold uppercase tracking-widest ${done || n === current ? 'text-white' : 'text-gray-600'}`}>{label}</span>
+      <span className={`text-xs font-bold uppercase tracking-widest ${done || n === current ? 'text-white' : 'text-gray-400'}`}>{label}</span>
     </div>
   );
 }
@@ -1722,7 +1722,7 @@ export function AdminPasswordGate({ onUnlock }: { onUnlock: () => void }) {
   return (
     <div className="min-h-screen bg-dark flex items-center justify-center px-4">
       <div className="w-full max-w-xs text-center">
-        <p className="text-red-600 text-xs font-bold uppercase tracking-[0.25em] mb-2">Admin Access</p>
+        <p className="text-red-500 text-xs font-bold uppercase tracking-[0.25em] mb-2">Admin Access</p>
         <h1 className="text-3xl font-black text-white mb-8">Enter PIN</h1>
         <div className="flex justify-center gap-4 mb-8">
           {[0,1,2,3].map(i => (
@@ -1784,11 +1784,11 @@ function GarageNotesField({ booking, onSave }: { booking: Booking; onSave: (id: 
       <div className="flex items-center justify-between mb-1.5">
         <label className="text-xs font-bold uppercase tracking-wider text-yellow-600">🔧 Garage Notes</label>
         <div className="flex items-center gap-2">
-          {saving && <span className="text-gray-600 text-[10px] uppercase tracking-wider">Saving…</span>}
-          {!saving && saved && text !== '' && <span className="text-gray-600 text-[10px] uppercase tracking-wider">✓ Saved</span>}
-          {!saving && !saved && <span className="text-gray-600 text-[10px] uppercase tracking-wider">Unsaved</span>}
+          {saving && <span className="text-gray-400 text-[11px] uppercase tracking-wider">Saving…</span>}
+          {!saving && saved && text !== '' && <span className="text-gray-400 text-[11px] uppercase tracking-wider">✓ Saved</span>}
+          {!saving && !saved && <span className="text-gray-400 text-[11px] uppercase tracking-wider">Unsaved</span>}
           <button onClick={handleManualSave} disabled={saving}
-            className="text-[10px] font-bold uppercase tracking-wider px-2 py-1 border border-yellow-800/60 text-yellow-700 hover:border-yellow-600 hover:text-yellow-500 transition-colors disabled:opacity-50">
+            className="text-[11px] font-bold uppercase tracking-wider px-2 py-1 border border-yellow-800/60 text-yellow-700 hover:border-yellow-600 hover:text-yellow-500 transition-colors disabled:opacity-50">
             Save
           </button>
         </div>
@@ -1870,11 +1870,11 @@ function BlackoutDatesModal({ onClose }: { onClose: () => void }) {
       <div className="bg-gray-900 border border-gray-700 max-w-md w-full max-h-[85vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-800">
           <h3 className="text-white text-sm font-bold uppercase tracking-widest">🚫 Blackout Dates</h3>
-          <button onClick={onClose} className="text-gray-500 hover:text-white text-xl leading-none">×</button>
+          <button onClick={onClose} className="text-gray-400 hover:text-white text-xl leading-none">×</button>
         </div>
 
         <div className="p-5 space-y-4">
-          <p className="text-gray-500 text-xs">Days you're unavailable — later W2 shifts, vacation, etc. These dates disappear entirely from the customer booking calendar.</p>
+          <p className="text-gray-400 text-xs">Days you're unavailable — later W2 shifts, vacation, etc. These dates disappear entirely from the customer booking calendar.</p>
 
           {/* Add form */}
           <div className="bg-gray-800/50 border border-gray-700 p-3 space-y-2">
@@ -1892,7 +1892,7 @@ function BlackoutDatesModal({ onClose }: { onClose: () => void }) {
               value={newReason}
               onChange={e => setNewReason(e.target.value)}
               placeholder="Reason (optional — e.g. Mygrant late shift, Vacation)"
-              className="w-full bg-gray-800 border border-gray-700 text-white px-2 py-2 text-sm outline-none focus:border-yellow-700 placeholder-gray-600"
+              className="w-full bg-gray-800 border border-gray-700 text-white px-2 py-2 text-sm outline-none focus:border-yellow-700 placeholder-gray-500"
             />
             <button
               onClick={addDate}
@@ -1907,18 +1907,18 @@ function BlackoutDatesModal({ onClose }: { onClose: () => void }) {
 
           {/* List */}
           {loading ? (
-            <p className="text-gray-600 text-xs text-center py-4">Loading…</p>
+            <p className="text-gray-400 text-xs text-center py-4">Loading…</p>
           ) : upcoming.length === 0 ? (
-            <p className="text-gray-600 text-xs text-center py-4">No upcoming blackout dates</p>
+            <p className="text-gray-400 text-xs text-center py-4">No upcoming blackout dates</p>
           ) : (
             <div className="space-y-1.5">
               {upcoming.map(d => (
                 <div key={d.date} className="flex items-center justify-between bg-gray-800/40 border border-gray-800 px-3 py-2">
                   <div>
                     <p className="text-white text-sm font-bold">{fmt(d.date)}</p>
-                    {d.reason && <p className="text-gray-500 text-xs">{d.reason}</p>}
+                    {d.reason && <p className="text-gray-400 text-xs">{d.reason}</p>}
                   </div>
-                  <button onClick={() => removeDate(d.date)} disabled={saving} className="text-gray-600 hover:text-red-500 text-lg leading-none transition-colors disabled:opacity-40">×</button>
+                  <button onClick={() => removeDate(d.date)} disabled={saving} className="text-gray-400 hover:text-red-500 text-lg leading-none transition-colors disabled:opacity-40">×</button>
                 </div>
               ))}
             </div>
@@ -2234,7 +2234,7 @@ export function AdminSchedule() {
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-8">
           <div>
-            <p className="text-red-600 text-xs font-bold uppercase tracking-[0.25em] mb-1">Admin · GID Garage</p>
+            <p className="text-red-500 text-xs font-bold uppercase tracking-[0.25em] mb-1">Admin · GID Garage</p>
             <h1 className="text-4xl font-black text-white tracking-tight">Schedule</h1>
           </div>
           <div className="flex items-center gap-1 flex-wrap sm:flex-nowrap sm:gap-2">
@@ -2260,7 +2260,7 @@ export function AdminSchedule() {
         <div className="flex flex-wrap gap-0 mb-8 border-b border-gray-800">
           {(['jobs', 'schedule', 'customers', 'fleet', 'mileage', 'hub', 'pay', 'helpers'] as const).map(tab => (
             <button key={tab} onClick={() => setAdminTab(tab)}
-              className={`text-xs font-bold uppercase tracking-widest px-6 py-3 transition-colors border-b-2 -mb-px ${adminTab === tab ? 'border-red-600 text-white' : 'border-transparent text-gray-500 hover:text-gray-300'}`}>
+              className={`text-xs font-bold uppercase tracking-widest px-6 py-3 transition-colors border-b-2 -mb-px ${adminTab === tab ? 'border-red-600 text-white' : 'border-transparent text-gray-400 hover:text-gray-300'}`}>
               {tab === 'jobs' ? '💼 Jobs' : tab === 'schedule' ? '📅 Schedule' : tab === 'customers' ? '👥 Customers' : tab === 'fleet' ? '🚚 Fleet' : tab === 'mileage' ? '🚗 Mileage' : tab === 'hub' ? '🏢 Hub' : tab === 'pay' ? '💵 Pay' : '👷 Team'}
             </button>
           ))}
@@ -2272,7 +2272,7 @@ export function AdminSchedule() {
           {[['Upcoming', upcoming, 'text-red-500'], ['Completed', completed, 'text-green-500'], ['Total', total, 'text-white']].map(([label, val, cls]) => (
             <div key={label as string} className="bg-gray-900 border border-gray-800 p-5">
               <div className={`text-3xl font-black ${cls} mb-1`}>{val}</div>
-              <div className="text-gray-500 text-xs font-bold uppercase tracking-wider">{label}</div>
+              <div className="text-gray-400 text-xs font-bold uppercase tracking-wider">{label}</div>
             </div>
           ))}
         </div>
@@ -2294,7 +2294,7 @@ export function AdminSchedule() {
             </button>
             {(['list','month','week','day'] as const).map(v => (
               <button key={v} onClick={() => setView(v)}
-                className={`text-xs font-bold uppercase tracking-wider px-3 py-1.5 border transition-colors ${view === v ? 'bg-gray-700 border-gray-600 text-white' : 'border-gray-800 text-gray-500 hover:text-white'}`}>
+                className={`text-xs font-bold uppercase tracking-wider px-3 py-1.5 border transition-colors ${view === v ? 'bg-gray-700 border-gray-600 text-white' : 'border-gray-800 text-gray-400 hover:text-white'}`}>
                 {v}
               </button>
             ))}
@@ -2303,7 +2303,7 @@ export function AdminSchedule() {
 
         {showBlackoutManager && <BlackoutDatesModal onClose={() => setShowBlackoutManager(false)} />}
 
-        {loading && <div className="text-center py-16 text-gray-600 font-bold uppercase tracking-wider text-sm">Loading bookings...</div>}
+        {loading && <div className="text-center py-16 text-gray-400 font-bold uppercase tracking-wider text-sm">Loading bookings...</div>}
 
         {/* ── MONTH VIEW ── */}
         {!loading && view === 'month' && (
@@ -2314,7 +2314,7 @@ export function AdminSchedule() {
               <button onClick={() => navCalendar(1)} className="w-8 h-8 border border-gray-700 text-gray-400 hover:border-red-600 hover:text-white flex items-center justify-center transition-colors">›</button>
             </div>
             <div className="grid grid-cols-7 gap-1">
-              {DAY_LABELS.map(d => <div key={d} className="text-center text-gray-600 text-xs font-bold uppercase py-2">{d}</div>)}
+              {DAY_LABELS.map(d => <div key={d} className="text-center text-gray-400 text-xs font-bold uppercase py-2">{d}</div>)}
               {Array.from({ length: firstDay }).map((_, i) => <div key={`e${i}`} />)}
               {Array.from({ length: daysInMonth }, (_, i) => i + 1).map(d => {
                 const k = dateKey(calYear, calMonth, d);
@@ -2341,11 +2341,11 @@ export function AdminSchedule() {
                         draggable
                         onDragStart={e => { e.dataTransfer.setData('text/plain', b.id); setDraggingId(b.id); }}
                         onDragEnd={() => { setDraggingId(null); setDropTargetKey(null); }}
-                        className={`w-full text-left bg-red-900/50 hover:bg-red-900/80 text-red-300 text-[10px] px-1 py-0.5 mb-0.5 truncate transition-colors cursor-grab active:cursor-grabbing ${draggingId === b.id ? 'opacity-40' : ''}`}>
+                        className={`w-full text-left bg-red-900/50 hover:bg-red-900/80 text-red-300 text-[11px] px-1 py-0.5 mb-0.5 truncate transition-colors cursor-grab active:cursor-grabbing ${draggingId === b.id ? 'opacity-40' : ''}`}>
                         {b.time} {b.fname}
                       </button>
                     ))}
-                    {dayBookings.length > 2 && <div className="text-gray-500 text-[10px]">+{dayBookings.length - 2} more</div>}
+                    {dayBookings.length > 2 && <div className="text-gray-400 text-[11px]">+{dayBookings.length - 2} more</div>}
                   </div>
                 );
               })}
@@ -2364,7 +2364,7 @@ export function AdminSchedule() {
             <div className="min-w-[600px]">
               {/* Day headers */}
               <div className="grid grid-cols-8 gap-1 mb-1">
-                <div className="text-gray-700 text-[10px] font-bold uppercase py-1" />
+                <div className="text-gray-700 text-[11px] font-bold uppercase py-1" />
                 {weekDates.map(d => {
                   const dKey = dateKey(d.getFullYear(), d.getMonth(), d.getDate());
                   const isToday = dKey === today;
@@ -2378,7 +2378,7 @@ export function AdminSchedule() {
               {/* Time rows */}
               {ALL_SLOTS.map(slot => (
                 <div key={slot} className="grid grid-cols-8 gap-1 border-t border-gray-800">
-                  <div className="text-gray-600 text-[10px] py-2 pr-2 text-right font-mono">{slot}</div>
+                  <div className="text-gray-400 text-[11px] py-2 pr-2 text-right font-mono">{slot}</div>
                   {weekDates.map(d => {
                     const dKey = dateKey(d.getFullYear(), d.getMonth(), d.getDate());
                     const slotBookings = bookings.filter(b => b.date === dKey && b.time === slot && b.status !== 'cancelled');
@@ -2400,7 +2400,7 @@ export function AdminSchedule() {
                             draggable
                             onDragStart={e => { e.dataTransfer.setData('text/plain', b.id); setDraggingId(b.id); }}
                             onDragEnd={() => { setDraggingId(null); setDropTargetKey(null); }}
-                            className={`w-full text-left bg-red-900/50 hover:bg-red-900/80 text-red-300 text-[10px] px-1 py-0.5 truncate transition-colors cursor-grab active:cursor-grabbing ${draggingId === b.id ? 'opacity-40' : ''}`}>
+                            className={`w-full text-left bg-red-900/50 hover:bg-red-900/80 text-red-300 text-[11px] px-1 py-0.5 truncate transition-colors cursor-grab active:cursor-grabbing ${draggingId === b.id ? 'opacity-40' : ''}`}>
                             {b.fname} {b.lname[0]}.
                           </button>
                         ))}
@@ -2428,7 +2428,7 @@ export function AdminSchedule() {
               return (
                 <div className="space-y-2">
                   {dayBookings.length === 0 && (
-                    <div className="text-center py-6 text-gray-600 text-sm font-bold uppercase tracking-wider">No appointments</div>
+                    <div className="text-center py-6 text-gray-400 text-sm font-bold uppercase tracking-wider">No appointments</div>
                   )}
                   {slots.map(slot => {
                     const slotBookings = dayBookings.filter(b => b.time === slot);
@@ -2444,7 +2444,7 @@ export function AdminSchedule() {
                           if (id) handleDropReschedule(id, dKey, slot);
                         }}
                       >
-                        <div className="text-gray-600 text-xs font-mono pt-1">{slot}</div>
+                        <div className="text-gray-400 text-xs font-mono pt-1">{slot}</div>
                         <div className="space-y-1">
                           {slotBookings.length === 0
                             ? <div className="h-6" />
@@ -2458,7 +2458,7 @@ export function AdminSchedule() {
                                     className={`w-full text-left bg-red-900/40 hover:bg-red-900/70 border border-red-900/60 px-3 py-2 transition-colors cursor-grab active:cursor-grabbing ${draggingId === b.id ? 'opacity-40' : ''}`}>
                                     <span className="text-white text-sm font-bold">{b.fname} {b.lname}</span>
                                     <span className="text-gray-400 text-xs ml-2">{si?.icon} {si?.name}</span>
-                                    <span className="text-gray-500 text-xs block mt-0.5">{b.vehicle}</span>
+                                    <span className="text-gray-400 text-xs block mt-0.5">{b.vehicle}</span>
                                   </button>
                                 );
                               })
@@ -2477,7 +2477,7 @@ export function AdminSchedule() {
         {!loading && view === 'list' && (
           <div className="space-y-3">
             {filtered.length === 0 && (
-              <div className="text-center py-16 text-gray-600 font-bold uppercase tracking-wider text-sm">No appointments found</div>
+              <div className="text-center py-16 text-gray-400 font-bold uppercase tracking-wider text-sm">No appointments found</div>
             )}
             {filtered.map(b => {
               const svcInfo = SERVICES.find(s => s.id === b.service);
@@ -2491,15 +2491,15 @@ export function AdminSchedule() {
                       <div>
                         <div className="text-white font-bold text-base">{b.fname} {b.lname}</div>
                         <div className="text-gray-400 text-sm">{svcInfo?.name} · {dateStr} at {b.time}</div>
-                        <div className="text-gray-500 text-xs mt-0.5">{b.vehicle} · {b.phone}</div>
-                        {b.notes && <div className="text-gray-600 text-xs mt-1 italic">"{b.notes}"</div>}
+                        <div className="text-gray-400 text-xs mt-0.5">{b.vehicle} · {b.phone}</div>
+                        {b.notes && <div className="text-gray-400 text-xs mt-1 italic">"{b.notes}"</div>}
                       </div>
                     </button>
                     <div className="flex items-center gap-2 flex-shrink-0">
                       <span className={`text-xs font-bold uppercase tracking-wider px-2.5 py-1 ${
                         b.status === 'confirmed' ? 'bg-red-900/40 text-red-400' :
                         b.status === 'completed' ? 'bg-green-900/40 text-green-400' :
-                        'bg-gray-800 text-gray-500'}`}>
+                        'bg-gray-800 text-gray-400'}`}>
                         {b.status}
                       </span>
                       {b.status === 'confirmed' && (
@@ -2508,11 +2508,11 @@ export function AdminSchedule() {
                       )}
                       {b.status !== 'cancelled' && (
                         <button onClick={() => { if (confirm('Cancel this appointment?')) updateStatus(b.id, 'cancelled'); }}
-                          className="text-xs font-bold uppercase tracking-wider px-2.5 py-1 border border-gray-700 text-gray-500 hover:border-red-700 hover:text-red-500 transition-colors">✕</button>
+                          className="text-xs font-bold uppercase tracking-wider px-2.5 py-1 border border-gray-700 text-gray-400 hover:border-red-700 hover:text-red-500 transition-colors">✕</button>
                       )}
                       <button onClick={() => { if (confirm(`Permanently delete ${b.fname} ${b.lname}'s appointment? This cannot be undone.`)) deleteBooking(b.id); }}
                         title="Delete permanently"
-                        className="text-xs font-bold uppercase tracking-wider px-2.5 py-1 border border-gray-800 text-gray-600 hover:border-red-700 hover:text-red-500 transition-colors">🗑</button>
+                        className="text-xs font-bold uppercase tracking-wider px-2.5 py-1 border border-gray-800 text-gray-400 hover:border-red-700 hover:text-red-500 transition-colors">🗑</button>
                     </div>
                   </div>
                   <GarageNotesField booking={b} onSave={saveGarageNotes} />
@@ -2548,14 +2548,14 @@ export function AdminSchedule() {
       {adminTab === 'hub' && <BusinessHub />}
       {adminTab === 'helpers' && (
         <div className="max-w-3xl mx-auto py-4 px-3 sm:px-6">
-          <p className="text-red-600 text-xs font-bold uppercase tracking-[0.25em] mb-1">Admin · GID Garage</p>
-          <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tight mb-5">Team &amp; Pay <a href="/admin/pay" className="text-gray-600 hover:text-white text-xs font-bold tracking-widest align-middle ml-2">/admin/pay ↗</a></h2>
+          <p className="text-red-500 text-xs font-bold uppercase tracking-[0.25em] mb-1">Admin · GID Garage</p>
+          <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tight mb-5">Team &amp; Pay <a href="/admin/pay" className="text-gray-400 hover:text-white text-xs font-bold tracking-widest align-middle ml-2">/admin/pay ↗</a></h2>
           <HelperPay />
         </div>
       )}
       {adminTab === 'pay' && (
         <div className="max-w-2xl mx-auto py-4 px-3 sm:px-6">
-          <p className="text-red-600 text-xs font-bold uppercase tracking-[0.25em] mb-1">Admin · GID Garage</p>
+          <p className="text-red-500 text-xs font-bold uppercase tracking-[0.25em] mb-1">Admin · GID Garage</p>
           <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tight mb-5">Owner Pay</h2>
           <OwnerPayPanel />
         </div>

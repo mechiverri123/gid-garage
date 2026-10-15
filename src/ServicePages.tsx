@@ -102,7 +102,7 @@ export function ServicePage({ page }: { page: ServicePageData }) {
             {page.photos.map(p => (
               <figure key={p.src} className="bg-white/5">
                 <img src={img(p.src)} alt={p.alt} loading="lazy" decoding="async" className="w-full aspect-square object-cover" onError={e => { e.currentTarget.style.display = 'none'; }} />
-                <figcaption className="text-white/50 text-xs px-2 py-1.5">{p.alt}</figcaption>
+                <figcaption className="text-white/60 text-xs px-2 py-1.5">{p.alt}</figcaption>
               </figure>
             ))}
           </div>
@@ -133,7 +133,7 @@ export function ServicePage({ page }: { page: ServicePageData }) {
         </div>
       </section>
 
-      <p className="text-white/50 text-sm mt-10">Other services: {SERVICE_PAGES.filter(s => s.path !== page.path).map((s, i) => <span key={s.path}>{i ? ' · ' : ''}<a href={s.path} className="underline hover:text-white">{s.label}</a></span>)} · <a href="/service-area" className="underline hover:text-white">Areas we serve</a></p>
+      <p className="text-white/60 text-sm mt-10">Other services: {SERVICE_PAGES.filter(s => s.path !== page.path).map((s, i) => <span key={s.path}>{i ? ' · ' : ''}<a href={s.path} className="underline hover:text-white">{s.label}</a></span>)} · <a href="/service-area" className="underline hover:text-white">Areas we serve</a></p>
       {widget}
     </Shell>
   );
@@ -150,12 +150,12 @@ export function AreasPage() {
       <ul className="grid gap-3 sm:grid-cols-2 mt-10">
         {AREAS.map(a => (
           <li key={a.slug} id={a.slug} className="bg-white/5 border border-white/10 px-5 py-4">
-            <h2 className="text-white font-bold text-lg">{a.name}{a.miles ? <span className="text-white/40 text-sm font-normal"> · ~{a.miles} mi from Flagstaff</span> : <span className="text-red-400 text-sm font-normal"> · home base</span>}</h2>
+            <h2 className="text-white font-bold text-lg">{a.name}{a.miles ? <span className="text-white/60 text-sm font-normal"> · ~{a.miles} mi from Flagstaff</span> : <span className="text-red-400 text-sm font-normal"> · home base</span>}</h2>
             <p className="text-white/60 text-sm leading-relaxed mt-1">{a.blurb}</p>
           </li>
         ))}
       </ul>
-      <p className="text-white/50 text-sm mt-10">Services: {SERVICE_PAGES.map((s, i) => <span key={s.path}>{i ? ' · ' : ''}<a href={s.path} className="underline hover:text-white">{s.label}</a></span>)}</p>
+      <p className="text-white/60 text-sm mt-10">Services: {SERVICE_PAGES.map((s, i) => <span key={s.path}>{i ? ' · ' : ''}<a href={s.path} className="underline hover:text-white">{s.label}</a></span>)}</p>
       {widget}
     </Shell>
   );
@@ -172,14 +172,14 @@ export function CaseStudyPage({ cs }: { cs: CaseStudy }) {
     <Shell onQuote={openBooking}>
       <p className="text-red-400 text-xs font-bold uppercase tracking-[0.3em] mb-3"><a href="/case-studies" className="hover:underline">Real jobs</a> · {cs.month}</p>
       <h1 className="text-white font-black tracking-tight leading-[1.05] text-3xl md:text-5xl">{cs.h1}</h1>
-      <p className="text-white/50 text-sm mt-3">{cs.vehicle}{cs.mileage ? ` · ${cs.mileage}` : ''} · mobile repair in the Flagstaff area</p>
+      <p className="text-white/60 text-sm mt-3">{cs.vehicle}{cs.mileage ? ` · ${cs.mileage}` : ''} · mobile repair in the Flagstaff area</p>
       {part('The problem', cs.complaint)}
       {part('What we found', cs.diagnosis)}
       {part('What we did', cs.repair)}
       {part('The result', cs.outcome)}
       <section className="mt-10">
         <div className="grid grid-cols-2 md:grid-cols-3 gap-3">{cs.photos.map(p => (
-          <figure key={p.src} className="bg-white/5"><img src={p.src} alt={p.alt} loading="lazy" decoding="async" className="w-full aspect-square object-cover" /><figcaption className="text-white/50 text-xs px-2 py-1.5">{p.alt}</figcaption></figure>
+          <figure key={p.src} className="bg-white/5"><img src={p.src} alt={p.alt} loading="lazy" decoding="async" className="w-full aspect-square object-cover" /><figcaption className="text-white/60 text-xs px-2 py-1.5">{p.alt}</figcaption></figure>
         ))}</div>
       </section>
       <section className="mt-10 bg-white/5 border border-white/10 border-l-4 border-l-red-600 px-5 py-4">
@@ -189,7 +189,7 @@ export function CaseStudyPage({ cs }: { cs: CaseStudy }) {
         <button onClick={openBooking} className="btn-primary text-sm px-8 py-4">Get a Quote</button>
         {service && <a href={service.path} className="btn-outline text-sm px-8 py-4">{service.label} — pricing</a>}
       </div>
-      <p className="text-white/50 text-sm mt-10">More real jobs: {CASE_STUDIES.filter(c => c.slug !== cs.slug).map((c, i) => <span key={c.slug}>{i ? ' · ' : ''}<a href={c.path} className="underline hover:text-white">{c.vehicle}</a></span>)}</p>
+      <p className="text-white/60 text-sm mt-10">More real jobs: {CASE_STUDIES.filter(c => c.slug !== cs.slug).map((c, i) => <span key={c.slug}>{i ? ' · ' : ''}<a href={c.path} className="underline hover:text-white">{c.vehicle}</a></span>)}</p>
       {widget}
     </Shell>
   );
@@ -206,7 +206,7 @@ export function CaseStudiesIndex() {
         <li key={c.slug}>
           <a href={c.path} className="block bg-white/5 border border-white/10 hover:border-red-600/50 transition-colors">
             <img src={c.photos[0].src} alt={c.photos[0].alt} loading="lazy" decoding="async" className="w-full aspect-[4/3] object-cover" />
-            <div className="px-4 py-3"><h2 className="text-white font-bold leading-snug">{c.h1}</h2><p className="text-white/50 text-sm mt-1">{c.month} · {c.vehicle}</p></div>
+            <div className="px-4 py-3"><h2 className="text-white font-bold leading-snug">{c.h1}</h2><p className="text-white/60 text-sm mt-1">{c.month} · {c.vehicle}</p></div>
           </a>
         </li>
       ))}</ul>

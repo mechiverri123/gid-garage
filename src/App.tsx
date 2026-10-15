@@ -57,13 +57,13 @@ const services = [
   {
     id: 'oil',
     title: 'Oil Change',
-    desc: 'Full synthetic only — your vehicle deserves the best. $79.99 up to 5 quarts, +$10.99/qt after. Includes oil filter, fluid top-off, tire pressure check, and multi-point inspection. Most shops charge $110–140 for full synthetic — and you still have to drive there and wait. We come to you.',
+    desc: 'Full synthetic only — your vehicle deserves the best. $79.99 up to 5 quarts, +$10.99/qt after. Includes oil filter, fluid top-off, tire pressure check, and multi-point inspection. No drive to the shop and no waiting room. We come to you.',
     badge: null,
   },
   {
     id: 'brakes',
     title: 'Brakes',
-    desc: 'Pad replacement, rotor replacement, and complete brake system service. Starting at $149.99/axle — Flagstaff shops average $240–320+/axle.',
+    desc: 'Pad replacement, rotor replacement, and complete brake system service. Starting at $149.99/axle, done where your vehicle is parked.',
     badge: null,
   },
   {
@@ -75,13 +75,13 @@ const services = [
   {
     id: 'suspension',
     title: 'Suspension',
-    desc: 'Shocks, struts, control arms, tie rods, and CV axles. Starting at $174.99 labor + parts — Flagstaff shops average $350–1,200+ depending on service. Get a free estimate when you book.',
+    desc: 'Shocks, struts, control arms, tie rods, and CV axles. Starting at $174.99 labor + parts, depending on the job. Get a free estimate when you book.',
     badge: null,
   },
   {
     id: 'full',
     title: 'Full Vehicle Inspection',
-    desc: 'Comprehensive multi-point inspection — complimentary with any mechanical service. Standalone shops typically charge $120–160. Know exactly what your vehicle needs before spending a dime.',
+    desc: 'Comprehensive multi-point inspection — complimentary with any mechanical service. Know exactly what your vehicle needs before spending a dime.',
     badge: 'Free',
   },
   {
@@ -336,7 +336,7 @@ function ServiceCard({ s, onBookService }: { s: typeof services[0]; onBookServic
     <div className="h-full p-6 bg-white/5 border border-white/10 border-l-4 border-l-red-600 hover:bg-white/10 hover:border-red-600/40 hover:-translate-y-1 hover:shadow-[0_10px_40px_-10px_rgba(220,38,38,0.35)] transition-all duration-300 flex flex-col">
       <div className="flex items-start justify-between mb-2">
         <h3 className="text-white font-bold text-lg tracking-tight">{s.title}</h3>
-        {s.badge && <span className="text-[10px] font-black uppercase tracking-widest bg-red-600 text-white px-2 py-0.5 ml-2 flex-shrink-0">{s.badge}</span>}
+        {s.badge && <span className="text-[11px] font-black uppercase tracking-widest bg-red-600 text-white px-2 py-0.5 ml-2 flex-shrink-0">{s.badge}</span>}
       </div>
       <div className="text-white/60 text-sm leading-relaxed flex-1">{s.desc}</div>
 
@@ -357,7 +357,7 @@ function ServiceCard({ s, onBookService }: { s: typeof services[0]; onBookServic
                 </div>
               ))}
               {s.id === 'audio' && (
-                <p className="text-gray-600 text-[10px] mt-1">* Parts may need to be sourced — lead times vary. Deposit required for full system builds. You can also supply your own parts.</p>
+                <p className="text-gray-400 text-[11px] mt-1">* Parts may need to be sourced — lead times vary. Deposit required for full system builds. You can also supply your own parts.</p>
               )}
             </div>
           )}
@@ -512,7 +512,7 @@ function AutoRepair() {
             <a key={j.path} href={j.path} className="bg-white/5 border border-white/10 p-5 hover:border-red-600/40 hover:bg-white/10 transition-colors">
               <p className="text-white font-bold">{j.label}</p>
               <p className="text-red-400 text-sm mt-1">{j.price}</p>
-              <p className="text-white/40 text-xs mt-3">Details →</p>
+              <p className="text-white/60 text-xs mt-3">Details →</p>
             </a>
           ))}
         </div>
@@ -584,10 +584,10 @@ function WhyUs() {
             <div>
               <p className="text-white font-bold text-sm">Saturday – Sunday</p>
               <p className="text-white/60 text-sm">5:00 AM – 8:00 PM</p>
-              <p className="text-white/30 text-xs mt-0.5">By appointment only</p>
+              <p className="text-white/60 text-xs mt-0.5">By appointment only</p>
             </div>
           </div>
-          <p className="text-white/40 text-xs mt-3">Appointments required. Same-day bookings subject to availability.</p>
+          <p className="text-white/60 text-xs mt-3">Appointments required. Same-day bookings subject to availability.</p>
         </div>
       </div>
     </section>
@@ -643,7 +643,7 @@ function RealJobsStrip() {
 function StatsBar() {
   const stats = [
     { value: String(SERVICE_AREAS.length), label: 'Flagstaff-Area Communities Served' },
-    { value: 'Up to 40%', label: 'Below Local Shop Pricing' },
+    { value: '30 Days', label: 'Labor Warranty on Every Repair' },
     { value: '100%', label: 'Full Synthetic Oil, Every Time' },
     { value: '7 Days', label: 'Open Every Day of the Week' },
   ];
@@ -709,8 +709,8 @@ function BeforeAfterSlider() {
               aria-label="Drag to compare before and after"
               className="absolute inset-0 w-full h-full opacity-0 cursor-ew-resize"
             />
-            <span className="absolute top-3 left-3 bg-black/60 text-white text-[10px] font-bold uppercase tracking-widest px-2 py-1 pointer-events-none">Before</span>
-            <span className="absolute top-3 right-3 bg-black/60 text-white text-[10px] font-bold uppercase tracking-widest px-2 py-1 pointer-events-none">After</span>
+            <span className="absolute top-3 left-3 bg-black/60 text-white text-[11px] font-bold uppercase tracking-widest px-2 py-1 pointer-events-none">Before</span>
+            <span className="absolute top-3 right-3 bg-black/60 text-white text-[11px] font-bold uppercase tracking-widest px-2 py-1 pointer-events-none">After</span>
           </div>
         </Reveal>
       </div>
@@ -781,7 +781,7 @@ function GoogleReviewsSection() {
             <div className="flex items-center justify-center gap-2">
               <Stars rating={data.rating} />
               <span className="text-white font-bold">{data.rating.toFixed(1)}</span>
-              {data.totalReviews != null && <span className="text-white/40 text-sm">({data.totalReviews} reviews)</span>}
+              {data.totalReviews != null && <span className="text-white/60 text-sm">({data.totalReviews} reviews)</span>}
             </div>
           )}
         </div>
@@ -793,7 +793,7 @@ function GoogleReviewsSection() {
               <p className="text-white/70 text-sm leading-relaxed mt-3 flex-1 line-clamp-6">{r.text}</p>
               <div className="mt-4 pt-4 border-t border-white/10 flex items-center justify-between">
                 <span className="text-white text-xs font-bold">{r.author}</span>
-                <span className="text-white/30 text-[10px]">{r.relativeTime}</span>
+                <span className="text-white/60 text-[11px]">{r.relativeTime}</span>
               </div>
             </div>
           ))}
@@ -870,7 +870,7 @@ function ServiceMap() {
               <>
                 {area.isHome && <div className="w-2 h-2 bg-red-600 rounded-full mx-auto mb-1.5 animate-pulse" />}
                 <p className={`text-xs font-bold ${area.isHome ? 'text-red-400' : 'text-white'}`}>{area.name}</p>
-                <p className="text-white/40 text-[10px] mt-0.5">{area.isHome ? 'Home Base' : `~${area.miles} mi`}</p>
+                <p className="text-white/60 text-[11px] mt-0.5">{area.isHome ? 'Home Base' : `~${area.miles} mi`}</p>
               </>
             );
             return area.isHome ? (
@@ -999,7 +999,7 @@ function PhotoGallery() {
         {/* Dots */}
         <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1.5">
           {photos.map((_, i) => (
-            <button key={i} onClick={() => setCurrent(i)}
+            <button key={i} type="button" onClick={() => setCurrent(i)} aria-label={`Show photo ${i + 1} of ${photos.length}`} aria-current={i === current}
               className={`w-2 h-2 rounded-full transition-colors ${i === current ? 'bg-red-500' : 'bg-white/40'}`} />
           ))}
         </div>
@@ -1018,7 +1018,7 @@ function BookingSection({ openBooking }: { openBooking: () => void }) {
           <a href={`tel:${PHONE}`} className="text-red-500 hover:text-red-400 font-semibold transition-colors underline underline-offset-2">call {PHONE}</a>{' '}
           to chat with us first.
         </div>
-        <div className="text-white/30 text-xs mb-8">Mon–Fri 1:30–8 PM · Sat–Sun 5 AM–8 PM</div>
+        <div className="text-white/60 text-xs mb-8">Mon–Fri 1:30–8 PM · Sat–Sun 5 AM–8 PM</div>
         <button onClick={openBooking} className="btn-primary text-xs px-8 py-4">Get a Quote</button>
       </div>
     </section>
@@ -1070,7 +1070,7 @@ function ContactBar({ openBooking }: { openBooking: () => void }) {
     <section className="bg-red-600 py-12">
       <div className="max-w-7xl mx-auto px-5 md:px-8 flex flex-col md:flex-row items-center justify-between gap-6 text-center md:text-left">
         <div>
-          <p className="text-white/80 text-sm uppercase tracking-widest font-semibold mb-1">Ready to Get Started?</p>
+          <p className="text-white text-sm uppercase tracking-widest font-semibold mb-1">Ready to Get Started?</p>
           <h3 className="text-white text-2xl md:text-3xl font-extrabold tracking-tight">We Come to You, Flagstaff.</h3>
         </div>
         <div className="flex flex-col sm:flex-row gap-4">
@@ -1115,7 +1115,7 @@ function Footer() {
             {SERVICE_PAGES.map(p => <a key={p.path} href={p.path} className="text-white/60 hover:text-white text-sm transition-colors">{p.label}</a>)}
             <a href="/service-area" className="text-white/60 hover:text-white text-sm transition-colors">Areas We Serve</a>
             <a href="/case-studies" className="text-white/60 hover:text-white text-sm transition-colors">Real Jobs</a>
-            <a href="/admin" className="text-gray-700 hover:text-gray-500 text-xs transition-colors mt-2">Admin ↗</a>
+            <a href="/admin" className="text-gray-400 hover:text-white text-xs transition-colors mt-2">Admin ↗</a>
           </div>
         </div>
         <div className="border-t border-gray-800 pt-6 flex flex-col sm:flex-row items-center justify-between gap-3 text-white/50 text-xs">
@@ -1258,10 +1258,10 @@ function CancelPage({ bookingId, token }: { bookingId: string; token: string }) 
 function PrivacyPolicyPage() {
   return (
     <div className="bg-dark text-dark min-h-screen font-sans">
-      <div className="max-w-3xl mx-auto px-6 py-16">
+      <main className="max-w-3xl mx-auto px-6 py-16">
         <a href="/" className="text-orange-500 text-sm font-bold">← Back to GID Garage</a>
         <h1 className="text-3xl md:text-4xl font-black text-white mt-6 mb-2">Privacy Policy</h1>
-        <p className="text-gray-500 text-sm mb-10">Last updated: July 18, 2026</p>
+        <p className="text-gray-400 text-sm mb-10">Last updated: October 15, 2026</p>
 
         <div className="space-y-8 text-gray-300 text-sm leading-relaxed">
           <section>
@@ -1276,7 +1276,7 @@ function PrivacyPolicyPage() {
               <li>Name, phone number, email address, and service address</li>
               <li>Vehicle information (year, make, model, mileage, VIN where provided)</li>
               <li>Details about the issue or service you're requesting</li>
-              <li>Payment and billing information (processed securely by Stripe — see Section 5)</li>
+              <li>Payment and billing information (cards are processed and stored by Stripe — see Section 5; we keep only the last 4 digits and transaction IDs)</li>
               <li>Photos or diagnostic scan data related to your vehicle, when applicable</li>
               <li>Communications between you and us (texts, emails, calls)</li>
             </ul>
@@ -1298,26 +1298,35 @@ function PrivacyPolicyPage() {
 
           <section>
             <h2 className="text-white font-bold text-lg mb-2">4. Cookies, Tracking & Analytics</h2>
-            <p>Our website may use cookies or similar technologies for basic site functionality and error monitoring (we use Sentry to detect and fix technical bugs; this does not involve advertising tracking). If we run ads on platforms like Meta (Facebook/Instagram) or Google, those platforms may use their own tracking technologies (such as the Meta Pixel or conversion tracking) on their ad forms and, if enabled, on our site. Where required, we will disclose this and provide opt-out information. You can generally control cookies through your browser settings.</p>
+            <p className="mb-2"><strong className="text-white">Our website does not use advertising or analytics trackers.</strong> There is no Meta Pixel, Google Analytics, or similar tracking on gidgarage.com, and we do not build advertising profiles of visitors.</p>
+            <p className="mb-2">We use only what the site needs to work: Cloudflare may set security cookies to protect the site from abuse, your browser may store small settings locally (for example, a booking form you started), and Sentry receives technical error reports so we can fix bugs. None of these are used for advertising.</p>
+            <p>If you respond to one of our ads on Meta (Facebook/Instagram), Google, or Nextdoor, that platform's own privacy policy and tracking apply on its site and lead forms. If we ever add advertising or analytics tracking to our own website, we will update this policy first and explain your choices. You can also control cookies through your browser settings.</p>
           </section>
 
           <section>
             <h2 className="text-white font-bold text-lg mb-2">5. Third Parties We Work With</h2>
             <p className="mb-2">We use trusted service providers to operate our business. Each only receives the information needed to perform its function:</p>
             <ul className="list-disc pl-5 space-y-1">
-              <li><strong className="text-white">Stripe</strong> — payment processing and card storage (we do not store full card numbers ourselves)</li>
+              <li><strong className="text-white">Stripe</strong> — card payment processing and card storage (we do not store full card numbers ourselves)</li>
+              <li><strong className="text-white">Bluevine</strong> — our business bank account</li>
               <li><strong className="text-white">Supabase</strong> — secure database hosting for booking and job records</li>
               <li><strong className="text-white">Cloudflare</strong> — website hosting, security, and photo/file storage (R2)</li>
               <li><strong className="text-white">Sentry</strong> — technical error monitoring (no personal data used for advertising)</li>
-              <li><strong className="text-white">Zoho Mail / Brevo</strong> — sending transactional emails (booking confirmations, receipts, notifications)</li>
-              <li><strong className="text-white">Meta, Google, Nextdoor</strong> — advertising platforms, when you submit a lead form directly through them</li>
+              <li><strong className="text-white">Zoho (Mail and Books) / Brevo</strong> — our email inbox, sending transactional emails (booking confirmations, receipts, notifications), and bookkeeping</li>
+              <li><strong className="text-white">Google</strong> — Google Voice for our business calls and texts; Google Maps services to calculate driving distance to your service address; and our Google Business Profile, where you can choose to leave a review</li>
+              <li><strong className="text-white">Anthropic (Claude AI)</strong> — powers our internal business assistant (see "AI tools" below)</li>
+              <li><strong className="text-white">Deepgram and Cartesia</strong> — speech-to-text and text-to-speech for our internal voice assistant, which can include customer names and job details the owner speaks</li>
+              <li><strong className="text-white">Telegram</strong> — private reminders and job notifications sent to the owner, which can include your name and appointment details</li>
+              <li><strong className="text-white">NHTSA (U.S. Department of Transportation)</strong> — decoding a vehicle VIN to its year, make, model, and engine (the VIN only)</li>
+              <li><strong className="text-white">Meta, Google, Nextdoor</strong> — advertising platforms, when you submit a lead form or message us through them</li>
             </ul>
+            <p className="mt-3 mb-1"><strong className="text-white">AI tools.</strong> We use an AI assistant (Claude, by Anthropic) inside our own admin tools to help run the business, for example to summarize a job from its notes, parts, and payments, look up records, or draft a reply for the owner to review. To do that, details from your job and messages (such as your name, vehicle, the work requested, and job notes) are sent to Anthropic for processing. Job summaries are written without your address, phone number, or email. The AI only acts when the owner asks it to and does not make decisions about you on its own. Before the AI records a payment or sends you an email or message, the owner confirms it.</p>
             <p className="mt-2">These providers are contractually or by policy restricted from using your data for their own purposes beyond providing their service to us. We do not sell or rent your information to marketers or data brokers.</p>
           </section>
 
           <section>
             <h2 className="text-white font-bold text-lg mb-2">6. How We Contact You</h2>
-            <p>By providing your phone number or email, you consent to be contacted by GID Garage via phone call, text message (SMS), or email regarding your service request, appointment, quote, invoice, or related follow-up. <strong className="text-white">Message and data rates may apply. Message frequency varies. Reply STOP to a text at any time to opt out of SMS messages, or contact us using the information in Section 10.</strong> Opting out of texts will not affect your ability to receive service — you can still reach us or be reached by phone or email.</p>
+            <p>By providing your phone number or email, you consent to be contacted by GID Garage via phone call, text message (SMS), or email regarding your service request, appointment, quote, invoice, or related follow-up. These are service messages about your job; we do not send promotional text messages without your separate permission. <strong className="text-white">Message and data rates may apply. Message frequency varies. Reply STOP to a text at any time to opt out of SMS messages, or contact us using the information in Section 12.</strong> Opting out of texts will not affect your ability to receive service — you can still reach us or be reached by phone or email.</p>
           </section>
 
           <section>
@@ -1348,10 +1357,10 @@ function PrivacyPolicyPage() {
 
           <section>
             <h2 className="text-white font-bold text-lg mb-2">12. Contact Us</h2>
-            <p>Questions about this policy, or want your information corrected or removed? Contact us at <a href="mailto:info@gidgarage.com" className="text-orange-500">info@gidgarage.com</a>.</p>
+            <p>Questions about this policy, or want your information corrected or removed? Contact us at <a href="mailto:info@gidgarage.com" className="text-orange-500 underline underline-offset-2">info@gidgarage.com</a>.</p>
           </section>
         </div>
-      </div>
+      </main>
     </div>
   );
 }
