@@ -2635,9 +2635,9 @@ export function EstimatePanel({ job, onUpdate }: { job: Job; onUpdate: (j: Job) 
         <textarea
           value={notes}
           onChange={e => { hasLocalEdits.current = true; setNotes(e.target.value); }}
-          rows={2}
+          rows={8}
           placeholder="e.g. Full synthetic oil change, inspect brakes while on site…"
-          className="bg-gray-800 border border-gray-700 text-white px-3 py-2 text-sm w-full focus:border-red-600 outline-none resize-none"
+          className="bg-gray-800 border border-gray-700 text-white px-3 py-2 text-sm w-full focus:border-red-600 outline-none resize-y min-h-[10rem] [field-sizing:content]"
         />
       </div>
 
