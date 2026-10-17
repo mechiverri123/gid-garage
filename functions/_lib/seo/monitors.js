@@ -100,10 +100,13 @@ export const indexNow = {
     const sm = await ctx.fetch(`${SITE}/sitemap.xml`);
     if (!sm.ok) throw new ProviderError('error', `sitemap: HTTP ${sm.status}`);
     const urlList = [...(await sm.text()).matchAll(/<loc>\s*([^<\s]+)\s*<\/loc>/g)].map(m => m[1]).slice(0, 500);
-    const res = await ctx.fetch('https://api.indexnow.org/indexnow', {
+    const submit = url => ctx.fetch(url, {
       method: 'POST', headers: { 'Content-Type': 'application/json; charset=utf-8' },
       body: JSON.stringify({ host: 'gidgarage.com', key: INDEXNOW_KEY, keyLocation: `${SITE}/${INDEXNOW_KEY}.txt`, urlList }),
     });
+    let res = await submit('https://api.indexnow.org/indexnow');
+    // The shared endpoint rate-limits Cloudflare's IPs (429); Bing's own endpoint shares submissions with the rest.
+    if (res.status !== 200 && res.status !== 202) res = await submit('https://www.bing.com/indexnow');
     // 200 = accepted, 202 = accepted pending key check.
     if (res.status !== 200 && res.status !== 202) throw new ProviderError('error', `IndexNow: HTTP ${res.status}`);
     await writeJson(ctx.env.GID_PHOTOS, 'private/seo-indexnow.json', { at: new Date(ctx.now).toISOString(), status: res.status, urls: urlList });
