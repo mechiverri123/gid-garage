@@ -270,7 +270,7 @@ export function OpportunityCard({ r, onAction, compact }: { r: SeoRecommendation
       {line && <div className="text-[13px] mt-2.5 font-medium" style={{ color: r.status === 'measured' ? C.green : C.amber }}>{line}</div>}
       {!compact && r.detail && <p className="text-[14px] mt-2 leading-relaxed" style={{ color: C.text2 }}>{r.detail}</p>}
       {!compact && outcome && <div className="text-[13px] mt-1.5" style={{ color: C.text2 }}>Expected outcome: <span style={{ color: C.text }}>{outcome}</span></div>}
-      {r.outcome && <div className="text-[13.5px] mt-2 font-semibold" style={{ color: r.outcome.result === 'improved' ? C.green : r.outcome.result === 'worse' ? C.red : C.text2 }}>Result: {r.outcome.result.replace(/_/g, ' ')} ({fmt(r.outcome.baseline)} → {fmt(r.outcome.current)})</div>}
+      {r.outcome?.result && <div className="text-[13.5px] mt-2 font-semibold" style={{ color: r.outcome.result === 'improved' ? C.green : r.outcome.result === 'worse' ? C.red : C.text2 }}>Result: {r.outcome.result.replace(/_/g, ' ')} ({fmt(r.outcome.baseline)} → {fmt(r.outcome.current)})</div>}
       {(STATUS_ACTIONS[r.status] || []).length > 0 && (
         <div className="flex flex-wrap gap-2 mt-3">
           {(STATUS_ACTIONS[r.status] || []).map(a => <ActionButton key={a.action} size="sm" variant={a.variant ?? 'secondary'} onClick={() => onAction(r.id, a.action)}>{a.label}</ActionButton>)}

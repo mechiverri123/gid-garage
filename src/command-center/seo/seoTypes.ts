@@ -53,7 +53,7 @@ export interface SeoConnections { providers: ProviderStatus[]; recentRuns: unkno
 export interface SeoRecommendation {
   id: string; type: string; title: string; detail: string | null; score: number; confidence: string | null;
   status: string; service: string | null; requires_decision: boolean; informational: boolean;
-  evidence: Record<string, unknown> | null; outcome: { result: string; baseline: number | null; current: number | null } | null;
+  evidence: Record<string, unknown> | null; outcome: { result?: string; baseline: number | null; current: number | null } | null;
   monitor_until: string | null; applied_at?: string | null; metric?: { kind: string } | null;
 }
 
