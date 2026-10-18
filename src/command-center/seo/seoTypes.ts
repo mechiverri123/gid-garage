@@ -6,6 +6,7 @@ export type SeoView = 'overview' | 'map' | 'opportunities' | 'demand' | 'competi
 
 export const SEO_VIEWS: { id: SeoView; label: string }[] = [
   { id: 'actions', label: 'Actions' },
+  { id: 'rankings', label: 'Scorecard' },
   { id: 'top5', label: 'Top-5 gap' },
   { id: 'blueprint', label: 'Blueprint' },
   { id: 'overview', label: 'Local overview' },
@@ -15,7 +16,6 @@ export const SEO_VIEWS: { id: SeoView; label: string }[] = [
   { id: 'competitors', label: 'Competitors' },
   { id: 'seasonality', label: 'Seasonality' },
   { id: 'authority', label: 'Authority & listings' },
-  { id: 'rankings', label: 'Rankings' },
   { id: 'research', label: 'Research' },
   { id: 'history', label: 'History & learning' },
   { id: 'connections', label: 'Connections' },

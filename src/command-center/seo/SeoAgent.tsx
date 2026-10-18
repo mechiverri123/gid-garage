@@ -229,7 +229,183 @@ export function BlueprintView({ b, post }: { b: Any | undefined; post: Post }) {
 
 // ---- rank observations ------------------------------------------------------------------------
 
-export function RankingsView({ r, post }: { r: Any | undefined; post: Post }) {
+// ---- scorecard: every ranking metric + one-tap live checks -------------------------------------
+
+// Google's location parameter: results as if searching from that town, not where you sit.
+const UULE_KEY = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
+const uule = (place: string) => { const name = `${place},Arizona,United States`; return `w+CAIQICI${encodeURIComponent(UULE_KEY[name.length] + btoa(name))}`; };
+const enc = encodeURIComponent;
+const liveLinks = (q: string, a: { name: string; lat: number; lng: number }) => {
+  const town = /NAU/.test(a.name) ? 'Flagstaff' : a.name;
+  return [
+    { label: 'Google', href: `https://www.google.com/search?q=${enc(q)}&pws=0&gl=us&hl=en&uule=${uule(town)}` },
+    { label: 'Maps', href: `https://www.google.com/maps/search/${enc(q)}/@${a.lat},${a.lng},13z` },
+    { label: 'Bing', href: `https://www.bing.com/maps?q=${enc(q)}&cp=${a.lat}~${a.lng}&lvl=13` },
+    { label: 'Apple', href: `https://maps.apple.com/?q=${enc(q)}&sll=${a.lat},${a.lng}&z=13` },
+  ];
+};
+const AI_QUESTIONS = ['Who is the best mobile mechanic in Flagstaff, AZ?', 'Recommend an auto repair service in Flagstaff AZ that comes to you'];
+const aiLinks = (q: string) => [
+  { label: 'ChatGPT', href: `https://chatgpt.com/?q=${enc(q)}` },
+  { label: 'Google AI', href: `https://www.google.com/search?q=${enc(q)}&udm=50` },
+  { label: 'Perplexity', href: `https://www.perplexity.ai/search?q=${enc(q)}` },
+];
+const LISTINGS = [
+  { label: 'Google listing', href: 'https://g.page/r/CdERSypGqVdlEBM' },
+  { label: 'Google search: GID Garage', href: `https://www.google.com/search?q=${enc('GID Garage Flagstaff')}&pws=0` },
+  { label: 'Yelp', href: 'https://www.yelp.com/biz/gid-garage-flagstaff' },
+  { label: 'Bing', href: `https://www.bing.com/search?q=${enc('GID Garage Flagstaff')}` },
+  { label: 'Apple Maps', href: `https://maps.apple.com/?q=${enc('GID Garage')}&sll=35.1983,-111.6513` },
+];
+
+const Chip = ({ href, children }: { href: string; children: ReactNode }) => (
+  <a href={href} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 h-8 px-2.5 rounded-lg text-[13px] font-medium whitespace-nowrap hover:brightness-125"
+    style={{ background: 'rgba(52,214,255,0.08)', border: `1px solid ${C.borderStrong}`, color: C.text }}>{children}<ExternalLink size={12} /></a>
+);
+
+// Change vs the earlier window. lowerIsBetter for positions.
+function Delta({ now, before, lowerIsBetter = false }: { now: number | null; before: number | null; lowerIsBetter?: boolean }) {
+  if (now == null || before == null || now === before) return <span style={{ color: C.muted }}>{before == null ? 'no earlier data' : 'no change'}</span>;
+  const diff = Math.round((now - before) * 10) / 10;
+  const good = lowerIsBetter ? diff < 0 : diff > 0;
+  const Icon = good ? TrendingUp : TrendingDown;
+  const text = lowerIsBetter ? `${good ? 'up' : 'down'} ${Math.abs(diff)} spot${Math.abs(diff) === 1 ? '' : 's'}` : `${diff > 0 ? '+' : ''}${diff.toLocaleString('en-US')} vs before`;
+  return <span className="inline-flex items-center gap-1" style={{ color: good ? C.green : C.amber }}><Icon size={13} />{text}</span>;
+}
+
+function Tile({ label, value, tone, sub, note }: { label: string; value: ReactNode; tone?: string; sub?: ReactNode; note?: string }) {
+  return (
+    <div className="rounded-xl p-3 min-w-0" style={box} title={note}>
+      <div className="text-[12.5px]" style={{ color: C.text2 }}>{label}</div>
+      <div className="text-[22px] font-semibold tabular-nums leading-tight mt-0.5 break-words" style={{ color: tone || C.text }}>{value}</div>
+      {sub && <div className="text-[12.5px] mt-0.5 break-words" style={{ color: C.muted }}>{sub}</div>}
+    </div>
+  );
+}
+
+function Scorecard({ r, post, technical, connections }: { r: Any; post: Post; technical?: Any; connections?: Any }) {
+  const areas: { name: string; lat: number; lng: number }[] = r.areas || [];
+  const [areaName, setAreaName] = useState('Flagstaff');
+  const [logged, setLogged] = useState<Record<string, string>>({});
+  const [entry, setEntry] = useState<Record<string, string>>({});
+  const area = areas.find(a => a.name === areaName) || { name: 'Flagstaff', lat: 35.1983, lng: -111.6513 };
+  const s = r.search; const t = s?.totals || {};
+  const sum: Any = Object.fromEntries((r.summary || []).map((x: Any) => [x.id, x]));
+  const ownRace = r.reviews?.rows?.find((x: Any) => x.own);
+  const posTone = (n: number | null) => (n == null ? C.muted : n <= 3 ? C.green : n <= 5 ? C.cyan : n <= 10 ? C.amber : C.red);
+  const speed: Any[] = technical?.pagespeed || [];
+  const mobile = speed.find(p => p.strategy === 'mobile' && /gidgarage\.com\/?$/.test(p.url)) || speed.find(p => p.strategy === 'mobile');
+  const issues = (technical?.checks || []).reduce((n: number, c: Any) => n + (c.issues?.length || 0), 0);
+  const providers: Any[] = connections?.providers || [];
+  const lastSync = providers.map(p => p.lastSyncAt).filter(Boolean).sort().pop();
+  const gsc = providers.find(p => /search_console|gsc/i.test(p.id));
+  const cell = (q: string) => r.grid?.cells?.[`${q}|${area.name}`];
+
+  const log = async (q: string) => {
+    const v = entry[q] ?? '';
+    const rank = v === '' ? null : Number(v);
+    try {
+      await post({ action: 'add_rank', keyword: q, area: area.name, rank, in_local_pack: rank != null && rank <= 3, note: 'Scorecard live check (Maps position)' });
+      setLogged(l => ({ ...l, [q]: rank == null ? 'saved: not shown' : `saved: #${rank}` }));
+    } catch (e) { setLogged(l => ({ ...l, [q]: `not saved: ${e instanceof Error ? e.message : String(e)}` })); }
+  };
+
+  return (
+    <div className="flex flex-col gap-5">
+      {/* 1. Every number at a glance */}
+      <section className="flex flex-col gap-2">
+        <h3 className="font-semibold text-[15px]" style={{ color: C.text }}>Where you rank <span className="text-[12.5px] font-normal" style={{ color: C.muted }}>{lastSync ? `data synced ${timeAgo(lastSync)}` : ''}{s?.period ? ` · Google search ${s.period.from} to ${s.period.to} vs the 28 days before (Google reports about 3 days late)` : ''}</span></h3>
+        <div className="grid gap-2 grid-cols-2 lg:grid-cols-4">
+          <Tile label="Google search position (local service searches)" value={t.position != null ? `#${t.position}` : '—'} tone={posTone(t.position ?? null)} sub={<Delta now={t.position ?? null} before={t.previousPosition ?? null} lowerIsBetter />} note="Average position across every local service search you showed for, weighted by how often you showed. From Search Console." />
+          <Tile label="Clicks from those searches" value={t.clicks ?? '—'} sub={<Delta now={t.clicks ?? null} before={t.previousClicks ?? null} />} />
+          <Tile label="Times you showed (impressions)" value={t.impressions != null ? Number(t.impressions).toLocaleString('en-US') : '—'} sub={<Delta now={t.impressions ?? null} before={t.previousImpressions ?? null} />} />
+          <Tile label="Google Maps (your checks)" value={sum.map_pack?.rank != null ? `#${sum.map_pack.rank}` : 'Not shown'} tone={posTone(sum.map_pack?.rank ?? null)} sub={sum.map_pack?.detail || 'No checks logged yet. Use Live check below.'} />
+          <Tile label="New reviews, last 30 days" value={ownRace ? `+${ownRace.gained}` : '—'} tone={ownRace?.gained ? C.green : C.muted} sub={r.reviews?.ownPlace ? `#${r.reviews.ownPlace} of ${r.reviews.of} mobile mechanics for new reviews` : undefined} />
+          <Tile label="Google reviews · rating" value={sum.reviews ? `${String(sum.reviews.detail).replace(' reviews', '')} · ${sum.rating?.detail ?? ''}` : '—'} sub={sum.reviews?.rank ? `#${sum.reviews.rank} of ${sum.reviews.of} by count · #${sum.rating?.rank ?? '—'} by rating` : undefined} />
+          <Tile label="Strength vs competitors" value={sum.strength?.rank ? `#${sum.strength.rank}` : '—'} tone={posTone(sum.strength?.rank ?? null)} sub={sum.strength?.of ? `of ${sum.strength.of} · reviews × rating (GID's estimate)` : undefined} />
+          <Tile label="AI assistants" value={sum.ai ? (sum.ai.rank != null ? `#${sum.ai.rank}` : 'Not named') : '—'} tone={sum.ai?.rank != null ? C.green : C.amber} sub={sum.ai?.detail || 'checked weekly'} />
+          <Tile label="Phone speed (PageSpeed)" value={mobile?.perfScore ?? '—'} tone={mobile?.perfScore == null ? C.muted : mobile.perfScore >= 90 ? C.green : mobile.perfScore >= 50 ? C.amber : C.red} sub={mobile?.fetchedAt ? `homepage, measured ${timeAgo(mobile.fetchedAt)}` : undefined} />
+          <Tile label="Site issues found" value={technical ? issues : '—'} tone={issues ? C.amber : C.green} sub={technical?.pagesAudited ? `${technical.pagesAudited} pages audited` : undefined} />
+          <Tile label="Search Console synced" value={gsc?.lastSyncAt ? timeAgo(gsc.lastSyncAt) : '—'} sub="Sync now (Connections) refreshes it" />
+        </div>
+      </section>
+
+      {/* 2. Search by search + live check */}
+      <section className="flex flex-col gap-2">
+        <div className="flex flex-wrap items-end gap-3">
+          <h3 className="font-semibold text-[15px]" style={{ color: C.text }}>Live check</h3>
+          <label className="flex items-center gap-2 text-[13.5px]" style={{ color: C.text2 }}>Search from
+            <select className="h-9 rounded-lg px-2 text-[14px] outline-none" style={{ background: 'rgba(3,10,17,0.9)', border: `1px solid ${C.borderStrong}`, color: C.text, colorScheme: 'dark' }} value={areaName} onChange={e => setAreaName(e.target.value)}>
+              {areas.map(a => <option key={a.name}>{a.name}</option>)}
+            </select>
+          </label>
+        </div>
+        <p className="text-[13.5px]" style={{ color: C.text2 }}>Each button opens the real results as if searching from {area.name}. In <b>Maps</b>, count down the list to GID Garage, type the number and press Log (blank means not shown; 1–3 counts as the map pack). The Google number is Search Console's 28-day average.</p>
+        <div className="flex flex-col gap-2">
+          {(s?.searches || []).map((q: Any) => {
+            const c = cell(q.query);
+            return (
+              <div key={q.query} className="rounded-xl p-3 flex flex-col lg:flex-row lg:items-center gap-2 lg:gap-4" style={box}>
+                <div className="min-w-0 lg:w-[34%]">
+                  <div className="text-[14.5px] font-medium break-words" style={{ color: C.text }}>{q.query}</div>
+                  <div className="text-[12.5px] flex flex-wrap gap-x-3" style={{ color: C.muted }}>
+                    <span>Google: <b style={{ color: posTone(q.position) }}>{q.position != null ? `#${q.position}` : 'no data'}</b>{q.position != null && <> · <Delta now={q.position} before={q.previousPosition} lowerIsBetter /></>}</span>
+                    <span>{q.clicks} clicks / {q.impressions} shown</span>
+                    <span>Maps here: {c ? <b style={{ color: posTone(c.rank) }}>{c.rank != null ? `#${c.rank}` : 'not shown'}</b> : 'not checked'}{c ? ` (${c.date})` : ''}</span>
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-1.5">{liveLinks(q.query, area).map(l => <Chip key={l.label} href={l.href}>{l.label}</Chip>)}</div>
+                <div className="flex flex-wrap items-center gap-1.5 lg:ml-auto">
+                  <input aria-label={`Maps position for ${q.query}`} inputMode="numeric" placeholder="Maps #" value={entry[q.query] ?? ''} onChange={e => setEntry(x => ({ ...x, [q.query]: e.target.value.replace(/\D/g, '').slice(0, 3) }))}
+                    className="h-8 w-[72px] rounded-lg px-2 text-[13.5px] outline-none" style={{ background: 'rgba(3,10,17,0.9)', border: `1px solid ${C.borderStrong}`, color: C.text, colorScheme: 'dark' }} />
+                  <ActionButton size="sm" onClick={() => log(q.query)}>Log</ActionButton>
+                  {logged[q.query] && <span className="text-[12.5px]" role="status" style={{ color: logged[q.query].startsWith('not') ? C.amber : C.green }}>{logged[q.query]}</span>}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+        <p className="text-[12.5px]" style={{ color: C.muted }}>Tip: open these in a private window (Ctrl+Shift+N) so your own past searches don't skew the results.</p>
+      </section>
+
+      {/* 3. Review race */}
+      {r.reviews?.rows?.length > 0 && (
+        <section className="flex flex-col gap-2">
+          <h3 className="font-semibold text-[15px]" style={{ color: C.text }}>Review race <span className="text-[12.5px] font-normal" style={{ color: C.muted }}>new Google reviews in the last 30 days, mobile mechanics in your area</span></h3>
+          <div className="flex flex-col gap-1">
+            {r.reviews.rows.map((x: Any) => (
+              <div key={x.name} className="flex items-center gap-3 text-[14px] rounded-lg px-3 py-1.5" style={{ background: x.own ? 'rgba(52,214,255,0.08)' : 'transparent', color: x.own ? C.text : C.text2 }}>
+                <span className="flex-1 min-w-0 truncate">{x.name}</span>
+                <span className="tabular-nums" style={{ color: x.gained > 0 ? C.green : C.muted }}>+{x.gained}</span>
+                <span className="tabular-nums w-[92px] text-right" style={{ color: C.muted }}>{x.reviews} total</span>
+              </div>
+            ))}
+          </div>
+          <p className="text-[12.5px]" style={{ color: C.muted }}>Counted from {r.reviews.rows[0].since} (or 30 days ago, whichever is later).</p>
+        </section>
+      )}
+
+      {/* 4. AI + listings */}
+      <section className="grid gap-3 md:grid-cols-2">
+        <div className="rounded-xl p-3 flex flex-col gap-2" style={box}>
+          <div className="text-[14px] font-semibold" style={{ color: C.text }}>Ask the AI assistants yourself</div>
+          {AI_QUESTIONS.map(q => (
+            <div key={q} className="flex flex-col gap-1.5">
+              <span className="text-[13px]" style={{ color: C.text2 }}>"{q}"</span>
+              <div className="flex flex-wrap gap-1.5">{aiLinks(q).map(l => <Chip key={l.label} href={l.href}>{l.label}</Chip>)}</div>
+            </div>
+          ))}
+        </div>
+        <div className="rounded-xl p-3 flex flex-col gap-2" style={box}>
+          <div className="text-[14px] font-semibold" style={{ color: C.text }}>See your listings as customers do</div>
+          <div className="flex flex-wrap gap-1.5">{LISTINGS.map(l => <Chip key={l.label} href={l.href}>{l.label}</Chip>)}</div>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+export function RankingsView({ r, post, technical, connections }: { r: Any | undefined; post: Post; technical?: Any; connections?: Any }) {
   const [keyword, setKeyword] = useState('mobile mechanic flagstaff');
   const [area, setArea] = useState('Flagstaff');
   const [rank, setRank] = useState('');
@@ -247,20 +423,8 @@ export function RankingsView({ r, post }: { r: Any | undefined; post: Post }) {
   const tone = (n: number | null) => (n == null ? C.muted : n <= 3 ? C.green : n <= 5 ? C.cyan : n <= 10 ? C.amber : C.red);
   return (
     <div className="flex flex-col gap-4">
-      {r.summary?.length > 0 && (
-        <section className="flex flex-col gap-2">
-          <h3 className="font-semibold text-[15px]" style={{ color: C.text }}>Where you rank</h3>
-          <div className="grid gap-2 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
-            {r.summary.map((s: Any) => (
-              <div key={s.id} className="rounded-xl p-3" style={box}>
-                <div className="text-[12.5px]" style={{ color: C.text2 }}>{s.label}</div>
-                <div className="text-[22px] font-semibold tabular-nums" style={{ color: tone(s.rank) }}>{s.rank != null ? `#${s.rank}` : 'Not shown'}{s.of ? <span className="text-[13px] font-normal" style={{ color: C.muted }}> of {s.of}</span> : null}</div>
-                <div className="text-[12.5px] break-words" style={{ color: C.muted }}>{s.detail}</div>
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
+      <Scorecard r={r} post={post} technical={technical} connections={connections} />
+      <h3 className="font-semibold text-[15px] mt-2" style={{ color: C.text }}>Log a check by hand</h3>
       <p className="text-[14px]" style={{ color: C.text2 }}>Local rank depends on where the searcher stands, so record it per area. Search on your phone from (or set to) that area, note GID's position in the map pack. No scraping — manual, CSV, or a rank-tracker export.</p>
       <div className="grid gap-2 sm:grid-cols-[2fr_1.3fr_0.8fr_auto_auto] items-end">
         <label className="flex flex-col gap-1"><span className="text-[12.5px]" style={{ color: C.text2 }}>Search</span><input className={input} style={inputStyle} value={keyword} onChange={e => setKeyword(e.target.value)} /></label>

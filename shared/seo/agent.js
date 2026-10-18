@@ -443,3 +443,60 @@ export function whereYouRank({ own = null, competitors = [], grid = null, ai = n
   }
   return out;
 }
+
+// ---- scorecard (Rankings tab) ----------------------------------------------------------------
+// Searches the scorecard always tracks, plus Search Console's busiest local service searches.
+export const CORE_SEARCHES = ['mobile mechanic', 'mobile mechanic flagstaff', 'mechanic near me', 'auto repair flagstaff', 'oil change flagstaff', 'brake repair flagstaff'];
+
+const round1 = n => Math.round(n * 10) / 10;
+function aggQueries(rows) {
+  const m = new Map();
+  for (const r of rows) {
+    if (r.position == null || !r.impressions) continue;
+    const q = m.get(r.query) || { impressions: 0, clicks: 0, pw: 0 };
+    q.impressions += r.impressions; q.clicks += r.clicks; q.pw += r.position * r.impressions;
+    m.set(r.query, q);
+  }
+  return m;
+}
+
+// Google search standing from Search Console rows (already filtered to local service
+// searches): impression-weighted position now vs the previous window, per search and overall.
+export function searchStanding(cur = [], prev = [], { core = CORE_SEARCHES, extra = 8 } = {}) {
+  const c = aggQueries(cur); const p = aggQueries(prev);
+  const pos = q => (q?.impressions ? round1(q.pw / q.impressions) : null);
+  const total = (m, f) => [...m.values()].reduce((s, q) => s + q[f], 0);
+  const avg = m => { const imp = total(m, 'impressions'); return imp ? round1(total(m, 'pw') / imp) : null; };
+  const busiest = [...c.entries()].sort((a, b) => b[1].impressions - a[1].impressions).map(([q]) => q).filter(q => !core.includes(q)).slice(0, extra);
+  return {
+    searches: [...core, ...busiest].map(query => ({
+      query, core: core.includes(query),
+      position: pos(c.get(query)), previousPosition: pos(p.get(query)),
+      clicks: c.get(query)?.clicks ?? 0, impressions: c.get(query)?.impressions ?? 0,
+    })),
+    totals: {
+      position: avg(c), previousPosition: avg(p),
+      clicks: total(c, 'clicks'), previousClicks: total(p, 'clicks'),
+      impressions: total(c, 'impressions'), previousImpressions: total(p, 'impressions'),
+    },
+  };
+}
+
+// New Google reviews per business over the last `days` (from the review snapshots):
+// GID vs every mobile mechanic in the area, most gained first.
+export function reviewRace(snaps = [], competitors = [], now = new Date(), days = 30) {
+  const cutoff = new Date(now).getTime() - days * 86400000;
+  const names = new Map(competitors.filter(c => c.is_mobile && c.inside_service_area !== false).map(c => [c.id, c.name]));
+  const by = new Map();
+  for (const s of [...snaps].sort((a, b) => String(a.captured_at).localeCompare(String(b.captured_at)))) {
+    if (s.review_count == null || (s.subject !== 'own' && !names.has(s.subject))) continue;
+    (by.get(s.subject) || by.set(s.subject, []).get(s.subject)).push(s);
+  }
+  const rows = [...by.entries()].map(([subject, list]) => {
+    const latest = list[list.length - 1];
+    const base = [...list].reverse().find(s => new Date(s.captured_at).getTime() <= cutoff) || list[0];
+    return { name: subject === 'own' ? 'GID Garage' : names.get(subject), own: subject === 'own', reviews: Number(latest.review_count), gained: Number(latest.review_count) - Number(base.review_count), since: String(base.captured_at).slice(0, 10) };
+  }).sort((a, b) => b.gained - a.gained || b.reviews - a.reviews);
+  const own = rows.find(r => r.own);
+  return { rows, ownPlace: own ? 1 + rows.filter(r => r.gained > own.gained).length : null, of: rows.length };
+}

@@ -6,7 +6,7 @@
 // migration runs, those parts report "not set up" and everything else works.
 // Tests: tests/seo-agent.test.js
 
-import { actionQueue, blueprint as buildBlueprint, categoryLearning, top5Gap, changesSince, jobContentCandidates, dueHorizons, horizonVerdict, playbookFor, parseRankCsv, rankGrid, whereYouRank, OUTCOME_DAYS } from '../../../shared/seo/agent.js';
+import { actionQueue, blueprint as buildBlueprint, categoryLearning, top5Gap, changesSince, jobContentCandidates, dueHorizons, horizonVerdict, playbookFor, parseRankCsv, rankGrid, whereYouRank, searchStanding, reviewRace, OUTCOME_DAYS } from '../../../shared/seo/agent.js';
 import { detectSiteStructure, detectReviewGap, detectJobContent, detectKnowledgeChanges, detectSearchUpdates, detectAiVisibility, currentCrawl } from '../../../shared/seo/agent-detectors.js';
 import { readJson } from '../jarvis-feeds.js';
 import { NEWS_KEY, AI_KEY, ongoingUpdates } from './monitors.js';
@@ -49,7 +49,7 @@ export function createAgentOps({ store, env = {}, now = new Date(), h }) {
     const [latest] = await safe(store.select('seo_review_snapshots', { select: 'rating,review_count,captured_at', subject: 'eq.own', order: 'captured_at.desc', limit: '1' }));
     return latest ? { count: latest.review_count, rating: latest.rating == null ? null : Number(latest.rating), at: latest.captured_at } : null;
   }
-  const competitorRows = () => safe(store.select('seo_competitors', { select: 'id,name,tier,kind,weight,rating,review_count,inside_service_area,distance_miles', status: 'eq.active' }));
+  const competitorRows = () => safe(store.select('seo_competitors', { select: 'id,name,tier,kind,weight,rating,review_count,inside_service_area,distance_miles,is_mobile', status: 'eq.active' }));
   const recentJobs = () => safe(store.select('bookings', { select: 'id,date,service,vehicle,job_status,has_photos,has_inspection,job_photos,pre_scan,post_scan,line_items', date: `gte.${addDays(now, -365)}`, order: 'date.desc', limit: '300' }));
   const latestAudits = async () => {
     return currentCrawl(await safe(store.select('seo_page_audits', { select: '*', order: 'fetched_at.desc', limit: '120' })));
@@ -232,15 +232,26 @@ export function createAgentOps({ store, env = {}, now = new Date(), h }) {
   async function jobs() { return { candidates: jobContentCandidates(await recentJobs(), { limit: 10 }), privacy: 'Vehicle, work done and month only — no names, contacts or addresses.' }; }
 
   // ---- rank observations -------------------------------------------------------------------------
-  // Map-pack observations plus `summary`: where GID ranks in everything measured.
+  // Map-pack observations plus `summary`: where GID ranks in everything measured,
+  // `search`: Google search position for the tracked local searches (Search Console,
+  // 28 days vs the 28 before), and `reviews`: new reviews vs the other mobile mechanics.
   async function ranks() {
-    const [own, comps, runs] = await Promise.all([ownReviews(), competitorRows(), aiRuns().catch(() => [])]);
+    const w = h.windows(now, 28);
+    const localService = rows => annotateGsc(rows).filter(r => r.intentClass === 'high_local_commercial' && !r.branded);
+    const [own, comps, runs, cur, prev, snaps] = await Promise.all([
+      ownReviews(), competitorRows(), aiRuns().catch(() => []), h.gscPeriod(w.cur), h.gscPeriod(w.prev),
+      safe(store.select('seo_review_snapshots', { select: 'subject,review_count,captured_at', captured_at: `gte.${addDays(now, -60)}`, order: 'captured_at.asc', limit: '5000' })),
+    ]);
+    const extra = {
+      search: { ...searchStanding(localService(cur), localService(prev)), period: w.cur, comparedTo: w.prev },
+      reviews: reviewRace(snaps, comps, now, 30),
+    };
     const summary = grid => whereYouRank({ own, competitors: comps, grid, ai: runs[0] });
     try {
       const rows = await store.select('seo_rank_observations', { select: '*', order: 'observed_on.desc', limit: '2000' });
       const grid = rankGrid(rows);
-      return { ready: true, grid, recent: rows.slice(0, 50), areas: SERVICE_AREA_PLACES, summary: summary(grid) };
-    } catch (e) { return { ready: !missingTable(e), grid: rankGrid([]), recent: [], areas: SERVICE_AREA_PLACES, summary: summary(null), error: missingTable(e) ? 'Run seo_agent_migration.sql to enable rank observations.' : e.message }; }
+      return { ready: true, grid, recent: rows.slice(0, 50), areas: SERVICE_AREA_PLACES, summary: summary(grid), ...extra };
+    } catch (e) { return { ready: !missingTable(e), grid: rankGrid([]), recent: [], areas: SERVICE_AREA_PLACES, summary: summary(null), ...extra, error: missingTable(e) ? 'Run seo_agent_migration.sql to enable rank observations.' : e.message }; }
   }
   const placeFor = name => SERVICE_AREA_PLACES.find(p => p.name.toLowerCase() === String(name).toLowerCase());
   async function addRanks(rows) {

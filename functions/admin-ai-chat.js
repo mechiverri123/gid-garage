@@ -855,7 +855,7 @@ const TOOLS = [
   },
   {
     name: 'get_seo_rankings',
-    description: 'Where GID ranks in everything measured: local strength, Google review count and rating vs local competitors, Google Maps positions from the owner\'s own checks, and AI-assistant mentions. Use for "where do I rank", "how do I rank", "my rankings".',
+    description: 'Where GID ranks in everything measured: Google search position for the core local searches (Search Console, 28 days vs the 28 before; lower is better), new reviews in 30 days vs the other mobile mechanics, local strength, Google review count and rating vs local competitors, Google Maps positions from the owner\'s own checks, and AI-assistant mentions. Use for "where do I rank", "how do I rank", "my rankings".',
     input_schema: { type: 'object', properties: {} },
   },
   {
@@ -1546,7 +1546,8 @@ export async function onRequestPost({ request, env }) {
       case 'get_seo_competitors':
         return await seo().competitors();
       case 'get_seo_rankings':
-        return { summary: (await seo().agent().ranks()).summary };
+        { const r = await seo().agent().ranks();
+          return { summary: r.summary, googleSearch: r.search && { period: r.search.period, totals: r.search.totals, searches: r.search.searches.filter(x => x.core) }, newReviews30d: r.reviews && { ownPlace: r.reviews.ownPlace, of: r.reviews.of, rows: r.reviews.rows.slice(0, 6) } }; }
       case 'get_seo_seasonality':
         return await seo().seasonality();
       case 'get_customer_geography':

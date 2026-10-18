@@ -100,7 +100,7 @@ export function SeoMode({ focus, onFocus, orb, onOpenReviews }: { focus: SeoView
       case 'actions': return <ActionsView a={seo.get('actions')} post={seo.post} />;
       case 'top5': return <Top5View t={seo.get('top5')} />;
       case 'blueprint': return <BlueprintView b={seo.get('blueprint')} post={seo.post} />;
-      case 'rankings': return <RankingsView r={seo.get('rankings')} post={seo.post} />;
+      case 'rankings': return <RankingsView r={seo.get('rankings')} post={seo.post} technical={seo.getAction('technical')} connections={conn} />;
       case 'research': return <ResearchView k={seo.get('research')} post={seo.post} />;
       case 'history': return <HistoryView hs={seo.get('history')} />;
     }
