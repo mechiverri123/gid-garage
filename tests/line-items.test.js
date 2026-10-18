@@ -8,8 +8,11 @@ test('old lines (no qty) are 1 × their amount; edits keep amount = rate × qty'
   assert.deepEqual([lineQty(old), lineRate(old)], [1, 89.5]);
   const two = withLine(old, { qty: 2 });
   assert.deepEqual([two.qty, two.rate, two.amount], [2, 89.5, 179]);
-  const labor = withLine({ id: 'l', label: 'Labor', amount: 0, type: 'labor' }, { rate: 135 });
-  assert.equal(withLine(labor, { qty: 2.5 }).amount, 337.5);
+  // Labor is quoted flat: $ is the total, hours never change the price.
+  const labor = withLine({ id: 'l', label: 'Labor', amount: 0, type: 'labor' }, { rate: 400 });
+  const four = withLine(labor, { qty: 4 });
+  assert.deepEqual([four.amount, four.qty, four.rate], [400, 4, 100]);
+  assert.equal(withLine(four, { rate: 450 }).amount, 450);
   assert.equal(withLine({ label: 'x', amount: 0, type: 'parts' }, { qty: 3, rate: 19.99 }).amount, 59.97); // no float drift
 });
 

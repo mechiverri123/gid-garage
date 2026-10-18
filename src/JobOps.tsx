@@ -8,7 +8,7 @@ import { JobAISummary } from './JobAISummary';
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { decodeVin, cleanVin, vinCheckDigitOk } from './vinDecode';
 import { resolvePeriodWindow, collectedRevenue, netProfit, laborPaid, cardRevenue, ownerTakeHome, jobContribution, moneyEntriesForJob, jobFromRow, phoenixDateParts, phoenixYmd } from '../shared/business-metrics.js';
-import { lineQty, lineRate, withLine, lineText } from '../shared/line-items.js';
+import { lineQty, linePrice, withLine, lineText } from '../shared/line-items.js';
 import { isAwaitingPayment, statusChangeFields } from '../shared/business-rules.js';
 import { NextVisitCheck } from './nextVisit/NextVisitCheck';
 import { NextVisitInvoice, NextVisitReport } from './nextVisit/NextVisitPublic';
@@ -2557,7 +2557,7 @@ export function EstimatePanel({ job, onUpdate }: { job: Job; onUpdate: (j: Job) 
                   <span className="text-gray-600 text-xs">$</span>
                   <input
                     type="number"
-                    value={rawAmounts[item.id] ?? lineRate(item)}
+                    value={rawAmounts[item.id] ?? linePrice(item)}
                     onChange={e => {
                       setRawAmounts(prev => ({ ...prev, [item.id]: e.target.value }));
                       const n = parseFloat(e.target.value);
@@ -2585,7 +2585,7 @@ export function EstimatePanel({ job, onUpdate }: { job: Job; onUpdate: (j: Job) 
                   />
                   <span className={`text-[10px] font-bold ${isTaxable ? 'text-yellow-600' : 'text-gray-700'}`}>Tax</span>
                 </label>
-                {lineQty(item) !== 1 && <span className="text-gray-500 text-[11px] font-mono flex-shrink-0">= ${item.amount.toFixed(2)}</span>}
+                {lineQty(item) !== 1 && item.type !== 'labor' && <span className="text-gray-500 text-[11px] font-mono flex-shrink-0">= ${item.amount.toFixed(2)}</span>}
                 <button onClick={() => removeLineItem(item.id)} className="text-gray-700 hover:text-red-500 text-sm transition-colors w-5">×</button>
               </div>
             );
@@ -5681,7 +5681,7 @@ export function ExternalLeadModal({ onClose, onAdded, jobs }: { onClose: () => v
                     <input
                       type="text"
                       inputMode="decimal"
-                      value={rawAmounts[item.id] ?? (lineRate(item) === 0 ? '' : String(lineRate(item)))}
+                      value={rawAmounts[item.id] ?? (linePrice(item) === 0 ? '' : String(linePrice(item)))}
                       onChange={e => {
                         if (/^-?[0-9]*\.?[0-9]*$/.test(e.target.value)) {
                           setRawAmounts(prev => ({ ...prev, [item.id]: e.target.value }));
@@ -5712,7 +5712,7 @@ export function ExternalLeadModal({ onClose, onAdded, jobs }: { onClose: () => v
                     <option value="discount">Discount</option>
                     <option value="other">Other</option>
                   </select>
-                  {lineQty(item) !== 1 && <span className="text-gray-500 text-xs font-mono flex-shrink-0">= ${item.amount.toFixed(2)}</span>}
+                  {lineQty(item) !== 1 && item.type !== 'labor' && <span className="text-gray-500 text-xs font-mono flex-shrink-0">= ${item.amount.toFixed(2)}</span>}
                   <button onClick={() => removeLine(item.id)} className="text-gray-700 hover:text-red-500 text-sm transition-colors w-5 flex-shrink-0">×</button>
                 </div>
               ))}
