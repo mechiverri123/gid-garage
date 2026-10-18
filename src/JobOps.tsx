@@ -8,6 +8,7 @@ import { JobAISummary } from './JobAISummary';
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { decodeVin, cleanVin, vinCheckDigitOk } from './vinDecode';
 import { resolvePeriodWindow, collectedRevenue, netProfit, laborPaid, cardRevenue, ownerTakeHome, jobContribution, moneyEntriesForJob, jobFromRow, phoenixDateParts, phoenixYmd } from '../shared/business-metrics.js';
+import { lineQty, lineRate, withLine, lineText } from '../shared/line-items.js';
 import { isAwaitingPayment, statusChangeFields } from '../shared/business-rules.js';
 import { NextVisitCheck } from './nextVisit/NextVisitCheck';
 import { NextVisitInvoice, NextVisitReport } from './nextVisit/NextVisitPublic';
@@ -236,8 +237,10 @@ export type JobStatus =
 export interface LineItem {
   id: string;
   label: string;
-  amount: number;
+  amount: number; // LINE TOTAL (rate × qty) — every total and tax path sums this
   type: 'mobile' | 'labor' | 'parts' | 'fixed' | 'other' | 'discount';
+  qty?: number;   // hours on a labor line, count on a parts line; absent = 1 (shared/line-items.js)
+  rate?: number;  // unit price
 }
 
 export interface JobPhoto {
@@ -2429,7 +2432,12 @@ export function EstimatePanel({ job, onUpdate }: { job: Job; onUpdate: (j: Job) 
 
   function updateLineItemAmount(id: string, amountStr: string) {
     hasLocalEdits.current = true;
-    setLineItems(prev => prev.map(i => i.id === id ? { ...i, amount: parseFloat(amountStr) || 0 } : i));
+    setLineItems(prev => prev.map(i => i.id === id ? withLine(i, { rate: parseFloat(amountStr) || 0 }) : i));
+  }
+  const [rawQty, setRawQty] = useState<Record<string, string>>({});
+  function setLineQty(id: string, qty: number) {
+    hasLocalEdits.current = true;
+    setLineItems(prev => prev.map(i => i.id === id ? withLine(i, { qty }) : i));
   }
 
   function updateLineItemTaxable(id: string, taxable: boolean) {
@@ -2522,19 +2530,34 @@ export function EstimatePanel({ job, onUpdate }: { job: Job; onUpdate: (j: Job) 
           {lineItems.map(item => {
             const isTaxable = !['labor', 'mobile'].includes(item.type);
             return (
-              <div key={item.id} className="flex items-center gap-2">
+              <div key={item.id} className="flex flex-wrap items-center gap-2">
                 <input
                   type="text"
                   value={item.label}
                   onChange={e => updateLineItemLabel(item.id, e.target.value)}
                   placeholder="Description"
-                  className="flex-1 bg-gray-800 border border-gray-700 text-white px-2 py-1.5 text-xs focus:border-red-600 outline-none disabled:opacity-50"
+                  className="flex-1 min-w-[10rem] bg-gray-800 border border-gray-700 text-white px-2 py-1.5 text-xs focus:border-red-600 outline-none disabled:opacity-50"
                 />
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  aria-label={item.type === 'labor' ? 'Hours' : 'Quantity'}
+                  value={rawQty[item.id] ?? String(lineQty(item))}
+                  onChange={e => {
+                    if (!/^[0-9]*\.?[0-9]*$/.test(e.target.value)) return;
+                    setRawQty(prev => ({ ...prev, [item.id]: e.target.value }));
+                    const n = parseFloat(e.target.value);
+                    if (n > 0) setLineQty(item.id, n);
+                  }}
+                  onBlur={() => setRawQty(prev => { const next = { ...prev }; delete next[item.id]; return next; })}
+                  className="w-14 bg-gray-800 border border-gray-700 text-white px-2 py-1.5 text-xs font-mono focus:border-red-600 outline-none flex-shrink-0"
+                />
+                <span className="text-gray-600 text-[10px] font-bold uppercase -ml-1 flex-shrink-0">{item.type === 'labor' ? 'hrs' : 'qty'}</span>
                 <div className="flex items-center gap-1 flex-shrink-0">
                   <span className="text-gray-600 text-xs">$</span>
                   <input
                     type="number"
-                    value={rawAmounts[item.id] ?? item.amount}
+                    value={rawAmounts[item.id] ?? lineRate(item)}
                     onChange={e => {
                       setRawAmounts(prev => ({ ...prev, [item.id]: e.target.value }));
                       const n = parseFloat(e.target.value);
@@ -2562,6 +2585,7 @@ export function EstimatePanel({ job, onUpdate }: { job: Job; onUpdate: (j: Job) 
                   />
                   <span className={`text-[10px] font-bold ${isTaxable ? 'text-yellow-600' : 'text-gray-700'}`}>Tax</span>
                 </label>
+                {lineQty(item) !== 1 && <span className="text-gray-500 text-[11px] font-mono flex-shrink-0">= ${item.amount.toFixed(2)}</span>}
                 <button onClick={() => removeLineItem(item.id)} className="text-gray-700 hover:text-red-500 text-sm transition-colors w-5">×</button>
               </div>
             );
@@ -3628,7 +3652,7 @@ function SignedDocSection({ job }: { job: Job }) {
                   <p className="text-gray-600 text-[10px] font-bold uppercase tracking-widest px-4 py-2">Itemized</p>
                   {job.lineItems.map(item => (
                     <div key={item.id} className="flex justify-between gap-3 px-4 py-2">
-                      <span className="text-gray-300 text-sm flex-1 min-w-0 break-words">{item.label}</span>
+                      <span className="text-gray-300 text-sm flex-1 min-w-0 break-words">{lineText(item)}</span>
                       <span className="text-white text-sm font-mono flex-shrink-0 whitespace-nowrap">{item.amount === 0 ? 'FREE' : (item.amount < 0 ? `-$${Math.abs(item.amount).toFixed(2)}` : `$${item.amount.toFixed(2)}`)}</span>
                     </div>
                   ))}
@@ -4484,7 +4508,7 @@ export function JobDetailPanel({ job: initialJob, onClose, onJobUpdate, backLabe
                   <p className="text-gray-600 text-[10px] font-bold uppercase tracking-widest px-4 py-2">Estimate</p>
                   {job.lineItems.map(item => (
                     <div key={item.id} className="flex justify-between gap-3 px-4 py-2">
-                      <span className="text-gray-300 text-sm flex-1 min-w-0 break-words">{item.label}</span>
+                      <span className="text-gray-300 text-sm flex-1 min-w-0 break-words">{lineText(item)}</span>
                       <span className="text-white text-sm font-mono flex-shrink-0 whitespace-nowrap">{item.amount === 0 ? 'FREE' : (item.amount < 0 ? `-$${Math.abs(item.amount).toFixed(2)}` : `$${item.amount.toFixed(2)}`)}</span>
                     </div>
                   ))}
@@ -5292,10 +5316,14 @@ export function ExternalLeadModal({ onClose, onAdded, jobs }: { onClose: () => v
     setLineItems(prev => [...prev, { id: `li-${Date.now()}-${prev.length}`, label: '', amount: 0, type: 'parts' }]);
   }
   function updateLine(id: string, field: 'label' | 'amount' | 'type', value: string) {
-    setLineItems(prev => prev.map(li => li.id === id
-      ? { ...li, [field]: field === 'amount' ? (parseFloat(value) || 0) : value }
-      : li
+    setLineItems(prev => prev.map(li => li.id !== id ? li
+      : field === 'amount' ? withLine(li, { rate: parseFloat(value) || 0 })
+      : { ...li, [field]: value }
     ));
+  }
+  const [rawQty, setRawQty] = useState<Record<string, string>>({});
+  function setLineQty(id: string, qty: number) {
+    setLineItems(prev => prev.map(li => li.id === id ? withLine(li, { qty }) : li));
   }
   function removeLine(id: string) {
     setLineItems(prev => prev.filter(li => li.id !== id));
@@ -5420,7 +5448,7 @@ export function ExternalLeadModal({ onClose, onAdded, jobs }: { onClose: () => v
       onMouseDown={e => { backdropDown.current = e.target === e.currentTarget; }}
       onClick={e => { if (e.target === e.currentTarget && backdropDown.current) onClose(); backdropDown.current = false; }}
     >
-      <div className="bg-[#0f0f0f] border border-gray-800 w-full max-w-lg p-7 relative overflow-y-auto max-h-[90vh]">
+      <div className="bg-[#0f0f0f] border border-gray-800 w-full max-w-2xl p-5 sm:p-7 relative overflow-y-auto overflow-x-hidden max-h-[90vh]">
         <button onClick={onClose} className="absolute top-4 right-4 w-8 h-8 border border-gray-700 text-gray-500 hover:border-red-600 hover:text-white flex items-center justify-center transition-colors">✕</button>
         <div className="w-8 h-1 bg-indigo-500 mb-4" />
 
@@ -5623,20 +5651,37 @@ export function ExternalLeadModal({ onClose, onAdded, jobs }: { onClose: () => v
 
             <div className="space-y-2 mb-3">
               {lineItems.map(item => (
-                <div key={item.id} className="flex gap-2 items-start">
+                <div key={item.id} className="flex flex-wrap gap-2 items-center">
                   <input
                     type="text"
                     value={item.label}
                     onChange={e => updateLine(item.id, 'label', e.target.value)}
                     placeholder="Description"
-                    className="flex-1 bg-gray-900 border border-gray-700 text-white text-sm px-2.5 py-2 outline-none focus:border-red-600"
+                    className="basis-full sm:basis-0 flex-1 min-w-0 sm:min-w-[12rem] bg-gray-900 border border-gray-700 text-white text-sm px-2.5 py-2 outline-none focus:border-red-600"
                   />
+                  <label className="flex items-center gap-1 flex-shrink-0">
+                    <input
+                      type="text"
+                      inputMode="decimal"
+                      aria-label={item.type === 'labor' ? 'Hours' : 'Quantity'}
+                      value={rawQty[item.id] ?? String(lineQty(item))}
+                      onChange={e => {
+                        if (!/^[0-9]*\.?[0-9]*$/.test(e.target.value)) return;
+                        setRawQty(prev => ({ ...prev, [item.id]: e.target.value }));
+                        const n = parseFloat(e.target.value);
+                        if (n > 0) setLineQty(item.id, n);
+                      }}
+                      onBlur={() => setRawQty(prev => { const next = { ...prev }; delete next[item.id]; return next; })}
+                      className="w-14 bg-gray-900 border border-gray-700 text-white text-sm px-2 py-2 outline-none focus:border-red-600"
+                    />
+                    <span className="text-gray-500 text-[10px] font-bold uppercase">{item.type === 'labor' ? 'hrs' : 'qty'}</span>
+                  </label>
                   <div className="relative w-28 flex-shrink-0">
                     <span className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-500 text-sm">$</span>
                     <input
                       type="text"
                       inputMode="decimal"
-                      value={rawAmounts[item.id] ?? (item.amount === 0 ? '' : String(item.amount))}
+                      value={rawAmounts[item.id] ?? (lineRate(item) === 0 ? '' : String(lineRate(item)))}
                       onChange={e => {
                         if (/^-?[0-9]*\.?[0-9]*$/.test(e.target.value)) {
                           setRawAmounts(prev => ({ ...prev, [item.id]: e.target.value }));
@@ -5667,7 +5712,8 @@ export function ExternalLeadModal({ onClose, onAdded, jobs }: { onClose: () => v
                     <option value="discount">Discount</option>
                     <option value="other">Other</option>
                   </select>
-                  <button onClick={() => removeLine(item.id)} className="text-gray-700 hover:text-red-500 text-sm transition-colors w-5 flex-shrink-0 pt-2">×</button>
+                  {lineQty(item) !== 1 && <span className="text-gray-500 text-xs font-mono flex-shrink-0">= ${item.amount.toFixed(2)}</span>}
+                  <button onClick={() => removeLine(item.id)} className="text-gray-700 hover:text-red-500 text-sm transition-colors w-5 flex-shrink-0">×</button>
                 </div>
               ))}
             </div>
@@ -7514,7 +7560,7 @@ export function InvoicePage() {
             <tbody>
               {job.lineItems?.map(item => (
                 <tr key={item.id} className="border-b border-gray-200">
-                  <td className="py-1.5 pr-3 align-top">{item.label}</td>
+                  <td className="py-1.5 pr-3 align-top">{lineText(item)}</td>
                   <td className="py-1.5 text-right align-top whitespace-nowrap">
                     {item.amount === 0 ? 'FREE' : (item.amount < 0 ? `-$${Math.abs(item.amount).toFixed(2)}` : `$${item.amount.toFixed(2)}`)}
                   </td>
@@ -7626,7 +7672,7 @@ export function InvoicePage() {
               <div className="divide-y divide-white/5">
                 {job.lineItems.map(item => (
                   <div key={item.id} className="flex justify-between gap-3 px-6 py-2.5">
-                    <span className="text-gray-300 text-sm flex-1 min-w-0 break-words">{item.label}</span>
+                    <span className="text-gray-300 text-sm flex-1 min-w-0 break-words">{lineText(item)}</span>
                     <span className={`text-sm font-mono font-bold flex-shrink-0 whitespace-nowrap ${item.amount === 0 ? 'text-gray-600' : 'text-white'}`}>
                       {item.amount === 0 ? 'FREE' : (item.amount < 0 ? `-$${Math.abs(item.amount).toFixed(2)}` : `$${item.amount.toFixed(2)}`)}
                     </span>
@@ -8049,7 +8095,7 @@ export function EstimatePage() {
             <>
               {job.lineItems.map(item => (
                 <div key={item.id} className="flex justify-between gap-3 px-4 py-3">
-                  <span className="text-gray-300 text-sm flex-1 min-w-0 break-words">{item.label}</span>
+                  <span className="text-gray-300 text-sm flex-1 min-w-0 break-words">{lineText(item)}</span>
                   <span className={`text-sm font-mono font-bold flex-shrink-0 whitespace-nowrap ${item.amount === 0 ? 'text-gray-600' : 'text-white'}`}>
                     {item.amount === 0 ? 'FREE' : (item.amount < 0 ? `-$${Math.abs(item.amount).toFixed(2)}` : `$${item.amount.toFixed(2)}`)}
                   </span>

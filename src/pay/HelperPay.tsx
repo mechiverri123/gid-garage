@@ -9,6 +9,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { adminPost, getAllJobs, type Job } from '../JobOps';
 import { PAY_KINDS, PAYOUT_METHODS, NEC_THRESHOLD, ROLES, balances, entryAmount, cents, weeklySummary } from '../../shared/pay.js';
 import { phoenixYmd, addDaysYmd } from '../../shared/business-metrics.js';
+import { jobLaborHours } from '../../shared/line-items.js';
 
 type Role = keyof typeof ROLES;
 type Person = { id: string; name: string; role?: Role; phone: string | null; email: string | null; pay_method: string | null; hourly_rate: number | null; job_rate: number | null; active: boolean; notes: string | null };
@@ -48,6 +49,12 @@ export function HelperPay() {
   const paidMonth = teamPayouts.filter(p => p.paid_on.startsWith(month)).reduce((s, p) => s + Number(p.amount), 0);
   const paidYear = teamPayouts.filter(p => p.paid_on.startsWith(year)).reduce((s, p) => s + Number(p.amount), 0);
   const ownerWeeks = ownerRow ? weeklySummary(ownerRow.person.id, data?.entries || [], data?.payouts || [], today, 6) : [];
+  // Labor hours on this week's jobs (Mon–Sun, by job date), from the estimate/invoice hours.
+  const weekJobs = useMemo(() => {
+    const from = addDaysYmd(today, -((new Date(`${today}T12:00:00Z`).getUTCDay() + 6) % 7));
+    return jobs.filter(j => !j.dateTbd && j.jobStatus !== 'CANCELLED' && j.date >= from && j.date <= addDaysYmd(from, 6)).map(j => ({ j, hours: jobLaborHours(j.lineItems) })).filter(x => x.hours > 0);
+  }, [jobs, today]);
+  const weekJobHours = cents(weekJobs.reduce((s, x) => s + x.hours, 0));
 
   const activity = useMemo(() => {
     const list = [
@@ -102,6 +109,7 @@ export function HelperPay() {
             <div><div className="text-xl font-black text-white tabular-nums">{$(ownerWeeks[0]?.earned)}</div><div className="text-gray-500 text-[11px] font-bold uppercase tracking-wider">Earned this week</div></div>
             <div><div className={`text-xl font-black tabular-nums ${ownerRow.owed > 0 ? 'text-amber-400' : 'text-white'}`}>{$(Math.max(0, ownerRow.owed))}</div><div className="text-gray-500 text-[11px] font-bold uppercase tracking-wider">Not paid yet</div></div>
           </div>
+          <p className="text-gray-400 text-xs mt-2">Labor hours on this week's jobs: <b className="text-white tabular-nums">{weekJobHours}</b>{weekJobs.length ? ` (${weekJobs.map(x => `${jobLabel(x.j)} ${x.hours}h`).join(', ')})` : ' (set hours on a job\'s labor line)'}</p>
           <div className="flex gap-2 mt-3">
             <button type="button" onClick={() => setPanel({ type: 'work', personId: ownerRow.person.id })} className="flex-1 border border-gray-700 text-gray-200 hover:border-red-600 text-[11px] font-bold uppercase tracking-widest py-2.5">Log my hours</button>
             <button type="button" onClick={() => setPanel({ type: 'payout', personId: ownerRow.person.id })} disabled={!(ownerRow.owed > 0)} className="flex-1 bg-red-600 hover:bg-red-700 disabled:opacity-40 text-white text-[11px] font-bold uppercase tracking-widest py-2.5">Pay myself {ownerRow.owed > 0 ? $(ownerRow.owed) : ''}</button>
@@ -271,6 +279,9 @@ function WorkForm({ people, personId, jobs, today, onClose, onSaved }: { people:
   const nearby = useMemo(() => jobs.filter(j => !j.dateTbd && j.date >= addDaysYmd(date, -3) && j.date <= addDaysYmd(date, 3) && j.jobStatus !== 'CANCELLED')
     .sort((a, b) => Number(b.date === date) - Number(a.date === date) || a.date.localeCompare(b.date)), [jobs, date]);
   useEffect(() => { const same = nearby.filter(j => j.date === date); setBookingId(same.length === 1 ? same[0].id : ''); }, [date, nearby]);
+  // Picking a job fills in the hours from its labor lines (still editable).
+  const jobHours = jobLaborHours(jobs.find(j => j.id === bookingId)?.lineItems);
+  useEffect(() => { if (jobHours > 0) setHours(String(jobHours)); }, [bookingId]); // eslint-disable-line react-hooks/exhaustive-deps
   const total = kind === 'hours' ? entryAmount({ kind, hours: Number(hours), rate: Number(rate) }) : cents(amount);
 
   return (
@@ -292,7 +303,7 @@ function WorkForm({ people, personId, jobs, today, onClose, onSaved }: { people:
       </div>
       {kind === 'hours' ? (
         <div className="grid grid-cols-2 gap-3">
-          <label><span className={label}>Hours</span><input className={input} inputMode="decimal" value={hours} onChange={e => setHours(e.target.value)} placeholder="2.5" autoFocus /></label>
+          <label><span className={label}>Hours{jobHours > 0 ? ` (job: ${jobHours})` : ''}</span><input className={input} inputMode="decimal" value={hours} onChange={e => setHours(e.target.value)} placeholder="2.5" autoFocus /></label>
           <label><span className={label}>Rate per hour</span><input className={input} inputMode="decimal" value={rate} onChange={e => setRate(e.target.value)} placeholder="20.00" /></label>
         </div>
       ) : (
