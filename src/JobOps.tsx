@@ -8,7 +8,7 @@ import { JobAISummary } from './JobAISummary';
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { decodeVin, cleanVin, vinCheckDigitOk } from './vinDecode';
 import { resolvePeriodWindow, collectedRevenue, netProfit, laborPaid, cardRevenue, ownerTakeHome, jobContribution, moneyEntriesForJob, jobFromRow, phoenixDateParts, phoenixYmd } from '../shared/business-metrics.js';
-import { lineQty, linePrice, withLine, lineText } from '../shared/line-items.js';
+import { lineQty, lineRate, linePrice, withLine, lineText } from '../shared/line-items.js';
 import { isAwaitingPayment, statusChangeFields } from '../shared/business-rules.js';
 import { NextVisitCheck } from './nextVisit/NextVisitCheck';
 import { NextVisitInvoice, NextVisitReport } from './nextVisit/NextVisitPublic';
@@ -99,6 +99,26 @@ function CopyableField({ value, className }: { value: string; className?: string
   );
 }
 
+const lineMoney = (n: number) => (n === 0 ? 'FREE' : n < 0 ? `-$${Math.abs(n).toFixed(2)}` : `$${n.toFixed(2)}`);
+// Customer-facing line: item (with the unit price when there's more than one), qty, line total.
+function LineHead({ pad = 'px-4' }: { pad?: string }) {
+  return (
+    <div className={`flex gap-3 ${pad} pt-1 pb-1 text-gray-600 text-[10px] font-bold uppercase tracking-widest`}>
+      <span className="flex-1">Item</span><span className="w-8 text-center">Qty</span><span className="w-24 text-right">Price</span>
+    </div>
+  );
+}
+function LineRow({ item, pad = 'px-4 py-2' }: { item: LineItem; pad?: string }) {
+  const q = item.type === 'labor' ? 1 : lineQty(item);
+  return (
+    <div className={`flex items-baseline gap-3 ${pad}`}>
+      <span className="flex-1 min-w-0 break-words text-gray-300 text-sm">{item.label}{q !== 1 && <span className="block text-gray-500 text-xs">{lineMoney(lineRate(item))} each</span>}</span>
+      <span className="w-8 text-center text-gray-400 text-sm tabular-nums flex-shrink-0">{q}</span>
+      <span className={`w-24 text-right text-sm font-mono font-bold flex-shrink-0 whitespace-nowrap ${item.amount === 0 ? 'text-gray-600' : 'text-white'}`}>{lineMoney(item.amount)}</span>
+    </div>
+  );
+}
+
 function useDocViewer() {
   const [doc, setDocState] = useState<{ url: string; name: string } | null>(null);
 
@@ -113,7 +133,8 @@ function useDocViewer() {
     setDocState(d);
   }
   function close() {
-    if (doc) window.history.back();
+    // Pop only the entry open() pushed; a second call (× and backdrop both fire) is a no-op.
+    if (window.history.state?.gidDocViewer) window.history.back();
     else setDocState(null);
   }
   return { doc, open, close };
@@ -129,7 +150,7 @@ function DocViewerModal({ doc, onClose }: { doc: { url: string; name: string } |
           className="text-gray-300 hover:text-white text-[10px] font-bold uppercase tracking-wider bg-black/70 px-3 py-2 transition-colors">
           Open Original
         </a>
-        <button onClick={onClose}
+        <button onClick={e => { e.stopPropagation(); onClose(); }} aria-label="Close"
           className="text-gray-300 hover:text-white text-xl leading-none bg-black/70 w-9 h-9 flex items-center justify-center transition-colors">×</button>
       </div>
       {isPdf ? (
@@ -3650,12 +3671,7 @@ function SignedDocSection({ job }: { job: Job }) {
               {job.lineItems?.length > 0 && (
                 <div className="border border-white/10 divide-y divide-white/5">
                   <p className="text-gray-600 text-[10px] font-bold uppercase tracking-widest px-4 py-2">Itemized</p>
-                  {job.lineItems.map(item => (
-                    <div key={item.id} className="flex justify-between gap-3 px-4 py-2">
-                      <span className="text-gray-300 text-sm flex-1 min-w-0 break-words">{lineText(item)}</span>
-                      <span className="text-white text-sm font-mono flex-shrink-0 whitespace-nowrap">{item.amount === 0 ? 'FREE' : (item.amount < 0 ? `-$${Math.abs(item.amount).toFixed(2)}` : `$${item.amount.toFixed(2)}`)}</span>
-                    </div>
-                  ))}
+                  <LineHead pad="px-4" />{job.lineItems.map(item => <LineRow key={item.id} item={item} pad="px-4 py-2" />)}
                 </div>
               )}
 
@@ -4506,12 +4522,7 @@ export function JobDetailPanel({ job: initialJob, onClose, onJobUpdate, backLabe
               {job.lineItems?.length > 0 && job.jobStatus !== 'PAID' && !job.customerAgreed && (
                 <div className="hidden print:block border border-white/10 divide-y divide-white/5">
                   <p className="text-gray-600 text-[10px] font-bold uppercase tracking-widest px-4 py-2">Estimate</p>
-                  {job.lineItems.map(item => (
-                    <div key={item.id} className="flex justify-between gap-3 px-4 py-2">
-                      <span className="text-gray-300 text-sm flex-1 min-w-0 break-words">{lineText(item)}</span>
-                      <span className="text-white text-sm font-mono flex-shrink-0 whitespace-nowrap">{item.amount === 0 ? 'FREE' : (item.amount < 0 ? `-$${Math.abs(item.amount).toFixed(2)}` : `$${item.amount.toFixed(2)}`)}</span>
-                    </div>
-                  ))}
+                  <LineHead pad="px-4" />{job.lineItems.map(item => <LineRow key={item.id} item={item} pad="px-4 py-2" />)}
                   <div className="flex justify-between px-4 py-2">
                     <span className="text-gray-500 text-xs font-bold uppercase tracking-wider">Subtotal</span>
                     <span className="text-white text-sm font-mono">${(job.estimateAmount || 0).toFixed(2)}</span>
@@ -7554,6 +7565,7 @@ export function InvoicePage() {
             <thead>
               <tr className="border-t border-b border-gray-300">
                 <th className="text-left font-bold uppercase text-xs tracking-wide py-1.5">Description</th>
+                <th className="text-center font-bold uppercase text-xs tracking-wide py-1.5 px-2">Qty</th>
                 <th className="text-right font-bold uppercase text-xs tracking-wide py-1.5">Amount</th>
               </tr>
             </thead>
@@ -7561,6 +7573,7 @@ export function InvoicePage() {
               {job.lineItems?.map(item => (
                 <tr key={item.id} className="border-b border-gray-200">
                   <td className="py-1.5 pr-3 align-top">{lineText(item)}</td>
+                  <td className="py-1.5 px-2 text-center align-top">{item.type === 'labor' ? 1 : lineQty(item)}</td>
                   <td className="py-1.5 text-right align-top whitespace-nowrap">
                     {item.amount === 0 ? 'FREE' : (item.amount < 0 ? `-$${Math.abs(item.amount).toFixed(2)}` : `$${item.amount.toFixed(2)}`)}
                   </td>
@@ -7670,14 +7683,7 @@ export function InvoicePage() {
             <div className="border-t border-white/10">
               <p className="text-gray-600 text-[10px] font-bold uppercase tracking-widest px-6 py-2">Services</p>
               <div className="divide-y divide-white/5">
-                {job.lineItems.map(item => (
-                  <div key={item.id} className="flex justify-between gap-3 px-6 py-2.5">
-                    <span className="text-gray-300 text-sm flex-1 min-w-0 break-words">{lineText(item)}</span>
-                    <span className={`text-sm font-mono font-bold flex-shrink-0 whitespace-nowrap ${item.amount === 0 ? 'text-gray-600' : 'text-white'}`}>
-                      {item.amount === 0 ? 'FREE' : (item.amount < 0 ? `-$${Math.abs(item.amount).toFixed(2)}` : `$${item.amount.toFixed(2)}`)}
-                    </span>
-                  </div>
-                ))}
+                <LineHead pad="px-6" />{job.lineItems.map(item => <LineRow key={item.id} item={item} pad="px-6 py-2.5" />)}
                 {/* Price adjustment line — only shown on paid receipts when present */}
                 {isPaid && job.adjustmentAmount != null && Math.abs(job.adjustmentAmount) > 0.01 && (
                   <div className="flex justify-between gap-3 px-6 py-2.5 bg-indigo-900/20">
@@ -8093,14 +8099,7 @@ export function EstimatePage() {
           {/* Line items */}
           {job.lineItems?.length > 0 ? (
             <>
-              {job.lineItems.map(item => (
-                <div key={item.id} className="flex justify-between gap-3 px-4 py-3">
-                  <span className="text-gray-300 text-sm flex-1 min-w-0 break-words">{lineText(item)}</span>
-                  <span className={`text-sm font-mono font-bold flex-shrink-0 whitespace-nowrap ${item.amount === 0 ? 'text-gray-600' : 'text-white'}`}>
-                    {item.amount === 0 ? 'FREE' : (item.amount < 0 ? `-$${Math.abs(item.amount).toFixed(2)}` : `$${item.amount.toFixed(2)}`)}
-                  </span>
-                </div>
-              ))}
+              <LineHead pad="px-4" />{job.lineItems.map(item => <LineRow key={item.id} item={item} pad="px-4 py-3" />)}
             </>
           ) : (
             <div className="flex justify-between px-4 py-3">
