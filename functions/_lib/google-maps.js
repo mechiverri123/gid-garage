@@ -23,7 +23,7 @@ async function call(fetchImpl, url, key, mask, body, signal) {
 
 export const legacyPlace = (p = {}) => ({
   place_id: p.id, name: p.displayName?.text, rating: p.rating, user_ratings_total: p.userRatingCount,
-  url: p.googleMapsUri, website: p.websiteUri, types: p.types,
+  url: p.googleMapsUri, website: p.websiteUri, types: p.types, category: p.primaryTypeDisplayName?.text,
   geometry: p.location ? { location: { lat: p.location.latitude, lng: p.location.longitude } } : undefined,
   reviews: p.reviews?.map(r => ({
     author_name: r.authorAttribution?.displayName, profile_photo_url: r.authorAttribution?.photoUri, rating: r.rating,

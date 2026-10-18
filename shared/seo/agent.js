@@ -516,7 +516,21 @@ export function mapsStanding(obs = [], days = 7) {
     if (o.observed_on === date) { if (!now.has(key(o))) now.set(key(o), o); }
     else if (o.observed_on <= cutoff && !before.has(key(o))) before.set(key(o), o);
   }
-  const cells = [...now.values()].map(o => ({ keyword: o.keyword, area: o.area_name, rank: o.rank, before: before.get(key(o))?.rank ?? null, checkedBefore: before.has(key(o)), leader: o.competitors?.[0] || null }));
+  // competitors: names (older rows) or {name, category, you?} (maps_rank since 2026-10-18).
+  const rivals = o => (o.competitors || []).filter(c => !c?.you).map(c => (typeof c === 'string' ? { name: c, category: null } : c));
+  const cells = [...now.values()].map(o => ({ keyword: o.keyword, area: o.area_name, rank: o.rank, before: before.get(key(o))?.rank ?? null, checkedBefore: before.has(key(o)), leader: rivals(o)[0]?.name || null }));
+  // Main Google category of the businesses above GID (wherever GID isn't top 3) vs GID's own.
+  const yours = [...now.values()].flatMap(o => o.competitors || []).find(c => c?.you && c.category)?.category || null;
+  const tally = new Map();
+  for (const o of now.values()) {
+    if (o.rank != null && o.rank <= 3) continue;
+    for (const c of rivals(o)) {
+      if (!c.category) continue;
+      const t = tally.get(c.category) || { category: c.category, searches: 0, names: new Set() };
+      t.searches++; t.names.add(c.name); tally.set(c.category, t);
+    }
+  }
+  const beatingYou = [...tally.values()].sort((a, b) => b.searches - a.searches).map(t => ({ category: t.category, searches: t.searches, names: [...t.names].slice(0, 3), missing: t.category !== yours }));
   const avg = xs => (xs.length ? Math.round((xs.reduce((a, x) => a + x, 0) / xs.length) * 10) / 10 : null);
   const prev = cells.filter(c => c.checkedBefore);
   return {
@@ -524,6 +538,6 @@ export function mapsStanding(obs = [], days = 7) {
     checks: cells.length, shown: cells.filter(c => c.rank != null).length,
     top3: cells.filter(c => c.rank != null && c.rank <= 3).length, top3Before: prev.length ? prev.filter(c => c.before != null && c.before <= 3).length : null,
     average: avg(cells.filter(c => c.rank != null).map(c => c.rank)), averageBefore: prev.length ? avg(prev.filter(c => c.before != null).map(c => c.before)) : null,
-    cells,
+    cells, categories: tally.size || yours ? { yours, beatingYou } : null,
   };
 }

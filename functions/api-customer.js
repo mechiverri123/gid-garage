@@ -2,6 +2,7 @@
 import { checkResponse, nextVisitJobRow, recommendations } from '../shared/next-visit.js';
 import { isBookableSlot, phoenixHour } from '../shared/booking-slots.js';
 import { phoenixYmd } from '../shared/business-metrics.js';
+import { vehicleRecalls } from './_lib/recalls.js';
 // Cloudflare Pages Function — POST /api/customer
 // PUBLIC customer operations that legitimately need DB access, now that the
 // anon key can no longer read the bookings table. Each action validates itself
@@ -14,6 +15,7 @@ import { phoenixYmd } from '../shared/business-metrics.js';
 //   cancel-verify       { id, token }             -> { valid, booking? }
 //   cancel              { id, token }             -> { ok, booking? }
 //   get-job             { id }                    -> Booking | null  (for estimate/invoice pages)
+//   recalls             { id }                    -> { vehicle, recalls[] } | null (NHTSA, from the job's VIN)
 //   get-ppi             { id }                    -> PPIRecord | null (for the /ppi page)
 //   sign                { id, signature }         -> { ok }   (customer e-signs estimate)
 //   estimate-decline    { id }                    -> { ok }   (customer declines estimate)
@@ -287,6 +289,16 @@ export async function onRequestPost({ request, env }) {
         } catch { /* leave as is */ }
         booking.currentTaxRate = await fetchCurrentTaxRate();
         return json(booking);
+      }
+
+      // ---- Free safety-recall check for the job's vehicle (public NHTSA data) --
+      case 'recalls': {
+        const { id } = payload;
+        if (!id) return json({ error: 'Missing id' }, 400);
+        const res = await fetch(`${base}/bookings?id=eq.${encodeURIComponent(id)}&select=vin`, { headers });
+        if (!res.ok) return json({ error: await res.text() }, 502);
+        const vin = (await res.json())[0]?.vin;
+        return json(vin ? await vehicleRecalls(vin) : null);
       }
 
       // ---- PrePI page: read one pre-purchase inspection by id ---------------

@@ -220,12 +220,14 @@ export const mapsRank = {
     const end = offset + slice.length;
     const placeId = ctx.env.GOOGLE_PLACE_ID;
     const rows = await Promise.all(slice.map(async c => {
-      const results = await textSearch(ctx.env.GOOGLE_PLACES_API_KEY, c.keyword, { lat: c.lat, lng: c.lng, radius: 8000, fields: 'places.id,places.displayName' }, ctx.fetch)
+      const results = await textSearch(ctx.env.GOOGLE_PLACES_API_KEY, c.keyword, { lat: c.lat, lng: c.lng, radius: 8000, fields: 'places.id,places.displayName,places.primaryTypeDisplayName' }, ctx.fetch)
         .catch(e => { throw new ProviderError(e.denied ? 'needs_authorization' : 'error', `Places: ${e.message}`); });
       const rank = placeIn(results, placeId);
       return {
         keyword: c.keyword, area_name: c.name, lat: c.lat, lng: c.lng, observed_on: phoenixYmd(ctx.now), rank, in_local_pack: rank != null && rank <= 3,
-        competitors: results.filter(r => !isGid(r, placeId)).slice(0, 3).map(r => r.name), method: 'api', note: 'Automatic: Google Places search from this town',
+        // Top 3 rivals with their main Google category, plus GID's own ({you:true}) to compare.
+        competitors: [...results.filter(r => !isGid(r, placeId)).slice(0, 3).map(r => ({ name: r.name, category: r.category || null })),
+          ...results.filter(r => isGid(r, placeId)).slice(0, 1).map(r => ({ name: r.name, category: r.category || null, you: true }))], method: 'api', note: 'Automatic: Google Places search from this town',
       };
     }));
     await ctx.store.insert('seo_rank_observations', rows);

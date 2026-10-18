@@ -119,6 +119,31 @@ function LineRow({ item, pad = 'px-4 py-2' }: { item: LineItem; pad?: string }) 
   );
 }
 
+// Free safety-recall check (NHTSA via /api/customer 'recalls'), model-wide for the job's VIN.
+function RecallCheck({ jobId, vin }: { jobId: string; vin?: string }) {
+  const [r, setR] = useState<{ vehicle: string; recalls: { campaign: string; component: string; summary: string }[] } | null>(null);
+  useEffect(() => {
+    if (!vin || vin.length !== 17) return;
+    apiPost('recalls', { id: jobId }).then(setR).catch(() => {});
+  }, [jobId, vin]);
+  if (!r) return null;
+  const n = r.recalls.length;
+  return (
+    <div className="bg-white/5 border border-white/10 px-4 sm:px-6 py-4 flex flex-col gap-2">
+      <p className="text-gray-500 text-[10px] font-bold uppercase tracking-widest">Free safety recall check</p>
+      {n === 0
+        ? <p className="text-green-400 text-sm">✓ No safety recalls on file for the {r.vehicle}.</p>
+        : <>
+            <p className="text-amber-300 text-sm font-bold">⚠ {n} safety recall{n === 1 ? '' : 's'} on file for the {r.vehicle}</p>
+            {r.recalls.slice(0, 5).map(x => (
+              <p key={x.campaign} className="text-gray-300 text-sm"><b className="text-white">{x.component}</b> — {x.summary.length > 160 ? `${x.summary.slice(0, 160)}…` : x.summary}</p>
+            ))}
+            <p className="text-gray-400 text-xs">Recall repairs are free at any dealer. Some may already be done on your vehicle: check yours by VIN at <a className="underline" href="https://www.nhtsa.gov/recalls" target="_blank" rel="noopener noreferrer">nhtsa.gov/recalls</a>.</p>
+          </>}
+    </div>
+  );
+}
+
 function useDocViewer() {
   const [doc, setDocState] = useState<{ url: string; name: string } | null>(null);
 
@@ -4373,6 +4398,7 @@ export function JobDetailPanel({ job: initialJob, onClose, onJobUpdate, backLabe
                         : <span className="text-white text-sm">—</span>}
                     </div>
                   ))}
+                  <div className="mt-3"><RecallCheck jobId={job.id} vin={job.vin} /></div>
                   <button onClick={startEditAppt}
                     className="no-print w-full border border-gray-700 text-gray-400 hover:border-red-600 hover:text-white text-xs font-bold uppercase tracking-wider py-2.5 mt-2 transition-colors">
                     ✏️ Edit Appointment
@@ -7881,6 +7907,8 @@ export function InvoicePage() {
           </div>
         )}
 
+        <RecallCheck jobId={job.id} vin={job.vin} />
+
         {/* Next-visit recommendations — approve/decline + book (screen); clean list in print */}
         <NextVisitInvoice jobId={job.id} nextVisit={job.inspectionData?.nextVisit} />
 
@@ -8120,6 +8148,8 @@ export function EstimatePage() {
             <span className="text-red-400 text-2xl font-black">${totalFromItems(job.estimateAmount || 0, job.lineItems).toFixed(2)}</span>
           </div>
         </div>
+
+        <RecallCheck jobId={job.id} vin={job.vin} />
 
         {/* Scope notes */}
         {job.estimateNotes && (

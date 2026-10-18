@@ -383,6 +383,20 @@ function Scorecard({ r, post, technical, connections }: { r: Any; post: Post; te
               );
             })}
           </div>
+          {m.categories?.beatingYou?.length > 0 && (
+            <div className="rounded-xl p-3 flex flex-col gap-1.5" style={box}>
+              <span className="text-[14.5px] font-medium" style={{ color: C.text }}>Google categories of the businesses above you</span>
+              <span className="text-[13px]" style={{ color: C.text2 }}>Your main category on Google: <b>{m.categories.yours || 'not found'}</b>. Where you're not top 3, the ones above you are listed as:</span>
+              <div className="flex flex-wrap gap-1.5">
+                {m.categories.beatingYou.slice(0, 8).map((c: Any) => (
+                  <span key={c.category} title={c.names.join(', ')} className="text-[13px] rounded-lg px-2 py-1" style={{ border: `1px solid ${c.missing ? C.amber : C.border}`, color: C.text2 }}>
+                    {c.category} <b>{c.searches}×</b>{c.missing ? ' · not your main one' : ''}
+                  </span>
+                ))}
+              </div>
+              <span className="text-[12.5px]" style={{ color: C.muted }}>Updated with the daily check. Categories you don't have are worth adding as extra categories in Google Business Profile if they truly fit what you do (hover a chip for who uses it).</span>
+            </div>
+          )}
           <p className="text-[12.5px]" style={{ color: C.muted }}>From Google's own Places search, run from each town: very close to the Maps app, not identical (Maps also weighs each searcher's history and exact spot).</p>
         </>}
       </section>
