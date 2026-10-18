@@ -300,6 +300,22 @@ function Scorecard({ r, post, technical, connections }: { r: Any; post: Post; te
   const lastSync = providers.map(p => p.lastSyncAt).filter(Boolean).sort().pop();
   const gsc = providers.find(p => /search_console|gsc/i.test(p.id));
   const cell = (q: string) => r.grid?.cells?.[`${q}|${area.name}`];
+  const m: Any = r.maps;
+  const mapsBySearch: { k: string; cells: Any[] }[] = m ? [...new Set<string>(m.cells.map((c: Any) => c.keyword))].map(k => ({ k, cells: m.cells.filter((c: Any) => c.keyword === k) })) : [];
+  const [checking, setChecking] = useState(false);
+  const [checkMsg, setCheckMsg] = useState('');
+  const checkNow = async () => {
+    setChecking(true); setCheckMsg('');
+    try { const d = await post({ action: 'run_monitor', id: 'maps_rank' }) as Any; setCheckMsg(d?.detail || 'Checked.'); } catch (e) { setCheckMsg(e instanceof Error ? e.message : String(e)); }
+    setChecking(false);
+  };
+  const move = (c: Any) => {
+    if (!c.checkedBefore || c.rank === c.before) return null;
+    if (c.rank == null) return <span style={{ color: C.red }}> dropped out</span>;
+    if (c.before == null) return <span style={{ color: C.green }}> new</span>;
+    const d = c.before - c.rank;
+    return <span style={{ color: d > 0 ? C.green : C.red }}> {d > 0 ? '↑' : '↓'}{Math.abs(d)}</span>;
+  };
 
   const log = async (q: string) => {
     const v = entry[q] ?? '';
@@ -319,7 +335,9 @@ function Scorecard({ r, post, technical, connections }: { r: Any; post: Post; te
           <Tile label="Google search position (local service searches)" value={t.position != null ? `#${t.position}` : '—'} tone={posTone(t.position ?? null)} sub={<Delta now={t.position ?? null} before={t.previousPosition ?? null} lowerIsBetter />} note="Average position across every local service search you showed for, weighted by how often you showed. From Search Console." />
           <Tile label="Clicks from those searches" value={t.clicks ?? '—'} sub={<Delta now={t.clicks ?? null} before={t.previousClicks ?? null} />} />
           <Tile label="Times you showed (impressions)" value={t.impressions != null ? Number(t.impressions).toLocaleString('en-US') : '—'} sub={<Delta now={t.impressions ?? null} before={t.previousImpressions ?? null} />} />
-          <Tile label="Google Maps (your checks)" value={sum.map_pack?.rank != null ? `#${sum.map_pack.rank}` : 'Not shown'} tone={posTone(sum.map_pack?.rank ?? null)} sub={sum.map_pack?.detail || 'No checks logged yet. Use Live check below.'} />
+          {m
+            ? <Tile label="Google Maps top 3 (checked daily)" value={`${m.top3} of ${m.checks}`} tone={m.top3 ? C.green : C.amber} sub={m.average != null ? `average #${m.average} when shown` : 'not shown yet'} />
+            : <Tile label="Google Maps" value="—" sub="Checked automatically every day. Press Check now below for the first one." />}
           <Tile label="New reviews, last 30 days" value={ownRace ? `+${ownRace.gained}` : '—'} tone={ownRace?.gained ? C.green : C.muted} sub={r.reviews?.ownPlace ? `#${r.reviews.ownPlace} of ${r.reviews.of} mobile mechanics for new reviews` : undefined} />
           <Tile label="Google reviews · rating" value={sum.reviews ? `${String(sum.reviews.detail).replace(' reviews', '')} · ${sum.rating?.detail ?? ''}` : '—'} sub={sum.reviews?.rank ? `#${sum.reviews.rank} of ${sum.reviews.of} by count · #${sum.rating?.rank ?? '—'} by rating` : undefined} />
           <Tile label="Strength vs competitors" value={sum.strength?.rank ? `#${sum.strength.rank}` : '—'} tone={posTone(sum.strength?.rank ?? null)} sub={sum.strength?.of ? `of ${sum.strength.of} · reviews × rating (GID's estimate)` : undefined} />
@@ -330,17 +348,56 @@ function Scorecard({ r, post, technical, connections }: { r: Any; post: Post; te
         </div>
       </section>
 
-      {/* 2. Search by search + live check */}
+      {/* 2. Google Maps, checked automatically every day (monitors.js maps_rank) */}
+      <section className="flex flex-col gap-2">
+        <div className="flex flex-wrap items-center gap-3">
+          <h3 className="font-semibold text-[15px]" style={{ color: C.text }}>Google Maps position <span className="text-[12.5px] font-normal" style={{ color: C.muted }}>checked automatically every day{m ? ` · last check ${m.date}${m.comparedTo ? `, arrows vs ${m.comparedTo}` : ''}` : ''}</span></h3>
+          <span className="inline-flex items-center gap-2 flex-wrap lg:ml-auto">
+            <ActionButton size="sm" variant="primary" disabled={checking} onClick={checkNow}>{checking ? 'Checking every search…' : 'Check now'}</ActionButton>
+            {checkMsg && <span className="text-[13px]" role="status" style={{ color: C.muted }}>{checkMsg}</span>}
+          </span>
+        </div>
+        {!m ? <p className="text-[13.5px]" style={{ color: C.text2 }}>No automatic check yet. Press Check now; after that it runs by itself every day.</p> : <>
+          <div className="grid gap-2 grid-cols-2 lg:grid-cols-4">
+            <Tile label="In the map pack (top 3)" value={`${m.top3} of ${m.checks}`} tone={m.top3 ? C.green : C.amber} sub={m.top3Before != null ? <Delta now={m.top3} before={m.top3Before} /> : 'arrows start after a week of checks'} />
+            <Tile label="Average Maps position (when shown)" value={m.average != null ? `#${m.average}` : '—'} tone={posTone(m.average)} sub={m.averageBefore != null && m.average != null ? <Delta now={m.average} before={m.averageBefore} lowerIsBetter /> : undefined} />
+            <Tile label="Shown at all" value={`${m.shown} of ${m.checks}`} tone={m.shown === m.checks ? C.green : C.amber} sub="searches × towns, top 20 checked" />
+          </div>
+          <div className="flex flex-col gap-2">
+            {mapsBySearch.map(({ k, cells }) => {
+              const fl = cells.find(c => c.area === 'Flagstaff');
+              return (
+                <div key={k} className="rounded-xl p-3 flex flex-col gap-1.5" style={box}>
+                  <div className="flex flex-wrap items-baseline gap-x-3">
+                    <span className="text-[14.5px] font-medium" style={{ color: C.text }}>{k}</span>
+                    {fl && fl.rank !== 1 && fl.leader && <span className="text-[12.5px]" style={{ color: C.muted }}>#1 in Flagstaff: {fl.leader}</span>}
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {cells.map(c => (
+                      <span key={c.area} className="text-[13px] rounded-lg px-2 py-1" style={{ border: `1px solid ${C.border}`, color: C.text2 }}>
+                        {c.area} <b style={{ color: posTone(c.rank) }}>{c.rank != null ? `#${c.rank}` : 'not shown'}</b>{move(c)}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          <p className="text-[12.5px]" style={{ color: C.muted }}>From Google's own Places search, run from each town: very close to the Maps app, not identical (Maps also weighs each searcher's history and exact spot).</p>
+        </>}
+      </section>
+
+      {/* 3. Search by search + see it yourself */}
       <section className="flex flex-col gap-2">
         <div className="flex flex-wrap items-end gap-3">
-          <h3 className="font-semibold text-[15px]" style={{ color: C.text }}>Live check</h3>
+          <h3 className="font-semibold text-[15px]" style={{ color: C.text }}>See it yourself</h3>
           <label className="flex items-center gap-2 text-[13.5px]" style={{ color: C.text2 }}>Search from
             <select className="h-9 rounded-lg px-2 text-[14px] outline-none" style={{ background: 'rgba(3,10,17,0.9)', border: `1px solid ${C.borderStrong}`, color: C.text, colorScheme: 'dark' }} value={areaName} onChange={e => setAreaName(e.target.value)}>
               {areas.map(a => <option key={a.name}>{a.name}</option>)}
             </select>
           </label>
         </div>
-        <p className="text-[13.5px]" style={{ color: C.text2 }}>Each button opens the real results as if searching from {area.name}. In <b>Maps</b>, count down the list to GID Garage, type the number and press Log (blank means not shown; 1–3 counts as the map pack). The Google number is Search Console's 28-day average.</p>
+        <p className="text-[13.5px]" style={{ color: C.text2 }}>Nothing to do here; the Maps positions above update by themselves. These buttons open the real results as if searching from {area.name}, if you want to see them. The Google number is Search Console's 28-day average. Logging a Maps number by hand is optional.</p>
         <div className="flex flex-col gap-2">
           {(s?.searches || []).map((q: Any) => {
             const c = cell(q.query);
@@ -368,7 +425,7 @@ function Scorecard({ r, post, technical, connections }: { r: Any; post: Post; te
         <p className="text-[12.5px]" style={{ color: C.muted }}>Tip: open these in a private window (Ctrl+Shift+N) so your own past searches don't skew the results.</p>
       </section>
 
-      {/* 3. Review race */}
+      {/* 4. Review race */}
       {r.reviews?.rows?.length > 0 && (
         <section className="flex flex-col gap-2">
           <h3 className="font-semibold text-[15px]" style={{ color: C.text }}>Review race <span className="text-[12.5px] font-normal" style={{ color: C.muted }}>new Google reviews in the last 30 days, mobile mechanics in your area</span></h3>

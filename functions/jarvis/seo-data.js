@@ -15,7 +15,7 @@
 //   sync_now { mode?: incremental|backfill }      one budget-bounded sync call; the UI repeats while `more` (sync.js)
 //   add_rank { keyword, area, rank|null, date?, in_local_pack?, competitors? }   import_ranks { csv }
 //   set_knowledge_status { id, status: active|superseded }
-//   run_monitor { id: competitor_listings|link_outreach }   run that finder now
+//   run_monitor { id: competitor_listings|link_outreach|maps_rank }   run that finder / the Maps check now
 //   outreach_skip { site }
 //   outreach_send { site, subject, body, reviewed: true, confirmed: true }   the ONE outside send:
 //     a reviewed + confirmed email to the address the site publishes, from the Zoho mailbox
@@ -29,6 +29,7 @@ import { isInsideServiceArea } from '../../shared/seo/service-area.js';
 import { classifyCompetitor } from '../../shared/seo/competitors.js';
 import { SERVICE_CATALOG } from '../../shared/seo/services.js';
 import { OUTREACH_PROVIDERS, outreachState, listingsState, sendOutreach, skipOutreach } from '../_lib/seo/outreach.js';
+import { mapsRank } from '../_lib/seo/monitors.js';
 
 const json = (body, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
 const str = (v, n = 300) => (v == null ? null : String(v).trim().slice(0, n) || null);
@@ -128,7 +129,7 @@ export async function handleSeoData({ request, env, store, now = new Date(), run
     case 'set_knowledge_status':
       return json(await ops.agent().setKnowledgeStatus({ id: str(body.id, 80), status: str(body.status, 20) }));
     case 'run_monitor': {
-      const p = OUTREACH_PROVIDERS.find(x => x.id === body.id);
+      const p = [...OUTREACH_PROVIDERS, mapsRank].find(x => x.id === body.id);
       if (!p) return json({ error: 'Unknown monitor' }, 400);
       if (p.status(env).status !== 'connected') return json({ error: p.status(env).missing.join(', ') || 'Not configured' }, 400);
       return json({ ok: true, ...(await p.sync({ env, store, fetch: (...a) => fetch(...a), now })) });

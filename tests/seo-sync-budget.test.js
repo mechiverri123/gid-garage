@@ -49,7 +49,7 @@ function world({ keyPages = 12, competitors = 15, lastSync = null } = {}) {
   const tables = {
     seo_settings: [{ id: 'default', key_pages: Array.from({ length: keyPages }, (_, i) => `https://gidgarage.com/p${i}`) }],
     seo_competitors: Array.from({ length: competitors }, (_, i) => ({ id: `c${String(i).padStart(2, '0')}`, name: `Rival ${i}`, website: `https://competitor${i}.example/`, status: 'active', kind: 'business', tier: 'primary' })),
-    seo_provider_status: lastSync ? ['places', 'pagespeed', 'site_audit', 'competitor_pages', 'weather_forecast'].map(provider => ({ provider, status: 'connected', last_sync_at: lastSync.toISOString() })) : [],
+    seo_provider_status: lastSync ? ['places', 'pagespeed', 'site_audit', 'competitor_pages', 'weather_forecast', 'maps_rank'].map(provider => ({ provider, status: 'connected', last_sync_at: lastSync.toISOString() })) : [],
   };
   const perCall = [];
   let current;
@@ -92,21 +92,21 @@ test('regression: manual Sync now re-pulls providers synced days ago instead of 
   const w = world({ keyPages: 2, competitors: 2, lastSync: new Date(NOW.getTime() - 2 * 86400000) });
   const outs = await w.runToEnd({ manual: true });
   const pulled = new Set(outs.flatMap(o => o.results).filter(r => r.rows != null).map(r => r.provider));
-  assert.deepEqual([...pulled].sort(), ['competitor_pages', 'pagespeed', 'places', 'site_audit', 'weather_forecast']);
+  assert.deepEqual([...pulled].sort(), ['competitor_pages', 'maps_rank', 'pagespeed', 'places', 'site_audit', 'weather_forecast']);
 });
 
 test('manual Sync now skips only providers pulled within the last hour, and says so', async () => {
   const w = world({ keyPages: 1, competitors: 1, lastSync: new Date(NOW.getTime() - 20 * 60000) });
   const first = await w.call({ manual: true });
   assert.equal(first.summary.pulled, 0);
-  assert.equal(first.summary.skipped['pulled within the last hour'], 5);
+  assert.equal(first.summary.skipped['pulled within the last hour'], 6);
 });
 
 test('the cron keeps the weekly cadence and does not restart a finished run every 15 minutes', async () => {
   const w = world({ keyPages: 1, competitors: 1, lastSync: new Date(NOW.getTime() - 2 * 86400000) });
   const outs = await w.runToEnd({});
   const pulled = outs.flatMap(o => o.results).filter(r => r.rows != null).map(r => r.provider);
-  assert.deepEqual(pulled, ['weather_forecast']); // weekly providers not due yet
+  assert.deepEqual([...new Set(pulled)], ['weather_forecast', 'maps_rank']); // daily ones only (Maps check in batches); weekly providers not due yet
   assert.equal(outs.at(-1).runStatus, 'completed');
   const idle = await w.call({});
   assert.equal(idle.idle, true);

@@ -6,7 +6,7 @@
 // migration runs, those parts report "not set up" and everything else works.
 // Tests: tests/seo-agent.test.js
 
-import { actionQueue, blueprint as buildBlueprint, categoryLearning, top5Gap, changesSince, jobContentCandidates, dueHorizons, horizonVerdict, playbookFor, parseRankCsv, rankGrid, whereYouRank, searchStanding, reviewRace, OUTCOME_DAYS } from '../../../shared/seo/agent.js';
+import { actionQueue, blueprint as buildBlueprint, categoryLearning, top5Gap, changesSince, jobContentCandidates, dueHorizons, horizonVerdict, playbookFor, parseRankCsv, rankGrid, whereYouRank, searchStanding, reviewRace, mapsStanding, OUTCOME_DAYS } from '../../../shared/seo/agent.js';
 import { detectSiteStructure, detectReviewGap, detectJobContent, detectKnowledgeChanges, detectSearchUpdates, detectAiVisibility, currentCrawl } from '../../../shared/seo/agent-detectors.js';
 import { readJson } from '../jarvis-feeds.js';
 import { NEWS_KEY, AI_KEY, ongoingUpdates } from './monitors.js';
@@ -250,7 +250,7 @@ export function createAgentOps({ store, env = {}, now = new Date(), h }) {
     try {
       const rows = await store.select('seo_rank_observations', { select: '*', order: 'observed_on.desc', limit: '2000' });
       const grid = rankGrid(rows);
-      return { ready: true, grid, recent: rows.slice(0, 50), areas: SERVICE_AREA_PLACES, summary: summary(grid), ...extra };
+      return { ready: true, grid, recent: rows.slice(0, 50), areas: SERVICE_AREA_PLACES, summary: summary(grid), maps: mapsStanding(rows), ...extra };
     } catch (e) { return { ready: !missingTable(e), grid: rankGrid([]), recent: [], areas: SERVICE_AREA_PLACES, summary: summary(null), ...extra, error: missingTable(e) ? 'Run seo_agent_migration.sql to enable rank observations.' : e.message }; }
   }
   const placeFor = name => SERVICE_AREA_PLACES.find(p => p.name.toLowerCase() === String(name).toLowerCase());

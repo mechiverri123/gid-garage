@@ -13,6 +13,7 @@ import { KNOWLEDGE } from './knowledge.js';
 import { reviewRivals } from './agent-detectors.js';
 import { SERVICE_CATALOG } from './services.js';
 import { strengthOf } from './competitors.js';
+import { addDaysYmd } from '../business-metrics.js';
 
 export const CATEGORIES = ['GBP', 'REVIEWS', 'WEBSITE', 'TECHNICAL SEO', 'CONTENT', 'LOCAL AUTHORITY', 'CITATIONS', 'BACKLINKS', 'COMPETITOR GAP', 'AI VISIBILITY', 'CONVERSION', 'OTHER'];
 const IMPACT = { very_high: 1, high: 0.82, moderate: 0.6, low: 0.35 };
@@ -499,4 +500,30 @@ export function reviewRace(snaps = [], competitors = [], now = new Date(), days 
   }).sort((a, b) => b.gained - a.gained || b.reviews - a.reviews);
   const own = rows.find(r => r.own);
   return { rows, ownPlace: own ? 1 + rows.filter(r => r.gained > own.gained).length : null, of: rows.length };
+}
+
+// Automatic Maps checks (method 'api', monitors.js maps_rank): the latest day's
+// position per search x town vs the latest check at least `days` earlier.
+export function mapsStanding(obs = [], days = 7) {
+  const at = o => `${o.observed_on}|${o.created_at || ''}`;
+  const auto = obs.filter(o => o.method === 'api').sort((a, b) => at(b).localeCompare(at(a)));
+  if (!auto.length) return null;
+  const date = auto[0].observed_on;
+  const cutoff = addDaysYmd(date, -days);
+  const key = o => `${o.keyword}|${o.area_name}`;
+  const now = new Map(); const before = new Map();
+  for (const o of auto) {
+    if (o.observed_on === date) { if (!now.has(key(o))) now.set(key(o), o); }
+    else if (o.observed_on <= cutoff && !before.has(key(o))) before.set(key(o), o);
+  }
+  const cells = [...now.values()].map(o => ({ keyword: o.keyword, area: o.area_name, rank: o.rank, before: before.get(key(o))?.rank ?? null, checkedBefore: before.has(key(o)), leader: o.competitors?.[0] || null }));
+  const avg = xs => (xs.length ? Math.round((xs.reduce((a, x) => a + x, 0) / xs.length) * 10) / 10 : null);
+  const prev = cells.filter(c => c.checkedBefore);
+  return {
+    date, comparedTo: before.size ? [...before.values()].map(o => o.observed_on).sort().pop() : null,
+    checks: cells.length, shown: cells.filter(c => c.rank != null).length,
+    top3: cells.filter(c => c.rank != null && c.rank <= 3).length, top3Before: prev.length ? prev.filter(c => c.before != null && c.before <= 3).length : null,
+    average: avg(cells.filter(c => c.rank != null).map(c => c.rank)), averageBefore: prev.length ? avg(prev.filter(c => c.before != null).map(c => c.before)) : null,
+    cells,
+  };
 }

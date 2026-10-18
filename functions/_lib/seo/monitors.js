@@ -13,6 +13,10 @@
 import { ProviderError } from './google-auth.js';
 import { readJson, writeJson } from '../jarvis-feeds.js';
 import { anthropicUsd, pricing, budgetMonth } from '../ai-budget.js';
+import { textSearch } from '../google-maps.js';
+import { PLACES } from '../../../shared/seo/service-area.js';
+import { CORE_SEARCHES } from '../../../shared/seo/agent.js';
+import { phoenixYmd } from '../../../shared/business-metrics.js';
 
 export const NEWS_KEY = 'private/seo-search-news.json';
 export const AI_KEY = 'private/seo-ai-visibility.json';
@@ -196,4 +200,38 @@ export const aiVisibility = {
   },
 };
 
-export const MONITOR_PROVIDERS = [searchNews, indexNow, aiVisibility];
+// ---- Google Maps position (daily) -----------------------------------------------------------------
+// Google's own Places search (the official API, never a scrape) run from each town
+// for every tracked search: GID's place in the list. Very close to the Maps app for
+// that search there, not identical (Maps also weighs each searcher's history).
+// ID + name only keeps each search in the Places "Pro" free tier (36 a day).
+export const RANK_AREAS = ['Flagstaff', 'Doney Park', 'Kachina Village', 'Munds Park', 'Bellemont', 'Sedona'];
+export const rankChecks = () => CORE_SEARCHES.flatMap(keyword => RANK_AREAS.map(name => ({ keyword, ...PLACES.find(p => p.name === name) })));
+const isGid = (r, placeId) => (placeId && r.place_id === placeId) || /\bgid garage\b/i.test(r.name || '');
+export const placeIn = (results, placeId) => { const i = results.findIndex(r => isGid(r, placeId)); return i < 0 ? null : i + 1; };
+
+export const mapsRank = {
+  id: 'maps_rank', label: 'Google Maps position (every tracked search from 6 towns, daily)', category: 'local', env: ['GOOGLE_PLACES_API_KEY'], optionalEnv: ['GOOGLE_PLACE_ID'], docs: 'monitors', snapshot: true,
+  status(env) { return env.GOOGLE_PLACES_API_KEY ? { status: 'connected', missing: [], note: `Daily, ${rankChecks().length} Google Places searches (free tier).` } : { status: 'not_configured', missing: ['GOOGLE_PLACES_API_KEY'], note: '' }; },
+  async sync(ctx) {
+    const all = rankChecks();
+    const offset = ctx.batch?.offset ?? 0;
+    const slice = all.slice(offset, offset + (ctx.batch?.limit ?? all.length));
+    const end = offset + slice.length;
+    const placeId = ctx.env.GOOGLE_PLACE_ID;
+    const rows = await Promise.all(slice.map(async c => {
+      const results = await textSearch(ctx.env.GOOGLE_PLACES_API_KEY, c.keyword, { lat: c.lat, lng: c.lng, radius: 8000, fields: 'places.id,places.displayName' }, ctx.fetch)
+        .catch(e => { throw new ProviderError(e.denied ? 'needs_authorization' : 'error', `Places: ${e.message}`); });
+      const rank = placeIn(results, placeId);
+      return {
+        keyword: c.keyword, area_name: c.name, lat: c.lat, lng: c.lng, observed_on: phoenixYmd(ctx.now), rank, in_local_pack: rank != null && rank <= 3,
+        competitors: results.filter(r => !isGid(r, placeId)).slice(0, 3).map(r => r.name), method: 'api', note: 'Automatic: Google Places search from this town',
+      };
+    }));
+    await ctx.store.insert('seo_rank_observations', rows);
+    const part = end < all.length || offset ? ` (${offset + 1}-${end} of ${all.length})` : '';
+    return { rows: rows.length, detail: `${rows.length} searches checked${part}: top 3 in ${rows.filter(r => r.in_local_pack).length}, shown in ${rows.filter(r => r.rank != null).length}`, next: end < all.length ? end : null };
+  },
+};
+
+export const MONITOR_PROVIDERS = [searchNews, indexNow, aiVisibility, mapsRank];

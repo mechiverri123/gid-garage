@@ -1547,7 +1547,8 @@ export async function onRequestPost({ request, env }) {
         return await seo().competitors();
       case 'get_seo_rankings':
         { const r = await seo().agent().ranks();
-          return { summary: r.summary, googleSearch: r.search && { period: r.search.period, totals: r.search.totals, searches: r.search.searches.filter(x => x.core) }, newReviews30d: r.reviews && { ownPlace: r.reviews.ownPlace, of: r.reviews.of, rows: r.reviews.rows.slice(0, 6) } }; }
+          const maps = r.maps && { checkedOn: r.maps.date, comparedTo: r.maps.comparedTo, inTop3: r.maps.top3, top3Before: r.maps.top3Before, checks: r.maps.checks, averagePosition: r.maps.average, averageBefore: r.maps.averageBefore, cells: r.maps.cells.filter(c => c.area === 'Flagstaff') };
+          return { summary: r.summary, googleMapsDaily: maps, googleSearch: r.search && { period: r.search.period, totals: r.search.totals, searches: r.search.searches.filter(x => x.core) }, newReviews30d: r.reviews && { ownPlace: r.reviews.ownPlace, of: r.reviews.of, rows: r.reviews.rows.slice(0, 6) } }; }
       case 'get_seo_seasonality':
         return await seo().seasonality();
       case 'get_customer_geography':
