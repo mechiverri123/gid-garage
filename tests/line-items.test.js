@@ -13,9 +13,9 @@ test('old lines (no qty) are 1 × their amount; edits keep amount = rate × qty'
   assert.equal(withLine({ label: 'x', amount: 0, type: 'parts' }, { qty: 3, rate: 19.99 }).amount, 59.97); // no float drift
 });
 
-test('customer text shows hours or count only when qty is not 1', () => {
+test('customer text shows a part count when qty is not 1; labor hours stay private', () => {
   assert.equal(lineText({ label: 'Brake pads', amount: 45, type: 'parts' }), 'Brake pads');
-  assert.equal(lineText(withLine({ label: 'Labor', amount: 135, type: 'labor' }, { qty: 2.5 })), 'Labor (2.5 hrs @ $135.00)');
+  assert.equal(lineText(withLine({ label: 'Labor', amount: 135, type: 'labor' }, { qty: 2.5 })), 'Labor'); // customer sees one labor price
   assert.equal(lineText(withLine({ label: 'Rotor', amount: 60, type: 'parts' }, { qty: 2 })), 'Rotor (×2 @ $60.00)');
 });
 

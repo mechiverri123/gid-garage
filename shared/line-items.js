@@ -16,11 +16,12 @@ export function withLine(i, { qty, rate } = {}) {
   return { ...i, qty: q, rate: r, amount: round2(q * r) };
 }
 
-// "Labor (2.5 hrs @ $135.00)" / "Brake pads (×2 @ $45.00)"; plain label when qty is 1.
+// What the customer reads: "Brake pads (×2 @ $45.00)". Labor hours are the owner's
+// own record (weekly hours, his pay), never shown: labor is quoted as one price.
 export function lineText(i) {
   const q = lineQty(i);
-  if (q === 1) return i.label;
-  return `${i.label} (${i.type === 'labor' ? `${q} hr${q === 1 ? '' : 's'}` : `×${q}`} @ $${lineRate(i).toFixed(2)})`;
+  if (q === 1 || i.type === 'labor') return i.label;
+  return `${i.label} (×${q} @ $${lineRate(i).toFixed(2)})`;
 }
 
 // Hours worked on a job: the qty of its labor lines. Flat-priced labor lines
