@@ -14,7 +14,7 @@ const sitemap = readFileSync(new URL('../public/sitemap.xml', import.meta.url), 
 
 test('one page per offered service, and the SEO audit counts each as coverage', () => {
   const ids = SERVICE_PAGES.map(p => p.serviceId);
-  assert.deepEqual([...ids].sort(), ['audio', 'brakes', 'diag', 'full', 'oil', 'suspension']);
+  assert.deepEqual([...ids].sort(), ['audio', 'brakes', 'diag', 'full', 'oil', 'repair', 'suspension']);
   assert.equal(new Set(SERVICE_PAGES.map(p => p.path)).size, SERVICE_PAGES.length);
   const audits = [{ url: 'https://gidgarage.com/', title: 'Home', canonical: 'https://gidgarage.com/', h1: 'Flagstaff Mobile Mechanic', issues: [] },
     ...SERVICE_PAGES.map(p => ({ url: p.canonical, title: p.title, canonical: p.canonical, h1: p.h1, issues: [] }))];

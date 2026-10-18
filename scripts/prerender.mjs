@@ -13,7 +13,7 @@
 // Content comes from shared/site-pages.js (the same data the React pages render).
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
-import { SERVICE_PAGES, AREAS, AREAS_PAGE, HOME_PAGE, AUTO_REPAIR, PRIVACY_PAGE, CASE_STUDIES, CASE_STUDIES_PAGE, PHONE, SITE, WHY_US, HOW_IT_WORKS } from '../shared/site-pages.js';
+import { SERVICE_PAGES, AREAS, AREAS_PAGE, HOME_PAGE, AUTO_REPAIR, PRIVACY_PAGE, CASE_STUDIES, CASE_STUDIES_PAGE, PHONE, SITE, WHY_US, HOW_IT_WORKS, casesFor } from '../shared/site-pages.js';
 
 const DIST = new URL('../dist/', import.meta.url);
 // Run as the build step; imported by tests for its helpers only.
@@ -102,7 +102,7 @@ for (const p of SERVICE_PAGES) {
     h2('Pricing'), list(p.pricing.map(x => `<strong>${esc(x.label)}</strong> — ${esc(x.detail)}`)),
     h2("What's included"), list(p.included.map(esc)),
     h2('How a mobile visit works'), `<ol>${p.howItWorks.map(s => `<li><strong>${esc(s.title)}.</strong> ${esc(s.text)}</li>`).join('')}</ol>`,
-    CASE_STUDIES.some(c => c.serviceId === p.serviceId) ? h2('Real jobs like this') + list(CASE_STUDIES.filter(c => c.serviceId === p.serviceId).map(c => `<a style="color:#f87171" href="${c.path}">${esc(c.h1)}</a>`)) : '',
+    casesFor(p).length ? h2('Real jobs like this') + list(casesFor(p).map(c => `<a style="color:#f87171" href="${c.path}">${esc(c.h1)}</a>`)) : '',
     h2('Questions'), p.faq.map(f => `<h3 style="color:#fff;margin:14px 0 4px">${esc(f.q)}</h3><p>${esc(f.a)}</p>`).join(''),
     h2('Other services'), serviceLinks(p.path),
   ].join('')), p.faq), p)]);

@@ -124,6 +124,7 @@ export const SERVICE_PAGES = [
     faq: [],
   },
 ].map(p => ({ ...p, canonical: `${SITE}${p.path}`, howItWorks: HOW_IT_WORKS, faq: [...p.faq, ...COMMON_FAQ] }));
+const withCommon = p => ({ ...p, canonical: `${SITE}${p.path}`, howItWorks: HOW_IT_WORKS, faq: [...p.faq, ...COMMON_FAQ] });
 
 // Towns served (the same list as the homepage map), all within ~30 miles.
 export const AREAS = [
@@ -174,6 +175,27 @@ export const AUTO_REPAIR = {
     { q: "What happens if you find something else wrong during the repair?", a: "We stop and contact you first. Nothing beyond the approved estimate is done without your OK. Labor is warranted for 30 days and parts carry the manufacturer's warranty." },
   ],
 };
+
+// "Auto repair flagstaff" had no page of its own (only the homepage section), so
+// the homepage was the only answer Google had. Same facts and prices as above.
+SERVICE_PAGES.push(withCommon({
+  path: '/auto-repair-flagstaff', serviceId: 'repair', label: 'Auto Repair',
+  title: 'Mobile Auto Repair in Flagstaff, AZ — We Come to You | GID Garage',
+  description: 'Auto repair at your home or work in Flagstaff: brakes, suspension, check engine lights, misfires, batteries and leaks. Clear price first. Call 480-757-0476.',
+  h1: 'Mobile Auto Repair in Flagstaff',
+  intro: AUTO_REPAIR.intro,
+  pricing: [
+    { label: 'Check engine light / diagnostics', detail: '$89.99 flat' },
+    { label: 'Brake pads (per axle)', detail: 'Starting at $149.99' },
+    { label: 'Brake pads + rotors (per axle)', detail: 'Starting at $269.99' },
+    { label: 'Front struts (pair)', detail: 'Starting at $399.99 + parts' },
+    { label: 'Control arms', detail: 'Starting at $224.99 + parts' },
+    { label: 'CV axles', detail: 'Starting at $249.99 + parts' },
+  ],
+  included: ['Brakes: pads and rotors', 'Suspension: struts, shocks, control arms, tie rods and CV axles', 'Check engine lights, misfires, coil packs and spark plugs', 'Batteries and no-starts', 'Coolant hoses and oil leaks', 'A clear estimate before any work; 30-day labor warranty'],
+  photos: AUTO_REPAIR.photos,
+  faq: AUTO_REPAIR.faq,
+}));
 
 export const PRIVACY_PAGE = { path: '/privacy', canonical: `${SITE}/privacy`, title: 'Privacy Policy | GID Garage', description: 'How GID Garage collects, uses and protects your information.', h1: 'Privacy Policy' };
 
@@ -246,5 +268,8 @@ export const CASE_STUDIES_PAGE = {
   h1: 'Real Jobs From Around Flagstaff',
   intro: 'Real vehicles, real problems, fixed where they were parked. Customer details are left out; the photos are from the jobs.',
 };
+
+// Real jobs shown on a service page (the auto repair page shows all of them).
+export const casesFor = p => (p.serviceId === 'repair' ? CASE_STUDIES : CASE_STUDIES.filter(c => c.serviceId === p.serviceId));
 
 export const caseStudyForPath = path => CASE_STUDIES.find(c => c.path === String(path).replace(/\/+$/, '')) || null;

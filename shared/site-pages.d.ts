@@ -27,3 +27,4 @@ export interface CaseStudy {
 export const CASE_STUDIES: CaseStudy[];
 export const CASE_STUDIES_PAGE: SimplePage;
 export function caseStudyForPath(path: string): CaseStudy | null;
+export function casesFor(p: ServicePageData): CaseStudy[];

@@ -506,6 +506,7 @@ function AutoRepair() {
           <p className="text-red-500 text-xs font-bold uppercase tracking-[0.25em] mb-3">Auto Repair · Flagstaff, AZ</p>
           <h2 className="text-white font-extrabold tracking-tight text-3xl md:text-5xl max-w-3xl">{AUTO_REPAIR.heading}</h2>
           <p className="text-white/60 text-base mt-4 max-w-2xl leading-relaxed">{AUTO_REPAIR.intro}</p>
+          <a href="/auto-repair-flagstaff" className="inline-block mt-4 text-sm text-red-400 hover:text-red-300 underline underline-offset-4">Everything we repair, with prices →</a>
         </Reveal>
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mt-10">
           {AUTO_REPAIR.jobs.map(j => (

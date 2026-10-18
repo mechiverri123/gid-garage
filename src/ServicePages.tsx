@@ -3,7 +3,7 @@
 // into the HTML, so crawlers and people get the same page.
 import { useEffect, useState, lazy, Suspense } from 'react';
 import { Phone } from 'lucide-react';
-import { SERVICE_PAGES, AREAS, AREAS_PAGE, CASE_STUDIES, CASE_STUDIES_PAGE, PHONE, type ServicePageData, type SimplePage, type CaseStudy } from '../shared/site-pages.js';
+import { SERVICE_PAGES, AREAS, AREAS_PAGE, CASE_STUDIES, CASE_STUDIES_PAGE, PHONE, casesFor, type ServicePageData, type SimplePage, type CaseStudy } from '../shared/site-pages.js';
 
 const BookingWidget = lazy(() => import('./BookingWidget'));
 const R2 = (import.meta.env.VITE_R2_PUBLIC_URL as string | undefined)?.replace(/\/$/, '') ?? '';
@@ -109,10 +109,10 @@ export function ServicePage({ page }: { page: ServicePageData }) {
         </section>
       )}
 
-      {CASE_STUDIES.some(c => c.serviceId === page.serviceId) && (
+      {casesFor(page).length > 0 && (
         <section className="mt-12">
           <h2 className="text-white font-bold text-2xl tracking-tight mb-4">Real jobs like this</h2>
-          <ul className="flex flex-col gap-2">{CASE_STUDIES.filter(c => c.serviceId === page.serviceId).map(c => (
+          <ul className="flex flex-col gap-2">{casesFor(page).map(c => (
             <li key={c.slug}><a href={c.path} className="text-red-400 hover:text-red-300 underline underline-offset-4">{c.h1}</a></li>
           ))}</ul>
         </section>
