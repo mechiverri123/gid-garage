@@ -269,7 +269,7 @@ export function auditPage(url, html, httpStatus = 200) {
 export const places = {
   id: 'places', label: 'Google Places (reviews + competitor discovery)', category: 'local',
   env: ['GOOGLE_PLACES_API_KEY'], optionalEnv: ['GOOGLE_PLACE_ID'], docs: 'places', snapshot: true,
-  status(env) { return envStatus(env, this.env, 'Already used by the homepage reviews widget. Mobile competitors that hide their address may not appear — add them manually.'); },
+  status(env) { return envStatus(env, this.env, 'Already used by the homepage reviews widget. Includes mobile competitors that hide their address (they have no map location, so their distance is unknown).'); },
   async sync(ctx) {
     const key = ctx.env.GOOGLE_PLACES_API_KEY;
     const g = fn => fn().catch(e => { throw new ProviderError(e.denied ? 'needs_authorization' : 'error', `Places: ${e.message}`); });

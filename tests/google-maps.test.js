@@ -18,6 +18,7 @@ test('place details: key and field mask in headers, legacy shape back', async ()
 test('text search maps ids and locations; errors carry Google status and denied flag', async () => {
   const [r] = await textSearch('k', 'auto repair', { lat: 35, lng: -111, radius: 60000 }, async (_u, init) => {
     assert.equal(JSON.parse(init.body).locationBias.circle.radius, 50000);
+    assert.equal(JSON.parse(init.body).includePureServiceAreaBusinesses, true); // mobile businesses hide their address
     return res({ places: [{ id: 'p1', displayName: { text: 'Shop' }, location: { latitude: 35.1, longitude: -111.6 } }] });
   });
   assert.deepEqual([r.place_id, r.name, r.geometry.location.lat], ['p1', 'Shop', 35.1]);

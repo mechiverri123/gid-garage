@@ -39,7 +39,9 @@ export async function placeDetails(key, placeId, fields, fetchImpl = (...a) => f
 
 export async function textSearch(key, query, { lat, lng, radius, fields = 'places.id,places.displayName,places.rating,places.userRatingCount,places.types,places.location' }, fetchImpl = (...a) => fetch(...a)) {
   const d = await call(fetchImpl, 'https://places.googleapis.com/v1/places:searchText', key, fields,
-    { textQuery: query, locationBias: { circle: { center: { latitude: lat, longitude: lng }, radius: Math.min(radius, 50000) } } });
+    // Pure service-area businesses (no public address: GID and most mobile mechanics)
+    // are left out unless asked for.
+    { textQuery: query, includePureServiceAreaBusinesses: true, locationBias: { circle: { center: { latitude: lat, longitude: lng }, radius: Math.min(radius, 50000) } } });
   return (d.places || []).map(legacyPlace);
 }
 
