@@ -52,7 +52,7 @@ export function serviceSchema(p) {
   const prices = p.pricing.map(x => Number((x.detail.match(/\$([\d,]+\.\d\d)/) || [])[1]?.replace(/,/g, ''))).filter(Number.isFinite);
   return JSON.stringify({
     '@context': 'https://schema.org', '@type': 'Service', name: p.h1, serviceType: p.label, url: p.canonical, description: p.description,
-    provider: { '@type': 'AutoRepair', name: 'GID Garage', telephone: '+14807570476', url: `${SITE}/` },
+    provider: { '@type': 'AutoRepair', name: 'GID Garage Mobile Mechanic', telephone: '+14807570476', url: `${SITE}/` },
     areaServed: AREAS.map(a => ({ '@type': 'City', name: `${a.name}, AZ` })),
     ...(prices.length ? { offers: { '@type': 'Offer', priceCurrency: 'USD', price: Math.min(...prices).toFixed(2), description: p.pricing[0].detail } } : {}),
   });

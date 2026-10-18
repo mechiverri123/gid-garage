@@ -124,5 +124,5 @@ test('AI crawlers get llms.txt and per-service structured data', () => {
   const s = JSON.parse(serviceSchema(SERVICE_PAGES.find(p => p.serviceId === 'brakes')));
   assert.equal(s['@type'], 'Service');
   assert.equal(s.offers.price, '149.99');
-  assert.equal(s.provider.name, 'GID Garage');
+  assert.equal(s.provider.name, 'GID Garage Mobile Mechanic');
 });
