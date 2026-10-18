@@ -146,6 +146,13 @@ function JobScreen({ id, onBack, onChanged }: { id: string; onBack: () => void; 
     setPayNote(`Message copied — in Google Voice, text ${job!.phone} and paste it.`);
     location.href = GOOGLE_VOICE;
   }
+  // Same review link the payment emails use; texting it reaches customers with no email.
+  async function askReview() {
+    const text = `Thanks for choosing GID Garage${job!.fname ? `, ${job!.fname}` : ''}! If you have a minute, a Google review helps a small local shop more than anything: https://g.page/r/CdERSypGqVdlEBM/review`;
+    try { await navigator.clipboard?.writeText(text); } catch { /* ignore */ }
+    setPayNote(`Review message copied — in Google Voice, text ${job!.phone} and paste it.`);
+    location.href = GOOGLE_VOICE;
+  }
   async function openVoice(label: string) {
     try { await navigator.clipboard?.writeText(digits(job!.phone)); } catch { /* ignore */ }
     setVoiceNote(`Number copied — ${label} in Google Voice and paste it.`);
@@ -216,6 +223,10 @@ function JobScreen({ id, onBack, onChanged }: { id: string; onBack: () => void; 
                 <button type="button" onClick={sharePay} className="w-full bg-emerald-600 active:bg-emerald-700 text-white text-[14px] font-black uppercase tracking-widest py-3.5">💳 Send pay link to customer</button>
                 {payNote && <p role="status" className="text-emerald-400 text-[13px]">{payNote}</p>}
                 <p className="text-gray-500 text-[12px] leading-relaxed">They pay by card on their own phone. For an in-person tap: copy the amount, take the tap in the Bluevine app, then record it below as "Card (Tap to Pay)".</p>
+              </>}
+              {job.jobStatus === 'PAID' && <>
+                <button type="button" onClick={askReview} className="w-full bg-amber-500 active:bg-amber-600 text-black text-[14px] font-black uppercase tracking-widest py-3.5">⭐ Ask for a Google review</button>
+                {payNote && <p role="status" className="text-emerald-400 text-[13px]">{payNote}</p>}
               </>}
               <PaymentPanel job={job} onUpdate={update} />
             </div>
