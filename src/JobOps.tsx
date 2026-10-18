@@ -8577,7 +8577,7 @@ const SEED_NOTES: Record<string, string[]> = {
     'Hours: Mon–Fri 1:30PM–8PM, Sat–Sun 5AM–8PM.',
     'Mobile service fee included in all pricing. Customer must provide flat, stable surface with sufficient clearance.',
     'Parts markup: 25% over AutoZone Pro cost. Labor: $135/hr.',
-    'Oil change: $79.99 full synthetic only. Brakes from $149.99/axle. Diagnostics $89.99. Front struts from $399.99 labor. Audio from $174.99 labor.',
+    'Oil change: $79.99 full synthetic only. Diagnostics $99.99. Brakes, suspension and audio: free estimate (no public price).',
     'Cancellations: require 24hr notice. Late cancellation fee up to 50% of quoted cost.',
   ],
   legal: [
@@ -8592,7 +8592,7 @@ const SEED_NOTES: Record<string, string[]> = {
     'Labor rate: $135/hr.',
     'Parts markup: 25% over AutoZone Pro invoice cost.',
     'Oil Change: $79.99 (full synthetic, 5qt). Extra quarts: $10.99/qt.',
-    'Diagnostics: $89.99 (OBD2 scan + recommendation).',
+    'Diagnostics: $99.99 (OBD2 scan + recommendation).',
     'Brakes from $149.99/axle (pads only). Pads + rotors from $549.99. Full service from $649.99.',
     'Front struts from $399.99 labor. Audio from $174.99 labor.',
     'Flagstaff combined sales tax 9.386% added to all invoices.',

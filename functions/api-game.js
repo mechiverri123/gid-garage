@@ -57,7 +57,7 @@ const BET_PRIZE_TABLES = {
     { weight: 150, type: 'real', label: '5% off your next service' },
     { weight: 100, type: 'real', label: '$20 off any service' },
     { weight: 100, type: 'real', label: '$15 off Full Synthetic Oil Change' },
-    { weight: 100, type: 'real', label: '15% off Diagnostics ($89.99 service)' },
+    { weight: 100, type: 'real', label: '15% off Diagnostics ($99.99 service)' },
   ],
   20: [
     { weight: 6000, type: 'lose' },
@@ -66,7 +66,7 @@ const BET_PRIZE_TABLES = {
     { weight: 150, type: 'real', label: '5% off your next service' },
     { weight: 100, type: 'real', label: '$20 off any service' },
     { weight: 100, type: 'real', label: '$15 off Full Synthetic Oil Change' },
-    { weight: 80, type: 'real', label: '15% off Diagnostics ($89.99 service)' },
+    { weight: 80, type: 'real', label: '15% off Diagnostics ($99.99 service)' },
     { weight: 15, type: 'real', label: '20% off Car Audio Install' },
     { weight: 4, type: 'real', label: '15% off Full Brake Job (pads + rotors)' },
     { weight: 1, type: 'real', label: 'Free Mobile Full Synthetic Oil Change' },

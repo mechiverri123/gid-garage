@@ -38,7 +38,8 @@ test('pre-rendered HTML: own title, canonical and one H1 per page; "$" in text i
   const brake = pages['brake-repair-flagstaff.html'];
   assert.match(brake, /<title>Mobile Brake Repair in Flagstaff, AZ \| GID Garage<\/title>/);
   assert.match(brake, /<link rel="canonical" href="https:\/\/gidgarage.com\/brake-repair-flagstaff"/);
-  assert.match(brake, /content="Brake pads and rotors replaced[^"]*\$149\.99\/axle/);
+  assert.match(pages['car-diagnostics-flagstaff.html'], /content="Check engine light on\? \$99\.99 flat:/); // "$" survives the replace
+  assert.doesNotMatch(brake, /\$\d/); // owner policy: brakes are quoted, no public price
   assert.equal((brake.match(/<h1/g) || []).length, 1);
   assert.match(brake, /"@type":"FAQPage"/);
   assert.equal((pages['index.html'].match(/<h1/g) || []).length, 1);

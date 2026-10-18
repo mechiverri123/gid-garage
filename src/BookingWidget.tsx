@@ -1433,9 +1433,9 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
                       <select value={s.brakeService ?? ''} onChange={e => setS(p => ({ ...p, brakeService: e.target.value, brakePosition: null, brakePadType: null }))}
                         className="w-full bg-gray-900 border border-gray-800 text-white text-sm px-3 py-2.5 outline-none focus:border-red-600 transition-colors">
                         <option value="">Select a service...</option>
-                        <option value="pads">Brake Pads Only — Starting at $139.99</option>
-                        <option value="pads_rotors">Brake Pads + Rotors — Starting at $549.99</option>
-                        <option value="full">Full Service: Pads + Rotors + Fluid Flush &amp; Inspection — Starting at $649.99</option>
+                        <option value="pads">Brake Pads Only</option>
+                        <option value="pads_rotors">Brake Pads + Rotors</option>
+                        <option value="full">Full Service: Pads + Rotors + Fluid Flush &amp; Inspection</option>
                       </select>
                     </div>
                     {s.brakeService && (
@@ -1472,12 +1472,12 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
                     <select value={s.audioPackage ?? ''} onChange={e => setS(p => ({ ...p, audioPackage: e.target.value }))}
                       className="w-full bg-gray-900 border border-gray-800 text-white text-sm px-3 py-2.5 outline-none focus:border-red-600 transition-colors">
                       <option value="">Select a package...</option>
-                      <option value="head_unit_replacement">Head Unit Replacement — Starting at $149.99 + parts</option>
-                      <option value="speaker_replacement">Speaker Replacement — Starting at $99.99 + parts (pair)</option>
-                      <option value="head_unit_install">Head Unit Install (Customer-Supplied) — Starting at $79.99 labor</option>
-                      <option value="4ch_amp_install">4-Channel Amp Install — Starting at $129.99 + parts</option>
-                      <option value="mono_amp_install">Monoblock Amp Install — Starting at $99.99 + parts</option>
-                      <option value="full_system">Full Sound System (Head Unit + Speakers + 4ch Amp + Mono Amp + Sub) — Starting at $549.99 + parts</option>
+                      <option value="head_unit_replacement">Head Unit Replacement</option>
+                      <option value="speaker_replacement">Speaker Replacement</option>
+                      <option value="head_unit_install">Head Unit Install (Customer-Supplied)</option>
+                      <option value="4ch_amp_install">4-Channel Amp Install</option>
+                      <option value="mono_amp_install">Monoblock Amp Install</option>
+                      <option value="full_system">Full Sound System (Head Unit + Speakers + 4ch Amp + Mono Amp + Sub)</option>
                     </select>
                     <div className="mt-2 bg-yellow-950/40 border border-yellow-800/40 px-3 py-2 text-yellow-400/80 text-xs leading-relaxed">
                       ⚠️ Parts may need to be sourced with lead times of several days. A deposit is required for full system builds or sourced equipment. You're also welcome to supply your own parts.

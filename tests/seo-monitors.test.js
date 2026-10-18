@@ -121,8 +121,9 @@ test('AI crawlers get llms.txt and per-service structured data', () => {
   for (const p of SERVICE_PAGES) assert.ok(t.includes(p.canonical), p.path);
   assert.match(t, /480-757-0476/);
   assert.doesNotMatch(t, /Winslow/);
-  const s = JSON.parse(serviceSchema(SERVICE_PAGES.find(p => p.serviceId === 'brakes')));
+  const s = JSON.parse(serviceSchema(SERVICE_PAGES.find(p => p.serviceId === 'diag')));
   assert.equal(s['@type'], 'Service');
-  assert.equal(s.offers.price, '149.99');
+  assert.equal(s.offers.price, '99.99');
+  assert.equal(JSON.parse(serviceSchema(SERVICE_PAGES.find(p => p.serviceId === 'brakes'))).offers, undefined); // quoted, no public price
   assert.equal(s.provider.name, 'GID Garage Mobile Mechanic');
 });

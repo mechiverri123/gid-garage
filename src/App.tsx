@@ -63,19 +63,19 @@ const services = [
   {
     id: 'brakes',
     title: 'Brakes',
-    desc: 'Pad replacement, rotor replacement, and complete brake system service. Starting at $149.99/axle, done where your vehicle is parked.',
+    desc: 'Pad replacement, rotor replacement, and complete brake system service, done where your vehicle is parked. Free estimate before any work.',
     badge: null,
   },
   {
     id: 'diag',
     title: 'Diagnostics',
-    desc: '$89.99 flat. We come to you, pull and interpret your OBD2 codes, and give you a clear explanation of what\'s wrong and what it\'ll take to fix it — no dealer visit, no upselling. Includes a full visual inspection.',
+    desc: '$99.99 flat. We come to you, pull and interpret your OBD2 codes, and give you a clear explanation of what\'s wrong and what it\'ll take to fix it — no dealer visit, no upselling. Includes a full visual inspection.',
     badge: null,
   },
   {
     id: 'suspension',
     title: 'Suspension',
-    desc: 'Shocks, struts, control arms, tie rods, and CV axles. Starting at $174.99 labor + parts, depending on the job. Get a free estimate when you book.',
+    desc: 'Shocks, struts, control arms, tie rods, and CV axles. Get a free estimate when you book.',
     badge: null,
   },
   {
@@ -87,7 +87,7 @@ const services = [
   {
     id: 'audio',
     title: 'Car Audio',
-    desc: 'Mobile car audio installation — head units, speakers, amplifiers, and full system builds. Starting at $174.99 labor. Deposit may be required for sourced parts.',
+    desc: 'Mobile car audio installation — head units, speakers, amplifiers, and full system builds. Free estimate. Deposit may be required for sourced parts.',
     badge: 'New',
   },
 ];
@@ -307,28 +307,10 @@ function Hero({ openBooking }: { openBooking: () => void }) {
 function ServiceCard({ s, onBookService }: { s: typeof services[0]; onBookService: (id: string) => void }) {
   const [open, setOpen] = useState(false);
 
-  const suspensionItems = [
-    { label: 'Front Struts (pair)', detail: 'Starting at $399.99 + parts · Shops avg $850–1,200' },
-    { label: 'Rear Shocks (pair)', detail: 'Starting at $249.99 + parts · Shops avg $450–650' },
-    { label: 'Control Arms', detail: 'Starting at $224.99 + parts · Shops avg $450–650' },
-    { label: 'Tie Rods', detail: 'Starting at $174.99 + parts · Shops avg $350–500' },
-    { label: 'CV Axles', detail: 'Starting at $249.99 + parts · Shops avg $500–750' },
-  ];
-
-  const brakeItems = [
-    { label: 'Brake Pads Only (per axle)', detail: 'Starting at $149.99 · Shops avg $240–320/axle' },
-    { label: 'Brake Pads + Rotors (per axle)', detail: 'Starting at $269.99 · Shops avg $420–600/axle' },
-    { label: 'Full Service — Pads + Rotor Replacement + Fluid Flush (per axle)', detail: 'Starting at $319.99 · Shops avg $520–700/axle' },
-  ];
-
-  const audioItems = [
-    { label: 'Head Unit Replacement', detail: 'Starting at $174.99 labor + parts · Shops avg $250–400' },
-    { label: 'Speaker Replacement (pair)', detail: 'Starting at $174.99 labor + parts · Shops avg $250–400' },
-    { label: 'Head Unit Install (Customer-Supplied)', detail: '$149.99 labor only' },
-    { label: '4-Channel Amp Install', detail: 'Starting at $249.99 labor + parts · Shops avg $500–750' },
-    { label: 'Monoblock + Subwoofer Install', detail: 'Starting at $249.99 labor + parts · Shops avg $500–800' },
-    { label: 'Full Sound System (Head Unit + Speakers + 4ch Amp + Mono Amp + Sub)', detail: 'Starting at $599.99 labor + parts — deposit required · Shops avg $1,500–2,200' },
-  ];
+  // Public price policy: only oil change and diagnostics show a price; these are quoted free.
+  const suspensionItems = ['Front struts (pair)', 'Rear shocks (pair)', 'Control arms', 'Tie rods', 'CV axles'];
+  const brakeItems = ['Brake pads only (per axle)', 'Brake pads + rotors (per axle)', 'Full service: pads, rotors + fluid flush (per axle)'];
+  const audioItems = ['Head unit replacement', 'Speaker replacement (pair)', 'Head unit install (customer-supplied)', '4-channel amp install', 'Monoblock + subwoofer install', 'Full sound system (head unit, speakers, 4ch amp, mono amp, sub)'];
 
   const dropdownItems = s.id === 'suspension' ? suspensionItems : s.id === 'brakes' ? brakeItems : s.id === 'audio' ? audioItems : null;
 
@@ -346,14 +328,14 @@ function ServiceCard({ s, onBookService }: { s: typeof services[0]; onBookServic
             onClick={() => setOpen(v => !v)}
             className="text-xs text-red-400 font-bold uppercase tracking-widest flex items-center gap-2 hover:text-red-300 transition-colors"
           >
-            {open ? '▲' : '▼'} {s.id === 'audio' ? 'View Audio Packages' : 'View Options & Pricing'}
+            {open ? '▲' : '▼'} {s.id === 'audio' ? 'View Audio Packages' : 'View Options'}
           </button>
           {open && (
             <div className="mt-3 space-y-2">
               {dropdownItems.map((item) => (
-                <div key={item.label} className="bg-black/30 border border-white/10 px-3 py-2.5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1">
-                  <span className="text-white text-xs font-semibold">{item.label}</span>
-                  <span className="text-red-400 text-xs font-bold">{item.detail}</span>
+                <div key={item} className="bg-black/30 border border-white/10 px-3 py-2.5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1">
+                  <span className="text-white text-xs font-semibold">{item}</span>
+                  <span className="text-red-400 text-xs font-bold">Free estimate</span>
                 </div>
               ))}
               {s.id === 'audio' && (
