@@ -332,6 +332,25 @@ function formatUnpaidAlert(rows) {
   return `Outstanding balances: ${rows.length} totaling ${money(total)}\n${shown.join('\n')}${extra}`;
 }
 
+// Website bookings -> one Telegram note each (the owner email only fires once the
+// card step finishes, so a customer who stops there left no alert at all).
+// Confirmed: alert right away. Still pending after 10 min: "didn't finish". Tested.
+export function websiteBookingAlerts(leads, bookingsById, sentIds, now) {
+  const out = [];
+  for (const l of leads) {
+    const b = bookingsById.get(l.booking_id);
+    if (!b || sentIds.includes(l.id) || isCancelled(jobFromRow(b))) continue;
+    const confirmed = b.status === 'confirmed';
+    if (!confirmed && now - new Date(l.created_at) < 10 * 60000) continue;
+    const when = `${b.date} at ${b.time}`;
+    const who = `${personName(b)}${b.phone ? ` (${b.phone})` : ''}`;
+    out.push({ id: l.id, text: confirmed
+      ? `New website booking: ${who} — ${b.service || 'service'}, ${when}. ${b.vehicle || ''}`.trim()
+      : `${who} started booking ${b.service || 'a service'} for ${when} but didn't finish (no card saved, no confirmation email went out). Worth a call or text.` });
+  }
+  return out;
+}
+
 function formatMorningBrief(snapshot) {
   const lines = ['Morning brief'];
 
@@ -622,6 +641,29 @@ export async function onRequestPost({ request, env }) {
 
   // Briefings and lead/unpaid alerts are checked every 5 minutes, not every minute
   // (each check reads bookings and leads; Workers free plan = 10 ms CPU a request).
+  // Website bookings (finished or abandoned at the card step), every 5 minutes.
+  if (Number(parts.minute) % 5 === 0) {
+    try {
+      const leads = await sbGet(env, 'leads', { select: 'id,booking_id,created_at', source: 'eq.website_booking', created_at: `gte.${new Date(now - 6 * 3600000).toISOString()}`, limit: '20' });
+      if (leads.length) {
+        const ids = leads.map(l => l.booking_id).filter(Boolean);
+        const bookings = ids.length ? await sbGet(env, 'bookings', { select: 'id,fname,lname,phone,service,vehicle,date,time,status,job_status', id: `in.(${ids.map(i => `"${i}"`).join(',')})` }) : [];
+        const sent = (await getState(env, 'website_booking_alerts'))?.value?.ids || [];
+        const alerts = websiteBookingAlerts(leads, new Map(bookings.map(b => [b.id, b])), sent, now);
+        for (const a of alerts) {
+          await sendTelegramText(botToken, chatId, a.text);
+          await saveAssistantHistory(env, chatId, a.text);
+        }
+        if (alerts.length) {
+          await setState(env, 'website_booking_alerts', { ids: [...sent, ...alerts.map(a => a.id)].slice(-100) });
+          actions.push(`website_booking_alert:${alerts.length}`);
+        }
+      }
+    } catch (error) {
+      actions.push(`website_booking_alert_error: ${String(error?.message || error).slice(0, 200)}`);
+    }
+  }
+
   let snapshot = null;
   const morning = hourNow === configuredHour(env.JARVIS_MORNING_BRIEF_HOUR, 8) && Number(parts.minute) <= 29;
   if (Number(parts.minute) % 5 === 0) try {
