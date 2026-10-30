@@ -240,7 +240,7 @@ function unpaidFingerprint(rows) {
     .join('||');
 }
 
-async function loadSnapshot(env, now) {
+async function loadSnapshot(env, now, withCollected = true) {
   const today = phoenixDateString(now);
   const tomorrow = addDate(today, 1);
 
@@ -276,12 +276,13 @@ async function loadSnapshot(env, now) {
       limit: '100',
     }),
     // Same rows as the dashboard so "collected" matches it (shared/business-metrics.js).
-    // ponytail: full slim bookings scan every minute; gate to briefing times if it gets slow.
-    sbGet(env, 'bookings', {
+    // Only the morning brief uses it, so the 2,000-row scan runs only in that window
+    // (every minute it blew the free plan's 10 ms CPU limit).
+    withCollected ? sbGet(env, 'bookings', {
       select: 'id,job_status,status,paid_at,amount_paid,invoice_amount,tax_amount,parts_cost,payments',
       order: 'date.desc,time.desc',
       limit: '2000',
-    }),
+    }) : [],
   ]);
 
   const activeJob = job => !isCancelled(jobFromRow(job)); // status OR job_status cancelled
@@ -619,9 +620,12 @@ export async function onRequestPost({ request, env }) {
     }
   }
 
+  // Briefings and lead/unpaid alerts are checked every 5 minutes, not every minute
+  // (each check reads bookings and leads; Workers free plan = 10 ms CPU a request).
   let snapshot = null;
-  try {
-    snapshot = await loadSnapshot(env, now);
+  const morning = hourNow === configuredHour(env.JARVIS_MORNING_BRIEF_HOUR, 8) && Number(parts.minute) <= 29;
+  if (Number(parts.minute) % 5 === 0) try {
+    snapshot = await loadSnapshot(env, now, morning);
   } catch (error) {
     console.error('jarvis-proactive snapshot error:', error);
     errors.push(`snapshot: ${String(error?.message || error)}`);
