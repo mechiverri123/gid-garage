@@ -19,3 +19,14 @@ test('confirmed alerts now, pending only after 10 min, cancelled/already-sent ne
   assert.match(out[0].text, /didn't finish/);
   assert.match(out[1].text, /^New website booking: Aaron G — brakes, 2026-10-29 at 5:00 PM/);
 });
+
+import { customerEventAlert } from '../functions/jarvis-proactive.js';
+
+test('customer events become one Telegram line; unknown types are skipped', () => {
+  const b = { fname: 'Jill', lname: 'R', vehicle: '2015 Ford F-150', service: 'brakes', date: '2026-10-30', time: '9:00 AM' };
+  assert.equal(customerEventAlert({ event_type: 'signed', amount: 412.5 }, b), 'Estimate signed: Jill R $412.50 — 2015 Ford F-150, brakes.');
+  assert.match(customerEventAlert({ event_type: 'cancelled' }, b), /cancelled their appointment \(2026-10-30 9:00 AM\)/);
+  assert.match(customerEventAlert({ event_type: 'estimate_declined' }, b), /declined the estimate/);
+  assert.match(customerEventAlert({ event_type: 'paid', amount: 100 }, undefined), /^Payment received: A customer \$100\.00/);
+  assert.equal(customerEventAlert({ event_type: 'weird' }, b), null);
+});

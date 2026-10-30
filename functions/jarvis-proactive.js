@@ -351,6 +351,22 @@ export function websiteBookingAlerts(leads, bookingsById, sentIds, now) {
   return out;
 }
 
+// Customer actions logged in payment_events (also the admin page's push alerts,
+// which only show while /admin is open) -> one Telegram line each. Tested.
+export function customerEventAlert(ev, b) {
+  const who = b ? personName(b) : 'A customer';
+  const amt = ev.amount != null ? ` ${money(ev.amount)}` : '';
+  const what = b ? ` — ${[b.vehicle, b.service].filter(Boolean).join(', ')}` : '';
+  switch (ev.event_type) {
+    case 'signed': return `Estimate signed: ${who}${amt}${what}.`;
+    case 'paid': return `Payment received: ${who}${amt}${what}.`;
+    case 'declined': return `Card declined: ${who}${amt}${ev.error_message ? ` (${ev.error_message})` : ''}.`;
+    case 'estimate_declined': return `${who} declined the estimate${what}. Worth a call.`;
+    case 'cancelled': return `${who} cancelled their appointment${b ? ` (${b.date} ${b.time})` : ''}${what}. That slot is open again.`;
+    default: return null;
+  }
+}
+
 function formatMorningBrief(snapshot) {
   const lines = ['Morning brief'];
 
@@ -661,6 +677,34 @@ export async function onRequestPost({ request, env }) {
       }
     } catch (error) {
       actions.push(`website_booking_alert_error: ${String(error?.message || error).slice(0, 200)}`);
+    }
+  }
+
+  // Signed estimates, customer payments, declines and cancellations, every 5 minutes.
+  if (Number(parts.minute) % 5 === 0) {
+    try {
+      const seen = (await getState(env, 'customer_event_alerts'))?.value?.after;
+      if (!seen) {
+        // First run: start from now so past events are never replayed.
+        await setState(env, 'customer_event_alerts', { after: now.toISOString() });
+      } else {
+        const events = await sbGet(env, 'payment_events', { select: 'id,booking_id,event_type,amount,error_message,created_at', created_at: `gt.${seen}`, order: 'created_at.asc', limit: '20' });
+        if (events.length) {
+          const ids = [...new Set(events.map(e => e.booking_id).filter(Boolean))];
+          const rows = ids.length ? await sbGet(env, 'bookings', { select: 'id,fname,lname,vehicle,service,date,time', id: `in.(${ids.map(i => `"${i}"`).join(',')})` }) : [];
+          const byId = new Map(rows.map(r => [r.id, r]));
+          const lines = events.map(e => customerEventAlert(e, byId.get(e.booking_id))).filter(Boolean);
+          if (lines.length) {
+            const text = lines.join('\n');
+            await sendTelegramText(botToken, chatId, text);
+            await saveAssistantHistory(env, chatId, text);
+            actions.push(`customer_event_alert:${lines.length}`);
+          }
+          await setState(env, 'customer_event_alerts', { after: events[events.length - 1].created_at });
+        }
+      }
+    } catch (error) {
+      actions.push(`customer_event_alert_error: ${String(error?.message || error).slice(0, 200)}`);
     }
   }
 

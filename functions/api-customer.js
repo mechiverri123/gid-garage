@@ -260,6 +260,9 @@ export async function onRequestPost({ request, env }) {
           }
         );
         if (!res.ok) return json({ error: await res.text() }, 502);
+        // Owner alert (Telegram via the proactive worker), server-side: the owner email
+        // only goes out from the customer's browser afterwards (send-cancellation).
+        await fetch(`${base}/payment_events`, { method: 'POST', headers: { ...headers, Prefer: 'return=minimal' }, body: JSON.stringify({ booking_id: id, event_type: 'cancelled', amount: null, error_message: null }) }).catch(() => {});
         return json({ ok: true, booking });
       }
 
@@ -437,6 +440,8 @@ export async function onRequestPost({ request, env }) {
           }
         );
         if (!res.ok) return json({ error: await res.text() }, 502);
+        // Owner alert (Telegram via the proactive worker); nothing told the owner before.
+        await fetch(`${base}/payment_events`, { method: 'POST', headers: { ...headers, Prefer: 'return=minimal' }, body: JSON.stringify({ booking_id: id, event_type: 'estimate_declined', amount: null, error_message: null }) }).catch(() => {});
         return json({ ok: true });
       }
 
