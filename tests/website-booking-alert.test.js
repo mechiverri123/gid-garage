@@ -18,6 +18,8 @@ test('confirmed alerts now, pending only after 10 min, cancelled/already-sent ne
   assert.deepEqual(out.map(a => a.id), ['L1', 'L2']);
   assert.match(out[0].text, /didn't finish/);
   assert.match(out[1].text, /^New website booking: Aaron G — brakes, 2026-10-29 at 5:00 PM/);
+  const q = websiteBookingAlerts([{ id: 'Q1', source: 'website_form', fname: 'Sam', lname: 'T', phone: '928-555-0100', vehicle: '2012 Honda Civic', requested_service: 'brakes' }], new Map(), [], now);
+  assert.equal(q[0].text, 'New quote request from the website: Sam T (928-555-0100) — brakes · 2012 Honda Civic.');
 });
 
 import { customerEventAlert } from '../functions/jarvis-proactive.js';

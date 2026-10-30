@@ -338,6 +338,12 @@ function formatUnpaidAlert(rows) {
 export function websiteBookingAlerts(leads, bookingsById, sentIds, now) {
   const out = [];
   for (const l of leads) {
+    if (sentIds.includes(l.id)) continue;
+    if (l.source === 'website_form') {
+      const bits = [l.requested_service, l.vehicle].filter(Boolean).join(' · ');
+      out.push({ id: l.id, text: `New quote request from the website: ${personName(l)}${l.phone ? ` (${l.phone})` : ''}${bits ? ` — ${bits}` : ''}.` });
+      continue;
+    }
     const b = bookingsById.get(l.booking_id);
     if (!b || sentIds.includes(l.id) || isCancelled(jobFromRow(b))) continue;
     const confirmed = b.status === 'confirmed';
@@ -657,12 +663,12 @@ export async function onRequestPost({ request, env }) {
 
   // Briefings and lead/unpaid alerts are checked every 5 minutes, not every minute
   // (each check reads bookings and leads; Workers free plan = 10 ms CPU a request).
-  // Website bookings (finished or abandoned at the card step), every 5 minutes.
+  // Website bookings (finished or abandoned at the card step) and quote requests, every 5 minutes.
   if (Number(parts.minute) % 5 === 0) {
     try {
-      const leads = await sbGet(env, 'leads', { select: 'id,booking_id,created_at', source: 'eq.website_booking', created_at: `gte.${new Date(now - 6 * 3600000).toISOString()}`, limit: '20' });
+      const leads = await sbGet(env, 'leads', { select: 'id,booking_id,created_at,source,fname,lname,phone,vehicle,requested_service', source: 'in.(website_booking,website_form)', created_at: `gte.${new Date(now - 6 * 3600000).toISOString()}`, limit: '20' });
       if (leads.length) {
-        const ids = leads.map(l => l.booking_id).filter(Boolean);
+        const ids = leads.filter(l => l.source !== 'website_form').map(l => l.booking_id).filter(Boolean);
         const bookings = ids.length ? await sbGet(env, 'bookings', { select: 'id,fname,lname,phone,service,vehicle,date,time,status,job_status', id: `in.(${ids.map(i => `"${i}"`).join(',')})` }) : [];
         const sent = (await getState(env, 'website_booking_alerts'))?.value?.ids || [];
         const alerts = websiteBookingAlerts(leads, new Map(bookings.map(b => [b.id, b])), sent, now);
