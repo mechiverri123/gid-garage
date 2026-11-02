@@ -3,7 +3,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { DEFAULT_CHECKLIST, cleanTemplate, withTemplate, recommendations, declinedSentence, checkResponse, nextVisitJobRow } from '../shared/next-visit.js';
-import { WEEKDAY_SLOTS, WEEKEND_SLOTS, slotsForDate, slotHour, isBookableSlot, dayOfWeek, phoenixHour } from '../shared/booking-slots.js';
+import { WEEKDAY_SLOTS, WEEKEND_SLOTS, slotsForDate, slotHour, isBookableSlot, dayOfWeek, phoenixHour, slotMinutes } from '../shared/booking-slots.js';
 
 test('slots: same hours as the booking page; weekday/weekend by calendar date; Phoenix hour', () => {
   assert.equal(WEEKDAY_SLOTS[0], '1:30 PM');
@@ -106,4 +106,11 @@ test('public invoice lookup hides next-visit labor hours', async () => {
     assert.equal(item.note, '3mm');
     assert.ok(!('laborHours' in item));
   } finally { globalThis.fetch = saved; }
+});
+
+test('slotMinutes sorts appointment times chronologically, not alphabetically', () => {
+  const t = ['5:00 PM', '10:00 AM', '1:30 PM', '12:00 PM', '9:30 AM', '12:30 AM'];
+  assert.deepEqual(t.sort((a, b) => slotMinutes(a) - slotMinutes(b)),
+    ['12:30 AM', '9:30 AM', '10:00 AM', '12:00 PM', '1:30 PM', '5:00 PM']);
+  assert.equal(slotMinutes(''), 24 * 60);
 });

@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, type Dispatch, type SetStateAction } from 
 import { JobsTab, BusinessHub, MileageTab, JobDetailPanel, getJobById, getAllJobs, OwnerPayPanel, CustomersTab, type Job } from './JobOps';
 import { FleetAdminTab } from './fleet/FleetAdminTab';
 import { HelperPay } from './pay/HelperPay';
-import { WEEKDAY_SLOTS, WEEKEND_SLOTS, slotsForDate } from '../shared/booking-slots.js';
+import { WEEKDAY_SLOTS, WEEKEND_SLOTS, slotsForDate, slotMinutes } from '../shared/booking-slots.js';
 import { getEngines } from './engineData';
 import { getTrims } from './trimData';
 
@@ -2170,7 +2170,7 @@ export function AdminSchedule() {
     .sort((a, b) => {
       const statusDiff = (STATUS_ORDER[a.status] ?? 1) - (STATUS_ORDER[b.status] ?? 1);
       if (statusDiff !== 0) return statusDiff;
-      return b.date.localeCompare(a.date) || b.time.localeCompare(a.time);
+      return b.date.localeCompare(a.date) || slotMinutes(b.time) - slotMinutes(a.time);
     });
 
   // Phoenix is UTC-7 year-round (no DST) — using raw UTC here made "today"
@@ -2187,7 +2187,8 @@ export function AdminSchedule() {
   const daysInMonth = new Date(calYear, calMonth + 1, 0).getDate();
 
   function bookingsForDay(dateStr: string) {
-    return bookings.filter(b => b.date === dateStr && b.status !== 'cancelled');
+    return bookings.filter(b => b.date === dateStr && b.status !== 'cancelled')
+      .sort((a, b) => slotMinutes(a.time) - slotMinutes(b.time));
   }
 
   // ── WEEK VIEW helpers ──
@@ -2423,7 +2424,7 @@ export function AdminSchedule() {
             </div>
             {(() => {
               const dKey = dateKey(calDate.getFullYear(), calDate.getMonth(), calDate.getDate());
-              const dayBookings = bookingsForDay(dKey).sort((a,b) => a.time.localeCompare(b.time));
+              const dayBookings = bookingsForDay(dKey);
               const slots = getSlotsForDate(dKey);
               return (
                 <div className="space-y-2">

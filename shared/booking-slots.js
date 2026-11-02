@@ -32,6 +32,16 @@ export function slotHour(t) {
   return m[2] === 'PM' ? (h === 12 ? 12 : h + 12) : (h === 12 ? 0 : h);
 }
 
+// "1:30 PM" / "13:30" → minutes since midnight, for chronological sorting. Unparseable → end of day.
+export function slotMinutes(t) {
+  const m = String(t ?? '').trim().match(/^(\d{1,2}):(\d{2})\s*(AM|PM)?$/i);
+  if (!m) return 24 * 60;
+  let h = Number(m[1]) % 12;
+  if (!m[3]) h = Number(m[1]);
+  else if (m[3].toUpperCase() === 'PM') h += 12;
+  return h * 60 + Number(m[2]);
+}
+
 // Same rule the booking widget uses: today's slots are open only after the current Phoenix hour.
 export function isBookableSlot(ymd, time, { today, nowHour, taken = [], blackout = [] }) {
   if (!ymd || ymd < today || blackout.includes(ymd)) return false;
