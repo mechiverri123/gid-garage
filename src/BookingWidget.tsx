@@ -894,7 +894,7 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
         <div className="fixed inset-0 z-[9999] bg-black/85 overflow-y-auto flex items-start justify-center p-4 md:p-8"
           onMouseDown={(e) => { backdropDown.current = e.target === e.currentTarget; }}
           onClick={(e) => { if (e.target === e.currentTarget && backdropDown.current) closeModal(); backdropDown.current = false; }}>
-          <div className="bg-dark w-full max-w-2xl relative p-8 md:p-10 my-4">
+          <div className="bg-dark w-full max-w-2xl relative p-8 md:p-10 my-4" data-clarity-mask="true">
             <button onClick={closeModal} className="absolute top-4 right-4 w-8 h-8 border border-gray-700 text-gray-400 hover:border-red-600 hover:text-white flex items-center justify-center text-lg transition-colors" aria-label="Close">✕</button>
 
             {submitted ? (
@@ -1248,7 +1248,7 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
                       </p>
                     </div>
                   </div>
-                  <p className="text-gray-400 text-xs mt-3">By booking, you agree to our <button type="button" onClick={() => setShowCancelPolicy(true)} className="text-red-500 hover:text-red-400 underline underline-offset-2 transition-colors">cancellation policy</button>. Please cancel at least 24 hours in advance to avoid a cancellation fee.</p>
+                  <p className="text-gray-400 text-xs mt-3">By booking, you agree to our <a href="/terms" target="_blank" rel="noopener noreferrer" className="text-red-500 hover:text-red-400 underline underline-offset-2 transition-colors">Terms of Service</a>, <a href="/privacy" target="_blank" rel="noopener noreferrer" className="text-red-500 hover:text-red-400 underline underline-offset-2 transition-colors">Privacy Policy</a> and <button type="button" onClick={() => setShowCancelPolicy(true)} className="text-red-500 hover:text-red-400 underline underline-offset-2 transition-colors">cancellation policy</button>. Please cancel at least 24 hours in advance to avoid a cancellation fee.</p>
                   {submitError && (
                     <div className="mt-4 bg-red-950/50 border border-red-700 text-red-400 text-sm px-4 py-3">
                       {submitError}

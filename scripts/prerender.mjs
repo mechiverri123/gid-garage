@@ -13,7 +13,7 @@
 // Content comes from shared/site-pages.js (the same data the React pages render).
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
-import { SERVICE_PAGES, AREAS, AREAS_PAGE, HOME_PAGE, AUTO_REPAIR, PRIVACY_PAGE, CASE_STUDIES, CASE_STUDIES_PAGE, PHONE, SITE, WHY_US, HOW_IT_WORKS, casesFor } from '../shared/site-pages.js';
+import { SERVICE_PAGES, AREAS, AREAS_PAGE, HOME_PAGE, AUTO_REPAIR, PRIVACY_PAGE, TERMS_PAGE, CASE_STUDIES, CASE_STUDIES_PAGE, PHONE, SITE, WHY_US, HOW_IT_WORKS, casesFor } from '../shared/site-pages.js';
 
 const DIST = new URL('../dist/', import.meta.url);
 // Run as the build step; imported by tests for its helpers only.
@@ -115,6 +115,7 @@ pages.push(['service-area.html', withoutFaq(withRoot(withHead(template, AREAS_PA
 ].join('')))]);
 
 pages.push(['privacy.html', withoutFaq(withRoot(withHead(template, PRIVACY_PAGE), h1(PRIVACY_PAGE.h1) + `<p>${esc(PRIVACY_PAGE.description)}</p>`))]);
+pages.push(['terms.html', withoutFaq(withRoot(withHead(template, TERMS_PAGE), h1(TERMS_PAGE.h1) + `<p>${esc(TERMS_PAGE.description)}</p>`))]);
 
 // Real-job case studies: /case-studies and /case-studies/<slug>.
 const caseLinks = (except = null) => list(CASE_STUDIES.filter(c => c.slug !== except).map(c => `<a style="color:#f87171" href="${c.path}">${esc(c.h1)}</a>`));

@@ -1098,6 +1098,8 @@ function Footer() {
             {SERVICE_PAGES.map(p => <a key={p.path} href={p.path} className="text-white/60 hover:text-white text-sm transition-colors">{p.label}</a>)}
             <a href="/service-area" className="text-white/60 hover:text-white text-sm transition-colors">Areas We Serve</a>
             <a href="/case-studies" className="text-white/60 hover:text-white text-sm transition-colors">Real Jobs</a>
+            <a href="/terms" className="text-white/60 hover:text-white text-sm transition-colors">Terms of Service</a>
+            <a href="/privacy" className="text-white/60 hover:text-white text-sm transition-colors">Privacy Policy</a>
             <a href="/admin" className="text-gray-400 hover:text-white text-xs transition-colors mt-2">Admin ↗</a>
           </div>
         </div>
@@ -1246,7 +1248,7 @@ function PrivacyPolicyPage() {
       <main className="max-w-3xl mx-auto px-6 py-16">
         <a href="/" className="text-orange-500 text-sm font-bold">← Back to GID Garage</a>
         <h1 className="text-3xl md:text-4xl font-black text-white mt-6 mb-2">Privacy Policy</h1>
-        <p className="text-gray-400 text-sm mb-10">Last updated: October 15, 2026</p>
+        <p className="text-gray-400 text-sm mb-10">Last updated: November 4, 2026</p>
 
         <div className="space-y-8 text-gray-300 text-sm leading-relaxed">
           <section>
@@ -1261,7 +1263,7 @@ function PrivacyPolicyPage() {
               <li>Name, phone number, email address, and service address</li>
               <li>Vehicle information (year, make, model, mileage, VIN where provided)</li>
               <li>Details about the issue or service you're requesting</li>
-              <li>Payment and billing information (cards are processed and stored by Stripe — see Section 5; we keep only the last 4 digits and transaction IDs)</li>
+              <li>Payment and billing information (cards are processed by our payment providers, Bluevine and Stripe — see Section 5; we never store full card numbers and keep only details such as the last 4 digits and transaction IDs)</li>
               <li>Photos or diagnostic scan data related to your vehicle, when applicable</li>
               <li>Communications between you and us (texts, emails, calls)</li>
             </ul>
@@ -1283,9 +1285,9 @@ function PrivacyPolicyPage() {
 
           <section>
             <h2 className="text-white font-bold text-lg mb-2">4. Cookies, Tracking & Analytics</h2>
-            <p className="mb-2"><strong className="text-white">Our website does not use advertising or analytics trackers.</strong> There is no Meta Pixel, Google Analytics, or similar tracking on gidgarage.com, and we do not build advertising profiles of visitors.</p>
-            <p className="mb-2">We use only what the site needs to work: Cloudflare may set security cookies to protect the site from abuse, your browser may store small settings locally (for example, a booking form you started), and Sentry receives technical error reports so we can fix bugs. None of these are used for advertising.</p>
-            <p>If you respond to one of our ads on Meta (Facebook/Instagram), Google, or Nextdoor, that platform's own privacy policy and tracking apply on its site and lead forms. If we ever add advertising or analytics tracking to our own website, we will update this policy first and explain your choices. You can also control cookies through your browser settings.</p>
+            <p className="mb-2"><strong className="text-white">Website analytics (Microsoft Clarity).</strong> On our public marketing pages (the home page, service pages, service area, case studies, and policy pages), we use Microsoft Clarity to understand how visitors use the site and improve it. Clarity captures how you use those pages, such as clicks, scrolling, mouse movement, and page views, through first- and third-party cookies and similar technologies, and may create session replays and heatmaps. Text you type into our booking and quote forms is masked so it is not recorded. This data is processed by Microsoft; see the <a href="https://privacy.microsoft.com/privacystatement" target="_blank" rel="noopener noreferrer" className="text-orange-500 underline underline-offset-2">Microsoft Privacy Statement</a>. Clarity is not used on estimate, invoice, payment, or admin pages. You can block or delete these cookies in your browser settings, or use a browser extension that blocks analytics scripts, without affecting your ability to book.</p>
+            <p className="mb-2">We do not use advertising trackers on gidgarage.com: there is no Meta Pixel or Google Analytics, and we do not build advertising profiles of visitors or sell visitor data. Otherwise we use only what the site needs to work: Cloudflare may set security cookies to protect the site from abuse, your browser may store small settings locally (for example, a booking form you started), and Sentry receives technical error reports so we can fix bugs.</p>
+            <p>When you electronically sign an estimate, we record your device's IP address (looked up through the ipify service) along with your signature and the time, as evidence of your approval. If you respond to one of our ads on Meta (Facebook/Instagram), Google, or Nextdoor, that platform's own privacy policy and tracking apply on its site and lead forms. If we add other analytics or advertising tracking to our website, we will update this policy first.</p>
           </section>
 
           <section>
@@ -1293,7 +1295,8 @@ function PrivacyPolicyPage() {
             <p className="mb-2">We use trusted service providers to operate our business. Each only receives the information needed to perform its function:</p>
             <ul className="list-disc pl-5 space-y-1">
               <li><strong className="text-white">Stripe</strong> — card payment processing and card storage (we do not store full card numbers ourselves)</li>
-              <li><strong className="text-white">Bluevine</strong> — our business bank account</li>
+              <li><strong className="text-white">Bluevine</strong> — our business bank account and the payment links on our invoices (Bluevine processes those payments, including card and Apple Pay details)</li>
+              <li><strong className="text-white">Microsoft (Clarity)</strong> — website usage analytics on our public pages (see Section 4)</li>
               <li><strong className="text-white">Supabase</strong> — secure database hosting for booking and job records</li>
               <li><strong className="text-white">Cloudflare</strong> — website hosting, security, and photo/file storage (R2)</li>
               <li><strong className="text-white">Sentry</strong> — technical error monitoring (no personal data used for advertising)</li>
@@ -1342,7 +1345,153 @@ function PrivacyPolicyPage() {
 
           <section>
             <h2 className="text-white font-bold text-lg mb-2">12. Contact Us</h2>
-            <p>Questions about this policy, or want your information corrected or removed? Contact us at <a href="mailto:info@gidgarage.com" className="text-orange-500 underline underline-offset-2">info@gidgarage.com</a>.</p>
+            <p>Questions about this policy, or want your information corrected or removed? Contact us at <a href="mailto:info@gidgarage.com" className="text-orange-500 underline underline-offset-2">info@gidgarage.com</a> or call or text 480-757-0476. Use of our services is also governed by our <a href="/terms" className="text-orange-500 underline underline-offset-2">Terms of Service</a>.</p>
+          </section>
+        </div>
+      </main>
+    </div>
+  );
+}
+
+// Terms of Service. Fees, warranty and venue match the terms customers sign on
+// every estimate (CYA_TERMS in JobOps.tsx); the signed estimate wins on conflict.
+function TermsOfServicePage() {
+  const h2 = 'text-white font-bold text-lg mb-2';
+  const strong = 'text-white';
+  const link = 'text-orange-500 underline underline-offset-2';
+  return (
+    <div className="bg-dark text-dark min-h-screen font-sans">
+      <main className="max-w-3xl mx-auto px-6 py-16">
+        <a href="/" className="text-orange-500 text-sm font-bold">← Back to GID Garage</a>
+        <h1 className="text-3xl md:text-4xl font-black text-white mt-6 mb-2">Terms of Service</h1>
+        <p className="text-gray-400 text-sm mb-10">Last updated: November 4, 2026</p>
+
+        <div className="space-y-8 text-gray-300 text-sm leading-relaxed">
+          <section>
+            <h2 className={h2}>1. Agreement to These Terms</h2>
+            <p className="mb-2">These Terms of Service ("Terms") are a binding agreement between you and Echiverri Holdings LLC, doing business as GID Garage ("GID Garage," "we," "us," "our"), a mobile mechanic business serving Flagstaff, Arizona and the surrounding area. They apply when you use gidgarage.com, request a quote, book an appointment, sign an estimate, pay an invoice, or receive any service from us.</p>
+            <p>By doing any of those things, you agree to these Terms and to our <a href="/privacy" className={link}>Privacy Policy</a>. If you do not agree, please do not use our website or services. <strong className={strong}>If these Terms conflict with an estimate you sign, the signed estimate controls for that job.</strong></p>
+          </section>
+
+          <section>
+            <h2 className={h2}>2. Eligibility and Authority Over the Vehicle</h2>
+            <p>You must be at least 18 years old to book or authorize service. By requesting service, you confirm that you own the vehicle or are authorized by its owner to request and approve repairs, and that you have permission to have the work done at the service location (for example, from a landlord, HOA, employer, or property owner). You are responsible for any fees, fines, or claims resulting from work performed at a location where it is not permitted.</p>
+          </section>
+
+          <section>
+            <h2 className={h2}>3. Quotes, Estimates, and Approval of Work</h2>
+            <ul className="list-disc pl-5 space-y-1">
+              <li>Prices shown on our website (including "starting at" prices) and quotes given before we inspect the vehicle are estimates only and may change based on your vehicle's actual condition, parts pricing, and availability.</li>
+              <li>The price for a job is the amount on the estimate you approve. <strong className={strong}>We will not perform work beyond the approved estimate without your approval.</strong> If we find additional needed work, we will contact you first; if we cannot reach you, we may pause the job until we do.</li>
+              <li>Diagnostic results and recommendations (including "next visit" recommendations) are based on the information available at the time of inspection. They are not a guarantee that every problem has been found or that a repair will resolve every symptom.</li>
+              <li>Recall information we show comes from public U.S. government (NHTSA) data and is provided for your convenience only. Confirm open recalls with a dealer.</li>
+            </ul>
+          </section>
+
+          <section>
+            <h2 className={h2}>4. Appointments and Your Responsibilities</h2>
+            <ul className="list-disc pl-5 space-y-1">
+              <li>Appointment times may be adjusted, and we will contact you to confirm details.</li>
+              <li>The vehicle must be accessible at the scheduled time, on a flat, stable surface with enough room to work safely, and you must provide keys and any needed access (gate codes, parking permission).</li>
+              <li>Please remove valuables from the vehicle. We are not responsible for personal items left inside.</li>
+              <li>Keep children, pets, and bystanders away from the work area while we work.</li>
+              <li>We may decline, stop, or reschedule work if conditions are unsafe (for example, extreme weather, poor lighting, unstable ground, or an unsafe environment). If we arrive and cannot safely or lawfully work, a trip fee may apply.</li>
+              <li>You authorize us to operate the vehicle as needed to perform and verify the service, including short test drives.</li>
+            </ul>
+          </section>
+
+          <section>
+            <h2 className={h2}>5. Payment</h2>
+            <ul className="list-disc pl-5 space-y-1">
+              <li><strong className={strong}>Payment is due in full when the work is completed</strong>, unless we agree otherwise in writing. Payments are made through the payment link on your invoice or another method we accept. Payment processors (such as Bluevine or Stripe) handle card details; we do not store full card numbers.</li>
+              <li>For jobs that require special-order parts, we may require a deposit before ordering. Deposits for parts are non-refundable once the parts are ordered.</li>
+              <li>If you choose to give us a card to keep on file, you authorize us to charge it for the agreed amount when the job is complete. We will tell you the final amount before charging it.</li>
+              <li>Returned payments, and chargebacks or disputed charges for work that was performed, are subject to a $35 processing fee. Unpaid balances may be referred for collection, and you agree to pay reasonable collection costs and attorney's fees to the extent permitted by Arizona law.</li>
+              <li>Applicable sales tax is added to taxable parts and services as shown on your estimate and invoice.</li>
+            </ul>
+          </section>
+
+          <section>
+            <h2 className={h2}>6. Cancellations, Rescheduling, and No-Shows</h2>
+            <ul className="list-disc pl-5 space-y-1">
+              <li>Please cancel or reschedule at least 24 hours before your appointment by calling or texting 480-757-0476 or using the cancellation link in your confirmation.</li>
+              <li>Late cancellations (less than 24 hours' notice) and no-shows may be charged a trip fee to cover technician time and travel already committed.</li>
+              <li>Cancelling after you have signed an estimate is subject to a $50 cancellation fee, as stated on the estimate.</li>
+              <li>If parts were already ordered or purchased for your job, you are responsible for their cost, especially special-order or non-returnable parts.</li>
+              <li>We may cancel or reschedule an appointment because of weather, safety, parts availability, illness, or other circumstances outside our control. If we cancel, you will not be charged a cancellation fee.</li>
+            </ul>
+          </section>
+
+          <section>
+            <h2 className={h2}>7. Warranty</h2>
+            <ul className="list-disc pl-5 space-y-1">
+              <li><strong className={strong}>Labor is warranted for 30 days from the date of service.</strong> If work we performed fails because of our workmanship within that time, contact us and we will correct it. Our obligation under this warranty is limited to re-performing the affected labor or, at our option, refunding the labor charge for it.</li>
+              <li>Parts carry only the warranty provided by their manufacturer or supplier. We will help you make a warranty claim, but the manufacturer, not GID Garage, is responsible for parts warranties.</li>
+              <li>The labor warranty does not cover: customer-supplied parts (which we install without any warranty); damage from accidents, abuse, neglect, racing, overheating, lack of maintenance, or later repairs by anyone else; wear items reaching the end of their normal life; or problems unrelated to the work we performed. The warranty is void if someone else services the vehicle for the same issue before we have a chance to inspect it.</li>
+              <li className="uppercase text-white">Except for the warranty above and any warranty that cannot be excluded under applicable law, our services and this website are provided "as is," and we disclaim all other warranties, express or implied, including implied warranties of merchantability and fitness for a particular purpose, to the fullest extent permitted by law.</li>
+            </ul>
+          </section>
+
+          <section>
+            <h2 className={h2}>8. Vehicle Condition and Inherent Risks</h2>
+            <ul className="list-disc pl-5 space-y-1">
+              <li>We are not responsible for pre-existing conditions, hidden damage, or problems unrelated to the service we performed. We may photograph the vehicle before, during, and after service to document its condition. Damage you note when signing the estimate is recorded and acknowledged.</li>
+              <li>On older or high-mileage vehicles, aged components (for example, rusted or seized bolts, brittle hoses, plastic connectors, or worn sensors) can break or fail during normal, careful service. This is an inherent risk of working on such vehicles and is not, by itself, negligence. We will tell you if it happens and discuss options before doing more work.</li>
+              <li>We dispose of used fluids and parts responsibly under local rules. We are not responsible for fluid stains or contamination that existed before our visit, and we take reasonable care to protect your property during the job.</li>
+            </ul>
+          </section>
+
+          <section>
+            <h2 className={h2}>9. Limitation of Liability</h2>
+            <p className="uppercase text-white mb-2">To the fullest extent permitted by law, GID Garage will not be liable for any indirect, incidental, special, consequential, or punitive damages, including loss of use of the vehicle, rental or towing costs, lost wages or profits, or inconvenience, arising from our services or this website. Our total liability for any claim relating to a job is limited to the amount you paid us for that job.</p>
+            <p>Nothing in these Terms limits liability that cannot be limited under applicable law, including liability for our gross negligence or willful misconduct.</p>
+          </section>
+
+          <section>
+            <h2 className={h2}>10. Your Responsibility for Information You Give Us</h2>
+            <p>You agree that the information you provide (including your identity, authority over the vehicle, permission to work at the service location, and the vehicle's known problems) is accurate. To the extent permitted by law, you agree to indemnify and hold GID Garage harmless from claims, losses, and costs, including reasonable attorney's fees, arising from false information you provided or from your violation of these Terms.</p>
+          </section>
+
+          <section>
+            <h2 className={h2}>11. Electronic Signatures and Records</h2>
+            <p>You agree that estimates, authorizations, invoices, and receipts may be provided and signed electronically, and that your electronic signature (including your typed name) has the same legal effect as a handwritten signature under the federal E-SIGN Act and the Arizona Electronic Transactions Act. When you sign, we record your name, the date and time, and your device's IP address as evidence of your approval. You may request a copy of any signed document at any time.</p>
+          </section>
+
+          <section>
+            <h2 className={h2}>12. Communications</h2>
+            <p>By giving us your phone number or email, you agree that we may contact you by call, text message, or email about your quote, appointment, estimate, invoice, warranty, or follow-up (including a request to review our service). Message and data rates may apply; message frequency varies. Reply STOP to opt out of texts at any time. See our <a href="/privacy" className={link}>Privacy Policy</a> for details.</p>
+          </section>
+
+          <section>
+            <h2 className={h2}>13. Photos of Our Work</h2>
+            <p>We may take photos and short videos of the vehicle and the work performed for documentation, warranty, and quality purposes. We may also use photos of the work to show examples of what we do (for example, on our website or social media), with license plates and personal information removed. If you do not want photos of your vehicle used this way, tell us and we will not use them.</p>
+          </section>
+
+          <section>
+            <h2 className={h2}>14. Use of Our Website</h2>
+            <p>You agree not to misuse the website, including by submitting false bookings, attempting to access admin areas or other customers' information, interfering with the site's operation, or scraping it with automated tools. Website content (text, photos, logos) belongs to GID Garage and may not be copied for commercial use without permission. We may change, suspend, or discontinue any part of the website, and prices and service offerings may change at any time without notice.</p>
+          </section>
+
+          <section>
+            <h2 className={h2}>15. Disputes and Governing Law</h2>
+            <p className="mb-2">If you have a concern about our work or a charge, please contact us first at 480-757-0476 or <a href="mailto:info@gidgarage.com" className={link}>info@gidgarage.com</a>. Most issues can be resolved quickly and informally, and you agree to give us 30 days to try to resolve a dispute before starting a legal proceeding or a payment dispute with your card issuer.</p>
+            <p>These Terms and any dispute relating to our services or this website are governed by the laws of the State of Arizona, without regard to its conflict-of-law rules. Any legal proceeding will be brought in the courts located in Coconino County, Arizona (including the justice court for small claims), and you and we consent to that venue.</p>
+          </section>
+
+          <section>
+            <h2 className={h2}>16. General Terms</h2>
+            <ul className="list-disc pl-5 space-y-1">
+              <li><strong className={strong}>Whole agreement.</strong> These Terms, our Privacy Policy, and any estimate you sign are the entire agreement between you and us about our services.</li>
+              <li><strong className={strong}>Severability.</strong> If any part of these Terms is found unenforceable, it will be enforced to the maximum extent allowed and the rest of the Terms remain in effect.</li>
+              <li><strong className={strong}>No waiver.</strong> If we do not enforce a provision, that is not a waiver of our right to enforce it later.</li>
+              <li><strong className={strong}>Events beyond our control.</strong> We are not responsible for delays or failures caused by weather, parts shortages, supplier delays, illness, accidents, road closures, or other events beyond our reasonable control.</li>
+              <li><strong className={strong}>Changes.</strong> We may update these Terms from time to time. The version posted here, with its "Last updated" date, applies to services booked after that date. The terms in effect when you sign an estimate apply to that job.</li>
+            </ul>
+          </section>
+
+          <section>
+            <h2 className={h2}>17. Contact Us</h2>
+            <p>GID Garage (Echiverri Holdings LLC) · Flagstaff, Arizona · Call or text <a href="tel:4807570476" className={link}>480-757-0476</a> · <a href="mailto:info@gidgarage.com" className={link}>info@gidgarage.com</a></p>
           </section>
         </div>
       </main>
@@ -1374,6 +1523,7 @@ export default function App() {
   const caseStudy = caseStudyForPath(window.location.pathname);
   const isCaseStudies = window.location.pathname.replace(/\/+$/, '') === '/case-studies';
   const isPrivacy = window.location.pathname === '/privacy';
+  const isTerms = window.location.pathname.replace(/\/+$/, '') === '/terms';
   const isReview = window.location.pathname === '/review';
 
   // Lenis is a marketing-site polish feature — never touch admin, ops
@@ -1421,6 +1571,7 @@ export default function App() {
   if (caseStudy) return <Suspense fallback={null}><CaseStudyPage cs={caseStudy} /></Suspense>;
   if (isCaseStudies) return <Suspense fallback={null}><CaseStudiesIndex /></Suspense>;
   if (isPrivacy) return <PrivacyPolicyPage />;
+  if (isTerms) return <TermsOfServicePage />;
   if (isReview) return <ReviewRedirect />;
   if (cancelId && cancelToken) return <CancelPage bookingId={cancelId} token={cancelToken} />;
 

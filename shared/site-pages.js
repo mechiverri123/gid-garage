@@ -176,6 +176,7 @@ SERVICE_PAGES.push(withCommon({
   faq: AUTO_REPAIR.faq,
 }));
 
+export const TERMS_PAGE = { path: '/terms', canonical: `${SITE}/terms`, title: 'Terms of Service | GID Garage', description: 'The terms that apply to GID Garage quotes, appointments, estimates, payments and warranty.', h1: 'Terms of Service' };
 export const PRIVACY_PAGE = { path: '/privacy', canonical: `${SITE}/privacy`, title: 'Privacy Policy | GID Garage', description: 'How GID Garage collects, uses and protects your information.', h1: 'Privacy Policy' };
 
 export const pageForPath = path => SERVICE_PAGES.find(p => p.path === String(path).replace(/\/+$/, '')) || null;
