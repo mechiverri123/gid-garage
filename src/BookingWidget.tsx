@@ -392,7 +392,7 @@ function VehicleSelector({ form, setForm, errors, clearError }: {
                   if (e.target.value === '__other__') { setTrimOther(true); setForm(p => ({ ...p, vehicleTrim: '' })); }
                   else { setForm(p => ({ ...p, vehicleTrim: e.target.value })); clearError('vehicleTrim'); }
                 }}>
-                <option value="">Trim</option>
+                <option value="">Trim (optional)</option>
                 {trimOptions.map(t => <option key={t} value={t}>{t}</option>)}
                 <option value="__other__">Other / not listed</option>
               </select>
@@ -400,7 +400,7 @@ function VehicleSelector({ form, setForm, errors, clearError }: {
               <div className="relative">
                 <input
                   type="text"
-                  placeholder="Trim (e.g. LE, XLT, Sport)"
+                  placeholder="Trim (optional)"
                   value={form.vehicleTrim}
                   onChange={e => { setForm(p => ({ ...p, vehicleTrim: e.target.value })); clearError('vehicleTrim'); }}
                   className={ic('vehicleTrim')}
@@ -426,7 +426,7 @@ function VehicleSelector({ form, setForm, errors, clearError }: {
                   if (e.target.value === '__other__') { setEngineOther(true); setForm(p => ({ ...p, vehicleEngine: '' })); }
                   else { setForm(p => ({ ...p, vehicleEngine: e.target.value })); clearError('vehicleEngine'); }
                 }}>
-                <option value="">Engine</option>
+                <option value="">Engine size</option>
                 {engineOptions.map(e => <option key={e} value={e}>{e}</option>)}
                 <option value="__other__">Other / not listed</option>
               </select>
@@ -537,11 +537,6 @@ function updateLocalGarageNotes(id: string, garageNotes: string) {
 }
 
 // ── BOOKING WIDGET ──────────────────────────────────────────────────────────
-function requiresDeposit(service: string | null): boolean {
-  if (service === 'audio') return true;
-  if (service === 'suspension') return true;
-  return false;
-}
 
 interface State {
   step: number; service: string | null; date: string | null;
@@ -656,329 +651,6 @@ function BrakePadSelector({ value, onChange }: { value: string | null; onChange:
 }
 
 
-// ── RETURNING CUSTOMER BANNER ────────────────────────────────────────────────
-function ReturningCustomerBanner({
-  fname, returningCustomer, onCardUpdated, customerName, lname, email, phone,
-}: {
-  fname: string;
-  returningCustomer: { hasCardOnFile: true; last4?: string };
-  onCardUpdated: (last4: string) => void;
-  customerName: string;
-  lname: string;
-  email: string;
-  phone: string;
-}) {
-  const [showUpdate, setShowUpdate] = useState(false);
-  const [stripe, setStripe] = useState<any>(null);
-  const [card, setCard] = useState<any>(null);
-  const [cardComplete, setCardComplete] = useState(false);
-  const [cardError, setCardError] = useState<string | null>(null);
-  const [saving, setSaving] = useState(false);
-
-  const mountRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!showUpdate || !STRIPE_PK) return;
-    loadStripe(STRIPE_PK).then(setStripe);
-  }, [showUpdate]);
-
-  useEffect(() => {
-    if (!stripe || !mountRef.current || !showUpdate) return;
-    const elements = stripe.elements({
-      appearance: {
-        theme: 'night',
-        variables: {
-          colorPrimary: '#dc2626', colorBackground: '#111827',
-          colorText: '#ffffff', colorDanger: '#ef4444',
-          fontFamily: 'Barlow, system-ui, sans-serif',
-          spacingUnit: '4px', borderRadius: '0px',
-        },
-      },
-    });
-    const el = elements.create('card', {
-      style: { base: { fontSize: '14px', color: '#fff', '::placeholder': { color: '#6b7280' } }, invalid: { color: '#ef4444' } },
-    });
-    el.mount(mountRef.current);
-    el.on('change', (e: any) => { setCardError(e.error?.message ?? null); setCardComplete(e.complete); });
-    setCard(el);
-    return () => el.destroy();
-  }, [stripe, showUpdate]);
-
-  async function handleUpdateCard() {
-    if (!stripe || !card) return;
-    setSaving(true);
-    setCardError(null);
-    try {
-      const { token, error } = await stripe.createToken(card, { name: customerName || undefined });
-      if (error) { setCardError(error.message); setSaving(false); return; }
-
-      // Update through the public customer API. The Stripe customer id stays
-      // server-side and never needs to be exposed to this browser.
-      const data = await apiPost('update-returning-card', {
-        token: token.id,
-        fname, lname, email, phone,
-      });
-      if (data?.error) throw new Error(data.error);
-
-      const newLast4: string = data.last4 ?? token.card?.last4 ?? '????';
-
-      // The update-card worker patches stripe_last4 on the customer's bookings
-      // server-side (anon can no longer UPDATE), so nothing to do here.
-
-      onCardUpdated(newLast4);
-      setShowUpdate(false);
-    } catch (e: any) {
-      setCardError(e.message ?? 'Something went wrong. Please try again.');
-    }
-    setSaving(false);
-  }
-
-  return (
-    <div className="col-span-2 bg-gradient-to-r from-red-950/60 to-gray-900/60 border border-red-700/60 border-l-4 border-l-red-500 px-4 py-3.5 mb-1">
-      <div className="flex items-start gap-3">
-        <span className="text-2xl flex-shrink-0">👋</span>
-        <div className="flex-1 min-w-0">
-          <p className="text-white text-sm font-black mb-0.5">Welcome back, {fname}!</p>
-          <p className="text-gray-400 text-xs leading-relaxed">
-            We found your account. Your card on file ending in{' '}
-            <span className="text-white font-bold">
-              {returningCustomer.last4 ? `••••${returningCustomer.last4}` : '••••'}
-            </span>{' '}
-            will be used for this appointment — no need to re-enter it.
-          </p>
-          <button
-            type="button"
-            onClick={() => { setShowUpdate(p => !p); setCardError(null); setCardComplete(false); }}
-            className="text-red-400 hover:text-red-300 text-[11px] font-bold underline underline-offset-2 transition-colors mt-1.5 inline-block"
-          >
-            {showUpdate ? 'Cancel' : 'Update card on file →'}
-          </button>
-        </div>
-      </div>
-
-      {showUpdate && (
-        <div className="mt-3 pt-3 border-t border-red-900/50 space-y-3">
-          <p className="text-gray-400 text-xs">Enter your updated card details below and we'll have it on file for your appointment.</p>
-          <div>
-            <label className="block text-gray-400 text-xs font-bold uppercase tracking-wider mb-2">New Card Details</label>
-            <div ref={mountRef} className="bg-gray-900 border border-gray-700 p-3.5 focus-within:border-red-600 transition-colors" />
-            {cardError && <p className="text-red-400 text-[11px] mt-1">{cardError}</p>}
-          </div>
-          <button
-            type="button"
-            onClick={handleUpdateCard}
-            disabled={saving || !cardComplete}
-            className={`w-full bg-red-600 hover:bg-red-500 text-white text-xs font-bold uppercase tracking-widest py-3 transition-colors ${(saving || !cardComplete) ? 'opacity-50 cursor-not-allowed' : ''}`}
-          >
-            {saving ? 'Saving...' : 'Save New Card'}
-          </button>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ── STRIPE CARD ON FILE STEP ─────────────────────────────────────────────────
-// Uses Stripe.js loaded from CDN. We do a $0 SetupIntent auth to verify the card
-// is real without charging. The token/payment method ID is saved to the booking.
-declare global {
-  interface Window { Stripe?: any; }
-}
-
-function loadStripe(publishableKey: string): Promise<any> {
-  return new Promise((resolve) => {
-    if (window.Stripe) { resolve(window.Stripe(publishableKey)); return; }
-    const script = document.createElement('script');
-    script.src = 'https://js.stripe.com/v3/';
-    script.onload = () => resolve(window.Stripe!(publishableKey));
-    document.head.appendChild(script);
-  });
-}
-
-const STRIPE_PK = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY as string;
-
-interface CardStepProps {
-  serviceId: string | null;
-  bookingId: string | null;
-  customerName: string;
-  customerEmail: string;
-  onCardSaved: (customerId: string, last4: string) => void;
-
-}
-
-function CardOnFileStep({ serviceId, bookingId, customerName, customerEmail, onCardSaved }: CardStepProps) {
-  const mountRef = useRef<HTMLDivElement>(null);
-  const [stripe, setStripe] = useState<any>(null);
-  const [card, setCard] = useState<any>(null);
-  const [cardError, setCardError] = useState<string | null>(null);
-  const [saving, setSaving] = useState(false);
-  const [cardComplete, setCardComplete] = useState(false);
-  const [consented, setConsented] = useState(false);
-  const isPartsJob = requiresDeposit(serviceId);
-
-  useEffect(() => {
-    if (!STRIPE_PK) return;
-    loadStripe(STRIPE_PK).then((stripeInstance) => {
-      setStripe(stripeInstance);
-    });
-  }, []);
-
-  useEffect(() => {
-    if (!stripe || !mountRef.current) return;
-    const elements = stripe.elements({
-      appearance: {
-        theme: 'night',
-        variables: {
-          colorPrimary: '#dc2626',
-          colorBackground: '#111827',
-          colorText: '#ffffff',
-          colorDanger: '#ef4444',
-          fontFamily: 'Barlow, system-ui, sans-serif',
-          spacingUnit: '4px',
-          borderRadius: '0px',
-        },
-      },
-    });
-    const cardElement = elements.create('card', {
-      style: {
-        base: { fontSize: '14px', color: '#fff', '::placeholder': { color: '#6b7280' } },
-        invalid: { color: '#ef4444' },
-      },
-    });
-    cardElement.mount(mountRef.current);
-    cardElement.on('change', (e: any) => {
-      setCardError(e.error?.message ?? null);
-      setCardComplete(e.complete);
-    });
-    setCard(cardElement);
-    return () => cardElement.destroy();
-  }, [stripe]);
-
-  async function handleSaveCard() {
-    if (!stripe || !card) return;
-    setSaving(true);
-    setCardError(null);
-    try {
-      const { token, error } = await stripe.createToken(card, {
-        name: customerName || undefined,
-      });
-      if (error) { setCardError(error.message); setSaving(false); return; }
-
-      // Send token to Cloudflare Worker → creates Stripe Customer + saves pm to Supabase
-      const res = await fetch('/save-card', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          token: token.id,
-          bookingId,
-          name: customerName,
-          email: customerEmail,
-        }),
-      });
-      const data = await res.json() as any;
-      if (data.error) throw new Error(data.error);
-
-      onCardSaved(data.customerId, data.last4 ?? token.card?.last4 ?? '****');
-    } catch (e: any) {
-      setCardError(e.message ?? 'Something went wrong. Please try again.');
-      setSaving(false);
-    }
-  }
-
-  return (
-    <div>
-      <StepHeader n={5} current={5} label={isPartsJob ? "Secure Your Appointment" : "Card on File"} />
-
-      {isPartsJob ? (
-        <div className="mb-5 bg-yellow-950/30 border border-yellow-700/50 border-l-4 border-l-yellow-500 px-4 py-4">
-          <p className="text-yellow-300 text-sm font-bold mb-1">Parts Need to Be Sourced</p>
-          <p className="text-yellow-200/70 text-xs leading-relaxed">
-            This service requires us to order parts for your vehicle. A card on file secures your appointment — <span className="text-yellow-300 font-semibold">you won't be charged until the job is complete.</span> We'll confirm parts availability and final pricing with you before we begin.
-          </p>
-        </div>
-      ) : (
-        <div className="mb-5 bg-gray-900/60 border border-gray-700 border-l-4 border-l-red-600 px-4 py-4">
-          <p className="text-white text-sm font-bold mb-1">No Charge Until the Job Is Done</p>
-          <p className="text-gray-400 text-xs leading-relaxed">
-            We save your card to make checkout seamless — <span className="text-gray-300 font-semibold">nothing is charged until your service is complete.</span> You'll know the final price before we ever touch your card.
-          </p>
-        </div>
-      )}
-
-      <div className="grid grid-cols-3 gap-3 mb-5">
-        {[
-          { icon: '🔒', label: 'Encrypted', sub: 'Stripe-secured' },
-          { icon: '💳', label: 'Not Charged', sub: 'Until job is done' },
-          { icon: '✓', label: "You're in Control", sub: 'Cancel anytime' },
-        ].map(t => (
-          <div key={t.label} className="bg-gray-900 border border-gray-800 p-3 text-center">
-            <div className="text-xl mb-1">{t.icon}</div>
-            <div className="text-white text-xs font-bold">{t.label}</div>
-            <div className="text-gray-400 text-[11px]">{t.sub}</div>
-          </div>
-        ))}
-      </div>
-
-      {STRIPE_PK ? (
-        <>
-          <div className="mb-3">
-            <label className="block text-gray-400 text-xs font-bold uppercase tracking-wider mb-2">Card Details</label>
-            <div ref={mountRef} className="bg-gray-900 border border-gray-700 p-3.5 focus-within:border-red-600 transition-colors" />
-            {cardError && <p className="text-red-400 text-xs mt-1.5">{cardError}</p>}
-          </div>
-
-          {/* Stripe trust block */}
-          <div className="bg-gray-950 border border-gray-800 px-4 py-3 mb-4 flex items-start gap-3">
-            {/* Stripe official hosted badge */}
-            <img
-              src="https://upload.wikimedia.org/wikipedia/commons/b/ba/Stripe_Logo%2C_revised_2016.svg"
-              alt="Stripe"
-              className="w-12 flex-shrink-0 mt-0.5 opacity-90"
-            />
-            <div>
-              <p className="text-gray-300 text-xs font-semibold mb-0.5">Payment secured by Stripe</p>
-              <p className="text-gray-400 text-[11px] leading-relaxed">
-                Your card info is encrypted and never stored on GID Garage's servers. Stripe is certified to <span className="text-gray-400">PCI Service Provider Level 1</span> — the highest level of payment security. <a href="https://stripe.com/privacy" target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:text-blue-300 underline underline-offset-2 transition-colors">Stripe Privacy Policy ↗</a>
-              </p>
-            </div>
-          </div>
-
-          {/* Explicit consent checkbox */}
-          <label className="flex items-start gap-3 mb-4 cursor-pointer group">
-            <input
-              type="checkbox"
-              checked={consented}
-              onChange={e => setConsented(e.target.checked)}
-              className="mt-0.5 w-4 h-4 accent-red-600 flex-shrink-0 cursor-pointer"
-            />
-            <span className="text-gray-400 text-xs leading-relaxed">
-              {isPartsJob
-                ? <>I authorize GID Garage to save my card and charge it for the <strong className="text-white">full service amount upon job completion</strong>. I will be contacted to confirm parts availability and final pricing before any work begins.</>
-                : <>I authorize GID Garage to charge this card for the <strong className="text-white">agreed service amount upon job completion</strong>. No charge will be made until the work is done and the final price is confirmed.</>
-              }
-            </span>
-          </label>
-
-          <button
-            onClick={handleSaveCard}
-            disabled={saving || !cardComplete || !consented}
-            className={`btn-primary w-full py-4 text-sm mb-3 ${(saving || !cardComplete || !consented) ? 'opacity-50 cursor-not-allowed' : ''}`}
-          >
-            {saving ? 'Saving Card...' : isPartsJob ? 'Save Card & Confirm Appointment' : 'Save Card & Submit Request'}
-          </button>
-        </>
-      ) : (
-        // Stripe not configured — show manual notice
-        <div className="bg-gray-900 border border-gray-700 px-4 py-4 mb-4">
-          <p className="text-gray-400 text-sm">Card collection is not configured yet. You can still submit your request — we'll collect payment info when we follow up.</p>
-        </div>
-      )}
-
-
-    </div>
-  );
-}
-
 export default function BookingWidget({ autoOpen, preselectedService, onClose }: { autoOpen?: boolean; preselectedService?: string; onClose?: () => void } = {}) {
   const [open, setOpen] = useState(!!autoOpen);
   const [s, setS] = useState<State>({
@@ -1015,7 +687,8 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
     return h;
   }
 
-  async function isAvailable(y: number, m: number, d: number): Promise<boolean> {
+  // Same rules as before, given that day's taken times.
+  function isAvailableWith(y: number, m: number, d: number, takenTimes: string[]): boolean {
     const dow = new Date(y, m, d).getDay();
     const phxNow = getPhoenixNow();
     const today = new Date(phxNow); today.setHours(0, 0, 0, 0);
@@ -1023,7 +696,6 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
     const k = dateKey(y, m, d);
     if (blackoutDates.has(k)) return false;
     const isToday = y === phxNow.getFullYear() && m === phxNow.getMonth() && d === phxNow.getDate();
-    const takenTimes = await getBookedTimesForDate(k);
     const slots = (dow === 0 || dow === 6) ? WEEKEND_SLOTS : WEEKDAY_SLOTS;
     const availableSlots = slots.filter(t => {
       if (takenTimes.includes(t)) return false;
@@ -1042,18 +714,23 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
     return true;
   }
 
+  // One request for the whole month (was one per day). If it fails, fall back
+  // to the old per-day lookups so availability never gets worse than before.
   useEffect(() => {
     const year = s.calYear;
     const month = s.calMonth;
-    const days = new Date(year, month + 1, 0).getDate();
-    const checks = Array.from({ length: days }, (_, i) => i + 1).map(async d => {
-      const avail = await isAvailable(year, month, d);
-      if (!avail) return dateKey(year, month, d);
-      return null;
-    });
-    Promise.all(checks).then(results => {
-      setUnavailableDates(new Set(results.filter(Boolean) as string[]));
-    });
+    const dayNums = Array.from({ length: new Date(year, month + 1, 0).getDate() }, (_, i) => i + 1);
+    let alive = true;
+    apiPost('booked-slots-range', { from: dateKey(year, month, 1), to: dateKey(year, month, dayNums.length) })
+      .then((byDate: Record<string, string[]> | null) => {
+        if (!byDate || typeof byDate !== 'object') throw new Error('bad response');
+        return dayNums.filter(d => !isAvailableWith(year, month, d, byDate[dateKey(year, month, d)] ?? []));
+      })
+      .catch(() => Promise.all(dayNums.map(async d =>
+        isAvailableWith(year, month, d, await getBookedTimesForDate(dateKey(year, month, d))) ? null : d,
+      )).then(r => r.filter((d): d is number => d !== null)))
+      .then(full => { if (alive) setUnavailableDates(new Set(full.map(d => dateKey(year, month, d)))); });
+    return () => { alive = false; };
   }, [s.calYear, s.calMonth, blackoutDates]);
 
   function selectService(id: string) { setS(p => ({ ...p, service: id, step: id === 'other' ? 1 : Math.max(p.step, 2) })); }
@@ -1065,31 +742,8 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [showCancelPolicy, setShowCancelPolicy] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
-  const [returningCustomer, setReturningCustomer] = useState<{ hasCardOnFile: true; last4?: string } | null>(null);
-  const [lookingUpCustomer, setLookingUpCustomer] = useState(false);
 
-  // Debounced returning-customer lookup: fires when fname+lname+email+phone are all filled
-  const lookupTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  useEffect(() => {
-    const { fname, lname, email, phone } = form;
-    if (!fname || !lname || !email || !phone) { setReturningCustomer(null); return; }
-    if (lookupTimerRef.current) clearTimeout(lookupTimerRef.current);
-    lookupTimerRef.current = setTimeout(async () => {
-      setLookingUpCustomer(true);
-      try {
-        const data = await apiPost('returning-customer', { fname, lname, email, phone });
-        if (data && data.hasCardOnFile) {
-          setReturningCustomer({ hasCardOnFile: true, last4: data.last4 ?? undefined });
-        } else {
-          setReturningCustomer(null);
-        }
-      } catch { setReturningCustomer(null); }
-      setLookingUpCustomer(false);
-    }, 800);
-    return () => { if (lookupTimerRef.current) clearTimeout(lookupTimerRef.current); };
-  }, [form.fname, form.lname, form.email, form.phone]);
-
-  // Validate step 4 and advance to card step
+  // Validate step 4 and book
   async function handleAdvanceToCard() {
     if (submitting) return; // prevent double-tap
     const errors: Record<string, string> = {};
@@ -1099,7 +753,7 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
     if (!form.vehicleYear) errors.vehicleYear = 'Select a year';
     if (!form.vehicleMake) errors.vehicleMake = 'Select a make';
     if (!form.vehicleModel) errors.vehicleModel = 'Select a model';
-    if (!form.vehicleTrim) errors.vehicleTrim = 'Enter trim (e.g. LE, Sport, XLT)';
+    if (!form.vehicleEngine) errors.vehicleEngine = 'Select engine size (e.g. 2.4L 4-cyl)';
     if (s.service === 'diag' && (!form.notes || form.notes.trim().length < 5)) errors.notes = 'Please describe what the vehicle is doing';
     if (form.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) errors.email = 'Enter a valid email address';
     if (Object.keys(errors).length > 0) { setFieldErrors(errors); return; }
@@ -1145,32 +799,19 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
       return;
     }
 
-    // If returning customer with card on file, skip card step and submit directly
-    if (returningCustomer) {
-      setS(p => ({ ...p, step: 5, bookingId }));
-      await handleFinalSubmit(null, returningCustomer.last4 ?? null, bookingId, true);
-      return;
-    }
-    setS(p => ({ ...p, step: 5, bookingId }));
+    // No card on file needed (owner decision 2026-11-04; payment goes through
+    // Bluevine). The booking is confirmed right away; confirm-booking sends the
+    // owner email and the proactive worker the Telegram alert.
+    setS(p => ({ ...p, bookingId }));
+    await handleFinalSubmit(bookingId);
   }
 
-  function handleCardSaved(customerId: string, last4: string) {
-    setS(p => ({ ...p, cardToken: customerId, cardLast4: last4 }));
-    handleFinalSubmit(customerId, last4);
-  }
-
-  async function handleFinalSubmit(_customerId: string | null = null, _last4: string | null = null, bookingIdOverride?: string, reuseSavedCard = false) {
-    const resolvedBookingId = bookingIdOverride ?? s.bookingId;
-    if (!s.service || !s.date || !s.time || !svc || !resolvedBookingId) return;
+  async function handleFinalSubmit(resolvedBookingId: string) {
+    if (!s.service || !s.date || !s.time || !svc) return;
     setSubmitting(true);
-    // For new cards: save-card already patched status='confirmed' server-side.
-    // For returning customers: resolve the saved Stripe customer server-side,
-    // so the public browser never receives the Stripe customer id.
-    if (reuseSavedCard) {
-      try {
-        await apiPost('confirm-booking', { id: resolvedBookingId, reuseSavedCard: true });
-      } catch (e) { console.warn('Status confirm failed:', e); }
-    }
+    try {
+      await apiPost('confirm-booking', { id: resolvedBookingId });
+    } catch (e) { console.warn('Status confirm failed:', e); }
     const booking: Booking = {
       id: resolvedBookingId,
       service: s.service, serviceIcon: svc.icon,
@@ -1236,7 +877,7 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
     setSubmitted(true);
   }
 
-  function reset() { setS(INIT_STATE); setForm(INIT_FORM); setSubmitted(false); setReturningCustomer(null); setSubmitError(null); }
+  function reset() { setS(INIT_STATE); setForm(INIT_FORM); setSubmitted(false); setSubmitError(null); }
   function closeModal() { setOpen(false); onClose?.(); }
 
   const firstDay = new Date(s.calYear, s.calMonth, 1).getDay();
@@ -1285,7 +926,7 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
 
                 {s.service !== 'other' && (
                   <div className="flex gap-1 mb-8">
-                    {[1,2,3,4,5].map(n => <div key={n} className={`h-0.5 flex-1 transition-colors duration-300 ${n <= s.step ? 'bg-red-600' : 'bg-gray-800'}`} />)}
+                    {[1,2,3,4].map(n => <div key={n} className={`h-0.5 flex-1 transition-colors duration-300 ${n <= s.step ? 'bg-red-600' : 'bg-gray-800'}`} />)}
                   </div>
                 )}
                 {s.service === 'other' && <div className="h-0.5 bg-red-600 mb-8" />}
@@ -1551,25 +1192,6 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
                       </div>
                     ))}
                   </div>
-                  {/* Returning customer banner */}
-                  {lookingUpCustomer && (
-                    <div className="col-span-2 flex items-center gap-2 text-gray-400 text-xs animate-pulse mb-1">
-                      <span className="inline-block w-3 h-3 border-2 border-gray-500 border-t-transparent rounded-full animate-spin" />
-                      Checking for your account...
-                    </div>
-                  )}
-                  {!lookingUpCustomer && returningCustomer && (
-                    <ReturningCustomerBanner
-                      fname={form.fname}
-                      lname={form.lname}
-                      email={form.email}
-                      phone={form.phone}
-                      returningCustomer={returningCustomer}
-                      onCardUpdated={(last4) => setReturningCustomer(p => p ? { ...p, last4 } : p)}
-                      customerName={`${form.fname} ${form.lname}`.trim()}
-                    />
-                  )}
-
                   <div className="grid grid-cols-2 gap-3">
                     {[
                       { id: 'fname', label: 'First Name *', placeholder: 'John', type: 'text' },
@@ -1635,28 +1257,10 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
                   <button onClick={handleAdvanceToCard}
                     disabled={submitting}
                     className={`btn-primary w-full mt-4 py-4 text-sm ${submitting ? 'opacity-50 cursor-not-allowed' : ''}`}>
-                    {submitting ? 'Please wait…' : 'Continue →'}
+                    {submitting ? 'Booking…' : 'Book Appointment'}
                   </button>
                 </>)}
 
-                {s.step >= 5 && s.time && !returningCustomer && (<>
-                  <div className="border-t border-gray-800 my-6" />
-                  <CardOnFileStep
-                    serviceId={s.service}
-                    bookingId={s.bookingId}
-                    customerName={`${form.fname} ${form.lname}`.trim()}
-                    customerEmail={form.email}
-                    onCardSaved={handleCardSaved}
-                  />
-                  {submitError && (
-                    <div className="mt-4 bg-red-950/50 border border-red-700 text-red-400 text-sm px-4 py-3">
-                      {submitError}
-                    </div>
-                  )}
-                  {submitting && (
-                    <div className="mt-3 text-center text-gray-400 text-sm animate-pulse">Submitting your request...</div>
-                  )}
-                </>)}
               </>
             )}
           </div>

@@ -2464,6 +2464,18 @@ export function EstimatePanel({ job, onUpdate }: { job: Job; onUpdate: (j: Job) 
   const total = lineItems.reduce((s, i) => s + i.amount, 0);
   const [rawAmounts, setRawAmounts] = useState<Record<string, string>>({});
 
+  // Line items save themselves 3s after the last edit, same as scope notes
+  // (same fields as Save Draft; never touches status or the signature).
+  const itemsJson = JSON.stringify(lineItems);
+  const itemsDirty = prevJobId.current === job.id && hasLocalEdits.current && itemsJson !== JSON.stringify(job.lineItems ?? []);
+  useAutoSave(job.id, itemsJson, itemsDirty, async (id, v) => {
+    const items = JSON.parse(v) as LineItem[];
+    const amount = items.reduce((sum, i) => sum + i.amount, 0);
+    const tax = taxFromItems(items);
+    await patchJob(id, { estimate_amount: amount, line_items: v, tax_amount: tax, tax_rate_snapshot: TAX_RATE });
+    if (jobRef.current.id === id) onUpdate({ ...jobRef.current, estimateAmount: amount, lineItems: items, taxAmount: tax, taxRateSnapshot: TAX_RATE });
+  });
+
   function handleApplyCalc(items: LineItem[], _total: number, calcShopAvg: number) {
     hasLocalEdits.current = true;
     setLineItems(items);
@@ -2508,22 +2520,36 @@ export function EstimatePanel({ job, onUpdate }: { job: Job; onUpdate: (j: Job) 
     setLineItems(prev => [...prev, { id: crypto.randomUUID(), label: '', amount: 0, type: 'other' }]);
   }
 
+  // A failed save used to leave the button stuck on "Saving…" with no message.
+  const [actionError, setActionError] = useState<string | null>(null);
   async function saveEstimate() {
     setSaving(true);
-    await patchJob(job.id, {
-      estimate_amount: total,
-      estimate_notes: notes,
-      line_items: JSON.stringify(lineItems),
-      tax_amount: taxFromItems(lineItems),
-      tax_rate_snapshot: TAX_RATE,
-    });
-    onUpdate({ ...job, estimateAmount: total, estimateNotes: notes, lineItems, taxAmount: taxFromItems(lineItems), taxRateSnapshot: TAX_RATE });
-    setSaving(false);
+    setActionError(null);
+    try {
+      await patchJob(job.id, {
+        estimate_amount: total,
+        estimate_notes: notes,
+        line_items: JSON.stringify(lineItems),
+        tax_amount: taxFromItems(lineItems),
+        tax_rate_snapshot: TAX_RATE,
+      });
+      onUpdate({ ...job, estimateAmount: total, estimateNotes: notes, lineItems, taxAmount: taxFromItems(lineItems), taxRateSnapshot: TAX_RATE });
+    } catch (e) {
+      setActionError(`Couldn't save: ${(e as Error)?.message || 'network error'}. Your changes are still on screen; try again.`);
+    } finally {
+      setSaving(false);
+    }
   }
 
   async function sendEstimate() {
     if (!total || !job.email) return;
     setSending(true);
+    setActionError(null);
+    try { await sendEstimateInner(); }
+    catch (e) { setActionError(`Couldn't send: ${(e as Error)?.message || 'network error'}. Your changes are still on screen; try again.`); }
+    finally { setSending(false); }
+  }
+  async function sendEstimateInner() {
     await patchJob(job.id, {
       estimate_amount: total,
       estimate_notes: notes,
@@ -2535,7 +2561,6 @@ export function EstimatePanel({ job, onUpdate }: { job: Job; onUpdate: (j: Job) 
     const updated = { ...job, estimateAmount: total, estimateNotes: notes, lineItems, jobStatus: 'ESTIMATE_SENT' as JobStatus, taxAmount: taxFromItems(lineItems), taxRateSnapshot: TAX_RATE };
     await sendEstimateEmail(updated, showShopComparison ? shopAvg : 0);
     onUpdate(updated);
-    setSending(false);
     setSent(true);
   }
 
@@ -2728,6 +2753,7 @@ export function EstimatePanel({ job, onUpdate }: { job: Job; onUpdate: (j: Job) 
           className="border border-gray-600 text-gray-400 hover:border-white hover:text-white text-xs font-bold uppercase tracking-widest px-4 py-2 transition-colors disabled:opacity-40">
           {saving ? 'Saving…' : 'Save Draft'}
         </button>
+        <span className="self-center text-gray-600 text-xs">{itemsDirty ? 'Line items saving…' : 'Line items save automatically'}</span>
         <button onClick={sendEstimate} disabled={!canSend || sending}
           className="bg-red-600 hover:bg-red-500 disabled:opacity-40 text-white text-xs font-bold uppercase tracking-widest px-6 py-2 transition-colors">
           {sending ? 'Sending…' : sent ? '✓ Sent!' : alreadySent ? `↺ Resend to ${job.email}` : `Send to ${job.email}`}
@@ -2744,6 +2770,7 @@ export function EstimatePanel({ job, onUpdate }: { job: Job; onUpdate: (j: Job) 
           </button>
         )}
       </div>
+      {actionError && <p className="text-red-400 text-xs">{actionError}</p>}
       <EmailQuickEdit job={job} onUpdate={onUpdate} />
     </div>
   );
@@ -7435,7 +7462,12 @@ function SelfPayForm({ job, onPaid }: { job: Job; onPaid: (updated: Job) => void
       onPaid(updated);
     } catch (e: any) {
       await reportError(e, { source: 'SelfPayForm.handlePay', jobId: job.id, amount: balanceDue });
-      setCardError(e.message ?? 'Payment failed. Please try again.');
+      // Card messages ("Your card was declined.") pass through; technical text
+      // (HTTP 502, JSON, "charged but booking update failed") gets a plain one.
+      // The raw error is still reported above.
+      const raw = String(e?.message ?? '');
+      const readable = raw && raw.length < 160 && !/HTTP \d|[{}<]|fetch|supabase|booking update|network/i.test(raw);
+      setCardError(readable ? raw : "Something went wrong processing your payment. Please call or text (480)-757-0476 before trying again so you aren't charged twice.");
     }
     setPaying(false);
   }
@@ -8105,11 +8137,15 @@ export function EstimatePage() {
     setSubmitting(true);
     // Capture IP for electronic signature record
     let signerIp = '';
+    // Capped at 3s: on a weak signal this lookup used to hang the Sign button.
+    const ipAbort = new AbortController();
+    const ipTimer = setTimeout(() => ipAbort.abort(), 3000);
     try {
-      const res = await fetch('https://api.ipify.org?format=json');
+      const res = await fetch('https://api.ipify.org?format=json', { signal: ipAbort.signal });
       const data = await res.json();
       signerIp = data.ip || '';
     } catch { /* non-critical */ }
+    finally { clearTimeout(ipTimer); }
     try {
       await apiPost('sign', { id: job.id, signature: signature.trim(), damage, signerIp });
       setDone(true);

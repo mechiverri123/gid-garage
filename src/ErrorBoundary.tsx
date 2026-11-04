@@ -64,6 +64,9 @@ export class ErrorBoundary extends Component<Props, State> {
           <p style={{ fontSize: '14px', color: '#9ca3af', marginBottom: '20px', maxWidth: '360px' }}>
             The page hit an error and couldn't finish loading. This has been reported. Reloading usually fixes it.
           </p>
+          <p style={{ fontSize: '14px', color: '#9ca3af', marginBottom: '20px' }}>
+            Still stuck? Call or text <a href="tel:4807570476" style={{ color: '#dc2626', fontWeight: 700 }}>(480)-757-0476</a>
+          </p>
           <div style={{ display: 'flex', gap: '12px' }}>
             <button onClick={() => window.location.reload()} style={{
               border: '1px solid #dc2626', color: '#dc2626', background: 'transparent',

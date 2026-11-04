@@ -198,6 +198,23 @@ export async function onRequestPost({ request, env }) {
         return json(rows.map((r) => r.time));
       }
 
+      // Same as booked-slots for a whole month in one call: { 'YYYY-MM-DD': [times] }.
+      // The booking calendar used to make one request per day (~31 per month view).
+      case 'booked-slots-range': {
+        const { from, to } = payload;
+        const ymd = /^\d{4}-\d{2}-\d{2}$/;
+        if (!ymd.test(String(from)) || !ymd.test(String(to)) || to < from) return json({ error: 'Bad range' }, 400);
+        if ((Date.parse(to) - Date.parse(from)) / 86400000 > 62) return json({ error: 'Range too long' }, 400);
+        const res = await fetch(
+          `${base}/bookings?select=date,time&date=gte.${from}&date=lte.${to}&status=not.in.(cancelled,pending)`,
+          { headers }
+        );
+        if (!res.ok) return json({ error: await res.text() }, 502);
+        const out = {};
+        for (const r of await res.json()) (out[r.date] ||= []).push(r.time);
+        return json(out);
+      }
+
       // ---- Blackout dates (read-only here — admin manages them) -----------
       case 'blackout-dates': {
         // Phoenix is UTC-7 year-round — using raw UTC here would drop "today"
