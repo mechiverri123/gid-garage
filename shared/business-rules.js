@@ -58,6 +58,12 @@ export function isCancelled(job) {
   return String(job?.status || '').toLowerCase() === 'cancelled' || job?.jobStatus === 'CANCELLED';
 }
 
+// Same rules for a raw `bookings` row (snake_case), which the public customer endpoints read.
+export const rowIsCancelled = row => isCancelled({ status: row?.status, jobStatus: row?.job_status });
+// Past the estimate stage: a customer sign/decline/cancel must not pull the job backwards.
+export const WORK_STARTED_STATUSES = ['IN_PROGRESS', 'COMPLETED', 'INVOICED', 'PAID'];
+export const rowWorkStarted = row => WORK_STARTED_STATUSES.includes(row?.job_status);
+
 // What the customer owes in total: invoice (or estimate before invoicing) + tax.
 export function jobTotalDue(job) {
   return round2(num(job.invoiceAmount ?? job.estimateAmount) + num(job.taxAmount));

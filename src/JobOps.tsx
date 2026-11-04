@@ -9,7 +9,7 @@ import { useState, useEffect, useRef, useMemo } from 'react';
 import { decodeVin, cleanVin, vinCheckDigitOk } from './vinDecode';
 import { resolvePeriodWindow, collectedRevenue, netProfit, laborPaid, cardRevenue, ownerTakeHome, jobContribution, moneyEntriesForJob, jobFromRow, phoenixDateParts, phoenixYmd } from '../shared/business-metrics.js';
 import { lineQty, lineRate, linePrice, withLine, lineText } from '../shared/line-items.js';
-import { isAwaitingPayment, statusChangeFields } from '../shared/business-rules.js';
+import { isAwaitingPayment, isCancelled, statusChangeFields } from '../shared/business-rules.js';
 import { NextVisitCheck } from './nextVisit/NextVisitCheck';
 import { NextVisitInvoice, NextVisitReport } from './nextVisit/NextVisitPublic';
 import { ChecklistSettings } from './nextVisit/ChecklistSettings';
@@ -7508,6 +7508,12 @@ export function InvoicePage() {
     </div>
   );
 
+  if (isCancelled(job) && job.jobStatus !== 'PAID') return (
+    <div className="min-h-screen bg-[#0f0f0f] flex items-center justify-center px-4">
+      <CancelledJobNotice what="Invoice" />
+    </div>
+  );
+
   const isPaid = job.jobStatus === 'PAID';
   const amount = job.invoiceAmount ?? job.estimateAmount;
   const totalDue = (amount || 0) + (job.taxAmount || 0);
@@ -8036,6 +8042,18 @@ export function InspectionPage() {
   );
 }
 
+// Public estimate/invoice link for a job the owner cancelled: no signing, no paying.
+function CancelledJobNotice({ what }: { what: string }) {
+  return (
+    <div className="text-center">
+      <div className="text-4xl mb-4">🚫</div>
+      <h1 className="text-white text-2xl font-black mb-3">This {what} Is No Longer Active</h1>
+      <p className="text-gray-500 text-sm mb-6">This job was cancelled, so there's nothing to sign or pay here. If that's a mistake or you'd like to rebook, please call or text us.</p>
+      <a href="tel:4807570476" className="inline-block bg-red-600 text-white text-xs font-bold uppercase tracking-widest px-8 py-4">Call 480-757-0476</a>
+    </div>
+  );
+}
+
 export function EstimatePage() {
   const params = new URLSearchParams(window.location.search);
   const jobId = params.get('id');
@@ -8057,11 +8075,14 @@ export function EstimatePage() {
   const [done, setDone] = useState(false);
   const [alreadySigned, setAlreadySigned] = useState(false);
   const [viewOnly, setViewOnly] = useState(false);
+  const [cancelled, setCancelled] = useState(false);
 
   useEffect(() => {
     if (!jobId) { setNotFound(true); setLoading(false); return; }
     getJobByIdPublic(jobId).then(j => {
       if (!j) { setNotFound(true); }
+      // The owner's own print button (?print=1) still prints a cancelled job's paperwork.
+      else if (isCancelled(j) && !autoPrint) { setCancelled(true); }
       else if (j.customerAgreed) {
         setAlreadySigned(true);
         setJob(j);
@@ -8093,6 +8114,8 @@ export function EstimatePage() {
       await apiPost('sign', { id: job.id, signature: signature.trim(), damage, signerIp });
       setDone(true);
     } catch (err) {
+      // Cancelled while the page was open: the server refuses the signature.
+      if (String((err as Error)?.message).includes('cancelled')) { setJob(null); setCancelled(true); return; }
       console.error('Sign failed', err);
       alert('Something went wrong submitting. Please try again or call us at 480-757-0476.');
     } finally {
@@ -8215,6 +8238,8 @@ export function EstimatePage() {
             <a href="tel:4807570476" className="inline-block bg-red-600 text-white text-xs font-bold uppercase tracking-widest px-8 py-4">Call 480-757-0476</a>
           </div>
         )}
+
+        {cancelled && <CancelledJobNotice what="Estimate" />}
 
         {alreadySigned && job && !done && !viewOnly && (
           <div className="text-center">

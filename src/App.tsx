@@ -1133,7 +1133,9 @@ function CancelPage({ bookingId, token }: { bookingId: string; token: string }) 
         const { verifyCancelToken } = await import('./BookingWidget');
         const result = await verifyCancelToken(bookingId, token);
         if (!result || !result.valid || !result.booking) { setState('invalid'); return; }
-        if (result.booking.status === 'cancelled') { setState('done'); return; }
+        if (result.booking.status === 'cancelled' || result.booking.job_status === 'CANCELLED') { setState('done'); return; }
+        // Work already started/finished: the server refuses, so don't offer the button.
+        if (['IN_PROGRESS', 'COMPLETED', 'INVOICED', 'PAID'].includes(result.booking.job_status)) { setState('invalid'); return; }
         setBooking(result.booking);
         setState('ready');
       } catch {

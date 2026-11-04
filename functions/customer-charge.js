@@ -13,6 +13,7 @@
 // further Access-gated calls afterward.
 
 import { reportError } from './_lib/sentry.js';
+import { rowIsCancelled } from '../shared/business-rules.js';
 
 const GBP_REVIEW_URL = 'https://g.page/r/CdERSypGqVdlEBM/review';
 
@@ -105,13 +106,15 @@ export async function onRequestPost({ request, env }) {
     // Pull current state — needed to detect prior partial payments and to
     // build the receipt email.
     const checkRes = await fetch(
-      `${base}/bookings?id=eq.${encodeURIComponent(bookingId)}&select=job_status,stripe_transaction_id,amount_paid,payments,fname,lname,email,vehicle,service`,
+      `${base}/bookings?id=eq.${encodeURIComponent(bookingId)}&select=status,job_status,stripe_transaction_id,amount_paid,payments,fname,lname,email,vehicle,service`,
       { headers }
     );
     if (!checkRes.ok) return json({ error: await checkRes.text() }, 502);
     const rows = await checkRes.json();
     const existing = rows?.[0];
     if (!existing) return json({ error: 'Booking not found' }, 404);
+    // Never charge a card for a job the owner cancelled (paying it also flipped it back to PAID/completed).
+    if (rowIsCancelled(existing)) return json({ error: 'This job was cancelled, so there is nothing to pay. Please call us at 480-757-0476.' }, 409);
 
     if (existing.job_status === 'PAID') {
       // The charge already succeeded on a prior attempt (that's why we hit

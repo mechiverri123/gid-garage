@@ -55,7 +55,7 @@ export async function onRequestPost({ request, env }) {
     const last4 = source.last4 ?? '****';
 
     // 3. Save to Supabase
-    const sbRes = await fetch(`${supabaseUrl}/rest/v1/bookings?id=eq.${bookingId}`, {
+    const sbRes = await fetch(`${supabaseUrl}/rest/v1/bookings?id=eq.${encodeURIComponent(bookingId)}&status=neq.cancelled`, {
       method: 'PATCH',
       headers: {
         apikey: supabaseKey,

@@ -237,3 +237,15 @@ test('close lead follow-ups: only leads that need follow-up, optionally only the
   assert.deepEqual(followUpsToClose(leads, now).map(l => l.id), ['a', 'c']);
   assert.deepEqual(followUpsToClose(leads, now, ['c', 'b']).map(l => l.id), ['c']);
 });
+
+test('public customer links: raw-row cancelled and work-started rules', async () => {
+  const { rowIsCancelled, rowWorkStarted } = await import('../shared/business-rules.js');
+  // Admin "mark as cancelled" writes both fields; the customer cancel link does too.
+  assert.equal(rowIsCancelled({ status: 'cancelled', job_status: 'CANCELLED' }), true);
+  assert.equal(rowIsCancelled({ status: 'confirmed', job_status: 'CANCELLED' }), true);
+  assert.equal(rowIsCancelled({ status: 'cancelled', job_status: 'ESTIMATE_SENT' }), true);
+  assert.equal(rowIsCancelled({ status: 'confirmed', job_status: 'ESTIMATE_SENT' }), false);
+  assert.equal(rowIsCancelled(null), false);
+  for (const s of ['IN_PROGRESS', 'COMPLETED', 'INVOICED', 'PAID']) assert.equal(rowWorkStarted({ job_status: s }), true);
+  for (const s of ['BOOKED', 'ESTIMATE_SENT', 'SIGNED', 'CANCELLED', undefined]) assert.equal(rowWorkStarted({ job_status: s }), false);
+});

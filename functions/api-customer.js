@@ -2,6 +2,7 @@
 import { checkResponse, nextVisitJobRow, recommendations } from '../shared/next-visit.js';
 import { isBookableSlot, phoenixHour } from '../shared/booking-slots.js';
 import { phoenixYmd } from '../shared/business-metrics.js';
+import { rowIsCancelled, rowWorkStarted } from '../shared/business-rules.js';
 import { vehicleRecalls } from './_lib/recalls.js';
 // Cloudflare Pages Function — POST /api/customer
 // PUBLIC customer operations that legitimately need DB access, now that the
@@ -232,7 +233,9 @@ export async function onRequestPost({ request, env }) {
         );
         if (!res.ok) return json({ valid: false });
         const rows = await res.json();
-        return json({ valid: true, booking: rows[0] ?? null });
+        const booking = rows[0] ?? null;
+        if (booking) for (const k of PRIVATE_JOB_FIELDS) delete booking[k];
+        return json({ valid: true, booking });
       }
 
       // ---- Perform the cancellation ---------------------------------------
@@ -250,6 +253,9 @@ export async function onRequestPost({ request, env }) {
         );
         const rows = readRes.ok ? await readRes.json() : [];
         const booking = rows[0] ?? null;
+        if (booking) for (const k of PRIVATE_JOB_FIELDS) delete booking[k];
+        if (rowIsCancelled(booking)) return json({ ok: true, already: true, booking });
+        if (rowWorkStarted(booking)) return json({ error: 'This job is already underway. Please call us at 480-757-0476.' }, 409);
 
         const res = await fetch(
           `${base}/bookings?id=eq.${encodeURIComponent(id)}`,
@@ -317,6 +323,7 @@ export async function onRequestPost({ request, env }) {
         if (!res.ok) return json({ error: await res.text() }, 502);
         const orig = (await res.json())[0];
         if (!orig) return json({ error: 'Not found' }, 404);
+        if (rowIsCancelled(orig)) return json({ error: 'cancelled' }, 409);
         let data;
         try { data = typeof orig.inspection_data === 'string' ? JSON.parse(orig.inspection_data) : orig.inspection_data; } catch { data = null; }
         const nv = data?.nextVisit;
@@ -376,6 +383,11 @@ export async function onRequestPost({ request, env }) {
       case 'sign': {
         const { id, signature, damage, signerIp } = payload;
         if (!id || !signature) return json({ error: 'Missing id or signature' }, 400);
+        const curRes = await fetch(`${base}/bookings?id=eq.${encodeURIComponent(id)}&select=status,job_status`, { headers });
+        if (!curRes.ok) return json({ error: await curRes.text() }, 502);
+        const cur = (await curRes.json())[0];
+        if (!cur) return json({ error: 'Not found' }, 404);
+        if (rowIsCancelled(cur)) return json({ error: 'cancelled' }, 409);
         const res = await fetch(
           `${base}/bookings?id=eq.${encodeURIComponent(id)}`,
           {
@@ -385,7 +397,8 @@ export async function onRequestPost({ request, env }) {
               customer_agreed: true,
               customer_signature: String(signature).slice(0, 200),
               signed_at: new Date().toISOString(),
-              job_status: 'SIGNED',
+              // Never pull a job that is already underway/finished back to SIGNED.
+              ...(rowWorkStarted(cur) ? {} : { job_status: 'SIGNED' }),
               ...(damage !== undefined ? { pre_existing_damage: String(damage).slice(0, 2000) } : {}),
               ...(signerIp ? { signed_ip: String(signerIp).slice(0, 64) } : {}),
             }),
@@ -426,6 +439,13 @@ export async function onRequestPost({ request, env }) {
       case 'estimate-decline': {
         const { id } = payload;
         if (!id) return json({ error: 'Missing id' }, 400);
+        const curRes = await fetch(`${base}/bookings?id=eq.${encodeURIComponent(id)}&select=status,job_status`, { headers });
+        if (!curRes.ok) return json({ error: await curRes.text() }, 502);
+        const cur = (await curRes.json())[0];
+        if (!cur) return json({ error: 'Not found' }, 404);
+        // Declining used to set BOOKED unconditionally, which brought a cancelled job back to life.
+        if (rowIsCancelled(cur)) return json({ error: 'cancelled' }, 409);
+        if (rowWorkStarted(cur)) return json({ error: 'This job is already underway. Please call us at 480-757-0476.' }, 409);
         const res = await fetch(
           `${base}/bookings?id=eq.${encodeURIComponent(id)}`,
           {
@@ -647,8 +667,9 @@ export async function onRequestPost({ request, env }) {
           savedCard = { stripe_customer_id: prior.stripe_customer_id, stripe_last4: prior.stripe_last4 ?? null };
         }
 
+        // status=neq.cancelled: a late confirm must not revive a booking the owner cancelled.
         const res = await fetch(
-          `${base}/bookings?id=eq.${encodeURIComponent(id)}`,
+          `${base}/bookings?id=eq.${encodeURIComponent(id)}&status=neq.cancelled`,
           {
             method: 'PATCH',
             headers: { ...headers, Prefer: 'return=representation' },
