@@ -1248,7 +1248,7 @@ function PrivacyPolicyPage() {
       <main className="max-w-3xl mx-auto px-6 py-16">
         <a href="/" className="text-orange-500 text-sm font-bold">← Back to GID Garage</a>
         <h1 className="text-3xl md:text-4xl font-black text-white mt-6 mb-2">Privacy Policy</h1>
-        <p className="text-gray-400 text-sm mb-10">Last updated: November 4, 2026</p>
+        <p className="text-gray-400 text-sm mb-10">Last updated: November 6, 2026</p>
 
         <div className="space-y-8 text-gray-300 text-sm leading-relaxed">
           <section>
@@ -1264,8 +1264,10 @@ function PrivacyPolicyPage() {
               <li>Vehicle information (year, make, model, mileage, VIN where provided)</li>
               <li>Details about the issue or service you're requesting</li>
               <li>Payment and billing information (cards are processed by our payment providers, Bluevine and Stripe — see Section 5; we never store full card numbers and keep only details such as the last 4 digits and transaction IDs)</li>
-              <li>Photos or diagnostic scan data related to your vehicle, when applicable</li>
-              <li>Communications between you and us (texts, emails, calls)</li>
+              <li>Photos, video, and audio recordings of you, your vehicle, and the work area and visible exterior of the service location, including from phones, body cameras, and dash cameras (see our <a href="/terms" className="text-orange-500 underline underline-offset-2">Terms of Service</a>, Section 13)</li>
+              <li>Diagnostic scan data and other information read from your vehicle during service</li>
+              <li>Communications between you and us (texts, emails, calls, and recordings of calls and conversations)</li>
+              <li>Reviews, testimonials, and feedback you give us or post publicly</li>
             </ul>
             <p className="mt-2">We also automatically collect limited technical information when you visit our site or interact with our booking tools, such as IP address, browser type, device type, and general usage/error data (see Section 4).</p>
           </section>
@@ -1278,9 +1280,11 @@ function PrivacyPolicyPage() {
               <li>Contact you about your appointment, estimate, or invoice</li>
               <li>Send appointment reminders, service follow-ups, and review requests</li>
               <li>Maintain records for warranty, accounting, and legal purposes</li>
-              <li>Improve our services and troubleshoot technical issues</li>
+              <li>Improve our services, train our team, and troubleshoot technical issues</li>
+              <li>Document our work and protect our business, including for safety, insurance, payment disputes, and legal claims</li>
+              <li>Advertise our business, including publishing photos, video, audio, testimonials, and job write-ups as described in Section 13 of our <a href="/terms" className="text-orange-500 underline underline-offset-2">Terms of Service</a>, where you can also read how to opt out</li>
             </ul>
-            <p className="mt-2">We do not sell your personal information, and we do not use it for purposes unrelated to providing and improving our services.</p>
+            <p className="mt-2">We do not sell your personal information. We do not send you promotional text messages without your separate permission.</p>
           </section>
 
           <section>
@@ -1310,6 +1314,7 @@ function PrivacyPolicyPage() {
             </ul>
             <p className="mt-3 mb-1"><strong className="text-white">AI tools.</strong> We use an AI assistant (Claude, by Anthropic) inside our own admin tools to help run the business, for example to summarize a job from its notes, parts, and payments, look up records, or draft a reply for the owner to review. To do that, details from your job and messages (such as your name, vehicle, the work requested, and job notes) are sent to Anthropic for processing. Job summaries are written without your address, phone number, or email. The AI only acts when the owner asks it to and does not make decisions about you on its own. Before the AI records a payment or sends you an email or message, the owner confirms it.</p>
             <p className="mt-2">These providers are contractually or by policy restricted from using your data for their own purposes beyond providing their service to us. We do not sell or rent your information to marketers or data brokers.</p>
+            <p className="mt-2"><strong className="text-white">Other disclosures.</strong> We may also share information with our employees and contractors who work on your job; with suppliers when ordering parts; with our accountants, lawyers, and insurers; with payment providers to respond to a payment dispute; with government authorities or others when required by law or needed to protect our rights, safety, or property; and with a buyer or successor if the business is sold or transferred. Content we publish for marketing appears on our website and on social media and advertising platforms, where those platforms' own policies apply.</p>
           </section>
 
           <section>
@@ -1319,7 +1324,7 @@ function PrivacyPolicyPage() {
 
           <section>
             <h2 className="text-white font-bold text-lg mb-2">7. Data Retention</h2>
-            <p>We retain customer and job information for as long as needed to provide our services, comply with tax and legal recordkeeping obligations (typically at least the period required by Arizona state law), and maintain warranty history. You may request earlier deletion of non-essential records at any time (see Section 9).</p>
+            <p>We retain customer and job information for as long as needed to provide our services, comply with tax and legal recordkeeping obligations (typically at least the period required by Arizona state law), maintain warranty history, and protect against claims. Photos, video, and audio may be kept as long as they remain useful for those purposes or for marketing as described in our Terms of Service. You may request earlier deletion of non-essential records at any time (see Section 9).</p>
           </section>
 
           <section>
@@ -1354,7 +1359,7 @@ function PrivacyPolicyPage() {
 }
 
 // Terms of Service. Fees, warranty and venue match the terms customers sign on
-// every estimate (CYA_TERMS in JobOps.tsx); the signed estimate wins on conflict.
+// every estimate (shared/estimate-terms.js); the signed estimate wins on conflict.
 function TermsOfServicePage() {
   const h2 = 'text-white font-bold text-lg mb-2';
   const strong = 'text-white';
@@ -1364,7 +1369,7 @@ function TermsOfServicePage() {
       <main className="max-w-3xl mx-auto px-6 py-16">
         <a href="/" className="text-orange-500 text-sm font-bold">← Back to GID Garage</a>
         <h1 className="text-3xl md:text-4xl font-black text-white mt-6 mb-2">Terms of Service</h1>
-        <p className="text-gray-400 text-sm mb-10">Last updated: November 4, 2026</p>
+        <p className="text-gray-400 text-sm mb-10">Last updated: November 6, 2026</p>
 
         <div className="space-y-8 text-gray-300 text-sm leading-relaxed">
           <section>
@@ -1397,6 +1402,9 @@ function TermsOfServicePage() {
               <li>Keep children, pets, and bystanders away from the work area while we work.</li>
               <li>We may decline, stop, or reschedule work if conditions are unsafe (for example, extreme weather, poor lighting, unstable ground, or an unsafe environment). If we arrive and cannot safely or lawfully work, a trip fee may apply.</li>
               <li>You authorize us to operate the vehicle as needed to perform and verify the service, including short test drives.</li>
+              <li>Work may be performed by GID Garage's owner, employees, or independent contractors.</li>
+              <li>We may decline or end service for any lawful reason. If we end a job early, you pay only for work completed and parts already purchased for it.</li>
+              <li>Parts we remove are disposed of or recycled, and any core or scrap value belongs to us, unless your estimate says otherwise or you ask to keep them before work begins.</li>
             </ul>
           </section>
 
@@ -1428,6 +1436,7 @@ function TermsOfServicePage() {
               <li><strong className={strong}>Labor is warranted for 30 days from the date of service.</strong> If work we performed fails because of our workmanship within that time, contact us and we will correct it. Our obligation under this warranty is limited to re-performing the affected labor or, at our option, refunding the labor charge for it.</li>
               <li>Parts carry only the warranty provided by their manufacturer or supplier. We will help you make a warranty claim, but the manufacturer, not GID Garage, is responsible for parts warranties.</li>
               <li>The labor warranty does not cover: customer-supplied parts (which we install without any warranty); damage from accidents, abuse, neglect, racing, overheating, lack of maintenance, or later repairs by anyone else; wear items reaching the end of their normal life; or problems unrelated to the work we performed. The warranty is void if someone else services the vehicle for the same issue before we have a chance to inspect it.</li>
+              <li>If you believe our work caused a problem or damage, tell us within 7 days of discovering it and, except in an emergency, give us a chance to inspect it before it is repaired, so we can make it right.</li>
               <li className="uppercase text-white">Except for the warranty above and any warranty that cannot be excluded under applicable law, our services and this website are provided "as is," and we disclaim all other warranties, express or implied, including implied warranties of merchantability and fitness for a particular purpose, to the fullest extent permitted by law.</li>
             </ul>
           </section>
@@ -1463,8 +1472,17 @@ function TermsOfServicePage() {
           </section>
 
           <section>
-            <h2 className={h2}>13. Photos of Our Work</h2>
-            <p>We may take photos and short videos of the vehicle and the work performed for documentation, warranty, and quality purposes. We may also use photos of the work to show examples of what we do (for example, on our website or social media), with license plates and personal information removed. If you do not want photos of your vehicle used this way, tell us and we will not use them.</p>
+            <h2 className={h2}>13. Photos, Video, Audio, and Testimonials</h2>
+            <ul className="list-disc pl-5 space-y-1">
+              <li><strong className={strong}>Consent to recording.</strong> You consent to GID Garage photographing, filming, and recording audio of you, your vehicle, and the work area and visible exterior of the service location (including driveways, garages, and parking areas) before, during, and after service, using phones, body cameras, dash cameras, or similar devices. You also consent to us recording our conversations and phone calls with you.</li>
+              <li><strong className={strong}>Records and evidence.</strong> We may keep and use these recordings for job records, warranty, safety, training, quality control, payment disputes, insurance claims, and legal evidence, and may share them with our insurers, lawyers, payment providers, and government authorities for those purposes. Recording for these purposes is part of how we provide service. If you do not want it, tell us before work begins, and we may decline the job.</li>
+              <li><strong className={strong}>Marketing license.</strong> You grant GID Garage a non-exclusive, perpetual, worldwide, royalty-free license to use, edit, and publish those photos, videos, and recordings, including your image and voice, in advertising, on our website, and on social media, without payment to you. GID Garage owns the photos, videos, and recordings it makes.</li>
+              <li><strong className={strong}>What we will not do.</strong> We will not record inside private living areas of a home (such as bedrooms and bathrooms). Without your separate permission, we will not publish your full name, address or house number, phone number, email, license plate, or VIN, or images of minors. We will not present you as endorsing something you did not endorse.</li>
+              <li><strong className={strong}>Opting out of marketing use.</strong> To opt out, tell us in writing before work begins, and we will not use your recordings for marketing. If you ask later, we will stop new uses and make reasonable efforts to remove the content from channels we control, but we cannot recall anything already published or shared by others.</li>
+              <li><strong className={strong}>Other people.</strong> Your consent covers you. Please let anyone else who will be at the service location know that we may record. Anyone else can tell us they do not want to be recorded, and we will not use their image or voice for marketing without their own permission.</li>
+              <li><strong className={strong}>Reviews and testimonials.</strong> You grant us a non-exclusive license to quote and share reviews and testimonials you give us or post publicly about GID Garage, accurately and with your first name and last initial. <strong className={strong}>Nothing in these Terms limits your right to post an honest review or to speak about your experience with us, good or bad.</strong></li>
+              <li><strong className={strong}>Job write-ups.</strong> We may publish case studies and examples describing the vehicle, symptoms, work performed, and results, without your full name or contact details.</li>
+            </ul>
           </section>
 
           <section>
@@ -1474,8 +1492,9 @@ function TermsOfServicePage() {
 
           <section>
             <h2 className={h2}>15. Disputes and Governing Law</h2>
-            <p className="mb-2">If you have a concern about our work or a charge, please contact us first at 480-757-0476 or <a href="mailto:info@gidgarage.com" className={link}>info@gidgarage.com</a>. Most issues can be resolved quickly and informally, and you agree to give us 30 days to try to resolve a dispute before starting a legal proceeding or a payment dispute with your card issuer.</p>
+            <p className="mb-2">If you have a concern about our work or a charge, please contact us first at 480-757-0476 or <a href="mailto:info@gidgarage.com" className={link}>info@gidgarage.com</a>. Most issues can be resolved quickly and informally, and, to the extent permitted by law, you agree to give us 30 days to try to resolve a dispute before starting a legal proceeding or a payment dispute with your card issuer. This does not limit any legal right you have that cannot be waived.</p>
             <p>These Terms and any dispute relating to our services or this website are governed by the laws of the State of Arizona, without regard to its conflict-of-law rules. Any legal proceeding will be brought in the courts located in Coconino County, Arizona (including the justice court for small claims), and you and we consent to that venue.</p>
+            <p className="mt-2">To the extent permitted by law, any claim relating to our services, other than a claim for bodily injury, must be filed within one year after the date of the service.</p>
           </section>
 
           <section>
@@ -1483,6 +1502,8 @@ function TermsOfServicePage() {
             <ul className="list-disc pl-5 space-y-1">
               <li><strong className={strong}>Whole agreement.</strong> These Terms, our Privacy Policy, and any estimate you sign are the entire agreement between you and us about our services.</li>
               <li><strong className={strong}>Severability.</strong> If any part of these Terms is found unenforceable, it will be enforced to the maximum extent allowed and the rest of the Terms remain in effect.</li>
+              <li><strong className={strong}>Transfer.</strong> We may transfer these Terms and the rights in them, including the rights in Section 13, to a successor or buyer of the business. You may not transfer them without our written agreement.</li>
+              <li><strong className={strong}>Survival.</strong> Sections on payment, warranty, liability, recordings, and disputes continue to apply after your job is finished.</li>
               <li><strong className={strong}>No waiver.</strong> If we do not enforce a provision, that is not a waiver of our right to enforce it later.</li>
               <li><strong className={strong}>Events beyond our control.</strong> We are not responsible for delays or failures caused by weather, parts shortages, supplier delays, illness, accidents, road closures, or other events beyond our reasonable control.</li>
               <li><strong className={strong}>Changes.</strong> We may update these Terms from time to time. The version posted here, with its "Last updated" date, applies to services booked after that date. The terms in effect when you sign an estimate apply to that job.</li>

@@ -10,6 +10,7 @@ import { decodeVin, cleanVin, vinCheckDigitOk } from './vinDecode';
 import { resolvePeriodWindow, collectedRevenue, netProfit, laborPaid, cardRevenue, ownerTakeHome, jobContribution, moneyEntriesForJob, jobFromRow, phoenixDateParts, phoenixYmd } from '../shared/business-metrics.js';
 import { lineQty, lineRate, linePrice, withLine, lineText } from '../shared/line-items.js';
 import { isAwaitingPayment, isCancelled, statusChangeFields } from '../shared/business-rules.js';
+import { ESTIMATE_TERMS_CORE, ESTIMATE_TERMS_EXTENDED, estimateTermsFor } from '../shared/estimate-terms.js';
 import { NextVisitCheck } from './nextVisit/NextVisitCheck';
 import { NextVisitInvoice, NextVisitReport } from './nextVisit/NextVisitPublic';
 import { ChecklistSettings } from './nextVisit/ChecklistSettings';
@@ -809,32 +810,8 @@ async function sendDeclineEmail(job: Job, declineReason?: string) {
 
 // ── CYA TERMS ────────────────────────────────────────────────────────────────
 
-const CYA_TERMS_CORE = [
-  'Price is as quoted. Any additional work discovered during service requires your explicit approval before proceeding. We will contact you before performing any work beyond the scope of this estimate.',
-  'Payment is due in full at time of completion. Unpaid balances may be subject to a storage or holding fee. Returned checks or disputed charges are subject to a $35 processing fee.',
-  'If a card on file was provided at the time of booking, customer authorizes GID Garage to charge the card on file for the full agreed amount upon job completion. Customer will be informed of the final amount before the card is charged. For parts-sourced jobs, a deposit may be charged prior to service to cover parts costs, as discussed and agreed upon during confirmation.',
-  'By signing this estimate, you authorize GID Garage to perform the described work, confirm you are 18 years of age or older and the vehicle owner or authorized by the owner, and agree to all terms listed herein and to the GID Garage Terms of Service (gidgarage.com/terms) and Privacy Policy (gidgarage.com/privacy). If they conflict, the terms on this estimate control.',
-];
-
-const CYA_TERMS_EXTENDED = [
-  'GID Garage is not responsible for pre-existing conditions, hidden damage, or issues unrelated to the service performed. Vehicle condition may be documented via photo before and during service. Pre-existing damage noted by the customer at time of signing is documented and acknowledged.',
-  'On vehicles with high mileage or aged components, the act of performing service may cause adjacent or related components to fail. This is an inherent risk of servicing older vehicles and does not constitute negligence or liability on the part of the technician.',
-  'Parts carry manufacturer warranty. Labor is warranted for 30 days from date of service. Warranty is void if the vehicle is serviced by another party for the same issue, or if customer-supplied parts are determined to be the cause of failure. GID Garage assumes no warranty responsibility for customer-supplied parts.',
-  'Diagnostic recommendations are based on available data at time of inspection and do not constitute a guarantee of all underlying issues.',
-  'GID Garage is a mobile service provider. We are not liable for delays caused by weather, parts availability, or circumstances outside our control. We will notify you promptly of any scheduling changes. GID Garage reserves the right to reschedule service due to unsafe working conditions including extreme weather, insufficient lighting, or unstable ground conditions.',
-  'Customer is responsible for ensuring the vehicle is accessible, on a flat stable surface, with sufficient clearance to perform the service safely. If conditions are unsafe upon arrival, GID Garage reserves the right to charge a trip fee and reschedule.',
-  'Customer authorizes GID Garage to operate the vehicle as necessary to complete and verify the service performed.',
-  'GID Garage disposes of fluids and materials responsibly per local regulations. Customer is responsible for any pre-existing fluid contamination on their property.',
-  'If the customer is unreachable for approval of additional work, GID Garage reserves the right to pause or halt service until contact is made.',
-  'GID Garage is not liable for service interruptions caused by third parties, property owners, or local ordinances restricting vehicle repair at the service location. Customer is responsible for ensuring repair work is permitted on the premises.',
-  'Any disputes arising from services rendered shall be governed by the laws of the State of Arizona. Coconino County shall be the agreed venue for any legal proceedings.',
-  'Cancellations or reschedules require at least 24 hours notice. Late cancellations (inside 24 hours) or no-shows may be subject to a trip fee to cover technician time and travel already committed.',
-  'If parts have already been ordered or purchased on your behalf prior to cancellation, you are responsible for the cost of those parts, particularly special-order or non-returnable items. Any deposit collected for parts is non-refundable once the parts have been ordered.',
-  'Once you have approved and signed this estimate, your appointment slot, parts sourcing, and technician scheduling are reserved on your behalf. Cancelling after approval is subject to a $50 cancellation fee to cover the scheduling and preparation already committed to your job.',
-];
-
-// Combined for admin display
-const CYA_TERMS = [...CYA_TERMS_CORE, ...CYA_TERMS_EXTENDED];
+// Wording and versions live in shared/estimate-terms.js.
+const CYA_TERMS = [...ESTIMATE_TERMS_CORE, ...ESTIMATE_TERMS_EXTENDED];
 
 // ── SHARED PRINT STYLES ───────────────────────────────────────────────────────
 // Used by InvoicePage, EstimatePage, PPIPage, and the admin Signed Document
@@ -3738,7 +3715,7 @@ function SignedDocSection({ job }: { job: Job }) {
               <div className="bg-white/5 border border-white/10 p-4">
                 <p className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-3">Terms Agreed To</p>
                 <ul className="space-y-2">
-                  {CYA_TERMS.map((t, i) => (
+                  {estimateTermsFor(job).all.map((t, i) => (
                     <li key={i} className="text-gray-400 text-xs flex gap-2">
                       <span className="text-green-600 font-bold flex-shrink-0">✓</span> {t}
                     </li>
@@ -8222,7 +8199,7 @@ export function EstimatePage() {
           <p className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-3">Terms of Service</p>
           {/* Core terms — always visible */}
           <ul className="space-y-2 mb-3">
-            {CYA_TERMS_CORE.map((t, i) => (
+            {estimateTermsFor(job).core.map((t, i) => (
               <li key={i} className="text-gray-300 text-sm flex gap-2.5">
                 <span className="text-red-600 font-bold flex-shrink-0 mt-0.5">✓</span> {t}
               </li>
@@ -8231,14 +8208,14 @@ export function EstimatePage() {
           {/* Extended terms — collapsible scrollable box */}
           <details className="group">
             <summary className="text-red-500 text-xs font-bold uppercase tracking-widest cursor-pointer select-none hover:text-red-400 transition-colors list-none flex items-center gap-1.5">
-              <span className="group-open:hidden">▶ View all terms ({CYA_TERMS_EXTENDED.length} additional)</span>
+              <span className="group-open:hidden">▶ View all terms ({ESTIMATE_TERMS_EXTENDED.length} additional)</span>
               <span className="hidden group-open:inline">▼ Hide additional terms</span>
             </summary>
             <div
               className="mt-3 max-h-48 overflow-y-auto pr-1 space-y-2 scrollbar-thin"
               style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-y' }}
             >
-              {CYA_TERMS_EXTENDED.map((t, i) => (
+              {ESTIMATE_TERMS_EXTENDED.map((t, i) => (
                 <div key={i} className="text-gray-400 text-xs flex gap-2 border-b border-white/5 pb-2 last:border-0">
                   <span className="text-gray-600 font-bold flex-shrink-0">{i + 1}.</span> {t}
                 </div>
@@ -8374,7 +8351,7 @@ export function EstimatePage() {
                   onChange={e => setAgreed(e.target.checked)}
                   className="mt-1 accent-red-600 w-4 h-4 flex-shrink-0"
                 />
-                <span className="text-gray-300 text-sm">I have read and agree to the above terms and authorize GID Garage to perform the described service at the quoted price. If a card on file was provided at booking, I authorize GID Garage to charge it upon job completion for the final agreed amount.</span>
+                <span className="text-gray-300 text-sm">I have read and agree to the above terms, including the photo, video, and audio consent, and authorize GID Garage to perform the described service at the quoted price. If a card on file was provided at booking, I authorize GID Garage to charge it upon job completion for the final agreed amount.</span>
               </label>
 
               <div>
