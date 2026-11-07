@@ -5,6 +5,7 @@ import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import Lenis from 'lenis';
 import GameRedeem from './GameRedeem';
 import { pageForPath, caseStudyForPath, SERVICE_PAGES, WHY_US, HOW_IT_WORKS, AUTO_REPAIR } from '../shared/site-pages.js';
+import { OLDER_VEHICLES, WARRANTY_DISCLAIMER, WARRANTY_POLICY } from '../shared/warranty-policy.js';
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -626,7 +627,7 @@ function RealJobsStrip() {
 function StatsBar() {
   const stats = [
     { value: String(SERVICE_AREAS.length), label: 'Flagstaff-Area Communities Served' },
-    { value: '30 Days', label: 'Labor Warranty on Every Repair' },
+    { value: '30 Days', label: 'Limited Workmanship Warranty' },
     { value: '100%', label: 'Full Synthetic Oil, Every Time' },
     { value: '7 Days', label: 'Open Every Day of the Week' },
   ];
@@ -1361,6 +1362,8 @@ function PrivacyPolicyPage() {
 // Terms of Service. Fees, warranty and venue match the terms customers sign on
 // every estimate (shared/estimate-terms.js); the signed estimate wins on conflict.
 function TermsOfServicePage() {
+  // Invoices link to /terms#warranty; the section only exists once React renders.
+  useEffect(() => { if (location.hash) document.querySelector(location.hash)?.scrollIntoView(); }, []);
   const h2 = 'text-white font-bold text-lg mb-2';
   const strong = 'text-white';
   const link = 'text-orange-500 underline underline-offset-2';
@@ -1388,7 +1391,7 @@ function TermsOfServicePage() {
             <ul className="list-disc pl-5 space-y-1">
               <li>Prices shown on our website (including "starting at" prices) and quotes given before we inspect the vehicle are estimates only and may change based on your vehicle's actual condition, parts pricing, and availability.</li>
               <li>The price for a job is the amount on the estimate you approve. <strong className={strong}>We will not perform work beyond the approved estimate without your approval.</strong> If we find additional needed work, we will contact you first; if we cannot reach you, we may pause the job until we do.</li>
-              <li>Diagnostic results and recommendations (including "next visit" recommendations) are based on the information available at the time of inspection. They are not a guarantee that every problem has been found or that a repair will resolve every symptom.</li>
+              <li>Diagnostic results and recommendations, including "next visit" recommendations, are covered in Section 7.</li>
               <li>Recall information we show comes from public U.S. government (NHTSA) data and is provided for your convenience only. Confirm open recalls with a dealer.</li>
             </ul>
           </section>
@@ -1430,30 +1433,35 @@ function TermsOfServicePage() {
             </ul>
           </section>
 
-          <section>
-            <h2 className={h2}>7. Warranty</h2>
-            <ul className="list-disc pl-5 space-y-1">
-              <li><strong className={strong}>Labor is warranted for 30 days from the date of service.</strong> If work we performed fails because of our workmanship within that time, contact us and we will correct it. Our obligation under this warranty is limited to re-performing the affected labor or, at our option, refunding the labor charge for it.</li>
-              <li>Parts carry only the warranty provided by their manufacturer or supplier. We will help you make a warranty claim, but the manufacturer, not GID Garage, is responsible for parts warranties.</li>
-              <li>The labor warranty does not cover: customer-supplied parts (which we install without any warranty); damage from accidents, abuse, neglect, racing, overheating, lack of maintenance, or later repairs by anyone else; wear items reaching the end of their normal life; or problems unrelated to the work we performed. The warranty is void if someone else services the vehicle for the same issue before we have a chance to inspect it.</li>
-              <li>If you believe our work caused a problem or damage, tell us within 7 days of discovering it and, except in an emergency, give us a chance to inspect it before it is repaired, so we can make it right.</li>
-              <li className="uppercase text-white">Except for the warranty above and any warranty that cannot be excluded under applicable law, our services and this website are provided "as is," and we disclaim all other warranties, express or implied, including implied warranties of merchantability and fitness for a particular purpose, to the fullest extent permitted by law.</li>
-            </ul>
+          <section id="warranty">
+            <h2 className={h2}>7. 30-Day Limited Workmanship Warranty</h2>
+            <div className="space-y-5">
+              {WARRANTY_POLICY.map(part => (
+                <div key={part.title}>
+                  <h3 className="text-white font-semibold mb-1">{part.title}</h3>
+                  {part.intro && <p className="mb-1">{part.intro}</p>}
+                  <ul className="list-disc pl-5 space-y-1">{part.items.map(item => <li key={item}>{item}</li>)}</ul>
+                  {part.outro && <p className="mt-1">{part.outro}</p>}
+                </div>
+              ))}
+              <p className="uppercase text-white">{WARRANTY_DISCLAIMER}</p>
+            </div>
           </section>
 
           <section>
-            <h2 className={h2}>8. Vehicle Condition and Inherent Risks</h2>
+            <h2 className={h2}>8. {OLDER_VEHICLES.title}</h2>
+            <p className="mb-1">{OLDER_VEHICLES.intro}</p>
+            <ul className="list-disc pl-5 space-y-1 mb-2">{OLDER_VEHICLES.examples.map(item => <li key={item}>{item}</li>)}</ul>
             <ul className="list-disc pl-5 space-y-1">
-              <li>We are not responsible for pre-existing conditions, hidden damage, or problems unrelated to the service we performed. We may photograph the vehicle before, during, and after service to document its condition. Damage you note when signing the estimate is recorded and acknowledged.</li>
-              <li>On older or high-mileage vehicles, aged components (for example, rusted or seized bolts, brittle hoses, plastic connectors, or worn sensors) can break or fail during normal, careful service. This is an inherent risk of working on such vehicles and is not, by itself, negligence. We will tell you if it happens and discuss options before doing more work.</li>
+              {OLDER_VEHICLES.notes.map(item => <li key={item}>{item}</li>)}
               <li>We dispose of used fluids and parts responsibly under local rules. We are not responsible for fluid stains or contamination that existed before our visit, and we take reasonable care to protect your property during the job.</li>
             </ul>
           </section>
 
           <section>
             <h2 className={h2}>9. Limitation of Liability</h2>
-            <p className="uppercase text-white mb-2">To the fullest extent permitted by law, GID Garage will not be liable for any indirect, incidental, special, consequential, or punitive damages, including loss of use of the vehicle, rental or towing costs, lost wages or profits, or inconvenience, arising from our services or this website. Our total liability for any claim relating to a job is limited to the amount you paid us for that job.</p>
-            <p>Nothing in these Terms limits liability that cannot be limited under applicable law, including liability for our gross negligence or willful misconduct.</p>
+            <p className="uppercase text-white mb-2">To the fullest extent permitted by law, and except as stated in the next paragraph, GID Garage will not be liable for any indirect, incidental, special, consequential, or punitive damages, including loss of use of the vehicle, rental or towing costs, lost wages or profits, or inconvenience, arising from our services or this website. Our total liability for any claim relating to a job is limited to the amount you paid us for that job.</p>
+            <p>These limits do not apply to bodily injury, or to gross negligence, willful misconduct, fraud, or any other liability or consumer right that cannot be limited or waived under applicable law. If any part of this section cannot be enforced, the rest applies to the extent the law allows.</p>
           </section>
 
           <section>

@@ -1,3 +1,5 @@
+import { WARRANTY_SHORT } from './warranty-policy.js';
+
 // Terms customers sign on an estimate. A signature only covers the wording shown
 // at that moment, so NEVER edit a published version: add a new one with a start
 // time, and estimateTermsFor() keeps each signed estimate showing what that
@@ -5,6 +7,7 @@
 // is shown as agreeing to wording they did not see.
 const V2_FROM = Date.parse('2026-11-04T21:05:00Z'); // adds Terms of Service + Privacy Policy
 const V3_FROM = Date.parse('2026-11-07T00:15:00Z'); // adds the photo, video and audio consent
+const V4_FROM = Date.parse('2026-11-07T00:50:00Z'); // 30-day limited workmanship warranty rewrite
 
 const CORE_BASE = [
   'Price is as quoted. Any additional work discovered during service requires your explicit approval before proceeding. We will contact you before performing any work beyond the scope of this estimate.',
@@ -17,7 +20,7 @@ const SIGN_V2 = 'By signing this estimate, you authorize GID Garage to perform t
 
 const MEDIA_CONSENT = 'PHOTOS, VIDEO, AND AUDIO: GID Garage may photograph, film, and record audio of you, your vehicle, and the work area and visible exterior of the service location (including driveways, garages, and parking areas) before, during, and after service, using phones, body cameras, dash cameras, or similar devices, and may record its conversations and calls with you. These recordings may be kept and used for job records, warranty, safety, training, payment disputes, and legal evidence. You also grant GID Garage a non-exclusive, perpetual, worldwide, royalty-free license to use, edit, and publish them, including your image and voice, in advertising, on our website, and on social media, without payment to you. We will not record inside private living areas, and will not publish your full name, address or house number, phone, email, license plate, or VIN, or images of minors, without separate permission. To opt out of marketing use, tell us in writing before work begins.';
 
-export const ESTIMATE_TERMS_EXTENDED = [
+const EXTENDED_V1_TO_V3 = [
   'GID Garage is not responsible for pre-existing conditions, hidden damage, or issues unrelated to the service performed. Vehicle condition may be documented via photo before and during service. Pre-existing damage noted by the customer at time of signing is documented and acknowledged.',
   'On vehicles with high mileage or aged components, the act of performing service may cause adjacent or related components to fail. This is an inherent risk of servicing older vehicles and does not constitute negligence or liability on the part of the technician.',
   'Parts carry manufacturer warranty. Labor is warranted for 30 days from date of service. Warranty is void if the vehicle is serviced by another party for the same issue, or if customer-supplied parts are determined to be the cause of failure. GID Garage assumes no warranty responsibility for customer-supplied parts.',
@@ -34,13 +37,22 @@ export const ESTIMATE_TERMS_EXTENDED = [
   'Once you have approved and signed this estimate, your appointment slot, parts sourcing, and technician scheduling are reserved on your behalf. Cancelling after approval is subject to a $50 cancellation fee to cover the scheduling and preparation already committed to your job.',
 ];
 
-export const ESTIMATE_TERMS_CORE = [...CORE_BASE, MEDIA_CONSENT, SIGN_V2];
+// V4 replaces three V3 terms that conflicted with the warranty policy.
+const V4_REPLACEMENTS = [
+  ['On vehicles with high mileage', 'Older or high-mileage vehicles can have hidden deterioration, such as brittle plastic, corroded fasteners, and worn wiring, that may fail during normal, careful service. Repairing one component does not guarantee the condition of surrounding components. This does not excuse damage caused by our defective workmanship or negligence.'],
+  ['Parts carry manufacturer warranty.', 'GID Garage does not guarantee customer-supplied parts. If a supplied part is incorrect, defective, damaged, or incompatible, additional labor and service charges may apply, and we may decline to install it.'],
+  ['Diagnostic recommendations are based', 'Diagnostic services are evaluations based on the information available at the time of inspection. They do not guarantee that every problem has been found, that a repair will resolve every symptom, or the future condition of the vehicle.'],
+];
+export const ESTIMATE_TERMS_EXTENDED = EXTENDED_V1_TO_V3.map(t => V4_REPLACEMENTS.find(([start]) => t.startsWith(start))?.[1] ?? t);
+
+export const ESTIMATE_TERMS_CORE = [...CORE_BASE, WARRANTY_SHORT, MEDIA_CONSENT, SIGN_V2];
 
 // Unsigned jobs get the current terms; a signed job gets the version in force when
 // it was signed. A signed job with no timestamp gets the oldest version, so it can
 // never claim consent to something added later.
 export function estimateTermsFor(job) {
   const t = job?.customerAgreed ? (Date.parse(job.signedAt) || 0) : Infinity;
-  const core = t >= V3_FROM ? ESTIMATE_TERMS_CORE : [...CORE_BASE, t >= V2_FROM ? SIGN_V2 : SIGN_V1];
-  return { core, extended: ESTIMATE_TERMS_EXTENDED, all: [...core, ...ESTIMATE_TERMS_EXTENDED] };
+  if (t >= V4_FROM) return { core: ESTIMATE_TERMS_CORE, extended: ESTIMATE_TERMS_EXTENDED, all: [...ESTIMATE_TERMS_CORE, ...ESTIMATE_TERMS_EXTENDED] };
+  const core = t >= V3_FROM ? [...CORE_BASE, MEDIA_CONSENT, SIGN_V2] : [...CORE_BASE, t >= V2_FROM ? SIGN_V2 : SIGN_V1];
+  return { core, extended: EXTENDED_V1_TO_V3, all: [...core, ...EXTENDED_V1_TO_V3] };
 }

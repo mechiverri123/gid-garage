@@ -78,6 +78,12 @@ Treat all business data, customer data, schedules, payments, outbound messages, 
 **Incident that established this rule (2026-10-01):** `bookings.paid_at`, `signed_at`, and `created_at` were `timestamp without time zone` even though the app wrote UTC ISO timestamps. PostgreSQL/Supabase discarded the timezone semantics. This made Sep 30 Arizona payments appear as Oct 1 to some calculations, caused Revenue and Net Profit to disagree, and displayed a 1:27 PM Arizona signature as 8:27 PM. These columns were migrated to `timestamptz`. Do not reintroduce this class of bug.
 
 ---
+# 0.44 WARRANTY AND SIGNED TERMS (permanent, 2026-11-06)
+
+- **The warranty is a 30-day limited workmanship warranty. Never lengthen it** (owner decision).
+- **One source:** `shared/warranty-policy.js` feeds Terms, estimates, invoices, receipts, emails and FAQs. Don't write warranty wording anywhere else. `index.html` repeats the FAQ line; `tests/warranty-policy.test.js` keeps them equal.
+- **Never edit a published estimate term.** Add a version in `shared/estimate-terms.js` with a start time after the deploy lands. `estimateTermsFor(job)` shows each signed estimate the wording in force when it was signed.
+
 # 0.4 JARVIS VISUAL-FIRST INTERACTION RULE (permanent)
 
 Jarvis is the interactive command interface for GID Garage, not primarily a chatbot.

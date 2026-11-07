@@ -1121,7 +1121,7 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
                       <option value="full_system">Full Sound System (Head Unit + Speakers + 4ch Amp + Mono Amp + Sub)</option>
                     </select>
                     <div className="mt-2 bg-yellow-950/40 border border-yellow-800/40 px-3 py-2 text-yellow-400/80 text-xs leading-relaxed">
-                      ⚠️ Parts may need to be sourced with lead times of several days. A deposit is required for full system builds or sourced equipment. You're also welcome to supply your own parts.
+                      ⚠️ Parts may need to be sourced with lead times of several days. A deposit is required for full system builds or sourced equipment. You're also welcome to supply your own parts, but GID Garage doesn't warrant them.
                     </div>
                   </div>
                 )}

@@ -55,6 +55,7 @@ import { trendSeries, activityFeed, todayRoute, weatherToday, monthStats, collec
 import { createBusinessOps } from './_lib/business-data.js';
 import { phoenixYmd, addDaysYmd, jobFromRow } from '../shared/business-metrics.js';
 import { unpaidJobs, leadFollowUpReason } from '../shared/business-rules.js';
+import { warrantyEmailHtml } from '../shared/warranty-policy.js';
 
 const GBP_REVIEW_URL = 'https://g.page/r/CdERSypGqVdlEBM/review';
 
@@ -1253,7 +1254,7 @@ export async function onRequestPost({ request, env }) {
               <tr style="border-top:2px solid #374151;"><td style="padding:12px 0 4px;color:#9ca3af;font-size:13px;">Subtotal</td><td style="padding:12px 0 4px;color:#fff;font-size:13px;text-align:right;">$${Number(job.estimateAmount||0).toFixed(2)}</td></tr>
               <tr><td style="padding:4px 0;color:#9ca3af;font-size:13px;">AZ TPT (${estTaxPct}%)</td><td style="padding:4px 0;color:#fff;font-size:13px;text-align:right;">$${Number(job.taxAmount||0).toFixed(2)}</td></tr>
               <tr style="background:#111827;"><td style="padding:10px 0 10px 0;color:#fff;font-size:14px;font-weight:700;border-top:1px solid #374151;">Total</td><td style="padding:10px 0;color:#fff;font-size:15px;font-weight:900;text-align:right;border-top:1px solid #374151;">$${(Number(job.estimateAmount||0)+Number(job.taxAmount||0)).toFixed(2)}</td></tr>
-            </table><p style="margin:20px 0;"><a href="${estimateUrl}" style="display:inline-block;background:#dc2626;color:#fff;text-decoration:none;font-weight:bold;font-size:13px;padding:14px 28px;letter-spacing:0.05em;text-transform:uppercase;">REVIEW &amp; APPROVE ESTIMATE →</a></p>${savingsHtml}<p style="color:#4b5563;font-size:11px;margin-top:24px;">Questions? Call or text <strong style="color:#9ca3af;">480-757-0476</strong> — GID Garage, Flagstaff AZ</p></div></div>`,
+            </table><p style="margin:20px 0;"><a href="${estimateUrl}" style="display:inline-block;background:#dc2626;color:#fff;text-decoration:none;font-weight:bold;font-size:13px;padding:14px 28px;letter-spacing:0.05em;text-transform:uppercase;">REVIEW &amp; APPROVE ESTIMATE →</a></p>${savingsHtml}<p style="color:#4b5563;font-size:11px;margin-top:24px;">Questions? Call or text <strong style="color:#9ca3af;">480-757-0476</strong> — GID Garage, Flagstaff AZ</p>${warrantyEmailHtml()}</div></div>`,
         });
         return json({ ok: true });
       }
@@ -1311,7 +1312,7 @@ export async function onRequestPost({ request, env }) {
               <p style="color:#4b5563;font-size:11px;text-align:center;margin:12px 0 0;">Secure payment powered by Stripe</p>
             </div>
             <div style="background:#111827;padding:20px 32px;border-top:1px solid #1f2937;">
-              <p style="color:#4b5563;font-size:11px;margin:0;">Questions? Call or text <strong style="color:#9ca3af;">480-757-0476</strong> or reply to this email.</p>
+              <p style="color:#4b5563;font-size:11px;margin:0;">Questions? Call or text <strong style="color:#9ca3af;">480-757-0476</strong> or reply to this email.</p>${warrantyEmailHtml()}
               <p style="color:#374151;font-size:11px;margin:4px 0 0;">GID Garage · Mobile Auto Repair &amp; Car Audio · Flagstaff, AZ</p>
             </div>
           </div>`,
@@ -1375,7 +1376,7 @@ export async function onRequestPost({ request, env }) {
               </div>
             </div>
             <div style="background:#111827;padding:20px 32px;border-top:1px solid #1f2937;">
-              <p style="color:#4b5563;font-size:11px;margin:0;">Questions? Call or text <strong style="color:#9ca3af;">480-757-0476</strong> or reply to this email.</p>
+              <p style="color:#4b5563;font-size:11px;margin:0;">Questions? Call or text <strong style="color:#9ca3af;">480-757-0476</strong> or reply to this email.</p>${warrantyEmailHtml()}
               <p style="color:#374151;font-size:11px;margin:4px 0 0;">GID Garage · Mobile Auto Repair &amp; Car Audio · Flagstaff, AZ</p>
             </div>
           </div>`,

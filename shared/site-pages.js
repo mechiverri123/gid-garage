@@ -1,3 +1,4 @@
+import { WARRANTY_FAQ } from './warranty-policy.js';
 // Public content pages (service pages + the service-area page): ONE source for
 // both the React pages (src/ServicePages.tsx) and the pre-rendered HTML
 // (scripts/prerender.mjs), so what crawlers read before JavaScript runs is the
@@ -92,7 +93,7 @@ export const SERVICE_PAGES = [
     pricing: [{ label: 'Head units, speakers, amps, subwoofers and full systems', detail: 'Free estimate · deposit for sourced parts and full builds' }],
     included: ['Clean install and wiring', 'Customer-supplied parts welcome', 'Deposit only for sourced parts and full builds'],
     photos: [{ src: 'photo-audio.jpg', alt: 'Head unit setup after install' }],
-    faq: [{ q: 'Can I supply my own parts?', a: 'Yes, customer-supplied parts are welcome and keep the price down. Parts we source may need a deposit, and lead times vary.' }],
+    faq: [{ q: 'Can I supply my own parts?', a: "Yes, customer-supplied parts are welcome and keep the price down, but GID Garage doesn't warrant them. Parts we source may need a deposit, and lead times vary." }],
   },
   {
     path: '/vehicle-inspection-flagstaff', serviceId: 'full', label: 'Vehicle Inspection',
@@ -155,7 +156,7 @@ export const AUTO_REPAIR = {
   faq: [
     { q: "Can a mobile mechanic do real auto repair, not just oil changes?", a: "Yes. Brakes, struts and control arms, check engine lights and misfires, coil packs and spark plugs, batteries, coolant hoses and oil leaks are all fixed where your vehicle is parked. The few jobs that need a lift or special equipment (wheel alignments, A/C system work, transmission overhauls, welding) we refer to a shop that specializes in them." },
     { q: "How do your prices compare to an auto repair shop in Flagstaff?", a: "There's no shop building to pay for, which keeps our prices down: a full synthetic oil change is $79.99 and diagnostics are $99.99 flat, done at your home or work. Repairs get a free estimate, so you know the price before any work starts." },
-    { q: "What happens if you find something else wrong during the repair?", a: "We stop and contact you first. Nothing beyond the approved estimate is done without your OK. Labor is warranted for 30 days and parts carry the manufacturer's warranty." },
+    { q: "What happens if you find something else wrong during the repair?", a: "We stop and contact you first. Nothing beyond the approved estimate is done without your OK. " + WARRANTY_FAQ },
   ],
 };
 
@@ -171,7 +172,7 @@ SERVICE_PAGES.push(withCommon({
     { label: 'Check engine light / diagnostics', detail: '$99.99 flat' },
     { label: 'Brakes, suspension, misfires, batteries, leaks', detail: 'Free estimate before any work' },
   ],
-  included: ['Brakes: pads and rotors', 'Suspension: struts, shocks, control arms, tie rods and CV axles', 'Check engine lights, misfires, coil packs and spark plugs', 'Batteries and no-starts', 'Coolant hoses and oil leaks', 'A clear estimate before any work; 30-day labor warranty'],
+  included: ['Brakes: pads and rotors', 'Suspension: struts, shocks, control arms, tie rods and CV axles', 'Check engine lights, misfires, coil packs and spark plugs', 'Batteries and no-starts', 'Coolant hoses and oil leaks', 'A clear estimate before any work; 30-day limited workmanship warranty'],
   photos: AUTO_REPAIR.photos,
   faq: AUTO_REPAIR.faq,
 }));

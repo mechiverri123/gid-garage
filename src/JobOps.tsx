@@ -11,6 +11,7 @@ import { resolvePeriodWindow, collectedRevenue, netProfit, laborPaid, cardRevenu
 import { lineQty, lineRate, linePrice, withLine, lineText } from '../shared/line-items.js';
 import { isAwaitingPayment, isCancelled, statusChangeFields } from '../shared/business-rules.js';
 import { ESTIMATE_TERMS_CORE, ESTIMATE_TERMS_EXTENDED, estimateTermsFor } from '../shared/estimate-terms.js';
+import { DIAGNOSTIC_SHORT, WARRANTY_SHORT } from '../shared/warranty-policy.js';
 import { NextVisitCheck } from './nextVisit/NextVisitCheck';
 import { NextVisitInvoice, NextVisitReport } from './nextVisit/NextVisitPublic';
 import { ChecklistSettings } from './nextVisit/ChecklistSettings';
@@ -7906,6 +7907,8 @@ export function InvoicePage() {
           </button>
         </div>
 
+        <p className="mt-6 text-gray-500 text-xs leading-relaxed">{WARRANTY_SHORT}</p>
+
         {/* Review CTA — only shown on paid receipts */}
         {isPaid && job.id !== 'GID-1781742991286' && (
           <div className="mt-8 border border-white/10 bg-white/5 px-6 py-5 text-center no-print">
@@ -8208,14 +8211,14 @@ export function EstimatePage() {
           {/* Extended terms — collapsible scrollable box */}
           <details className="group">
             <summary className="text-red-500 text-xs font-bold uppercase tracking-widest cursor-pointer select-none hover:text-red-400 transition-colors list-none flex items-center gap-1.5">
-              <span className="group-open:hidden">▶ View all terms ({ESTIMATE_TERMS_EXTENDED.length} additional)</span>
+              <span className="group-open:hidden">▶ View all terms ({estimateTermsFor(job).extended.length} additional)</span>
               <span className="hidden group-open:inline">▼ Hide additional terms</span>
             </summary>
             <div
               className="mt-3 max-h-48 overflow-y-auto pr-1 space-y-2 scrollbar-thin"
               style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-y' }}
             >
-              {ESTIMATE_TERMS_EXTENDED.map((t, i) => (
+              {estimateTermsFor(job).extended.map((t, i) => (
                 <div key={i} className="text-gray-400 text-xs flex gap-2 border-b border-white/5 pb-2 last:border-0">
                   <span className="text-gray-600 font-bold flex-shrink-0">{i + 1}.</span> {t}
                 </div>
@@ -8351,7 +8354,7 @@ export function EstimatePage() {
                   onChange={e => setAgreed(e.target.checked)}
                   className="mt-1 accent-red-600 w-4 h-4 flex-shrink-0"
                 />
-                <span className="text-gray-300 text-sm">I have read and agree to the above terms, including the photo, video, and audio consent, and authorize GID Garage to perform the described service at the quoted price. If a card on file was provided at booking, I authorize GID Garage to charge it upon job completion for the final agreed amount.</span>
+                <span className="text-gray-300 text-sm">I have read and agree to the above terms, including the 30-day limited workmanship warranty terms and the photo, video, and audio consent, and authorize GID Garage to perform the described service at the quoted price. If a card on file was provided at booking, I authorize GID Garage to charge it upon job completion for the final agreed amount.</span>
               </label>
 
               <div>
@@ -8855,6 +8858,7 @@ export function PPIPage() {
             <button onClick={() => window.print()} className="no-print w-full border border-gray-700 text-gray-400 hover:border-white hover:text-white text-xs font-bold uppercase tracking-widest py-3 transition-colors">
               Export / Print This Inspection
             </button>
+            <p className="text-gray-500 text-xs leading-relaxed mt-4">{DIAGNOSTIC_SHORT}</p>
             <p className="text-gray-700 text-[11px] text-center mt-4">Questions? Call or text <span className="text-gray-500">480-757-0476</span> · GID Garage · Flagstaff, AZ</p>
           </div>
         </div>
