@@ -91,6 +91,7 @@ import { verifyAccess } from './_lib/access-auth.js';
 import { handleFleetAction, FleetError } from './_lib/fleet.js';
 import { handlePayAction, PayError } from './_lib/pay.js';
 import { suggestLaborHours } from './_lib/labor-hours.js';
+import { plateLookup } from './_lib/plate-lookup.js';
 import { jobSummary } from './_lib/job-summary.js';
 import { loadVocabulary, saveVocabulary, upsertEntry, removeEntry } from './_lib/vocabulary.js';
 import { cleanTemplate, DEFAULT_CHECKLIST } from '../shared/next-visit.js';
@@ -873,6 +874,11 @@ export async function onRequestPost({ request, env }) {
           return json({ error: /next_visit_checklist/.test(t) ? 'Run next_visit_migration.sql in Supabase first, then save again.' : t }, 400);
         }
         return json({ ok: true, checklist: list || DEFAULT_CHECKLIST });
+      }
+      case 'plate-lookup': {
+        try {
+          return json(await plateLookup({ plate: payload.plate, state: payload.state, env, bucket: env.GID_PHOTOS }));
+        } catch (e) { return json({ error: e.message }); }
       }
       case 'suggest-labor-hours': {
         try {

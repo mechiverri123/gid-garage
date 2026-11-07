@@ -6,7 +6,7 @@
 import { VocabularySettings } from './VocabularySettings';
 import { JobAISummary } from './JobAISummary';
 import { useState, useEffect, useRef, useMemo } from 'react';
-import { decodeVin, cleanVin, vinCheckDigitOk } from './vinDecode';
+import { decodeVin, cleanVin, cleanPlate, vinCheckDigitOk } from './vinDecode';
 import { resolvePeriodWindow, collectedRevenue, netProfit, laborPaid, cardRevenue, ownerTakeHome, jobContribution, moneyEntriesForJob, jobFromRow, phoenixDateParts, phoenixYmd } from '../shared/business-metrics.js';
 import { lineQty, lineRate, linePrice, withLine, lineText } from '../shared/line-items.js';
 import { isAwaitingPayment, isCancelled, statusChangeFields } from '../shared/business-rules.js';
@@ -337,6 +337,8 @@ export interface Job {
   email: string;
   vehicle: string;
   vin: string;
+  licensePlate: string;
+  plateState: string;
   mileage: string;
   serviceAddress: string;
   // Links this job to a single customer file (see customers_migration.sql).
@@ -675,6 +677,8 @@ function mapJob(b: any): Job {
     email: b.email,
     vehicle: b.vehicle,
     vin: b.vin || '',
+    licensePlate: b.license_plate || '',
+    plateState: b.plate_state || '',
     mileage: b.mileage || '',
     serviceAddress: b.service_address || '',
     customerId: b.customer_id || null,
@@ -4118,6 +4122,12 @@ export function JobDetailPanel({ job: initialJob, onClose, onJobUpdate, backLabe
   const [vinBusy, setVinBusy] = useState(false);
   const [vinMsg, setVinMsg] = useState<{ kind: 'ok' | 'warn' | 'err'; text: string; undo?: string } | null>(null);
   const vinReq = useRef(0);
+  const [editPlate, setEditPlate] = useState(job.licensePlate || '');
+  const [editPlateState, setEditPlateState] = useState(job.plateState || 'AZ');
+  const [plateBusy, setPlateBusy] = useState(false);
+  // The job list has no plate, so "differs from job" could wipe one still loading.
+  const plateEdited = useRef(false);
+  const [plateMsg, setPlateMsg] = useState<{ kind: 'ok' | 'warn' | 'err'; text: string; useVin?: string } | null>(null);
   const [editMileage, setEditMileage] = useState(job.mileage || '');
   const [editServiceAddress, setEditServiceAddress] = useState(job.serviceAddress || '');
   const [editPhone, setEditPhone] = useState(job.phone || '');
@@ -4132,6 +4142,10 @@ export function JobDetailPanel({ job: initialJob, onClose, onJobUpdate, backLabe
     setEditVehicle(job.vehicle || '');
     setEditVin(job.vin || '');
     setVinMsg(null);
+    setEditPlate(job.licensePlate || '');
+    setEditPlateState(job.plateState || 'AZ');
+    plateEdited.current = false;
+    setPlateMsg(null);
     setEditMileage(job.mileage || '');
     setEditServiceAddress(job.serviceAddress || '');
     setEditPhone(job.phone || '');
@@ -4174,6 +4188,30 @@ export function JobDetailPanel({ job: initialJob, onClose, onJobUpdate, backLabe
     }
   }
 
+  // Plate -> VIN costs a credit, so it only runs from the button (the VIN decode is
+  // free and runs as you type). The VIN then goes through the same free decode for
+  // the full vehicle. A VIN already on the job is never replaced without asking.
+  async function runPlateLookup() {
+    setPlateBusy(true);
+    setPlateMsg(null);
+    try {
+      const d = await adminPost('plate-lookup', { plate: editPlate, state: editPlateState });
+      if (d?.error) { setPlateMsg({ kind: 'err', text: d.error }); return; }
+      const vin = cleanVin(d.vin || '');
+      if (vin && editVin && vin !== editVin) {
+        setPlateMsg({ kind: 'warn', text: `Plate shows VIN ${vin} (${d.vehicle}), which doesn't match this job.`, useVin: vin });
+        return;
+      }
+      setPlateMsg({ kind: 'ok', text: `Found ${d.vehicle}${d.cached ? ' (saved lookup, no charge)' : ''}` });
+      if (vin) { setEditVin(vin); await runVinDecode(vin); }
+      else { setVinMsg({ kind: 'ok', text: `Vehicle set to ${d.vehicle}`, undo: editVehicle }); setEditVehicle(d.vehicle); }
+    } catch (e: any) {
+      setPlateMsg({ kind: 'err', text: e?.message ?? 'Plate lookup failed.' });
+    } finally {
+      setPlateBusy(false);
+    }
+  }
+
   // scope is only set after the "this customer has other jobs" prompt:
   //   'job'      -> change this job's row only; the customer file is untouched
   //   'customer' -> update the customer file (old behavior: open jobs follow)
@@ -4212,6 +4250,8 @@ export function JobDetailPanel({ job: initialJob, onClose, onJobUpdate, backLabe
     };
     const jobOnlyFields = {
       vin: editVin, vehicle: editVehicle, mileage: editMileage, service_address: editServiceAddress,
+      // Only when edited, so saving a job never needs these columns until a plate is used.
+      ...(plateEdited.current ? { license_plate: editPlate, plate_state: editPlate ? editPlateState : '' } : {}),
     };
     try {
       let customerId = job.customerId;
@@ -4244,7 +4284,7 @@ export function JobDetailPanel({ job: initialJob, onClose, onJobUpdate, backLabe
         date: editDate, time: editTime || 'TBD', date_tbd: false, ...customerFields, ...jobOnlyFields, notes: editNotes,
         ...(scope === 'move' && customerId && customerId !== job.customerId ? { customer_id: customerId } : {}),
       });
-      handleUpdate({ ...job, date: editDate, time: editTime || 'TBD', dateTbd: false, fname: editFname.trim(), lname: editLname.trim(), vehicle: editVehicle, vin: editVin, mileage: editMileage, serviceAddress: editServiceAddress, phone: editPhone, email: editEmail, notes: editNotes, customerId });
+      handleUpdate({ ...job, date: editDate, time: editTime || 'TBD', dateTbd: false, fname: editFname.trim(), lname: editLname.trim(), vehicle: editVehicle, vin: editVin, ...(plateEdited.current ? { licensePlate: editPlate, plateState: editPlate ? editPlateState : '' } : {}), mileage: editMileage, serviceAddress: editServiceAddress, phone: editPhone, email: editEmail, notes: editNotes, customerId });
       setEditingAppt(false);
     } catch (e: any) {
       const raw = e?.message ?? '';
@@ -4393,6 +4433,7 @@ export function JobDetailPanel({ job: initialJob, onClose, onJobUpdate, backLabe
                   {[
                     ['Vehicle', job.vehicle],
                     ['VIN', job.vin || '—'],
+                    ['License Plate', job.licensePlate ? `${job.licensePlate} (${job.plateState || 'AZ'})` : '—'],
                     ['Mileage', job.mileage ? `${fmtMileage(job.mileage)} mi` : '—'],
                     ['Customer Notes', job.notes || '—'],
                   ].map(([label, val]) => (
@@ -4466,6 +4507,30 @@ export function JobDetailPanel({ job: initialJob, onClose, onJobUpdate, backLabe
                       <input type="text" inputMode="numeric" value={fmtMileage(editMileage)} onChange={e => setEditMileage(e.target.value.replace(/[^0-9]/g, ''))} placeholder="98,000"
                         className="w-full bg-gray-900 text-white text-sm px-3 py-2 outline-none border border-gray-700 focus:border-red-600 transition-colors" />
                     </div>
+                  </div>
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block text-gray-500 text-[10px] font-bold uppercase tracking-wider">License Plate</label>
+                      <button type="button" onClick={runPlateLookup} disabled={plateBusy || editPlate.length < 2 || editPlateState.length !== 2}
+                        className="text-[10px] font-bold uppercase tracking-wider text-red-500 hover:text-red-400 disabled:text-gray-700 disabled:cursor-not-allowed transition-colors">
+                        {plateBusy ? 'Looking up…' : 'Look Up'}
+                      </button>
+                    </div>
+                    <div className="flex gap-2">
+                      <input type="text" value={editPlate} onChange={e => { plateEdited.current = true; setEditPlate(cleanPlate(e.target.value)); setPlateMsg(null); }} placeholder="ABC1234" maxLength={8} aria-label="License plate"
+                        className="flex-1 min-w-0 bg-gray-900 text-white text-sm px-3 py-2 outline-none border border-gray-700 focus:border-red-600 transition-colors font-mono" />
+                      <input type="text" value={editPlateState} onChange={e => { plateEdited.current = true; setEditPlateState(e.target.value.toUpperCase().replace(/[^A-Z]/g, '').slice(0, 2)); }} placeholder="AZ" aria-label="Plate state"
+                        className="w-14 bg-gray-900 text-white text-sm px-3 py-2 outline-none border border-gray-700 focus:border-red-600 transition-colors font-mono text-center" />
+                    </div>
+                    {plateMsg && (
+                      <p className={`text-[10px] mt-1 ${plateMsg.kind === 'ok' ? 'text-emerald-500' : plateMsg.kind === 'warn' ? 'text-yellow-500' : 'text-red-400'}`}>
+                        {plateMsg.text}
+                        {plateMsg.useVin && (
+                          <button type="button" onClick={() => { onVinInput(plateMsg.useVin ?? ''); setPlateMsg(null); }}
+                            className="ml-2 underline text-gray-500 hover:text-gray-300">Use it</button>
+                        )}
+                      </p>
+                    )}
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div>

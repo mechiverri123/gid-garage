@@ -74,7 +74,7 @@ function safeEqual(a, b) {
   return diff === 0;
 }
 
-export const PRIVATE_JOB_FIELDS = ['parts_cost', 'parts_receipts', 'admin_photos', 'stripe_customer_id', 'signed_ip', 'customer_id', 'fleet_id', 'fleet_vehicle_id'];
+export const PRIVATE_JOB_FIELDS = ['parts_cost', 'parts_receipts', 'admin_photos', 'stripe_customer_id', 'signed_ip', 'customer_id', 'fleet_id', 'fleet_vehicle_id', 'license_plate', 'plate_state'];
 
 export async function onRequestPost({ request, env }) {
   const supabaseUrl = env.SUPABASE_URL ?? env.VITE_SUPABASE_URL;

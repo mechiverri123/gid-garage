@@ -1262,7 +1262,7 @@ function PrivacyPolicyPage() {
             <p className="mb-2">We collect information you provide directly, including:</p>
             <ul className="list-disc pl-5 space-y-1">
               <li>Name, phone number, email address, and service address</li>
-              <li>Vehicle information (year, make, model, mileage, VIN where provided)</li>
+              <li>Vehicle information (year, make, model, mileage, and VIN or license plate where provided)</li>
               <li>Details about the issue or service you're requesting</li>
               <li>Payment and billing information (cards are processed by our payment providers, Bluevine and Stripe — see Section 5; we never store full card numbers and keep only details such as the last 4 digits and transaction IDs)</li>
               <li>Photos, video, and audio recordings of you, your vehicle, and the work area and visible exterior of the service location, including from phones, body cameras, and dash cameras (see our <a href="/terms" className="text-orange-500 underline underline-offset-2">Terms of Service</a>, Section 13)</li>
@@ -1311,6 +1311,7 @@ function PrivacyPolicyPage() {
               <li><strong className="text-white">Deepgram and Cartesia</strong> — speech-to-text and text-to-speech for our internal voice assistant, which can include customer names and job details the owner speaks</li>
               <li><strong className="text-white">Telegram</strong> — private reminders and job notifications sent to the owner, which can include your name and appointment details</li>
               <li><strong className="text-white">NHTSA (U.S. Department of Transportation)</strong> — decoding a vehicle VIN to its year, make, model, and engine (the VIN only)</li>
+              <li><strong className="text-white">CarAPI</strong> — looking up a vehicle's year, make, model, and VIN from its license plate (the plate and state only, not your name or contact details)</li>
               <li><strong className="text-white">Meta, Google, Nextdoor</strong> — advertising platforms, when you submit a lead form or message us through them</li>
             </ul>
             <p className="mt-3 mb-1"><strong className="text-white">AI tools.</strong> We use an AI assistant (Claude, by Anthropic) inside our own admin tools to help run the business, for example to summarize a job from its notes, parts, and payments, look up records, or draft a reply for the owner to review. To do that, details from your job and messages (such as your name, vehicle, the work requested, and job notes) are sent to Anthropic for processing. Job summaries are written without your address, phone number, or email. The AI only acts when the owner asks it to and does not make decisions about you on its own. Before the AI records a payment or sends you an email or message, the owner confirms it.</p>

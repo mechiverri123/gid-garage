@@ -26,6 +26,10 @@ export function cleanVin(raw: string): string {
   return raw.toUpperCase().replace(/\s+/g, '');
 }
 
+export function cleanPlate(raw: string): string {
+  return raw.toUpperCase().replace(/[^A-Z0-9]/g, '');
+}
+
 export function isVinShapeValid(vin: string): boolean {
   return VIN_RE.test(vin);
 }

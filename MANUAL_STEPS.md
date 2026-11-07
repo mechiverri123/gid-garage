@@ -202,3 +202,9 @@ to the dashboard next) and pick the right source/outcome.
   `admin-api-data.js` — it's a plain if/else chain on the lowercased query
   string. Adding a new question type is adding one more `if (q.includes(...))`
   block.
+
+## License plate lookup (Job Overview)
+
+1. Run `license_plate_migration.sql` in the Supabase SQL editor.
+2. Sign up at carapi.app, buy a credit pack, and generate an API token and secret.
+3. In Cloudflare Pages, add `CARAPI_TOKEN` and `CARAPI_SECRET`, then redeploy.
