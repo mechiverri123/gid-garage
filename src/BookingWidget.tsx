@@ -1276,7 +1276,7 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
             <div className="space-y-3 text-gray-400 text-sm leading-relaxed">
               <p><span className="text-white font-semibold">24-Hour Notice Required.</span> To avoid a cancellation fee, please cancel or reschedule your appointment at least <span className="text-red-400 font-semibold">24 hours before</span> your scheduled time.</p>
               <p><span className="text-white font-semibold">Late Cancellations.</span> Cancellations made less than 24 hours in advance may be subject to a cancellation fee of up to 50% of the quoted service cost.</p>
-              <p><span className="text-white font-semibold">No-Shows.</span> Failure to be present at the scheduled time and location without prior notice may result in a no-show fee and may affect future booking eligibility.</p>
+              <p><span className="text-white font-semibold">No-Shows.</span> Failure to be present at the scheduled time and location without prior notice may result in a fee of up to 50% of the quoted service cost and may affect future booking eligibility.</p>
               <p><span className="text-white font-semibold">How to Cancel.</span> Cancel by calling or texting <a href="tel:4807570476" className="text-red-400 hover:text-red-300 transition-colors">480-757-0476</a> or by replying to your confirmation email. Cancellations are not considered confirmed until acknowledged by GID Garage.</p>
               <p><span className="text-white font-semibold">Emergency Exceptions.</span> We understand that emergencies happen. Contact us as soon as possible and we'll do our best to accommodate your situation.</p>
             </div>

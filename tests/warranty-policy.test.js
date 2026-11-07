@@ -38,6 +38,14 @@ test('short statement reaches emails and the FAQ matches index.html', () => {
   assert.ok(JSON.stringify([HOME_PAGE, AUTO_REPAIR]).includes(WARRANTY_FAQ));
 });
 
+test('one cancellation rule: up to 50% of the quote', () => {
+  const current = ESTIMATE_TERMS_EXTENDED.join(' ');
+  assert.match(current, /up to 50% of the quoted service cost/);
+  assert.doesNotMatch(current, /\$50 cancellation fee|no-shows may be subject to a trip fee/);
+  const old = estimateTermsFor({ customerAgreed: true, signedAt: '2026-11-07T00:20:00Z' });
+  assert.ok(old.extended.some(t => t.includes('$50 cancellation fee')));
+});
+
 test('estimates signed earlier keep their old warranty wording', () => {
   const old = estimateTermsFor({ customerAgreed: true, signedAt: '2026-11-07T00:20:00Z' });
   assert.ok(old.extended.some(t => t.startsWith('Parts carry manufacturer warranty.')));

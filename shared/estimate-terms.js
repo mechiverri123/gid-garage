@@ -7,7 +7,7 @@ import { WARRANTY_SHORT } from './warranty-policy.js';
 // is shown as agreeing to wording they did not see.
 const V2_FROM = Date.parse('2026-11-04T21:05:00Z'); // adds Terms of Service + Privacy Policy
 const V3_FROM = Date.parse('2026-11-07T00:15:00Z'); // adds the photo, video and audio consent
-const V4_FROM = Date.parse('2026-11-07T00:50:00Z'); // 30-day limited workmanship warranty rewrite
+const V4_FROM = Date.parse('2026-11-07T00:50:00Z'); // 30-day limited workmanship warranty rewrite; one cancellation fee rule
 
 const CORE_BASE = [
   'Price is as quoted. Any additional work discovered during service requires your explicit approval before proceeding. We will contact you before performing any work beyond the scope of this estimate.',
@@ -37,13 +37,15 @@ const EXTENDED_V1_TO_V3 = [
   'Once you have approved and signed this estimate, your appointment slot, parts sourcing, and technician scheduling are reserved on your behalf. Cancelling after approval is subject to a $50 cancellation fee to cover the scheduling and preparation already committed to your job.',
 ];
 
-// V4 replaces three V3 terms that conflicted with the warranty policy.
+// V4 replaces V3 terms that conflicted with the warranty policy, and makes up to 50%
+// of the quote the one cancellation rule (it drops the old trip fee and flat $50).
 const V4_REPLACEMENTS = [
   ['On vehicles with high mileage', 'Older or high-mileage vehicles can have hidden deterioration, such as brittle plastic, corroded fasteners, and worn wiring, that may fail during normal, careful service. Repairing one component does not guarantee the condition of surrounding components. This does not excuse damage caused by our defective workmanship or negligence.'],
   ['Parts carry manufacturer warranty.', 'GID Garage does not guarantee customer-supplied parts. If a supplied part is incorrect, defective, damaged, or incompatible, additional labor and service charges may apply, and we may decline to install it.'],
+  ['Cancellations or reschedules require', 'Cancellations or reschedules require at least 24 hours notice. Late cancellations (inside 24 hours) and no-shows may be subject to a cancellation fee of up to 50% of the quoted service cost, to cover technician time, travel, and the reserved appointment.'],
   ['Diagnostic recommendations are based', 'Diagnostic services are evaluations based on the information available at the time of inspection. They do not guarantee that every problem has been found, that a repair will resolve every symptom, or the future condition of the vehicle.'],
 ];
-export const ESTIMATE_TERMS_EXTENDED = EXTENDED_V1_TO_V3.map(t => V4_REPLACEMENTS.find(([start]) => t.startsWith(start))?.[1] ?? t);
+export const ESTIMATE_TERMS_EXTENDED = EXTENDED_V1_TO_V3.filter(t => !t.startsWith('Once you have approved')).map(t => V4_REPLACEMENTS.find(([start]) => t.startsWith(start))?.[1] ?? t);
 
 export const ESTIMATE_TERMS_CORE = [...CORE_BASE, WARRANTY_SHORT, MEDIA_CONSENT, SIGN_V2];
 

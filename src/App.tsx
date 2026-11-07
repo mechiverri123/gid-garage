@@ -1426,8 +1426,7 @@ function TermsOfServicePage() {
             <h2 className={h2}>6. Cancellations, Rescheduling, and No-Shows</h2>
             <ul className="list-disc pl-5 space-y-1">
               <li>Please cancel or reschedule at least 24 hours before your appointment by calling or texting 480-757-0476 or using the cancellation link in your confirmation.</li>
-              <li>Late cancellations (less than 24 hours' notice) and no-shows may be charged a trip fee to cover technician time and travel already committed.</li>
-              <li>Cancelling after you have signed an estimate is subject to a $50 cancellation fee, as stated on the estimate.</li>
+              <li>Late cancellations (less than 24 hours' notice) and no-shows may be subject to a cancellation fee of up to 50% of the quoted service cost, to cover technician time, travel, and the reserved appointment.</li>
               <li>If parts were already ordered or purchased for your job, you are responsible for their cost, especially special-order or non-returnable parts.</li>
               <li>We may cancel or reschedule an appointment because of weather, safety, parts availability, illness, or other circumstances outside our control. If we cancel, you will not be charged a cancellation fee.</li>
             </ul>
