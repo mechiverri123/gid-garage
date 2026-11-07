@@ -87,7 +87,7 @@ Settings → Usage shows this month's estimated spend and the last voice timings
 **New files:**
 - `gid_command_center_migration.sql` — run this first (see Step 1)
 - `functions/lead-capture.js` — public webhook for Facebook/Google leads
-- `src/CommandCenter.tsx` — the new dashboard
+- `src/command-center/CommandCenterPage.tsx` — the new dashboard
 
 **Modified files:**
 - `functions/admin-api-data.js` — added 9 new actions (leads, calls, marketing spend, summary, ask-gid)
@@ -195,7 +195,7 @@ to the dashboard next) and pick the right source/outcome.
   `case` blocks right before the `default:` — same pattern as every
   existing action in that file (look at `list-bookings` as the reference
   shape).
-- The dashboard component is a single new file, `src/CommandCenter.tsx` —
+- The dashboard component is a single new file, `src/command-center/CommandCenterPage.tsx` —
   no changes needed elsewhere in the UI layer besides the one import + tab
   wire-up in `BookingWidget.tsx`.
 - Ask GID's keyword matching lives in the `ask-gid` case in

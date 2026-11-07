@@ -34,3 +34,6 @@ jarvis-agent/secrets.env
 
 # Owner financial exports for audits (bank/Zoho CSVs) — never commit
 audit/
+
+# Graphify daily snapshots (graph.json is the live one)
+graphify-out/20*/

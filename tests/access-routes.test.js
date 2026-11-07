@@ -1,12 +1,10 @@
-// /jarvis-livekit-token, /jarvis-speak, /jarvis-transcribe used to
-// rely only on the Access "jarvis*" path match. They now verify the Access JWT
-// themselves (requireAccess), so an Access config change can't make them public.
+// /jarvis-livekit-token used to
+// rely only on the Access "jarvis*" path match. It now verifies the Access JWT
+// itself (requireAccess), so an Access config change can't make it public.
 import { test, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { _clearAccessCertCache } from '../functions/_lib/access-auth.js';
 import * as livekitToken from '../functions/jarvis-livekit-token.js';
-import * as speak from '../functions/jarvis-speak.js';
-import * as transcribe from '../functions/jarvis-transcribe.js';
 
 const TEAM = 'gidgarage.cloudflareaccess.com';
 const AUD = 'aud-tag-123';
@@ -28,8 +26,6 @@ async function accessToken() {
 
 const handlers = [
   ['livekit-token GET', livekitToken.onRequestGet], ['livekit-token POST', livekitToken.onRequestPost],
-  ['speak GET', speak.onRequestGet], ['speak POST', speak.onRequestPost],
-  ['transcribe GET', transcribe.onRequestGet], ['transcribe POST', transcribe.onRequestPost],
 ];
 
 test('every formerly-unauthenticated /jarvis-* route rejects requests without a valid Access JWT', async () => {
@@ -49,7 +45,7 @@ test('every formerly-unauthenticated /jarvis-* route rejects requests without a 
 test('a verified Access user still reaches the handler', async () => {
   const { token, jwk } = await accessToken();
   globalThis.fetch = async () => new Response(JSON.stringify({ keys: [jwk] }));
-  const res = await speak.onRequestGet({ request: new Request('https://gidgarage.com/jarvis-speak', { headers: { 'Cf-Access-Jwt-Assertion': token } }), env: ENV });
+  const res = await livekitToken.onRequestGet({ request: new Request('https://gidgarage.com/jarvis-livekit-token', { headers: { 'Cf-Access-Jwt-Assertion': token } }), env: ENV });
   assert.equal(res.status, 200);
   assert.equal((await res.json()).ok, true);
 });
