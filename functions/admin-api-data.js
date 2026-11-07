@@ -875,6 +875,8 @@ export async function onRequestPost({ request, env }) {
         }
         return json({ ok: true, checklist: list || DEFAULT_CHECKLIST });
       }
+      case 'plate-lookup-status':
+        return json({ ready: !!(env.CARAPI_TOKEN && env.CARAPI_SECRET) });
       case 'plate-lookup': {
         try {
           return json(await plateLookup({ plate: payload.plate, state: payload.state, env, bucket: env.GID_PHOTOS }));

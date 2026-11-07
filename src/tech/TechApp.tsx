@@ -4,12 +4,64 @@
 // next-visit check, parts cost, and getting paid. Reuses the admin panels and
 // the same bookings rows/calls as /admin; admin itself is unchanged.
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { getAllJobs, getJobById, patchJob, syncTaxRate, resolveServiceName, useAutoSave, PhotoPanel, VideoPanel, PartsCostPanel, PaymentPanel, type Job } from '../JobOps';
+import { getAllJobs, getJobById, patchJob, syncTaxRate, resolveServiceName, useAutoSave, PhotoPanel, VideoPanel, PartsCostPanel, PaymentPanel, PlateLookup, type Job } from '../JobOps';
+import { cleanVin, decodeVin, vinCheckDigitOk } from '../vinDecode';
 import { NextVisitCheck } from '../nextVisit/NextVisitCheck';
 import { JobAISummary } from '../JobAISummary';
 import { recommendations } from '../../shared/next-visit.js';
 import { statusChangeFields, isCancelled, jobMoney, phoenixToday } from '../../shared/business-rules.js';
 import { addDaysYmd as addDays } from '../../shared/business-metrics.js';
+
+// Plate and VIN on the phone: look the plate up, paste the VIN, the free decode fills the vehicle.
+function VehicleId({ job, onSaved }: { job: Job; onSaved: (j: Job) => void }) {
+  const [plate, setPlate] = useState(job.licensePlate || '');
+  const [plateState, setPlateState] = useState(job.plateState || 'AZ');
+  const [vin, setVin] = useState(job.vin || '');
+  const [vehicle, setVehicle] = useState(job.vehicle || '');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  const dirty = plate !== (job.licensePlate || '') || vin !== (job.vin || '') || vehicle !== (job.vehicle || '');
+
+  function changeVin(raw: string) {
+    const v = cleanVin(raw);
+    setVin(v);
+    if (v.length === 17 && vinCheckDigitOk(v)) decodeVin(v).then(d => setVehicle(d.full), () => {});
+  }
+
+  async function save() {
+    setSaving(true);
+    setError('');
+    try {
+      const plateChanged = plate !== (job.licensePlate || '');
+      await patchJob(job.id, { vin, vehicle, ...(plateChanged ? { license_plate: plate, plate_state: plate ? plateState : '' } : {}) });
+      onSaved({ ...job, vin, vehicle, licensePlate: plate, plateState: plate ? plateState : '' });
+    } catch (e) {
+      setError(`Couldn't save: ${(e as Error)?.message || 'network error'}`);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="space-y-3">
+      <PlateLookup plate={plate} state={plateState} vin={vin}
+        onChange={(p, s) => { setPlate(p); setPlateState(s); }}
+        onFound={(v, name) => { if (name) setVehicle(name); if (v) changeVin(v); }} />
+      <div>
+        <label className="block text-gray-500 text-[11px] font-bold uppercase tracking-wider mb-1">VIN</label>
+        <input type="text" value={vin} onChange={e => changeVin(e.target.value)} maxLength={17} placeholder="Paste or type the VIN" aria-label="VIN"
+          className="w-full bg-gray-900 text-white text-sm px-3 py-2 outline-none border border-gray-700 focus:border-red-600 transition-colors font-mono" />
+      </div>
+      {dirty && (
+        <div>
+          {vehicle !== (job.vehicle || '') && <p className="text-gray-300 text-[13px] mb-2">Vehicle: {vehicle}</p>}
+          <button type="button" onClick={save} disabled={saving} className="w-full bg-red-600 disabled:opacity-50 text-white text-[13px] font-bold uppercase tracking-wider py-2.5">{saving ? 'Saving…' : 'Save vehicle info'}</button>
+          {error && <p className="text-red-300 text-[12px] mt-1">{error}</p>}
+        </div>
+      )}
+    </div>
+  );
+}
 
 type List = 'today' | 'upcoming' | 'recent' | 'search';
 type Tab = 'job' | 'photos' | 'next' | 'parts' | 'pay';
@@ -189,7 +241,7 @@ function JobScreen({ id, onBack, onChanged }: { id: string; onBack: () => void; 
               <JobAISummary job={job} />
               <Info label="Service">{resolveServiceName(job.service, job.notes)}</Info>
               {job.serviceAddress && <Info label="Address"><a href={mapsUrl} className="underline">{job.serviceAddress}</a></Info>}
-              {job.vin && <Info label="VIN"><span className="font-mono">{job.vin}</span></Info>}
+              <VehicleId key={job.id} job={job} onSaved={update} />
               {job.lineItems?.length > 0 && <Info label="Work on this job">{job.lineItems.map(li => <div key={li.id} className="flex justify-between gap-3"><span>{li.label}</span><span className="text-gray-400 tabular-nums">{money(li.amount)}</span></div>)}</Info>}
               {job.notes && <Info label="Booking notes"><span className="whitespace-pre-wrap">{job.notes}</span></Info>}
               <div>

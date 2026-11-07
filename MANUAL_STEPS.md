@@ -205,6 +205,5 @@ to the dashboard next) and pick the right source/outcome.
 
 ## License plate lookup (Job Overview)
 
-1. Run `license_plate_migration.sql` in the Supabase SQL editor.
-2. Sign up at carapi.app, buy a credit pack, and generate an API token and secret.
-3. In Cloudflare Pages, add `CARAPI_TOKEN` and `CARAPI_SECRET`, then redeploy.
+1. Run `license_plate_migration.sql` in the Supabase SQL editor. This is all the free lookup needs.
+2. Optional, for the paid automatic Look Up button: sign up at carapi.app, buy a credit pack, generate an API token and secret, add `CARAPI_TOKEN` and `CARAPI_SECRET` in Cloudflare Pages, then redeploy. The button stays hidden until both are set.

@@ -2392,6 +2392,82 @@ export function useHelperPayouts(): HelperPayout[] {
   return payouts;
 }
 
+// License plate box for Job Overview, New Job and the Tech app. "Free Lookup" opens
+// FaxVIN in the owner's browser (it has a human check, so nothing here can read the
+// result): copy the VIN from that page into the VIN box. "Look Up" is the paid
+// automatic lookup and only shows once its keys are set in Cloudflare.
+let plateAutoReady: Promise<boolean> | null = null;
+const plateAuto = () => (plateAutoReady ??= adminPost('plate-lookup-status').then((r: any) => !!r?.ready, () => false));
+
+export function PlateLookup({ plate, state, vin, onChange, onFound }: {
+  plate: string; state: string; vin: string;
+  onChange: (plate: string, state: string) => void;
+  onFound: (vin: string, vehicle: string) => void;
+}) {
+  const [auto, setAuto] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<{ kind: 'ok' | 'warn' | 'err'; text: string; use?: { vin: string; vehicle: string } } | null>(null);
+  useEffect(() => { void plateAuto().then(setAuto); }, []);
+  const ready = plate.length >= 2 && state.length === 2;
+
+  async function lookUp() {
+    setBusy(true);
+    setMsg(null);
+    try {
+      const d = await adminPost('plate-lookup', { plate, state });
+      if (d?.error) { setMsg({ kind: 'err', text: d.error }); return; }
+      const found = cleanVin(d.vin || '');
+      // A VIN already on the job is never replaced without asking.
+      if (found && vin && found !== vin) {
+        setMsg({ kind: 'warn', text: `Plate shows VIN ${found} (${d.vehicle}), which doesn't match this job.`, use: { vin: found, vehicle: d.vehicle } });
+        return;
+      }
+      setMsg({ kind: 'ok', text: `Found ${d.vehicle}${d.cached ? ' (saved lookup, no charge)' : ''}` });
+      onFound(found, d.vehicle);
+    } catch (e: any) {
+      setMsg({ kind: 'err', text: e?.message ?? 'Plate lookup failed.' });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div>
+      <div className="flex items-center justify-between gap-3 mb-1">
+        <label className="block text-gray-500 text-[11px] font-bold uppercase tracking-wider">License Plate</label>
+        <span className="flex items-center gap-3">
+          {ready && (
+            <a href={`https://www.faxvin.com/license-plate-lookup/decoding?plate=${encodeURIComponent(plate)}&state=${encodeURIComponent(state)}`} target="_blank" rel="noopener noreferrer"
+              onClick={() => setMsg({ kind: 'ok', text: 'Copy the VIN from that page and paste it in the VIN box.' })}
+              className="text-[11px] font-bold uppercase tracking-wider text-red-500 hover:text-red-400 transition-colors">Free Lookup ↗</a>
+          )}
+          {auto && (
+            <button type="button" onClick={lookUp} disabled={busy || !ready}
+              className="text-[11px] font-bold uppercase tracking-wider text-red-500 hover:text-red-400 disabled:text-gray-700 disabled:cursor-not-allowed transition-colors">
+              {busy ? 'Looking up…' : 'Look Up'}
+            </button>
+          )}
+        </span>
+      </div>
+      <div className="flex gap-2">
+        <input type="text" value={plate} onChange={e => { setMsg(null); onChange(cleanPlate(e.target.value), state); }} placeholder="ABC1234" maxLength={8} aria-label="License plate"
+          className="flex-1 min-w-0 bg-gray-900 text-white text-sm px-3 py-2 outline-none border border-gray-700 focus:border-red-600 transition-colors font-mono" />
+        <input type="text" value={state} onChange={e => { setMsg(null); onChange(plate, e.target.value.toUpperCase().replace(/[^A-Z]/g, '').slice(0, 2)); }} placeholder="AZ" aria-label="Plate state"
+          className="w-14 bg-gray-900 text-white text-sm px-3 py-2 outline-none border border-gray-700 focus:border-red-600 transition-colors font-mono text-center" />
+      </div>
+      {msg && (
+        <p className={`text-[11px] mt-1 ${msg.kind === 'ok' ? 'text-emerald-500' : msg.kind === 'warn' ? 'text-yellow-500' : 'text-red-400'}`}>
+          {msg.text}
+          {msg.use && (
+            <button type="button" onClick={() => { const u = msg.use; setMsg(null); if (u) onFound(u.vin, u.vehicle); }}
+              className="ml-2 underline text-gray-500 hover:text-gray-300">Use it</button>
+          )}
+        </p>
+      )}
+    </div>
+  );
+}
+
 // ── ESTIMATE PANEL (inside admin job detail) ──────────────────────────────────
 
 export function EstimatePanel({ job, onUpdate }: { job: Job; onUpdate: (j: Job) => void }) {
@@ -4124,10 +4200,8 @@ export function JobDetailPanel({ job: initialJob, onClose, onJobUpdate, backLabe
   const vinReq = useRef(0);
   const [editPlate, setEditPlate] = useState(job.licensePlate || '');
   const [editPlateState, setEditPlateState] = useState(job.plateState || 'AZ');
-  const [plateBusy, setPlateBusy] = useState(false);
   // The job list has no plate, so "differs from job" could wipe one still loading.
   const plateEdited = useRef(false);
-  const [plateMsg, setPlateMsg] = useState<{ kind: 'ok' | 'warn' | 'err'; text: string; useVin?: string } | null>(null);
   const [editMileage, setEditMileage] = useState(job.mileage || '');
   const [editServiceAddress, setEditServiceAddress] = useState(job.serviceAddress || '');
   const [editPhone, setEditPhone] = useState(job.phone || '');
@@ -4145,7 +4219,6 @@ export function JobDetailPanel({ job: initialJob, onClose, onJobUpdate, backLabe
     setEditPlate(job.licensePlate || '');
     setEditPlateState(job.plateState || 'AZ');
     plateEdited.current = false;
-    setPlateMsg(null);
     setEditMileage(job.mileage || '');
     setEditServiceAddress(job.serviceAddress || '');
     setEditPhone(job.phone || '');
@@ -4185,30 +4258,6 @@ export function JobDetailPanel({ job: initialJob, onClose, onJobUpdate, backLabe
     if (vin.length === 17) {
       if (vinCheckDigitOk(vin)) runVinDecode(vin);
       else setVinMsg({ kind: 'warn', text: 'Check digit fails, likely a typo. Tap Decode to try anyway.' });
-    }
-  }
-
-  // Plate -> VIN costs a credit, so it only runs from the button (the VIN decode is
-  // free and runs as you type). The VIN then goes through the same free decode for
-  // the full vehicle. A VIN already on the job is never replaced without asking.
-  async function runPlateLookup() {
-    setPlateBusy(true);
-    setPlateMsg(null);
-    try {
-      const d = await adminPost('plate-lookup', { plate: editPlate, state: editPlateState });
-      if (d?.error) { setPlateMsg({ kind: 'err', text: d.error }); return; }
-      const vin = cleanVin(d.vin || '');
-      if (vin && editVin && vin !== editVin) {
-        setPlateMsg({ kind: 'warn', text: `Plate shows VIN ${vin} (${d.vehicle}), which doesn't match this job.`, useVin: vin });
-        return;
-      }
-      setPlateMsg({ kind: 'ok', text: `Found ${d.vehicle}${d.cached ? ' (saved lookup, no charge)' : ''}` });
-      if (vin) { setEditVin(vin); await runVinDecode(vin); }
-      else { setVinMsg({ kind: 'ok', text: `Vehicle set to ${d.vehicle}`, undo: editVehicle }); setEditVehicle(d.vehicle); }
-    } catch (e: any) {
-      setPlateMsg({ kind: 'err', text: e?.message ?? 'Plate lookup failed.' });
-    } finally {
-      setPlateBusy(false);
     }
   }
 
@@ -4508,30 +4557,13 @@ export function JobDetailPanel({ job: initialJob, onClose, onJobUpdate, backLabe
                         className="w-full bg-gray-900 text-white text-sm px-3 py-2 outline-none border border-gray-700 focus:border-red-600 transition-colors" />
                     </div>
                   </div>
-                  <div>
-                    <div className="flex items-center justify-between mb-1">
-                      <label className="block text-gray-500 text-[10px] font-bold uppercase tracking-wider">License Plate</label>
-                      <button type="button" onClick={runPlateLookup} disabled={plateBusy || editPlate.length < 2 || editPlateState.length !== 2}
-                        className="text-[10px] font-bold uppercase tracking-wider text-red-500 hover:text-red-400 disabled:text-gray-700 disabled:cursor-not-allowed transition-colors">
-                        {plateBusy ? 'Looking up…' : 'Look Up'}
-                      </button>
-                    </div>
-                    <div className="flex gap-2">
-                      <input type="text" value={editPlate} onChange={e => { plateEdited.current = true; setEditPlate(cleanPlate(e.target.value)); setPlateMsg(null); }} placeholder="ABC1234" maxLength={8} aria-label="License plate"
-                        className="flex-1 min-w-0 bg-gray-900 text-white text-sm px-3 py-2 outline-none border border-gray-700 focus:border-red-600 transition-colors font-mono" />
-                      <input type="text" value={editPlateState} onChange={e => { plateEdited.current = true; setEditPlateState(e.target.value.toUpperCase().replace(/[^A-Z]/g, '').slice(0, 2)); }} placeholder="AZ" aria-label="Plate state"
-                        className="w-14 bg-gray-900 text-white text-sm px-3 py-2 outline-none border border-gray-700 focus:border-red-600 transition-colors font-mono text-center" />
-                    </div>
-                    {plateMsg && (
-                      <p className={`text-[10px] mt-1 ${plateMsg.kind === 'ok' ? 'text-emerald-500' : plateMsg.kind === 'warn' ? 'text-yellow-500' : 'text-red-400'}`}>
-                        {plateMsg.text}
-                        {plateMsg.useVin && (
-                          <button type="button" onClick={() => { onVinInput(plateMsg.useVin ?? ''); setPlateMsg(null); }}
-                            className="ml-2 underline text-gray-500 hover:text-gray-300">Use it</button>
-                        )}
-                      </p>
-                    )}
-                  </div>
+                  <PlateLookup plate={editPlate} state={editPlateState} vin={editVin}
+                    onChange={(plate, state) => { plateEdited.current = true; setEditPlate(plate); setEditPlateState(state); }}
+                    onFound={(vin, vehicle) => {
+                      const prev = editVehicle;
+                      if (vehicle) { setEditVehicle(vehicle); setVinMsg({ kind: 'ok', text: `Vehicle set to ${vehicle}`, undo: prev }); }
+                      if (vin) onVinInput(vin);
+                    }} />
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label className="block text-gray-500 text-[10px] font-bold uppercase tracking-wider mb-1">Phone</label>
@@ -5296,7 +5328,7 @@ export function ExternalLeadModal({ onClose, onAdded, jobs }: { onClose: () => v
 
   const [f, setF] = useState({
     fname: '', lname: '', phone: '', email: '',
-    vehicle: '', vin: '', service: 'other', notes: '', address: '',
+    vehicle: '', vin: '', plate: '', plateState: 'AZ', service: 'other', notes: '', address: '',
     date: new Date().toLocaleDateString('en-CA', { timeZone: 'America/Phoenix' }),
     time: '',
   });
@@ -5412,6 +5444,11 @@ export function ExternalLeadModal({ onClose, onAdded, jobs }: { onClose: () => v
   ]);
   const [rawAmounts, setRawAmounts] = useState<Record<string, string>>({});
 
+  // Same free decode as the job editor, for a VIN pasted in or found from a plate.
+  function fillVehicleFromVin(vin: string) {
+    if (vin.length === 17 && vinCheckDigitOk(vin)) decodeVin(vin).then(d => setF(p => (p.vin === vin ? { ...p, vehicle: d.full } : p)), () => {});
+  }
+
   function set(k: string, v: string) {
     const divergesFromAutoVin = k === 'vehicle' && vinAutoFor !== null && v !== vinAutoFor;
     setF(p => ({ ...p, [k]: v, ...(divergesFromAutoVin ? { vin: '' } : {}) }));
@@ -5480,6 +5517,7 @@ export function ExternalLeadModal({ onClose, onAdded, jobs }: { onClose: () => v
       estimate_amount: subtotal,
       estimate_notes: notesStr,
       ...(f.vin ? { vin: f.vin } : {}),
+      ...(f.plate ? { license_plate: f.plate, plate_state: f.plateState } : {}),
     };
     try {
       // Resolve to a single customer file (matches on phone digits, else
@@ -5644,7 +5682,7 @@ export function ExternalLeadModal({ onClose, onAdded, jobs }: { onClose: () => v
                   value={f.vin}
                   maxLength={17}
                   placeholder="17 characters"
-                  onChange={e => { setVinAutoFor(null); set('vin', cleanVin(e.target.value)); }}
+                  onChange={e => { setVinAutoFor(null); const v = cleanVin(e.target.value); set('vin', v); if (!f.vehicle) fillVehicleFromVin(v); }}
                   className="w-full bg-gray-900 text-white text-sm px-3 py-2.5 outline-none border border-gray-700 focus:border-red-600 transition-colors font-mono uppercase tracking-wider"
                 />
                 {vinAutoFor !== null && f.vin && (
@@ -5654,6 +5692,13 @@ export function ExternalLeadModal({ onClose, onAdded, jobs }: { onClose: () => v
                   <p className="text-yellow-500 text-[10px] mt-0.5">Check digit fails, likely a typo. You can still continue.</p>
                 )}
               </div>
+              <PlateLookup plate={f.plate} state={f.plateState} vin={f.vin}
+                onChange={(plate, plateState) => setF(p => ({ ...p, plate, plateState }))}
+                onFound={(vin, vehicle) => {
+                  setVinAutoFor(null);
+                  setF(p => ({ ...p, vin: vin || p.vin, vehicle: vehicle || p.vehicle }));
+                  fillVehicleFromVin(vin);
+                }} />
               {inp('address', 'Service Address (optional)', 'text', '123 Main St, Flagstaff, AZ')}
 
               <div>
