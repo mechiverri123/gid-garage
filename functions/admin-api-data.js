@@ -62,6 +62,7 @@ const GBP_REVIEW_URL = 'https://g.page/r/CdERSypGqVdlEBM/review';
 
 
 function escHtml(value) { return String(value ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;'); }
+const serviceLabel = s => (String(s).toLowerCase() === 'ppi' ? 'Pre-Purchase Inspection' : s);
 
 function json(body, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -1252,7 +1253,7 @@ export async function onRequestPost({ request, env }) {
           </td></tr></table>` : '';
         const lineItemsHtml = job.lineItems?.length
           ? job.lineItems.map(i => `<tr><td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#9ca3af;font-size:13px;">${escHtml(i.label)}</td><td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#fff;font-size:13px;text-align:right;white-space:nowrap;">${i.amount === 0 ? 'FREE' : (i.amount < 0 ? '-$' + Math.abs(Number(i.amount)).toFixed(2) : '$' + Number(i.amount).toFixed(2))}</td></tr>`).join('')
-          : `<tr><td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#9ca3af;font-size:13px;">${escHtml(job.service)}</td><td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#fff;font-size:13px;text-align:right;">$${Number(job.estimateAmount || 0).toFixed(2)}</td></tr>`;
+          : `<tr><td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#9ca3af;font-size:13px;">${escHtml(serviceLabel(job.service))}</td><td style="padding:8px 0;border-bottom:1px solid #1f2937;color:#fff;font-size:13px;text-align:right;">$${Number(job.estimateAmount || 0).toFixed(2)}</td></tr>`;
         const estimateUrl = `https://gidgarage.com/estimate?id=${job.id}`;
         await brevoSend({
           sender: { name: 'GID Garage', email: 'bookings@gidgarage.com' },
@@ -1301,7 +1302,7 @@ export async function onRequestPost({ request, env }) {
                 <table style="width:100%;border-collapse:collapse;">
                   ${job.vehicle ? `<tr><td style="color:#6b7280;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;padding:3px 0;">Vehicle</td><td style="color:#fff;font-size:13px;text-align:right;padding:3px 0;">${escHtml(job.vehicle)}</td></tr>` : ''}
                   ${serviceDateInv ? `<tr><td style="color:#6b7280;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;padding:3px 0;">Service Date</td><td style="color:#fff;font-size:13px;text-align:right;padding:3px 0;">${serviceDateInv}</td></tr>` : ''}
-                  ${job.service ? `<tr><td style="color:#6b7280;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;padding:3px 0;">Service</td><td style="color:#fff;font-size:13px;text-align:right;padding:3px 0;">${escHtml(job.serviceIcon || '')} ${escHtml(job.service.charAt(0).toUpperCase() + job.service.slice(1))}</td></tr>` : ''}
+                  ${job.service ? `<tr><td style="color:#6b7280;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;padding:3px 0;">Service</td><td style="color:#fff;font-size:13px;text-align:right;padding:3px 0;">${escHtml(job.serviceIcon || '')} ${escHtml(serviceLabel(job.service.charAt(0).toUpperCase() + job.service.slice(1)))}</td></tr>` : ''}
                   ${job.serviceAddress ? `<tr><td style="color:#6b7280;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;padding:3px 0;">Location</td><td style="color:#fff;font-size:13px;text-align:right;padding:3px 0;">${escHtml(job.serviceAddress)}</td></tr>` : ''}
                 </table>
               </div>
@@ -1361,7 +1362,7 @@ export async function onRequestPost({ request, env }) {
                 <table style="width:100%;border-collapse:collapse;">
                   ${job.vehicle ? `<tr><td style="color:#6b7280;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;padding:3px 0;">Vehicle</td><td style="color:#fff;font-size:13px;text-align:right;padding:3px 0;">${escHtml(job.vehicle)}</td></tr>` : ''}
                   ${serviceDateRcpt ? `<tr><td style="color:#6b7280;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;padding:3px 0;">Service Date</td><td style="color:#fff;font-size:13px;text-align:right;padding:3px 0;">${serviceDateRcpt}</td></tr>` : ''}
-                  ${job.service ? `<tr><td style="color:#6b7280;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;padding:3px 0;">Service</td><td style="color:#fff;font-size:13px;text-align:right;padding:3px 0;">${escHtml(job.serviceIcon || '')} ${escHtml(job.service.charAt(0).toUpperCase() + job.service.slice(1))}</td></tr>` : ''}
+                  ${job.service ? `<tr><td style="color:#6b7280;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;padding:3px 0;">Service</td><td style="color:#fff;font-size:13px;text-align:right;padding:3px 0;">${escHtml(job.serviceIcon || '')} ${escHtml(serviceLabel(job.service.charAt(0).toUpperCase() + job.service.slice(1)))}</td></tr>` : ''}
                   ${job.serviceAddress ? `<tr><td style="color:#6b7280;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;padding:3px 0;">Location</td><td style="color:#fff;font-size:13px;text-align:right;padding:3px 0;">${escHtml(job.serviceAddress)}</td></tr>` : ''}
                 </table>
               </div>

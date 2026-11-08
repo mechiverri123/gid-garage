@@ -49,10 +49,24 @@ export const ESTIMATE_TERMS_EXTENDED = EXTENDED_V1_TO_V3.filter(t => !t.startsWi
 
 export const ESTIMATE_TERMS_CORE = [...CORE_BASE, WARRANTY_SHORT, MEDIA_CONSENT, SIGN_V2];
 
+// Added on top of the normal terms for a pre-purchase inspection (service 'ppi').
+// These are published wording too: version them before changing one.
+export const PPI_TERMS = [
+  "PRE-PURCHASE INSPECTION: This is a visual and functional inspection of the items listed on this estimate, based on conditions and access at the time of inspection. It does not include disassembly. It is not a guarantee, warranty, or certification of the vehicle's condition, value, title, history, or future reliability, and some problems may not be detectable. The decision to buy the vehicle is yours.",
+  "If you do not own this vehicle, you confirm that the owner or seller has given permission for this inspection at the service location, including any test drive, photos, and video. The inspection fee is owed once the inspection is performed, whether or not you buy the vehicle.",
+];
+
 // Unsigned jobs get the current terms; a signed job gets the version in force when
 // it was signed. A signed job with no timestamp gets the oldest version, so it can
 // never claim consent to something added later.
 export function estimateTermsFor(job) {
+  const terms = termsByDate(job);
+  if (job?.service !== 'ppi') return terms;
+  const core = [...PPI_TERMS, ...terms.core];
+  return { core, extended: terms.extended, all: [...core, ...terms.extended] };
+}
+
+function termsByDate(job) {
   const t = job?.customerAgreed ? (Date.parse(job.signedAt) || 0) : Infinity;
   if (t >= V4_FROM) return { core: ESTIMATE_TERMS_CORE, extended: ESTIMATE_TERMS_EXTENDED, all: [...ESTIMATE_TERMS_CORE, ...ESTIMATE_TERMS_EXTENDED] };
   const core = t >= V3_FROM ? [...CORE_BASE, MEDIA_CONSENT, SIGN_V2] : [...CORE_BASE, t >= V2_FROM ? SIGN_V2 : SIGN_V1];

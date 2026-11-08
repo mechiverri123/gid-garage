@@ -476,11 +476,9 @@ export interface PPIRecord {
   completedAt: string | null;
 }
 
-// Standard categories/items covered on almost any pre-purchase inspection.
-// Regenerated fresh (new ids each call) so multiple in-progress PPIs never
-// share item ids.
-function defaultPPIChecklist(): PPIChecklistItem[] {
-  const groups: [string, string[]][] = [
+// Standard categories/items covered on almost any pre-purchase inspection. The
+// checklist and the "what we check" summary on the estimate both read this list.
+const PPI_CHECKLIST_GROUPS: [string, string[]][] = [
     ['Exterior', ['Body panels / paint condition', 'Frame / unibody rust or damage', 'Glass — cracks or chips', 'Lights (head/tail/turn/brake)', 'Tires — tread depth & wear pattern', 'Wheels — bends, cracks, curb rash']],
     ['Under Hood', ['Engine oil level & condition', 'Coolant level & condition', 'Brake fluid', 'Power steering fluid', 'Transmission fluid', 'Belts & hoses', 'Battery & terminals', 'Visible leaks']],
     ['Engine & Drivetrain', ['Engine starts & idles smoothly', 'Unusual noises (knock, tick, whine)', 'Exhaust smoke (color/amount)', 'Transmission shifts smoothly', 'Check engine / warning lights', 'Scan for stored DTC codes']],
@@ -490,9 +488,11 @@ function defaultPPIChecklist(): PPIChecklistItem[] {
     ['Electrical', ['Battery charging system', 'All interior lights function', 'Power windows/locks/mirrors', 'HVAC — heat & A/C function', 'Infotainment / backup camera']],
     ['Interior', ['Seats & upholstery condition', 'Dash & warning lights at startup', 'Odometer matches disclosures', 'Airbag warning light off', 'Seatbelts function correctly']],
     ['Test Drive', ['Acceleration feels normal', 'Braking — straight, no pulling', 'Steering — no wander/pull', 'Transmission shift quality', 'Unusual noises at speed']],
-  ];
+];
+// Regenerated fresh (new ids each call) so multiple in-progress PPIs never share item ids.
+function defaultPPIChecklist(): PPIChecklistItem[] {
   let seq = 0;
-  return groups.flatMap(([category, items]) =>
+  return PPI_CHECKLIST_GROUPS.flatMap(([category, items]) =>
     items.map(label => ({ id: `ppi-${Date.now()}-${seq++}`, category, label, status: '' as PPIItemStatus, note: '', photos: [] as PPIPhoto[] }))
   );
 }
@@ -868,6 +868,7 @@ const PRINT_DOC_STYLES = `
 
 const SERVICE_NAMES: Record<string, string> = {
   oil:        'Oil Change',
+  ppi:        'Pre-Purchase Inspection',
   brakes:     'Brakes',
   diag:       'Diagnostics',
   suspension: 'Suspension',
@@ -5298,9 +5299,10 @@ const ADD_JOB_SERVICES = [
   { id: 'full',       label: 'Full Service' },
   { id: 'other',      label: 'Other / Custom' },
 ];
+const PPI_LINE_LABEL = 'Pre-Purchase Inspection';
 const SERVICE_ICONS: Record<string, string> = {
   oil: '🛢️', brakes: '🔧', diag: '💻', suspension: '🚗',
-  audio: '🔊', full: '✅', other: '💬',
+  audio: '🔊', full: '✅', other: '💬', ppi: '🔍',
 };
 
 // ── EXTERNAL LEAD → INSTANT ESTIMATE LINK ───────────────────────────────────
@@ -5311,7 +5313,7 @@ const SERVICE_ICONS: Record<string, string> = {
 // External leads are, by definition, unsigned — nothing has been agreed to yet,
 // so this flow only ever produces an Estimate. Invoicing happens later, through
 // the normal job pipeline (Payment tab), once the customer has actually signed.
-export function ExternalLeadModal({ onClose, onAdded, jobs }: { onClose: () => void; onAdded: (job: Job) => void; jobs: Job[] }) {
+export function ExternalLeadModal({ onClose, onAdded, jobs, inspection = false }: { onClose: () => void; onAdded: (job: Job) => void; jobs: Job[]; inspection?: boolean }) {
   // Step 1: contact + vehicle (with previous-customer search/autofill). Step 2:
   // service date. Step 3: line item builder (same math as EstimatePanel).
   // Step 4: done — copy link or send.
@@ -5328,7 +5330,7 @@ export function ExternalLeadModal({ onClose, onAdded, jobs }: { onClose: () => v
 
   const [f, setF] = useState({
     fname: '', lname: '', phone: '', email: '',
-    vehicle: '', vin: '', plate: '', plateState: 'AZ', service: 'other', notes: '', address: '',
+    vehicle: '', vin: '', plate: '', plateState: 'AZ', service: inspection ? 'ppi' : 'other', notes: '', address: '',
     date: new Date().toLocaleDateString('en-CA', { timeZone: 'America/Phoenix' }),
     time: '',
   });
@@ -5342,6 +5344,7 @@ export function ExternalLeadModal({ onClose, onAdded, jobs }: { onClose: () => v
   // faking a number, which the customer-matching logic already treats
   // safely (blank phone just falls back to name+email matching).
   const [phoneUnknown, setPhoneUnknown] = useState(false);
+  const [ppiDraftFailed, setPpiDraftFailed] = useState(false);
   // Service date is often genuinely unknown at estimate time — the lead
   // hasn't committed yet, or you haven't talked scheduling. Forcing a real
   // date here just meant picking one at random (defaults to today), which
@@ -5440,6 +5443,7 @@ export function ExternalLeadModal({ onClose, onAdded, jobs }: { onClose: () => v
   }
 
   const [lineItems, setLineItems] = useState<LineItem[]>([
+    ...(inspection ? [{ id: `li-${Date.now()}-ppi`, label: PPI_LINE_LABEL, amount: 0, type: 'labor' } as LineItem] : []),
     { id: `li-${Date.now()}`, label: 'Mobile Service Fee', amount: 25, type: 'mobile' },
   ]);
   const [rawAmounts, setRawAmounts] = useState<Record<string, string>>({});
@@ -5488,11 +5492,16 @@ export function ExternalLeadModal({ onClose, onAdded, jobs }: { onClose: () => v
   }
 
   async function handleCreate() {
+    if (inspection && lineItems.some(li => li.label === PPI_LINE_LABEL && !li.amount)) {
+      setErr('Enter the inspection price first.');
+      return;
+    }
     setSaving(true);
     setErr(null);
     const id = `GID-${Date.now()}`;
     const now = new Date();
-    const notesStr = f.notes ? `[External lead] ${f.notes}` : '[External lead]';
+    const tag = inspection ? `[${PPI_LINE_LABEL}]` : '[External lead]';
+    const notesStr = f.notes ? `${tag} ${f.notes}` : tag;
     const row: Record<string, any> = {
       id,
       service: f.service,
@@ -5537,6 +5546,15 @@ export function ExternalLeadModal({ onClose, onAdded, jobs }: { onClose: () => v
       }
       const inserted = await adminPost('insert-booking', { row });
       const job = mapJob(inserted ?? row);
+      if (inspection) {
+        // The checklist waits under PrePI, already filled in with this customer and car.
+        try {
+          await insertPPI({
+            id: `PPI-${id}`, name: '', vin: f.vin, fname: f.fname, lname: f.lname, phone: f.phone, email: f.email, vehicle: f.vehicle,
+            checklist: JSON.stringify(defaultPPIChecklist()), overall_notes: '', status: 'DRAFT', updated_at: now.toISOString(),
+          });
+        } catch { setPpiDraftFailed(true); }
+      }
       setCreatedJob(job);
       setSendTo(f.email || '');
       onAdded(job);
@@ -5600,8 +5618,9 @@ export function ExternalLeadModal({ onClose, onAdded, jobs }: { onClose: () => v
         {/* STEP 1 — contact + vehicle */}
         {step === 1 && (
           <>
-            <h2 className="text-xl font-black text-white mb-1">External Lead</h2>
-            <p className="text-gray-500 text-xs mb-5">Yelp, Nextdoor, word of mouth — anyone who didn't book through the site. No appointment time needed yet. This always creates an Estimate — nothing's signed yet, so there's nothing to invoice.</p>
+            <h2 className="text-xl font-black text-white mb-1">{inspection ? PPI_LINE_LABEL : 'External Lead'}</h2>
+            {inspection && <p className="text-gray-500 text-xs mb-5">Creates an estimate the buyer signs before the inspection. It lists what we check, and the checklist waits under PrePI.</p>}
+            <p className={`text-gray-500 text-xs mb-5 ${inspection ? 'hidden' : ''}`}>Yelp, Nextdoor, word of mouth — anyone who didn't book through the site. No appointment time needed yet. This always creates an Estimate — nothing's signed yet, so there's nothing to invoice.</p>
 
             <div className="space-y-3">
               <div className="relative">
@@ -5701,7 +5720,7 @@ export function ExternalLeadModal({ onClose, onAdded, jobs }: { onClose: () => v
                 }} />
               {inp('address', 'Service Address (optional)', 'text', '123 Main St, Flagstaff, AZ')}
 
-              <div>
+              <div className={inspection ? 'hidden' : ''}>
                 <label className="block text-xs font-bold uppercase tracking-wider mb-1 text-gray-500">Service</label>
                 <select
                   value={f.service}
@@ -5913,6 +5932,11 @@ export function ExternalLeadModal({ onClose, onAdded, jobs }: { onClose: () => v
             <h2 className="text-xl font-black text-white mb-1">✓ Estimate Ready</h2>
             <p className="text-gray-500 text-xs mb-5">{createdJob.fname} {createdJob.lname} · {createdJob.vehicle} · ${total.toFixed(2)}</p>
             <p className="text-gray-600 text-[10px] mb-5">Once they sign and you're ready to bill, invoice from the job itself (Payment tab) — not from here.</p>
+            {inspection && (
+              <p className={`text-xs mb-5 ${ppiDraftFailed ? 'text-yellow-500' : 'text-gray-500'}`}>
+                {ppiDraftFailed ? "The estimate is ready, but the checklist didn't save. Start one under PrePI with Blank Checklist." : 'The inspection checklist is saved as a draft under PrePI.'}
+              </p>
+            )}
 
             <label className="block text-xs font-bold uppercase tracking-wider mb-1 text-gray-500">Estimate Link</label>
             <div className="flex gap-2 mb-5">
@@ -5968,7 +5992,7 @@ export function ExternalLeadModal({ onClose, onAdded, jobs }: { onClose: () => v
 // VIN, customer, phone, or email) -> form/checklist with Save & Close
 // (resume later) -> Complete -> copy link / send email, mirroring
 // ExternalLeadModal's step-3 pattern.
-function PrePIModal({ onClose }: { onClose: () => void }) {
+function PrePIModal({ onClose, onNewEstimate }: { onClose: () => void; onNewEstimate: () => void }) {
   const [mode, setMode] = useState<'loading' | 'picker' | 'form' | 'done'>('loading');
   const [allPPIs, setAllPPIs] = useState<PPIRecord[]>([]);
   const [search, setSearch] = useState('');
@@ -6203,10 +6227,13 @@ function PrePIModal({ onClose }: { onClose: () => void }) {
             <p className="text-gray-500 text-xs mb-5">Standard PPI checklist for any vehicle — VIN, customer info, and a full pass/fail walkthrough with notes and photos per item.</p>
 
             <button
-              onClick={startNew}
-              className="w-full bg-blue-600 hover:bg-blue-500 text-white text-sm font-bold uppercase tracking-widest py-3.5 transition-colors mb-5 flex items-center justify-center gap-2"
+              onClick={onNewEstimate}
+              className="w-full bg-blue-600 hover:bg-blue-500 text-white text-sm font-bold uppercase tracking-widest py-3.5 transition-colors mb-2 flex items-center justify-center gap-2"
             >
-              <span className="text-base leading-none">+</span> Start New Inspection
+              <span className="text-base leading-none">+</span> New Inspection Estimate
+            </button>
+            <button onClick={startNew} className="w-full text-gray-500 hover:text-white text-xs font-bold uppercase tracking-widest py-2 transition-colors mb-4">
+              Blank Checklist (no estimate)
             </button>
 
             {allPPIs.length > 0 && (
@@ -6949,6 +6976,7 @@ export function JobsTab() {
   const [filterStatus, setFilterStatus] = useState<JobStatus | 'ALL'>('ALL');
   const [showPrePI, setShowPrePI] = useState(false);
   const [showExternalLead, setShowExternalLead] = useState(false);
+  const [showPPIEstimate, setShowPPIEstimate] = useState(false);
   const [showDuplicates, setShowDuplicates] = useState(false);
   const [showTbd, setShowTbd] = useState(false);
   const [revenueView, setRevenueView] = useState<'month' | 'year'>('month');
@@ -7405,7 +7433,15 @@ export function JobsTab() {
       )}
 
       {showPrePI && (
-        <PrePIModal onClose={() => setShowPrePI(false)} />
+        <PrePIModal onClose={() => setShowPrePI(false)} onNewEstimate={() => { setShowPrePI(false); setShowPPIEstimate(true); }} />
+      )}
+      {showPPIEstimate && (
+        <ExternalLeadModal
+          inspection
+          onClose={() => setShowPPIEstimate(false)}
+          onAdded={job => { setJobs(prev => [job, ...prev]); }}
+          jobs={jobs}
+        />
       )}
       {showExternalLead && (
         <ExternalLeadModal
@@ -8260,6 +8296,20 @@ export function EstimatePage() {
   function EstimateSummary({ job }: { job: Job }) {
     return (
       <>
+        {job.service === 'ppi' && (
+          <div className="bg-white/5 border border-white/10 p-4">
+            <p className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-1">What We Check</p>
+            <p className="text-gray-400 text-sm mb-3">This pre-purchase inspection covers the following, as conditions and access allow:</p>
+            <div className="space-y-2.5">
+              {PPI_CHECKLIST_GROUPS.map(([category, items]) => (
+                <div key={category}>
+                  <p className="text-white text-sm font-bold">{category}</p>
+                  <p className="text-gray-400 text-xs leading-relaxed">{items.join(' · ')}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
         <div className="bg-white/5 border border-white/10 divide-y divide-white/10">
           {[
             ['Name', `${job.fname} ${job.lname}`],

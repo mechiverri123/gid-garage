@@ -2,7 +2,7 @@
 // appears to have agreed to a clause added after their signature.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { ESTIMATE_TERMS_CORE, estimateTermsFor } from '../shared/estimate-terms.js';
+import { ESTIMATE_TERMS_CORE, PPI_TERMS, estimateTermsFor } from '../shared/estimate-terms.js';
 
 const signed = signedAt => ({ customerAgreed: true, signedAt });
 const hasMedia = terms => terms.core.some(t => t.startsWith('PHOTOS, VIDEO, AND AUDIO'));
@@ -30,4 +30,11 @@ test('signed estimates keep the version in force at signing', () => {
 test('a signed job with no timestamp never claims later consent', () => {
   assert.equal(hasMedia(estimateTermsFor(signed(null))), false);
   assert.equal(hasTos(estimateTermsFor(signed(null))), false);
+});
+
+test('only a pre-purchase inspection gets the inspection terms, and the buyer signs them', () => {
+  const ppi = estimateTermsFor({ service: 'ppi', customerAgreed: false });
+  assert.deepEqual(ppi.core.slice(0, PPI_TERMS.length), PPI_TERMS);
+  assert.ok(ppi.all.includes(PPI_TERMS[1]));
+  assert.equal(estimateTermsFor({ service: 'oil', customerAgreed: false }).core.includes(PPI_TERMS[0]), false);
 });
