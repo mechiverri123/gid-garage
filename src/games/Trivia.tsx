@@ -191,7 +191,7 @@ export default function Trivia({ onGameEnd }: { onGameEnd: (score: number, total
   if (!difficulty) {
     return (
       <div className="flex flex-col items-center gap-4 w-full" style={{ maxWidth: 380 }}>
-        <p className="text-white/70 text-sm text-center mb-1">Pick a difficulty</p>
+        <div className="text-white/70 text-sm text-center mb-1">Pick a difficulty</div>
         <div className="grid grid-cols-2 gap-3 w-full">
           {LEVELS.map((lvl) => (
             <button
@@ -211,7 +211,7 @@ export default function Trivia({ onGameEnd }: { onGameEnd: (score: number, total
   if (done) {
     return (
       <div className="flex flex-col items-center gap-4 text-center">
-        <p className="text-white font-bold text-lg">You scored {score} / {round.length} on {LEVELS.find((l) => l.id === difficulty)?.label}! 🔧</p>
+        <div className="text-white font-bold text-lg">You scored {score} / {round.length} on {LEVELS.find((l) => l.id === difficulty)?.label}! 🔧</div>
         <div className="flex gap-3">
           <button onClick={playAgainSameLevel} className="bg-red-600 active:bg-red-700 text-white font-bold px-5 py-3 rounded">Play Again</button>
           <button onClick={changeLevel} className="bg-zinc-800 active:bg-zinc-700 text-white font-bold px-5 py-3 rounded">Change Level</button>
@@ -228,7 +228,7 @@ export default function Trivia({ onGameEnd }: { onGameEnd: (score: number, total
         {LEVELS.find((l) => l.id === difficulty)?.label} · Q{idx + 1} / {round.length} · Score: {score}
       </div>
       <div className="w-full bg-zinc-900 rounded-lg p-4">
-        <p className="text-white font-bold mb-4 leading-snug">{q.q}</p>
+        <div className="text-white font-bold mb-4 leading-snug">{q.q}</div>
         <div className="flex flex-col gap-2">
           {q.a.map((ans, i) => {
             let style = 'bg-zinc-800 active:bg-zinc-700 text-white';

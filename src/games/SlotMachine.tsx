@@ -112,7 +112,7 @@ export default function SlotMachine() {
   if (!joined) {
     return (
       <div className="flex flex-col items-center gap-4 w-full" style={{ maxWidth: 340 }}>
-        <p className="text-white/70 text-sm text-center">Enter your info to grab your free spin credits</p>
+        <div className="text-white/70 text-sm text-center">Enter your info to grab your free spin credits</div>
         <input
           value={fname}
           onChange={(e) => setFname(e.target.value)}
@@ -126,7 +126,7 @@ export default function SlotMachine() {
           type="tel"
           className="w-full bg-zinc-900 border border-white/10 rounded px-4 py-3 text-white text-base"
         />
-        {error && <p className="text-red-400 text-xs">{error}</p>}
+        {error && <div className="text-red-400 text-xs">{error}</div>}
         <button
           onClick={handleJoin}
           disabled={loading}
@@ -134,15 +134,15 @@ export default function SlotMachine() {
         >
           {loading ? 'Loading…' : 'Let\'s Play'}
         </button>
-        <p className="text-white/40 text-xs text-center">No purchase necessary. Free credits, just for fun — used only to redeem in-shop promos.</p>
+        <div className="text-white/40 text-xs text-center">No purchase necessary. Free credits, just for fun — used only to redeem in-shop promos.</div>
       </div>
     );
   }
 
   return (
     <div className="flex flex-col items-center gap-4 w-full" style={{ maxWidth: 340 }}>
-      {isNew && <p className="text-green-400 text-xs font-semibold">Welcome, {fname}! You got ${balance} in free spin credits 🎉</p>}
-      {!isNew && <p className="text-white/60 text-xs">Welcome back, {fname}!</p>}
+      {isNew && <div className="text-green-400 text-xs font-semibold">Welcome, {fname}! You got ${balance} in free spin credits 🎉</div>}
+      {!isNew && <div className="text-white/60 text-xs">Welcome back, {fname}!</div>}
 
       <div className="flex items-center gap-3 w-full">
         <div className="flex-1 bg-zinc-800 rounded px-3 py-2 text-center">
@@ -185,20 +185,20 @@ export default function SlotMachine() {
           {spinning ? 'Spinning…' : `Spin for $${bet}`}
         </button>
 
-        {spinsRemaining <= 0 && <p className="text-white/50 text-xs text-center">Daily spins used up — come back tomorrow for more!</p>}
-        {error && <p className="text-red-400 text-xs text-center">{error}</p>}
+        {spinsRemaining <= 0 && <div className="text-white/50 text-xs text-center">Daily spins used up — come back tomorrow for more!</div>}
+        {error && <div className="text-red-400 text-xs text-center">{error}</div>}
       </div>
 
       {lastResult && !spinning && (
         <div className="w-full bg-zinc-900 border border-white/10 rounded-xl p-4 text-center">
-          {lastResult.result === 'lose' && <p className="text-white/60 text-sm">No match — try again!</p>}
-          {lastResult.result === 'credit' && <p className="text-green-400 font-bold text-sm">You won ${lastResult.creditWin} in credits! 🍒</p>}
+          {lastResult.result === 'lose' && <div className="text-white/60 text-sm">No match — try again!</div>}
+          {lastResult.result === 'credit' && <div className="text-green-400 font-bold text-sm">You won ${lastResult.creditWin} in credits! 🍒</div>}
           {lastResult.result === 'real' && (
             <div className="flex flex-col items-center gap-2">
-              <p className="text-yellow-400 font-bold">🎉 You won: {lastResult.prizeLabel}</p>
-              <p className="text-white text-sm">Show this code at GID Garage to redeem:</p>
-              <p className="text-white font-mono font-extrabold text-2xl tracking-widest bg-black px-4 py-2 rounded">{lastResult.code}</p>
-              <p className="text-white/40 text-xs">Screenshot this — you'll need it at checkout.</p>
+              <div className="text-yellow-400 font-bold">🎉 You won: {lastResult.prizeLabel}</div>
+              <div className="text-white text-sm">Show this code at GID Garage to redeem:</div>
+              <div className="text-white font-mono font-extrabold text-2xl tracking-widest bg-black px-4 py-2 rounded">{lastResult.code}</div>
+              <div className="text-white/40 text-xs">Screenshot this — you'll need it at checkout.</div>
             </div>
           )}
         </div>

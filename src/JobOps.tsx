@@ -132,15 +132,15 @@ function RecallCheck({ jobId, vin }: { jobId: string; vin?: string }) {
   const n = r.recalls.length;
   return (
     <div className="bg-white/5 border border-white/10 px-4 sm:px-6 py-4 flex flex-col gap-2">
-      <p className="text-gray-500 text-[10px] font-bold uppercase tracking-widest">Free safety recall check</p>
+      <div className="text-gray-500 text-[10px] font-bold uppercase tracking-widest">Free safety recall check</div>
       {n === 0
-        ? <p className="text-green-400 text-sm">✓ No safety recalls on file for the {r.vehicle}.</p>
+        ? <div className="text-green-400 text-sm">✓ No safety recalls on file for the {r.vehicle}.</div>
         : <>
-            <p className="text-amber-300 text-sm font-bold">⚠ {n} safety recall{n === 1 ? '' : 's'} on file for the {r.vehicle}</p>
+            <div className="text-amber-300 text-sm font-bold">⚠ {n} safety recall{n === 1 ? '' : 's'} on file for the {r.vehicle}</div>
             {r.recalls.slice(0, 5).map(x => (
-              <p key={x.campaign} className="text-gray-300 text-sm"><b className="text-white">{x.component}</b> — {x.summary.length > 160 ? `${x.summary.slice(0, 160)}…` : x.summary}</p>
+              <div key={x.campaign} className="text-gray-300 text-sm"><b className="text-white">{x.component}</b> — {x.summary.length > 160 ? `${x.summary.slice(0, 160)}…` : x.summary}</div>
             ))}
-            <p className="text-gray-400 text-xs">Recall repairs are free at any dealer. Some may already be done on your vehicle: check yours by VIN at <a className="underline" href="https://www.nhtsa.gov/recalls" target="_blank" rel="noopener noreferrer">nhtsa.gov/recalls</a>.</p>
+            <div className="text-gray-400 text-xs">Recall repairs are free at any dealer. Some may already be done on your vehicle: check yours by VIN at <a className="underline" href="https://www.nhtsa.gov/recalls" target="_blank" rel="noopener noreferrer">nhtsa.gov/recalls</a>.</div>
           </>}
     </div>
   );
@@ -1061,7 +1061,7 @@ function AxleSchematic({ config, onChange, defaultHours }: {
 
   return (
     <div className="bg-gray-900 border border-gray-700 p-4 space-y-3">
-      <p className="text-gray-500 text-xs font-bold uppercase tracking-widest">Corner Selection — tap to enable</p>
+      <div className="text-gray-500 text-xs font-bold uppercase tracking-widest">Corner Selection — tap to enable</div>
 
       {/* 2x2 grid matching car layout */}
       <div className="grid grid-cols-2 gap-2 max-w-xs mx-auto">
@@ -1111,9 +1111,9 @@ function AxleSchematic({ config, onChange, defaultHours }: {
                     />
                   </div>
                   {c.parts && (
-                    <p className="text-gray-600 text-[10px]">
+                    <div className="text-gray-600 text-[10px]">
                       Parts w/ markup: ${((parseFloat(c.parts) || 0) * (1 + PARTS_MARKUP)).toFixed(2)}
-                    </p>
+                    </div>
                   )}
                 </div>
               )}
@@ -1261,7 +1261,7 @@ function QuoteCalculator({ job, onApply }: { job: Job; onApply: (items: LineItem
 
   return (
     <div className="space-y-4">
-      <p className="text-gray-500 text-xs font-bold uppercase tracking-widest">Quote Calculator</p>
+      <div className="text-gray-500 text-xs font-bold uppercase tracking-widest">Quote Calculator</div>
 
       {/* Service selector */}
       <div>
@@ -1308,7 +1308,7 @@ function QuoteCalculator({ job, onApply }: { job: Job; onApply: (items: LineItem
               <input type="number" value={partsCost} onChange={e => setPartsCost(e.target.value)}
                 placeholder="0.00" className="bg-gray-800 border border-gray-700 text-white px-2 py-2 text-sm font-mono w-full focus:border-red-600 outline-none" />
             </div>
-            {partsCost && <p className="text-gray-600 text-[10px] mt-0.5">Customer sees: ${((parseFloat(partsCost) || 0) * (1 + PARTS_MARKUP)).toFixed(2)}</p>}
+            {partsCost && <div className="text-gray-600 text-[10px] mt-0.5">Customer sees: ${((parseFloat(partsCost) || 0) * (1 + PARTS_MARKUP)).toFixed(2)}</div>}
           </div>
           <div>
             <label className="text-gray-600 text-xs font-bold uppercase tracking-wider block mb-1">Labor Hours</label>
@@ -1321,7 +1321,7 @@ function QuoteCalculator({ job, onApply }: { job: Job; onApply: (items: LineItem
       {/* Line items preview */}
       {items.length > 1 && (
         <div className="bg-gray-900 border border-gray-700 divide-y divide-gray-800">
-          <p className="text-gray-600 text-[10px] font-bold uppercase tracking-widest px-3 py-2">Itemized Quote</p>
+          <div className="text-gray-600 text-[10px] font-bold uppercase tracking-widest px-3 py-2">Itemized Quote</div>
           {items.map(item => (
             <div key={item.id} className="flex justify-between px-3 py-2">
               <span className="text-gray-400 text-xs">{item.label}</span>
@@ -1365,18 +1365,18 @@ function QuoteCalculator({ job, onApply }: { job: Job; onApply: (items: LineItem
             {effectiveSavings > 0 && showShopComparison && (
               <div className="bg-emerald-900/20 border border-emerald-700 p-4 flex items-center justify-between">
                 <div>
-                  <p className="text-emerald-400 text-xs font-bold uppercase tracking-widest">vs. Flagstaff Shops</p>
-                  <p className="text-gray-400 text-xs mt-0.5">They'd charge ~${effectiveShopTotal.toFixed(2)}</p>
-                  <p className="text-emerald-500 text-xs mt-0.5 font-semibold">and we come to you!</p>
+                  <div className="text-emerald-400 text-xs font-bold uppercase tracking-widest">vs. Flagstaff Shops</div>
+                  <div className="text-gray-400 text-xs mt-0.5">They'd charge ~${effectiveShopTotal.toFixed(2)}</div>
+                  <div className="text-emerald-500 text-xs mt-0.5 font-semibold">and we come to you!</div>
                 </div>
                 <div className="text-right">
-                  <p className="text-emerald-400 text-2xl font-black">-${effectiveSavings.toFixed(2)}</p>
-                  <p className="text-emerald-600 text-[10px] font-bold uppercase">Customer Saves</p>
+                  <div className="text-emerald-400 text-2xl font-black">-${effectiveSavings.toFixed(2)}</div>
+                  <div className="text-emerald-600 text-[10px] font-bold uppercase">Customer Saves</div>
                 </div>
               </div>
             )}
             {effectiveSavings > 0 && !showShopComparison && (
-              <p className="text-gray-700 text-xs italic">Savings comparison hidden from customer email</p>
+              <div className="text-gray-700 text-xs italic">Savings comparison hidden from customer email</div>
             )}
           </div>
         );
@@ -1534,8 +1534,8 @@ function AdminPhotoPanel({ entityId, onSave, initialPhotos, onPhotosChange }: {
 
   return (
     <div className="border-t border-gray-800 pt-4 mt-2">
-      <p className="text-yellow-600 text-xs font-bold uppercase tracking-widest mb-1">🔒 Admin Photos</p>
-      <p className="text-gray-600 text-[10px] mb-3">Internal records only — VIN plate, license plate, damage, documentation. Not visible to customer.</p>
+      <div className="text-yellow-600 text-xs font-bold uppercase tracking-widest mb-1">🔒 Admin Photos</div>
+      <div className="text-gray-600 text-[10px] mb-3">Internal records only — VIN plate, license plate, damage, documentation. Not visible to customer.</div>
 
       <input ref={fileRef} type="file" accept="image/*" multiple className="hidden"
         onChange={async e => {
@@ -1548,7 +1548,7 @@ function AdminPhotoPanel({ entityId, onSave, initialPhotos, onPhotosChange }: {
         className={`w-full border border-dashed border-gray-700 text-gray-500 hover:border-yellow-700 hover:text-yellow-600 text-xs font-bold uppercase tracking-wider py-3 transition-colors ${uploading ? 'opacity-50 cursor-not-allowed' : ''}`}>
         {uploading ? '⏳ Uploading…' : '+ Upload Photos'}
       </button>
-      {uploadError && <p className="text-red-400 text-xs mt-2">{uploadError}</p>}
+      {uploadError && <div className="text-red-400 text-xs mt-2">{uploadError}</div>}
 
       {photos.length > 0 && (
         <div className="mt-3 space-y-3">
@@ -1705,8 +1705,8 @@ export function PartsCostPanel({ job, onUpdate }: { job: Job; onUpdate: (j: Job)
 
   return (
     <div className="border-t border-gray-800 pt-4 mt-2">
-      <p className="text-yellow-600 text-xs font-bold uppercase tracking-widest mb-1">🔒 Parts Cost & Profit</p>
-      <p className="text-gray-600 text-[10px] mb-3">Admin only — never shown to the customer.</p>
+      <div className="text-yellow-600 text-xs font-bold uppercase tracking-widest mb-1">🔒 Parts Cost & Profit</div>
+      <div className="text-gray-600 text-[10px] mb-3">Admin only — never shown to the customer.</div>
 
       <label className="block text-gray-500 text-[10px] font-bold uppercase tracking-wider mb-1">Amount Paid for Parts</label>
       <div className="flex gap-2 mb-1">
@@ -1745,7 +1745,7 @@ export function PartsCostPanel({ job, onUpdate }: { job: Job; onUpdate: (j: Job)
         className={`w-full mt-3 border border-dashed border-gray-700 text-gray-500 hover:border-yellow-700 hover:text-yellow-600 text-xs font-bold uppercase tracking-wider py-3 transition-colors ${uploading ? 'opacity-50 cursor-not-allowed' : ''}`}>
         {uploading ? '⏳ Uploading…' : '+ Upload Parts Receipt (HEIC, JPG, PDF)'}
       </button>
-      {uploadError && <p className="text-red-400 text-xs mt-2">{uploadError}</p>}
+      {uploadError && <div className="text-red-400 text-xs mt-2">{uploadError}</div>}
 
       {receipts.length > 0 && (
         <div className="mt-3 space-y-2">
@@ -1979,10 +1979,10 @@ export function PhotoPanel({ job, onUpdate }: { job: Job; onUpdate: (j: Job) => 
           />
         </label>
       </div>
-      <p className="text-gray-700 text-xs text-center">
+      <div className="text-gray-700 text-xs text-center">
         {migrating ? '⏳ Optimizing older photos…' : uploading ? '⏳ Uploading…' : 'Add notes per photo after uploading'}
-      </p>
-      {uploadError && <p className="text-red-400 text-xs text-center">{uploadError}</p>}
+      </div>
+      {uploadError && <div className="text-red-400 text-xs text-center">{uploadError}</div>}
 
       {/* Photo grid */}
       {photos.length === 0 && (
@@ -2161,10 +2161,10 @@ export function VideoPanel({ job, onUpdate }: { job: Job; onUpdate: (j: Job) => 
           />
         </label>
       </div>
-      <p className="text-gray-700 text-xs text-center">
+      <div className="text-gray-700 text-xs text-center">
         {uploading ? '⏳ Uploading…' : 'Up to 80MB per video — add notes after uploading'}
-      </p>
-      {uploadError && <p className="text-red-400 text-xs text-center">{uploadError}</p>}
+      </div>
+      {uploadError && <div className="text-red-400 text-xs text-center">{uploadError}</div>}
 
       {/* Video list */}
       {videos.length === 0 && (
@@ -2285,7 +2285,7 @@ export function InspectionPanel({ job, onUpdate }: { job: Job; onUpdate: (j: Job
 
   const TireGrid = ({ label, values, onChange }: { label: string; values: TireReading; onChange: (k: keyof TireReading, v: string) => void }) => (
     <div>
-      <p className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-2">{label}</p>
+      <div className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-2">{label}</div>
       <div className="grid grid-cols-2 gap-2">
         {TIRE_POSITIONS.map(({ key, label: pos }) => (
           <div key={key} className="flex items-center gap-2 bg-gray-900 border border-gray-800 px-3 py-2">
@@ -2320,11 +2320,11 @@ export function InspectionPanel({ job, onUpdate }: { job: Job; onUpdate: (j: Job
       {/* DTC Codes */}
       <div>
         <div className="flex items-center justify-between mb-2">
-          <p className="text-gray-500 text-xs font-bold uppercase tracking-widest">Diagnostic Codes (DTC)</p>
+          <div className="text-gray-500 text-xs font-bold uppercase tracking-widest">Diagnostic Codes (DTC)</div>
           <button onClick={addCode} className="text-xs font-bold text-red-500 hover:text-red-400 uppercase tracking-widest">+ Add Code</button>
         </div>
         {codes.length === 0 && (
-          <p className="text-gray-700 text-xs italic py-3 text-center">No codes — tap + Add Code to log one</p>
+          <div className="text-gray-700 text-xs italic py-3 text-center">No codes — tap + Add Code to log one</div>
         )}
         <div className="space-y-3">
           {codes.map(c => (
@@ -2457,13 +2457,13 @@ export function PlateLookup({ plate, state, vin, onChange, onFound }: {
           className="w-14 bg-gray-900 text-white text-sm px-3 py-2 outline-none border border-gray-700 focus:border-red-600 transition-colors font-mono text-center" />
       </div>
       {msg && (
-        <p className={`text-[11px] mt-1 ${msg.kind === 'ok' ? 'text-emerald-500' : msg.kind === 'warn' ? 'text-yellow-500' : 'text-red-400'}`}>
+        <div className={`text-[11px] mt-1 ${msg.kind === 'ok' ? 'text-emerald-500' : msg.kind === 'warn' ? 'text-yellow-500' : 'text-red-400'}`}>
           {msg.text}
           {msg.use && (
             <button type="button" onClick={() => { const u = msg.use; setMsg(null); if (u) onFound(u.vin, u.vehicle); }}
               className="ml-2 underline text-gray-500 hover:text-gray-300">Use it</button>
           )}
-        </p>
+        </div>
       )}
     </div>
   );
@@ -2744,18 +2744,18 @@ export function EstimatePanel({ job, onUpdate }: { job: Job; onUpdate: (j: Job) 
         <div className="space-y-1">
           <div className="bg-emerald-900/20 border border-emerald-700 px-4 py-3 flex items-center justify-between">
             <div>
-              <p className="text-emerald-400 text-xs font-bold uppercase tracking-widest">Customer saves vs shops</p>
-              <p className="text-emerald-500 text-xs mt-0.5 font-semibold">and we come to you!</p>
+              <div className="text-emerald-400 text-xs font-bold uppercase tracking-widest">Customer saves vs shops</div>
+              <div className="text-emerald-500 text-xs mt-0.5 font-semibold">and we come to you!</div>
             </div>
             <div className="flex items-center gap-3">
-              <p className="text-emerald-400 font-black text-lg">-${savings.toFixed(2)}</p>
+              <div className="text-emerald-400 font-black text-lg">-${savings.toFixed(2)}</div>
               <label className="flex items-center gap-1.5 cursor-pointer">
                 <input type="checkbox" checked={showShopComparison} onChange={e => setShowShopComparison(e.target.checked)} className="accent-emerald-600 w-3.5 h-3.5" />
                 <span className="text-gray-500 text-[10px] uppercase tracking-wider">Show in email</span>
               </label>
             </div>
           </div>
-          {!showShopComparison && <p className="text-gray-700 text-xs italic">Hidden from customer email</p>}
+          {!showShopComparison && <div className="text-gray-700 text-xs italic">Hidden from customer email</div>}
         </div>
       )}
 
@@ -2776,8 +2776,8 @@ export function EstimatePanel({ job, onUpdate }: { job: Job; onUpdate: (j: Job) 
               className="accent-yellow-500 mt-0.5 flex-shrink-0"
             />
             <div>
-              <p className="text-yellow-400 text-xs font-bold">⚠️ Add Alignment Disclaimer</p>
-              <p className="text-yellow-200/60 text-xs mt-0.5">Adds to scope notes that you don't do alignments and one is recommended after this service.</p>
+              <div className="text-yellow-400 text-xs font-bold">⚠️ Add Alignment Disclaimer</div>
+              <div className="text-yellow-200/60 text-xs mt-0.5">Adds to scope notes that you don't do alignments and one is recommended after this service.</div>
             </div>
           </label>
         </div>
@@ -2797,7 +2797,7 @@ export function EstimatePanel({ job, onUpdate }: { job: Job; onUpdate: (j: Job) 
 
       {/* CYA terms */}
       <div className="bg-gray-800/50 border border-gray-700 p-3">
-        <p className="text-gray-600 text-xs font-bold uppercase tracking-widest mb-2">Terms included</p>
+        <div className="text-gray-600 text-xs font-bold uppercase tracking-widest mb-2">Terms included</div>
         <ul className="space-y-1">
           {CYA_TERMS.map((t, i) => (
             <li key={i} className="text-gray-500 text-xs flex gap-2">
@@ -2829,7 +2829,7 @@ export function EstimatePanel({ job, onUpdate }: { job: Job; onUpdate: (j: Job) 
           </button>
         )}
       </div>
-      {actionError && <p className="text-red-400 text-xs">{actionError}</p>}
+      {actionError && <div className="text-red-400 text-xs">{actionError}</div>}
       <EmailQuickEdit job={job} onUpdate={onUpdate} />
     </div>
   );
@@ -3167,7 +3167,7 @@ export function PaymentPanel({ job, onUpdate, onRequote }: { job: Job; onUpdate:
             placeholder="Stripe Transaction ID (optional)"
             className="w-full bg-gray-800 border border-gray-700 text-white px-2 py-1.5 text-xs font-mono outline-none focus:border-yellow-700 placeholder-gray-600"
           />
-          {editError && <p className="text-red-400 text-xs">{editError}</p>}
+          {editError && <div className="text-red-400 text-xs">{editError}</div>}
           <div className="flex gap-2">
             <button onClick={() => setEditingPaymentId(null)} className="flex-1 border border-gray-600 text-gray-400 text-xs font-bold py-1.5 hover:border-white hover:text-white transition-colors">Cancel</button>
             <button onClick={saveEditPayment} disabled={savingEdit || !editAmt || parseFloat(editAmt) <= 0} className="flex-1 bg-yellow-700 hover:bg-yellow-600 disabled:opacity-40 text-white text-xs font-bold py-1.5 transition-colors">
@@ -3416,9 +3416,9 @@ export function PaymentPanel({ job, onUpdate, onRequote }: { job: Job; onUpdate:
   if (job.jobStatus === 'PAID') {
     return (
       <div className="bg-emerald-900/20 border border-emerald-800 p-5 space-y-2">
-        <p className="text-emerald-400 text-sm font-bold uppercase tracking-widest">✓ Paid</p>
-        <p className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-1">Total Charged</p>
-        <p className="text-white text-3xl font-black">${((job.invoiceAmount || 0) + (job.taxAmount || 0)).toFixed(2)}</p>
+        <div className="text-emerald-400 text-sm font-bold uppercase tracking-widest">✓ Paid</div>
+        <div className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-1">Total Charged</div>
+        <div className="text-white text-3xl font-black">${((job.invoiceAmount || 0) + (job.taxAmount || 0)).toFixed(2)}</div>
         <div className="flex justify-between text-xs mt-3">
           <span className="text-gray-600">Subtotal</span>
           <span className="text-gray-400 font-mono">${(job.invoiceAmount || 0).toFixed(2)}</span>
@@ -3429,7 +3429,7 @@ export function PaymentPanel({ job, onUpdate, onRequote }: { job: Job; onUpdate:
         </div>
         {job.payments?.length > 0 ? (
           <div className="mt-3 pt-3 border-t border-emerald-800/50 space-y-1.5">
-            <p className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-1">Payments Received</p>
+            <div className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-1">Payments Received</div>
             {job.payments.map(p => renderPaymentRow(p, 'text-emerald-400'))}
           </div>
         ) : (
@@ -3438,8 +3438,8 @@ export function PaymentPanel({ job, onUpdate, onRequote }: { job: Job; onUpdate:
             {undoingPayment ? 'Reverting…' : '↩ Remove Payment / Refund'}
           </button>
         )}
-        <p className="text-gray-500 text-xs font-mono">{job.stripeTransactionId}</p>
-        <p className="text-gray-600 text-xs">{job.paidAt ? new Date(job.paidAt).toLocaleString('en-US', { timeZone: 'America/Phoenix' }) : ''}</p>
+        <div className="text-gray-500 text-xs font-mono">{job.stripeTransactionId}</div>
+        <div className="text-gray-600 text-xs">{job.paidAt ? new Date(job.paidAt).toLocaleString('en-US', { timeZone: 'America/Phoenix' }) : ''}</div>
         <a
           href={invoiceUrl}
           target="_blank"
@@ -3459,11 +3459,11 @@ export function PaymentPanel({ job, onUpdate, onRequote }: { job: Job; onUpdate:
           </button>
         </div>
         <div className="flex items-center justify-between gap-2">
-          <p className={`text-xs ${job.invoiceSentCount ? 'text-emerald-700' : 'text-yellow-600'}`}>
+          <div className={`text-xs ${job.invoiceSentCount ? 'text-emerald-700' : 'text-yellow-600'}`}>
             {job.invoiceSentCount
               ? `📧 Invoice emailed ${job.invoiceSentCount}× — last sent ${job.invoiceLastSentAt ? new Date(job.invoiceLastSentAt).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: 'America/Phoenix' }) : ''}`
               : '⚠️ Invoice email never sent to this customer'}
-          </p>
+          </div>
           <button
             onClick={resendInvoice}
             disabled={resending || !job.email}
@@ -3492,11 +3492,11 @@ export function PaymentPanel({ job, onUpdate, onRequote }: { job: Job; onUpdate:
         </button>
       </div>
       <div className="flex items-center justify-between gap-2 -mt-1">
-        <p className={`text-xs ${job.invoiceSentCount ? 'text-gray-600' : 'text-yellow-600'}`}>
+        <div className={`text-xs ${job.invoiceSentCount ? 'text-gray-600' : 'text-yellow-600'}`}>
           {job.invoiceSentCount
             ? `📧 Invoice emailed ${job.invoiceSentCount}× — last sent ${job.invoiceLastSentAt ? new Date(job.invoiceLastSentAt).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: 'America/Phoenix' }) : ''}`
             : '⚠️ Invoice email never sent to this customer'}
-        </p>
+        </div>
         <button
           onClick={resendInvoice}
           disabled={resending || !job.email}
@@ -3551,7 +3551,7 @@ export function PaymentPanel({ job, onUpdate, onRequote }: { job: Job; onUpdate:
             placeholder="e.g. Waived mobile fee, Reduced labor, Loyalty discount"
             className="bg-gray-800 border border-gray-700 text-white px-3 py-2 text-sm w-full focus:border-indigo-500 outline-none"
           />
-          <p className="text-gray-700 text-xs mt-1">Shown on the customer receipt as a line item</p>
+          <div className="text-gray-700 text-xs mt-1">Shown on the customer receipt as a line item</div>
         </div>
       )}
 
@@ -3577,8 +3577,8 @@ export function PaymentPanel({ job, onUpdate, onRequote }: { job: Job; onUpdate:
       {/* Record a Payment — cash, check, Zelle, family-friend discount, etc.
           Use this for any payment that didn't come through Stripe, full or partial. */}
       <div className="bg-gray-900 border border-gray-700 p-4 space-y-3">
-        <p className="text-gray-400 text-xs font-bold uppercase tracking-widest">Record a Payment</p>
-        <p className="text-gray-600 text-[11px]">For cash, check, Zelle, Venmo, or any payment not run through Stripe. Can be partial — balance carries forward.</p>
+        <div className="text-gray-400 text-xs font-bold uppercase tracking-widest">Record a Payment</div>
+        <div className="text-gray-600 text-[11px]">For cash, check, Zelle, Venmo, or any payment not run through Stripe. Can be partial — balance carries forward.</div>
         <div className="flex gap-2">
           <div className="flex items-center gap-1.5 bg-gray-800 border border-gray-700 px-3">
             <span className="text-gray-500 text-sm font-bold">$</span>
@@ -3618,7 +3618,7 @@ export function PaymentPanel({ job, onUpdate, onRequote }: { job: Job; onUpdate:
           placeholder="Stripe Transaction ID (optional — ch_xxx or pi_xxx, e.g. for Tap to Pay)"
           className="w-full bg-gray-800 border border-gray-700 text-white px-3 py-2 text-sm font-mono outline-none focus:border-yellow-700 placeholder-gray-600"
         />
-        {recordError && <p className="text-red-400 text-xs">{recordError}</p>}
+        {recordError && <div className="text-red-400 text-xs">{recordError}</div>}
         <button
           onClick={recordPayment}
           disabled={!paymentAmt || parseFloat(paymentAmt) <= 0 || recordingPayment}
@@ -3633,12 +3633,12 @@ export function PaymentPanel({ job, onUpdate, onRequote }: { job: Job; onUpdate:
         <div className="bg-gray-900 border border-gray-700 p-4 space-y-3">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-gray-400 text-xs font-bold uppercase tracking-widest mb-0.5">Card on File</p>
-              <p className="text-white text-sm font-mono">•••• •••• •••• {job.stripeLast4 || '****'}</p>
+              <div className="text-gray-400 text-xs font-bold uppercase tracking-widest mb-0.5">Card on File</div>
+              <div className="text-white text-sm font-mono">•••• •••• •••• {job.stripeLast4 || '****'}</div>
             </div>
             <span className="text-emerald-400 text-xs font-bold">✓ Saved</span>
           </div>
-          {chargeError && <p className="text-red-400 text-xs">{chargeError}</p>}
+          {chargeError && <div className="text-red-400 text-xs">{chargeError}</div>}
           {!chargeConfirm ? (
             <button
               onClick={() => setChargeConfirm(true)}
@@ -3650,12 +3650,12 @@ export function PaymentPanel({ job, onUpdate, onRequote }: { job: Job; onUpdate:
             </button>
           ) : (
             <div className="space-y-2">
-              <p className="text-yellow-400 text-xs font-bold">Confirm charge of ${(amountPaidSoFar > 0 ? balanceDue : totalForAmount(finalAmount)).toFixed(2)} to •••• {job.stripeLast4}?</p>
-              <p className="text-gray-600 text-xs">
+              <div className="text-yellow-400 text-xs font-bold">Confirm charge of ${(amountPaidSoFar > 0 ? balanceDue : totalForAmount(finalAmount)).toFixed(2)} to •••• {job.stripeLast4}?</div>
+              <div className="text-gray-600 text-xs">
                 {amountPaidSoFar > 0
                   ? `Remaining balance after $${amountPaidSoFar.toFixed(2)} already paid`
                   : `${finalAmount.toFixed(2)} subtotal + ${taxForAmount(finalAmount).toFixed(2)} tax`}
-              </p>
+              </div>
               <div className="flex gap-2">
                 <button onClick={() => setChargeConfirm(false)} className="flex-1 border border-gray-600 text-gray-400 text-xs font-bold py-2 hover:border-white hover:text-white transition-colors">Cancel</button>
                 <button onClick={chargeCardOnFile} disabled={charging} className="flex-1 bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-bold py-2 transition-colors disabled:opacity-40">
@@ -3667,7 +3667,7 @@ export function PaymentPanel({ job, onUpdate, onRequote }: { job: Job; onUpdate:
         </div>
       ) : (
         <div className="bg-gray-900/50 border border-gray-800 px-4 py-3">
-          <p className="text-gray-500 text-xs">No card on file — use manual entry below or Tap to Pay.</p>
+          <div className="text-gray-500 text-xs">No card on file — use manual entry below or Tap to Pay.</div>
         </div>
       )}
 
@@ -3686,7 +3686,7 @@ export function PaymentPanel({ job, onUpdate, onRequote }: { job: Job; onUpdate:
               placeholder="ch_xxxxxxxx or pi_xxxxxxxx"
               className="bg-gray-800 border border-gray-700 text-white px-3 py-2 text-sm font-mono w-full focus:border-red-600 outline-none"
             />
-            <p className="text-gray-700 text-xs mt-1">Paste from Stripe dashboard or Tap to Pay receipt</p>
+            <div className="text-gray-700 text-xs mt-1">Paste from Stripe dashboard or Tap to Pay receipt</div>
           </div>
           <div className="flex gap-3 flex-wrap">
             <button onClick={markInvoiced} disabled={saving || job.jobStatus === 'INVOICED'}
@@ -3730,11 +3730,11 @@ function SignedDocSection({ job }: { job: Job }) {
       <div className="bg-purple-900/20 border border-purple-800 p-4">
         <div className="flex items-start justify-between gap-3">
           <div className="space-y-1">
-            <p className="text-purple-400 text-xs font-bold uppercase tracking-widest">✓ Estimate Signed</p>
-            <p className="text-white text-sm font-bold">{job.customerSignature}</p>
-            {job.preExistingDamage && <p className="text-gray-400 text-xs">Pre-existing damage: {job.preExistingDamage}</p>}
-            {job.signedAt && <p className="text-gray-600 text-xs">{signedDate}</p>}
-            {job.signedIp && <p className="text-gray-700 text-[10px] font-mono">IP: {job.signedIp}</p>}
+            <div className="text-purple-400 text-xs font-bold uppercase tracking-widest">✓ Estimate Signed</div>
+            <div className="text-white text-sm font-bold">{job.customerSignature}</div>
+            {job.preExistingDamage && <div className="text-gray-400 text-xs">Pre-existing damage: {job.preExistingDamage}</div>}
+            {job.signedAt && <div className="text-gray-600 text-xs">{signedDate}</div>}
+            {job.signedIp && <div className="text-gray-700 text-[10px] font-mono">IP: {job.signedIp}</div>}
           </div>
           <button
             onClick={() => setOpen(true)}
@@ -3751,14 +3751,14 @@ function SignedDocSection({ job }: { job: Job }) {
           <div className="bg-[#0f0f0f] border border-gray-700 w-full max-w-lg my-4 relative print-modal-inner print-doc" onClick={e => e.stopPropagation()}>
             <div className="sticky top-0 bg-[#0f0f0f] border-b border-gray-800 px-6 py-4 flex items-center justify-between z-10 no-print">
               <div>
-                <p className="text-purple-400 text-xs font-bold uppercase tracking-widest">Signed Document</p>
+                <div className="text-purple-400 text-xs font-bold uppercase tracking-widest">Signed Document</div>
                 <h3 className="text-white font-black text-base mt-0.5">{job.fname} {job.lname}</h3>
               </div>
               <button onClick={() => setOpen(false)} className="text-gray-500 hover:text-white text-2xl leading-none transition-colors">×</button>
             </div>
             {/* Print-only header — the sticky one above is hidden when printing */}
             <div className="hidden print:block px-6 pt-6">
-              <p className="text-xs font-bold uppercase tracking-widest">Signed Document</p>
+              <div className="text-xs font-bold uppercase tracking-widest">Signed Document</div>
               <h3 className="font-black text-base mt-0.5">{job.fname} {job.lname}</h3>
             </div>
 
@@ -3781,7 +3781,7 @@ function SignedDocSection({ job }: { job: Job }) {
               {/* Line items */}
               {job.lineItems?.length > 0 && (
                 <div className="border border-white/10 divide-y divide-white/5">
-                  <p className="text-gray-600 text-[10px] font-bold uppercase tracking-widest px-4 py-2">Itemized</p>
+                  <div className="text-gray-600 text-[10px] font-bold uppercase tracking-widest px-4 py-2">Itemized</div>
                   <LineHead pad="px-4" />{job.lineItems.map(item => <LineRow key={item.id} item={item} pad="px-4 py-2" />)}
                 </div>
               )}
@@ -3789,13 +3789,13 @@ function SignedDocSection({ job }: { job: Job }) {
               {/* Scope notes */}
               {job.estimateNotes && (
                 <div className="bg-white/5 border-l-4 border-red-600 px-4 py-3">
-                  <p className="text-gray-400 text-sm leading-relaxed whitespace-pre-wrap">{job.estimateNotes}</p>
+                  <div className="text-gray-400 text-sm leading-relaxed whitespace-pre-wrap">{job.estimateNotes}</div>
                 </div>
               )}
 
               {/* Terms agreed to */}
               <div className="bg-white/5 border border-white/10 p-4">
-                <p className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-3">Terms Agreed To</p>
+                <div className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-3">Terms Agreed To</div>
                 <ul className="space-y-2">
                   {estimateTermsFor(job).all.map((t, i) => (
                     <li key={i} className="text-gray-400 text-xs flex gap-2">
@@ -3808,17 +3808,17 @@ function SignedDocSection({ job }: { job: Job }) {
               {/* Pre-existing damage */}
               {job.preExistingDamage && (
                 <div className="bg-yellow-900/20 border border-yellow-800 px-4 py-3">
-                  <p className="text-yellow-500 text-xs font-bold uppercase tracking-widest mb-1">Pre-Existing Damage Noted</p>
-                  <p className="text-gray-300 text-sm">{job.preExistingDamage}</p>
+                  <div className="text-yellow-500 text-xs font-bold uppercase tracking-widest mb-1">Pre-Existing Damage Noted</div>
+                  <div className="text-gray-300 text-sm">{job.preExistingDamage}</div>
                 </div>
               )}
 
               {/* Signature block */}
               <div className="bg-purple-900/20 border border-purple-800 px-4 py-4">
-                <p className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-2">Electronic Signature</p>
-                <p className="text-white text-lg font-bold" style={{ fontFamily: 'Georgia, serif', fontStyle: 'italic' }}>{job.customerSignature}</p>
-                <p className="text-gray-600 text-xs mt-1">{signedDate}</p>
-                <p className="text-gray-700 text-[10px] mt-2">Signed electronically under the Uniform Electronic Transactions Act (UETA). This constitutes a legally binding agreement.</p>
+                <div className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-2">Electronic Signature</div>
+                <div className="text-white text-lg font-bold" style={{ fontFamily: 'Georgia, serif', fontStyle: 'italic' }}>{job.customerSignature}</div>
+                <div className="text-gray-600 text-xs mt-1">{signedDate}</div>
+                <div className="text-gray-700 text-[10px] mt-2">Signed electronically under the Uniform Electronic Transactions Act (UETA). This constitutes a legally binding agreement.</div>
               </div>
 
               <button
@@ -3903,7 +3903,7 @@ function ScanUploadBox({ job, stage, onUpdate }: { job: Job; stage: 'pre' | 'pos
 
   return (
     <div className="bg-gray-900 border border-gray-800 p-3">
-      <p className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-2">{stage === 'pre' ? '🔍' : '✅'} {label}</p>
+      <div className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-2">{stage === 'pre' ? '🔍' : '✅'} {label}</div>
       {doc ? (
         <div className="space-y-2">
           <button onClick={() => viewer.open({ url: doc.url, name: doc.name })} className="block text-indigo-400 hover:text-indigo-300 text-xs truncate underline text-left">
@@ -3957,7 +3957,7 @@ function ScanUploadBox({ job, stage, onUpdate }: { job: Job; stage: 'pre' | 'pos
           )}
         </div>
       )}
-      {error && <p className="text-red-400 text-[10px] mt-1">{error}</p>}
+      {error && <div className="text-red-400 text-[10px] mt-1">{error}</div>}
       <DocViewerModal doc={viewer.doc} onClose={viewer.close} />
     </div>
   );
@@ -3998,13 +3998,13 @@ function PaymentLinkBox({ job, onUpdate }: { job: Job; onUpdate: (j: Job) => voi
 
   return (
     <div className="bg-gray-900 border border-gray-800 p-3">
-      <p className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-2">💳 Payment Link</p>
+      <div className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-2">💳 Payment Link</div>
       {job.paymentLink && !editing ? (
         <div className="space-y-2">
           <a href={job.paymentLink} target="_blank" rel="noopener noreferrer" className="block text-indigo-400 hover:text-indigo-300 text-xs truncate underline">
             {job.paymentLink}
           </a>
-          <p className="text-gray-600 text-[10px]">Shown to the customer as a "Pay Now" button on their invoice.</p>
+          <div className="text-gray-600 text-[10px]">Shown to the customer as a "Pay Now" button on their invoice.</div>
           <div className="flex gap-3">
             <button onClick={() => { setLinkUrl(job.paymentLink || ''); setEditing(true); }} className="text-gray-500 hover:text-gray-300 text-[10px] font-bold uppercase tracking-wider transition-colors">
               Edit
@@ -4038,10 +4038,10 @@ function PaymentLinkBox({ job, onUpdate }: { job: Job; onUpdate: (j: Job) => voi
               </button>
             )}
           </div>
-          <p className="text-gray-600 text-[10px]">Paste your pay.bluevine.com link for this customer.</p>
+          <div className="text-gray-600 text-[10px]">Paste your pay.bluevine.com link for this customer.</div>
         </div>
       )}
-      {error && <p className="text-red-400 text-[10px] mt-1">{error}</p>}
+      {error && <div className="text-red-400 text-[10px] mt-1">{error}</div>}
     </div>
   );
 }
@@ -4119,9 +4119,9 @@ function JobMileageBox({ job }: { job: Job }) {
 
   return (
     <div className="bg-gray-900 border border-gray-800 p-3">
-      <p className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-2">🚗 Trip Miles <span className="text-gray-700 normal-case tracking-normal font-normal">(internal — not shown to customer)</span></p>
+      <div className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-2">🚗 Trip Miles <span className="text-gray-700 normal-case tracking-normal font-normal">(internal — not shown to customer)</span></div>
       {loading ? (
-        <p className="text-gray-600 text-xs">Loading…</p>
+        <div className="text-gray-600 text-xs">Loading…</div>
       ) : (
         <div className="space-y-1.5">
           <div className="flex gap-1.5 items-center">
@@ -4149,11 +4149,11 @@ function JobMileageBox({ job }: { job: Job }) {
               {saving ? 'Saving…' : savedMiles != null ? 'Update' : 'Log Miles'}
             </button>
           </div>
-          {calcErr && <p className="text-red-400 text-[10px] break-words">{calcErr}</p>}
+          {calcErr && <div className="text-red-400 text-[10px] break-words">{calcErr}</div>}
         </div>
       )}
       {savedMiles != null && !loading && (
-        <p className="text-gray-600 text-[10px] mt-1.5">Logged in the Mileage tab — counts toward your YTD deduction total.</p>
+        <div className="text-gray-600 text-[10px] mt-1.5">Logged in the Mileage tab — counts toward your YTD deduction total.</div>
       )}
     </div>
   );
@@ -4379,7 +4379,7 @@ export function JobDetailPanel({ job: initialJob, onClose, onJobUpdate, backLabe
         {/* Header */}
         <div className="sticky top-0 bg-gray-950 border-b border-gray-800 px-6 py-4 flex items-start justify-between z-10">
           <div>
-            <p className="text-red-500 text-xs font-bold uppercase tracking-widest mb-0.5">Job Detail</p>
+            <div className="text-red-500 text-xs font-bold uppercase tracking-widest mb-0.5">Job Detail</div>
             {job.customerId ? (
               <button
                 onClick={() => setShowCustomerFile(true)}
@@ -4391,11 +4391,11 @@ export function JobDetailPanel({ job: initialJob, onClose, onJobUpdate, backLabe
             ) : (
               <h2 className="text-white font-black text-lg">{job.fname} {job.lname}</h2>
             )}
-            <p className="text-gray-500 text-sm">{resolveServiceName(job.service, job.notes)} · {job.vehicle}</p>
+            <div className="text-gray-500 text-sm">{resolveServiceName(job.service, job.notes)} · {job.vehicle}</div>
             {job.dateTbd ? (
-              <p className="text-indigo-400 text-xs font-bold uppercase tracking-wider mt-0.5">Date TBD — not yet scheduled</p>
+              <div className="text-indigo-400 text-xs font-bold uppercase tracking-wider mt-0.5">Date TBD — not yet scheduled</div>
             ) : (
-              <p className="text-gray-600 text-xs mt-0.5">{dateStr}{apptTimeLabel(job.time)}</p>
+              <div className="text-gray-600 text-xs mt-0.5">{dateStr}{apptTimeLabel(job.time)}</div>
             )}
           </div>
           <button onClick={onClose} className="no-print flex-shrink-0 text-gray-400 hover:text-white text-xs font-bold uppercase tracking-widest border border-gray-700 hover:border-red-600 px-3 py-2 mt-0.5 transition-colors whitespace-nowrap">← {backLabel}</button>
@@ -4543,13 +4543,13 @@ export function JobDetailPanel({ job: initialJob, onClose, onJobUpdate, backLabe
                       <input type="text" value={editVin} onChange={e => onVinInput(e.target.value)} placeholder="1FTFW1E5..."
                         className="w-full bg-gray-900 text-white text-sm px-3 py-2 outline-none border border-gray-700 focus:border-red-600 transition-colors font-mono" />
                       {vinMsg && (
-                        <p className={`text-[10px] mt-1 ${vinMsg.kind === 'ok' ? 'text-emerald-500' : vinMsg.kind === 'warn' ? 'text-yellow-500' : 'text-red-400'}`}>
+                        <div className={`text-[10px] mt-1 ${vinMsg.kind === 'ok' ? 'text-emerald-500' : vinMsg.kind === 'warn' ? 'text-yellow-500' : 'text-red-400'}`}>
                           {vinMsg.text}
                           {vinMsg.kind === 'ok' && vinMsg.undo !== undefined && (
                             <button type="button" onClick={() => { setEditVehicle(vinMsg.undo ?? ''); setVinMsg(null); }}
                               className="ml-2 underline text-gray-500 hover:text-gray-300">Undo</button>
                           )}
-                        </p>
+                        </div>
                       )}
                     </div>
                     <div>
@@ -4587,14 +4587,14 @@ export function JobDetailPanel({ job: initialJob, onClose, onJobUpdate, backLabe
                     <textarea value={editNotes} onChange={e => setEditNotes(e.target.value)} rows={3}
                       className="w-full bg-gray-900 text-white text-sm px-3 py-2 outline-none border border-gray-700 focus:border-red-600 transition-colors resize-none" />
                   </div>
-                  {apptErr && <p className="text-red-400 text-xs">{apptErr}</p>}
+                  {apptErr && <div className="text-red-400 text-xs">{apptErr}</div>}
                   {identityPrompt && (
                     <div className="border border-yellow-700/60 bg-yellow-900/10 p-3 space-y-2">
-                      <p className="text-yellow-500 text-xs font-bold uppercase tracking-wider">This customer has other jobs</p>
-                      <p className="text-gray-300 text-xs">{identityPrompt.changes}</p>
-                      <p className="text-gray-500 text-[11px]">
+                      <div className="text-yellow-500 text-xs font-bold uppercase tracking-wider">This customer has other jobs</div>
+                      <div className="text-gray-300 text-xs">{identityPrompt.changes}</div>
+                      <div className="text-gray-500 text-[11px]">
                         This customer file has {identityPrompt.others} other job{identityPrompt.others === 1 ? '' : 's'} ({identityPrompt.open} still open). Signed jobs are never changed. Nothing is saved until you pick one.
-                      </p>
+                      </div>
                       <button onClick={() => saveAppt('job')} disabled={apptSaving}
                         className="w-full text-left border border-gray-700 hover:border-emerald-600 text-gray-200 text-xs font-bold px-3 py-2 transition-colors">
                         Update this job only
@@ -4626,7 +4626,7 @@ export function JobDetailPanel({ job: initialJob, onClose, onJobUpdate, backLabe
                       Cancel
                     </button>
                   </div>
-                  <p className="text-yellow-600/70 text-[10px]">⚠️ Customer will not be auto-notified of changes — call or text them manually.</p>
+                  <div className="text-yellow-600/70 text-[10px]">⚠️ Customer will not be auto-notified of changes — call or text them manually.</div>
                 </div>
               )}
 
@@ -4638,9 +4638,9 @@ export function JobDetailPanel({ job: initialJob, onClose, onJobUpdate, backLabe
               {/* Payment summary if paid */}
               {job.jobStatus === 'PAID' && (
                 <div className="bg-emerald-900/20 border border-emerald-800 p-4 space-y-1">
-                  <p className="text-emerald-400 text-xs font-bold uppercase tracking-widest">✓ Paid</p>
-                  <p className="text-white text-2xl font-black">${((job.invoiceAmount || 0) + (job.taxAmount || 0)).toFixed(2)}</p>
-                  <p className="text-gray-500 text-xs font-mono">{job.stripeTransactionId}</p>
+                  <div className="text-emerald-400 text-xs font-bold uppercase tracking-widest">✓ Paid</div>
+                  <div className="text-white text-2xl font-black">${((job.invoiceAmount || 0) + (job.taxAmount || 0)).toFixed(2)}</div>
+                  <div className="text-gray-500 text-xs font-mono">{job.stripeTransactionId}</div>
                 </div>
               )}
 
@@ -4650,7 +4650,7 @@ export function JobDetailPanel({ job: initialJob, onClose, onJobUpdate, backLabe
                   SignedDocSection's own itemized list) already covers it. */}
               {job.lineItems?.length > 0 && job.jobStatus !== 'PAID' && !job.customerAgreed && (
                 <div className="hidden print:block border border-white/10 divide-y divide-white/5">
-                  <p className="text-gray-600 text-[10px] font-bold uppercase tracking-widest px-4 py-2">Estimate</p>
+                  <div className="text-gray-600 text-[10px] font-bold uppercase tracking-widest px-4 py-2">Estimate</div>
                   <LineHead pad="px-4" />{job.lineItems.map(item => <LineRow key={item.id} item={item} pad="px-4 py-2" />)}
                   <div className="flex justify-between px-4 py-2">
                     <span className="text-gray-500 text-xs font-bold uppercase tracking-wider">Subtotal</span>
@@ -4676,7 +4676,7 @@ export function JobDetailPanel({ job: initialJob, onClose, onJobUpdate, backLabe
 
               {/* Quick status buttons */}
               <div className="no-print">
-                <p className="text-gray-600 text-xs font-bold uppercase tracking-widest mb-3">Quick Actions</p>
+                <div className="text-gray-600 text-xs font-bold uppercase tracking-widest mb-3">Quick Actions</div>
                 <div className="flex flex-wrap gap-2">
                   {job.jobStatus === 'SIGNED' && (
                     <button onClick={() => setJobStatus('IN_PROGRESS')}
@@ -4743,7 +4743,7 @@ export function JobDetailPanel({ job: initialJob, onClose, onJobUpdate, backLabe
 
               {/* Photos — inline in overview (same as Schedule) */}
               <div className="no-print border-t border-gray-800 pt-4">
-                <p className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-3">📷 Photos & Documentation</p>
+                <div className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-3">📷 Photos & Documentation</div>
                 <PhotoPanel job={job} onUpdate={handleUpdate} />
                 <div className="mt-4">
                   <AdminPhotoPanel
@@ -4760,7 +4760,7 @@ export function JobDetailPanel({ job: initialJob, onClose, onJobUpdate, backLabe
 
               {/* Videos — shown to customer on the invoice page */}
               <div className="no-print border-t border-gray-800 pt-4">
-                <p className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-3">🎥 Videos</p>
+                <div className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-3">🎥 Videos</div>
                 <VideoPanel job={job} onUpdate={handleUpdate} />
               </div>
             </div>
@@ -4835,7 +4835,7 @@ function CustomerFileModal({ customerId, jobs, onClose, onSelectJob }: {
     return (
       <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 p-4" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
         <div className="bg-gray-950 border border-gray-800 p-6 max-w-sm text-center">
-          <p className="text-gray-400 text-sm mb-4">No jobs found on file for this customer.</p>
+          <div className="text-gray-400 text-sm mb-4">No jobs found on file for this customer.</div>
           <button onClick={onClose} className="text-xs font-bold uppercase tracking-widest border border-gray-700 hover:border-red-600 px-3 py-2 transition-colors">Close</button>
         </div>
       </div>
@@ -4886,17 +4886,17 @@ function CustomerFileModal({ customerId, jobs, onClose, onSelectJob }: {
         {/* Hero stat — lifetime revenue leads, everything else is supporting context */}
         <div className="px-6 py-5 border-b border-gray-800 flex items-end justify-between gap-4">
           <div>
-            <p className="text-gray-500 text-[10px] font-bold uppercase tracking-wider mb-1">Lifetime Revenue</p>
-            <p className="text-emerald-400 font-black text-4xl leading-none">${totalRevenue.toFixed(0)}</p>
+            <div className="text-gray-500 text-[10px] font-bold uppercase tracking-wider mb-1">Lifetime Revenue</div>
+            <div className="text-emerald-400 font-black text-4xl leading-none">${totalRevenue.toFixed(0)}</div>
           </div>
           <div className="flex gap-5 flex-shrink-0 pb-0.5">
             <div className="text-right">
-              <p className="text-white font-black text-lg leading-none">{filteredJobs.length}</p>
-              <p className="text-gray-500 text-[10px] font-bold uppercase tracking-wider mt-1">Job{filteredJobs.length === 1 ? '' : 's'}</p>
+              <div className="text-white font-black text-lg leading-none">{filteredJobs.length}</div>
+              <div className="text-gray-500 text-[10px] font-bold uppercase tracking-wider mt-1">Job{filteredJobs.length === 1 ? '' : 's'}</div>
             </div>
             <div className="text-right">
-              <p className="text-white font-black text-lg leading-none">{sinceLabel}</p>
-              <p className="text-gray-500 text-[10px] font-bold uppercase tracking-wider mt-1">Since</p>
+              <div className="text-white font-black text-lg leading-none">{sinceLabel}</div>
+              <div className="text-gray-500 text-[10px] font-bold uppercase tracking-wider mt-1">Since</div>
             </div>
           </div>
         </div>
@@ -4904,7 +4904,7 @@ function CustomerFileModal({ customerId, jobs, onClose, onSelectJob }: {
         {vehicles.length > 0 && (
           <div className="px-6 py-3 border-b border-gray-800">
             <div className="flex items-center justify-between mb-1.5">
-              <p className="text-gray-500 text-[10px] font-bold uppercase tracking-wider">Vehicles on File</p>
+              <div className="text-gray-500 text-[10px] font-bold uppercase tracking-wider">Vehicles on File</div>
               {vehicleFilter && (
                 <button onClick={() => setVehicleFilter(null)} className="text-red-400 hover:text-red-300 text-[10px] font-bold uppercase tracking-wider transition-colors">
                   Clear filter ✕
@@ -4939,14 +4939,14 @@ function CustomerFileModal({ customerId, jobs, onClose, onSelectJob }: {
 
         {/* Job history — a real timeline, since it's genuinely chronological */}
         <div className="px-6 py-4">
-          <p className="text-gray-500 text-[10px] font-bold uppercase tracking-wider mb-3">
+          <div className="text-gray-500 text-[10px] font-bold uppercase tracking-wider mb-3">
             {vehicleFilter ? `Job History · ${vehicleFilter}` : 'Job History'}
-          </p>
+          </div>
           <div className="relative">
             <div className="absolute left-[5px] top-1.5 bottom-1.5 w-px bg-gray-800" />
             <div className="space-y-4">
               {filteredJobs.length === 0 && (
-                <p className="text-gray-600 text-xs pl-6">No jobs found for this vehicle.</p>
+                <div className="text-gray-600 text-xs pl-6">No jobs found for this vehicle.</div>
               )}
               {filteredJobs.map(j => {
                 const dStr = new Date(j.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
@@ -4961,8 +4961,8 @@ function CustomerFileModal({ customerId, jobs, onClose, onSelectJob }: {
                     <span className={`absolute left-0 top-1.5 w-[11px] h-[11px] rounded-full ring-4 ring-gray-950 ${dotColor}`} />
                     <div className="flex items-center justify-between gap-3 -mt-0.5 px-3 py-2 group-hover:bg-gray-900/60 transition-colors">
                       <div className="min-w-0">
-                        <p className="text-white text-sm font-bold truncate group-hover:text-red-400 transition-colors">{resolveServiceName(j.service, j.notes)}</p>
-                        <p className="text-gray-500 text-xs truncate">{j.vehicle} · {dStr}</p>
+                        <div className="text-white text-sm font-bold truncate group-hover:text-red-400 transition-colors">{resolveServiceName(j.service, j.notes)}</div>
+                        <div className="text-gray-500 text-xs truncate">{j.vehicle} · {dStr}</div>
                       </div>
                       <div className="flex items-center gap-2 flex-shrink-0">
                         {amount ? <span className="text-gray-400 text-xs font-bold">${amount.toFixed(0)}</span> : null}
@@ -5148,7 +5148,7 @@ export function CustomersTab() {
 
       <div className="flex items-center justify-between mb-5">
         <div>
-          <p className="text-red-500 text-xs font-bold uppercase tracking-widest mb-0.5">Admin · GID Garage</p>
+          <div className="text-red-500 text-xs font-bold uppercase tracking-widest mb-0.5">Admin · GID Garage</div>
           <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tight">Customers</h2>
         </div>
       </div>
@@ -5156,16 +5156,16 @@ export function CustomersTab() {
       {/* Stat strip */}
       <div className="grid grid-cols-3 gap-2 sm:gap-3 mb-6">
         <div className="cust-stat bg-gray-900 border border-gray-800 px-4 py-3" style={{ animationDelay: '0ms' }}>
-          <p className="text-white font-black text-2xl sm:text-3xl leading-none">{Math.round(statCustomers)}</p>
-          <p className="text-gray-500 text-[10px] font-bold uppercase tracking-wider mt-1">Customers</p>
+          <div className="text-white font-black text-2xl sm:text-3xl leading-none">{Math.round(statCustomers)}</div>
+          <div className="text-gray-500 text-[10px] font-bold uppercase tracking-wider mt-1">Customers</div>
         </div>
         <div className="cust-stat bg-gray-900 border border-gray-800 px-4 py-3" style={{ animationDelay: '60ms' }}>
-          <p className="text-emerald-400 font-black text-2xl sm:text-3xl leading-none">${statRevenue.toFixed(0)}</p>
-          <p className="text-gray-500 text-[10px] font-bold uppercase tracking-wider mt-1">Lifetime Revenue</p>
+          <div className="text-emerald-400 font-black text-2xl sm:text-3xl leading-none">${statRevenue.toFixed(0)}</div>
+          <div className="text-gray-500 text-[10px] font-bold uppercase tracking-wider mt-1">Lifetime Revenue</div>
         </div>
         <div className="cust-stat bg-gray-900 border border-gray-800 px-4 py-3" style={{ animationDelay: '120ms' }}>
-          <p className="text-amber-400 font-black text-2xl sm:text-3xl leading-none">{statRepeatPct.toFixed(0)}%</p>
-          <p className="text-gray-500 text-[10px] font-bold uppercase tracking-wider mt-1">Repeat Rate</p>
+          <div className="text-amber-400 font-black text-2xl sm:text-3xl leading-none">{statRepeatPct.toFixed(0)}%</div>
+          <div className="text-gray-500 text-[10px] font-bold uppercase tracking-wider mt-1">Repeat Rate</div>
         </div>
       </div>
 
@@ -5197,7 +5197,7 @@ export function CustomersTab() {
 
       {!loading && loadError && (
         <div className="text-center py-20">
-          <p className="text-red-400 text-sm mb-3">{loadError}</p>
+          <div className="text-red-400 text-sm mb-3">{loadError}</div>
         </div>
       )}
 
@@ -5230,10 +5230,10 @@ export function CustomersTab() {
                     </div>
                     <div className="min-w-0">
                       <div className="flex items-center gap-1.5 flex-wrap">
-                        <p className="text-white font-bold text-sm truncate">{fullName}</p>
+                        <div className="text-white font-bold text-sm truncate">{fullName}</div>
                         {isVip && <span className="text-amber-400 text-[10px]">👑</span>}
                       </div>
-                      <p className="text-gray-500 text-xs truncate">{c.phone || c.email || 'no contact on file'}</p>
+                      <div className="text-gray-500 text-xs truncate">{c.phone || c.email || 'no contact on file'}</div>
                     </div>
                   </div>
                   {c.jobCount > 1 && (
@@ -5243,20 +5243,20 @@ export function CustomersTab() {
 
                 <div className="flex items-end justify-between gap-2">
                   <div>
-                    <p className="text-emerald-400 font-black text-xl leading-none group-hover:text-emerald-300 transition-colors">${c.totalRevenue.toFixed(0)}</p>
-                    <p className="text-gray-600 text-[10px] font-bold uppercase tracking-wider mt-1">Lifetime</p>
+                    <div className="text-emerald-400 font-black text-xl leading-none group-hover:text-emerald-300 transition-colors">${c.totalRevenue.toFixed(0)}</div>
+                    <div className="text-gray-600 text-[10px] font-bold uppercase tracking-wider mt-1">Lifetime</div>
                   </div>
                   <div className="text-right">
                     <div className="flex items-center gap-1.5 justify-end">
                       <span className={`w-1.5 h-1.5 rounded-full ${dotColor}`} />
-                      <p className="text-gray-300 text-xs font-bold">{c.jobCount} job{c.jobCount === 1 ? '' : 's'}</p>
+                      <div className="text-gray-300 text-xs font-bold">{c.jobCount} job{c.jobCount === 1 ? '' : 's'}</div>
                     </div>
-                    <p className="text-gray-600 text-[10px] mt-1">Last {lastStr}</p>
+                    <div className="text-gray-600 text-[10px] mt-1">Last {lastStr}</div>
                   </div>
                 </div>
 
                 {c.vehicles.length > 0 && (
-                  <p className="text-gray-600 text-[11px] truncate mt-2.5 pt-2.5 border-t border-gray-800">{c.vehicles.join(' · ')}</p>
+                  <div className="text-gray-600 text-[11px] truncate mt-2.5 pt-2.5 border-t border-gray-800">{c.vehicles.join(' · ')}</div>
                 )}
               </button>
             );
@@ -5601,7 +5601,7 @@ export function ExternalLeadModal({ onClose, onAdded, jobs, inspection = false }
         disabled={disabled}
         className={`w-full bg-gray-900 text-white text-sm px-3 py-2.5 outline-none border transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${fieldErr[k] ? 'border-red-500' : 'border-gray-700 focus:border-red-600'}`}
       />
-      {fieldErr[k] && <p className="text-red-500 text-[10px] mt-0.5">{fieldErr[k]}</p>}
+      {fieldErr[k] && <div className="text-red-500 text-[10px] mt-0.5">{fieldErr[k]}</div>}
     </div>
   );
 
@@ -5619,8 +5619,8 @@ export function ExternalLeadModal({ onClose, onAdded, jobs, inspection = false }
         {step === 1 && (
           <>
             <h2 className="text-xl font-black text-white mb-1">{inspection ? PPI_LINE_LABEL : 'External Lead'}</h2>
-            {inspection && <p className="text-gray-500 text-xs mb-5">Creates an estimate the buyer signs before the inspection. It lists what we check, and the checklist waits under PrePI.</p>}
-            <p className={`text-gray-500 text-xs mb-5 ${inspection ? 'hidden' : ''}`}>Yelp, Nextdoor, word of mouth — anyone who didn't book through the site. No appointment time needed yet. This always creates an Estimate — nothing's signed yet, so there's nothing to invoice.</p>
+            {inspection && <div className="text-gray-500 text-xs mb-5">Creates an estimate the buyer signs before the inspection. It lists what we check, and the checklist waits under PrePI.</div>}
+            <div className={`text-gray-500 text-xs mb-5 ${inspection ? 'hidden' : ''}`}>Yelp, Nextdoor, word of mouth — anyone who didn't book through the site. No appointment time needed yet. This always creates an Estimate — nothing's signed yet, so there's nothing to invoice.</div>
 
             <div className="space-y-3">
               <div className="relative">
@@ -5690,7 +5690,7 @@ export function ExternalLeadModal({ onClose, onAdded, jobs, inspection = false }
                       </button>
                     ))}
                   </div>
-                  <p className="text-gray-600 text-[11px] mt-1">Or type a new vehicle for this customer below.</p>
+                  <div className="text-gray-600 text-[11px] mt-1">Or type a new vehicle for this customer below.</div>
                 </div>
               )}
               {inp('vehicle', 'Vehicle * (Year Make Model Trim)', 'text', '2019 Toyota Camry LE')}
@@ -5705,10 +5705,10 @@ export function ExternalLeadModal({ onClose, onAdded, jobs, inspection = false }
                   className="w-full bg-gray-900 text-white text-sm px-3 py-2.5 outline-none border border-gray-700 focus:border-red-600 transition-colors font-mono uppercase tracking-wider"
                 />
                 {vinAutoFor !== null && f.vin && (
-                  <p className="text-emerald-500 text-[10px] mt-0.5">Filled from this vehicle's previous job. Confirm it matches the car.</p>
+                  <div className="text-emerald-500 text-[10px] mt-0.5">Filled from this vehicle's previous job. Confirm it matches the car.</div>
                 )}
                 {f.vin.length === 17 && !vinCheckDigitOk(f.vin) && (
-                  <p className="text-yellow-500 text-[10px] mt-0.5">Check digit fails, likely a typo. You can still continue.</p>
+                  <div className="text-yellow-500 text-[10px] mt-0.5">Check digit fails, likely a typo. You can still continue.</div>
                 )}
               </div>
               <PlateLookup plate={f.plate} state={f.plateState} vin={f.vin}
@@ -5758,7 +5758,7 @@ export function ExternalLeadModal({ onClose, onAdded, jobs, inspection = false }
         {step === 2 && (
           <>
             <h2 className="text-xl font-black text-white mb-1">Service Date</h2>
-            <p className="text-gray-500 text-xs mb-5">{f.fname} {f.lname} · {f.vehicle} — when is this job scheduled? Defaults to today; move it if it's booked out.</p>
+            <div className="text-gray-500 text-xs mb-5">{f.fname} {f.lname} · {f.vehicle} — when is this job scheduled? Defaults to today; move it if it's booked out.</div>
 
             <label className="flex items-center gap-2.5 mb-4 cursor-pointer select-none">
               <input
@@ -5794,7 +5794,7 @@ export function ExternalLeadModal({ onClose, onAdded, jobs, inspection = false }
             </div>
 
             {dateUnknown && (
-              <p className="text-indigo-400 text-xs mb-5 -mt-3">This job will show up under the <strong>TBD</strong> tab until you set a real date.</p>
+              <div className="text-indigo-400 text-xs mb-5 -mt-3">This job will show up under the <strong>TBD</strong> tab until you set a real date.</div>
             )}
 
             <div className="flex gap-2">
@@ -5818,7 +5818,7 @@ export function ExternalLeadModal({ onClose, onAdded, jobs, inspection = false }
         {step === 3 && (
           <>
             <h2 className="text-xl font-black text-white mb-1">Build Estimate</h2>
-            <p className="text-gray-500 text-xs mb-5">{f.fname} {f.lname} · {f.vehicle} · {f.date}{f.time ? ` at ${f.time}` : ''}</p>
+            <div className="text-gray-500 text-xs mb-5">{f.fname} {f.lname} · {f.vehicle} · {f.date}{f.time ? ` at ${f.time}` : ''}</div>
 
             <div className="space-y-2 mb-3">
               {lineItems.map(item => (
@@ -5906,7 +5906,7 @@ export function ExternalLeadModal({ onClose, onAdded, jobs, inspection = false }
               </div>
             </div>
 
-            {err && <p className="text-red-500 text-xs mb-3">{err}</p>}
+            {err && <div className="text-red-500 text-xs mb-3">{err}</div>}
 
             <div className="flex gap-2">
               <button
@@ -5930,12 +5930,12 @@ export function ExternalLeadModal({ onClose, onAdded, jobs, inspection = false }
         {step === 4 && createdJob && (
           <>
             <h2 className="text-xl font-black text-white mb-1">✓ Estimate Ready</h2>
-            <p className="text-gray-500 text-xs mb-5">{createdJob.fname} {createdJob.lname} · {createdJob.vehicle} · ${total.toFixed(2)}</p>
-            <p className="text-gray-600 text-[10px] mb-5">Once they sign and you're ready to bill, invoice from the job itself (Payment tab) — not from here.</p>
+            <div className="text-gray-500 text-xs mb-5">{createdJob.fname} {createdJob.lname} · {createdJob.vehicle} · ${total.toFixed(2)}</div>
+            <div className="text-gray-600 text-[10px] mb-5">Once they sign and you're ready to bill, invoice from the job itself (Payment tab) — not from here.</div>
             {inspection && (
-              <p className={`text-xs mb-5 ${ppiDraftFailed ? 'text-yellow-500' : 'text-gray-500'}`}>
+              <div className={`text-xs mb-5 ${ppiDraftFailed ? 'text-yellow-500' : 'text-gray-500'}`}>
                 {ppiDraftFailed ? "The estimate is ready, but the checklist didn't save. Start one under PrePI with Blank Checklist." : 'The inspection checklist is saved as a draft under PrePI.'}
-              </p>
+              </div>
             )}
 
             <label className="block text-xs font-bold uppercase tracking-wider mb-1 text-gray-500">Estimate Link</label>
@@ -5971,7 +5971,7 @@ export function ExternalLeadModal({ onClose, onAdded, jobs, inspection = false }
                 {sending ? 'Sending…' : sentOk ? '✓ Sent' : 'Send'}
               </button>
             </div>
-            {err && <p className="text-red-500 text-xs mb-3">{err}</p>}
+            {err && <div className="text-red-500 text-xs mb-3">{err}</div>}
 
             <button
               onClick={onClose}
@@ -6181,7 +6181,7 @@ function PrePIModal({ onClose, onNewEstimate }: { onClose: () => void; onNewEsti
         onChange={e => setField(k, e.target.value)}
         className={`w-full bg-gray-900 text-white text-sm px-3 py-2.5 outline-none border transition-colors ${opts.uppercase ? 'uppercase tracking-wider font-mono' : ''} ${fieldErr[k] ? 'border-red-500' : 'border-gray-700 focus:border-blue-600'}`}
       />
-      {fieldErr[k] && <p className="text-red-500 text-[10px] mt-0.5">{fieldErr[k]}</p>}
+      {fieldErr[k] && <div className="text-red-500 text-[10px] mt-0.5">{fieldErr[k]}</div>}
     </div>
   );
 
@@ -6218,13 +6218,13 @@ function PrePIModal({ onClose, onNewEstimate }: { onClose: () => void; onNewEsti
         <input ref={photoInputRef} type="file" accept="image/*" className="hidden" onChange={handlePhotoFileChosen} />
 
         {mode === 'loading' && (
-          <p className="text-gray-600 text-xs font-bold uppercase tracking-widest py-8 text-center">Loading…</p>
+          <div className="text-gray-600 text-xs font-bold uppercase tracking-widest py-8 text-center">Loading…</div>
         )}
 
         {mode === 'picker' && (
           <>
             <h2 className="text-xl font-black text-white mb-1">Pre-Purchase Inspection</h2>
-            <p className="text-gray-500 text-xs mb-5">Standard PPI checklist for any vehicle — VIN, customer info, and a full pass/fail walkthrough with notes and photos per item.</p>
+            <div className="text-gray-500 text-xs mb-5">Standard PPI checklist for any vehicle — VIN, customer info, and a full pass/fail walkthrough with notes and photos per item.</div>
 
             <button
               onClick={onNewEstimate}
@@ -6247,7 +6247,7 @@ function PrePIModal({ onClose, onNewEstimate }: { onClose: () => void; onNewEsti
                 />
                 <div className="space-y-1.5 max-h-[40vh] overflow-y-auto">
                   {filteredList.length === 0 && (
-                    <p className="text-gray-700 text-xs italic text-center py-6">No matching inspections.</p>
+                    <div className="text-gray-700 text-xs italic text-center py-6">No matching inspections.</div>
                   )}
                   {filteredList.map(d => (
                     <button
@@ -6256,11 +6256,11 @@ function PrePIModal({ onClose, onNewEstimate }: { onClose: () => void; onNewEsti
                       className="w-full text-left bg-gray-900 border border-gray-800 hover:border-blue-700 px-4 py-3 transition-colors flex items-center justify-between gap-3"
                     >
                       <div className="min-w-0">
-                        <p className="text-white text-sm font-bold truncate">
+                        <div className="text-white text-sm font-bold truncate">
                           {d.name || `${d.fname} ${d.lname}`.trim() || 'Untitled Inspection'}
                           {d.vin && <span className="text-gray-500 font-mono text-xs ml-2">{d.vin}</span>}
-                        </p>
-                        <p className="text-gray-500 text-xs truncate">{d.vehicle || 'No vehicle info yet'} {(d.fname || d.lname) && d.name && `· ${d.fname} ${d.lname}`}</p>
+                        </div>
+                        <div className="text-gray-500 text-xs truncate">{d.vehicle || 'No vehicle info yet'} {(d.fname || d.lname) && d.name && `· ${d.fname} ${d.lname}`}</div>
                       </div>
                       <span className={`text-[10px] font-bold uppercase tracking-wider flex-shrink-0 px-2 py-1 ${d.status === 'COMPLETE' ? 'bg-blue-900/30 text-blue-400' : 'bg-gray-800 text-gray-500'}`}>
                         {d.status === 'COMPLETE' ? 'Complete' : 'Draft'}
@@ -6276,7 +6276,7 @@ function PrePIModal({ onClose, onNewEstimate }: { onClose: () => void; onNewEsti
         {mode === 'form' && record && (
           <>
             <h2 className="text-xl font-black text-white mb-1">Pre-Purchase Inspection</h2>
-            <p className="text-gray-500 text-xs mb-5">Fill out what you can now — save and come back anytime before completing.</p>
+            <div className="text-gray-500 text-xs mb-5">Fill out what you can now — save and come back anytime before completing.</div>
 
             <div className="mb-3">
               {inp('name', 'Name This Inspection', { placeholder: 'e.g. "2019 F-150 — Smith"' })}
@@ -6297,12 +6297,12 @@ function PrePIModal({ onClose, onNewEstimate }: { onClose: () => void; onNewEsti
             <div className="space-y-5 mb-6">
               {grouped.map(([category, items]) => (
                 <div key={category}>
-                  <p className="text-blue-400 text-xs font-bold uppercase tracking-widest mb-2 border-b border-gray-800 pb-1.5">{category}</p>
+                  <div className="text-blue-400 text-xs font-bold uppercase tracking-widest mb-2 border-b border-gray-800 pb-1.5">{category}</div>
                   <div className="space-y-2">
                     {items.map(it => (
                       <div key={it.id} className="bg-gray-900/60 border border-gray-800 px-3 py-2.5">
                         <div className="flex items-center justify-between gap-3 mb-2">
-                          <p className="text-gray-300 text-xs flex-1">{it.label}</p>
+                          <div className="text-gray-300 text-xs flex-1">{it.label}</div>
                           <div className="flex gap-1 flex-shrink-0">
                             {(['pass', 'fail', 'na'] as PPIItemStatus[]).map(s => (
                               <button
@@ -6370,7 +6370,7 @@ function PrePIModal({ onClose, onNewEstimate }: { onClose: () => void; onNewEsti
               className="w-full bg-gray-900 border border-gray-700 text-white text-sm px-3 py-2.5 outline-none focus:border-blue-600 mb-5 resize-none"
             />
 
-            {err && <p className="text-red-500 text-xs mb-3">{err}</p>}
+            {err && <div className="text-red-500 text-xs mb-3">{err}</div>}
 
             <div className="flex gap-2">
               <button
@@ -6394,7 +6394,7 @@ function PrePIModal({ onClose, onNewEstimate }: { onClose: () => void; onNewEsti
         {mode === 'done' && record && (
           <>
             <h2 className="text-xl font-black text-white mb-1">✓ Inspection Complete</h2>
-            <p className="text-gray-500 text-xs mb-5">{record.name || `${record.fname} ${record.lname}`} · {record.vehicle} · <span className="font-mono">{record.vin}</span></p>
+            <div className="text-gray-500 text-xs mb-5">{record.name || `${record.fname} ${record.lname}`} · {record.vehicle} · <span className="font-mono">{record.vin}</span></div>
 
             <label className="block text-xs font-bold uppercase tracking-wider mb-1 text-gray-500">PrePI Link</label>
             <div className="flex gap-2 mb-3">
@@ -6436,7 +6436,7 @@ function PrePIModal({ onClose, onNewEstimate }: { onClose: () => void; onNewEsti
                 {sending ? 'Sending…' : sentOk ? '✓ Sent' : 'Send'}
               </button>
             </div>
-            {err && <p className="text-red-500 text-xs mb-3">{err}</p>}
+            {err && <div className="text-red-500 text-xs mb-3">{err}</div>}
 
             <button
               onClick={onClose}
@@ -6689,27 +6689,27 @@ function DuplicateCustomersModal({ onClose, jobs, onMerged }: {
       <div className="bg-gray-950 border border-gray-800 w-full max-w-2xl my-8">
         <div className="sticky top-0 bg-gray-950 border-b border-gray-800 px-6 py-4 flex items-start justify-between z-10">
           <div>
-            <p className="text-red-500 text-xs font-bold uppercase tracking-widest mb-0.5">Duplicate Customers</p>
+            <div className="text-red-500 text-xs font-bold uppercase tracking-widest mb-0.5">Duplicate Customers</div>
             <h2 className="text-white font-black text-lg">Review & Merge</h2>
-            <p className="text-gray-500 text-xs mt-0.5">Matched by shared phone number, or name + email when there's no phone.</p>
+            <div className="text-gray-500 text-xs mt-0.5">Matched by shared phone number, or name + email when there's no phone.</div>
           </div>
           <button onClick={onClose} className="flex-shrink-0 text-gray-400 hover:text-white text-xs font-bold uppercase tracking-widest border border-gray-700 hover:border-red-600 px-3 py-2 mt-0.5 transition-colors">Close</button>
         </div>
 
         <div className="p-6">
           {loading && (
-            <p className="text-gray-500 text-sm text-center py-8">Scanning customer records…</p>
+            <div className="text-gray-500 text-sm text-center py-8">Scanning customer records…</div>
           )}
 
           {!loading && loadErr && (
             <div className="text-center py-8">
-              <p className="text-red-400 text-sm mb-3">{loadErr}</p>
+              <div className="text-red-400 text-sm mb-3">{loadErr}</div>
               <button onClick={loadCustomers} className="text-xs font-bold uppercase tracking-widest border border-gray-700 hover:border-red-600 px-3 py-2 transition-colors">Retry</button>
             </div>
           )}
 
           {!loading && !loadErr && groups.length === 0 && (
-            <p className="text-gray-500 text-sm text-center py-8">No likely duplicates found — customer list looks clean.</p>
+            <div className="text-gray-500 text-sm text-center py-8">No likely duplicates found — customer list looks clean.</div>
           )}
 
           {recentMerges.length > 0 && (
@@ -6725,11 +6725,11 @@ function DuplicateCustomersModal({ onClose, jobs, onMerged }: {
                   return (
                     <div key={m.snapshotKey} className="px-4 py-3 flex items-center justify-between gap-3">
                       <div className="min-w-0">
-                        <p className="text-gray-300 text-xs">
+                        <div className="text-gray-300 text-xs">
                           <span className="text-white font-bold">{m.mergedName}</span> merged into <span className="text-white font-bold">{m.keptName}</span> · {m.jobCount} job{m.jobCount === 1 ? '' : 's'} moved
-                        </p>
-                        {err && <p className="text-red-400 text-[10px] mt-0.5">{err}</p>}
-                        {done && <p className="text-emerald-400 text-[10px] mt-0.5">✓ Undone — {m.mergedName}'s file is restored.</p>}
+                        </div>
+                        {err && <div className="text-red-400 text-[10px] mt-0.5">{err}</div>}
+                        {done && <div className="text-emerald-400 text-[10px] mt-0.5">✓ Undone — {m.mergedName}'s file is restored.</div>}
                       </div>
                       {!done && (
                         <button
@@ -6783,12 +6783,12 @@ function DuplicateCustomersModal({ onClose, jobs, onMerged }: {
                                 <span className="text-white text-sm font-bold">{c.fname} {c.lname}</span>
                                 {selected && <span className="text-emerald-400 text-[10px] font-bold uppercase tracking-wider border border-emerald-800 px-1.5 py-0.5">Keep</span>}
                               </div>
-                              <p className="text-gray-500 text-xs mt-0.5">
+                              <div className="text-gray-500 text-xs mt-0.5">
                                 {c.phone || 'no phone'} · {c.email || 'no email'}
-                              </p>
-                              <p className="text-gray-600 text-xs mt-0.5">
+                              </div>
+                              <div className="text-gray-600 text-xs mt-0.5">
                                 {stats.count} job{stats.count === 1 ? '' : 's'}{stats.lastDate ? ` · last ${stats.lastDate}` : ''}
-                              </p>
+                              </div>
                             </div>
                           </label>
                         );
@@ -6796,7 +6796,7 @@ function DuplicateCustomersModal({ onClose, jobs, onMerged }: {
                     </div>
 
                     <div className="px-4 py-3 bg-gray-950/60">
-                      {err && <p className="text-red-400 text-xs mb-2">{err}</p>}
+                      {err && <div className="text-red-400 text-xs mb-2">{err}</div>}
                       {!isConfirming ? (
                         <button
                           onClick={() => setConfirmingKey(group.key)}
@@ -6812,7 +6812,7 @@ function DuplicateCustomersModal({ onClose, jobs, onMerged }: {
                           const preview = previewMerge(keeperRow, others, jobs);
                           return (
                             <div className="space-y-3">
-                              <p className="text-yellow-500 text-[10px] font-bold uppercase tracking-widest">Nothing is saved yet — review below, then choose Cancel or Confirm</p>
+                              <div className="text-yellow-500 text-[10px] font-bold uppercase tracking-widest">Nothing is saved yet — review below, then choose Cancel or Confirm</div>
 
                               {/* Big, plain KEEP / DELETE statement — this is the one thing that
                                   has to be unmissable before anyone clicks Confirm. */}
@@ -6828,10 +6828,10 @@ function DuplicateCustomersModal({ onClose, jobs, onMerged }: {
                               </div>
 
                               <div className="border border-gray-800 bg-gray-950/60 p-3">
-                                <p className="text-gray-300 text-sm font-bold mb-1.5">
+                                <div className="text-gray-300 text-sm font-bold mb-1.5">
                                   {preview.movedJobs.length} job{preview.movedJobs.length === 1 ? '' : 's'} will move onto {keeperRow.fname} {keeperRow.lname}'s file
-                                </p>
-                                <p className="text-gray-500 text-[11px] mb-2">The jobs themselves (photos, notes, pricing) don't change — only which customer file they're filed under.</p>
+                                </div>
+                                <div className="text-gray-500 text-[11px] mb-2">The jobs themselves (photos, notes, pricing) don't change — only which customer file they're filed under.</div>
                                 {preview.movedJobs.length > 0 && (
                                   <div className="space-y-1 max-h-40 overflow-y-auto">
                                     {preview.movedJobs.map(j => (
@@ -6845,24 +6845,24 @@ function DuplicateCustomersModal({ onClose, jobs, onMerged }: {
                               </div>
 
                               <div className="border border-gray-800 bg-gray-950/60 p-3">
-                                <p className="text-gray-300 text-sm font-bold mb-1.5">
+                                <div className="text-gray-300 text-sm font-bold mb-1.5">
                                   {preview.filled.length > 0
                                     ? `${preview.filled.length} field${preview.filled.length === 1 ? '' : 's'} will fill in on ${keeperRow.fname} ${keeperRow.lname}'s file`
                                     : `Nothing else changes on ${keeperRow.fname} ${keeperRow.lname}'s file`}
-                                </p>
+                                </div>
                                 {preview.filled.length > 0 ? (
                                   <>
-                                    <p className="text-gray-500 text-[11px] mb-2">These are currently blank on the kept file — nothing that already has a value gets overwritten.</p>
+                                    <div className="text-gray-500 text-[11px] mb-2">These are currently blank on the kept file — nothing that already has a value gets overwritten.</div>
                                     <div className="space-y-1">
                                       {preview.filled.map((f, i) => (
-                                        <p key={i} className="text-xs text-gray-300">
+                                        <div key={i} className="text-xs text-gray-300">
                                           <span className="text-gray-500">{MERGE_FIELD_LABELS[f.field] || f.field}:</span> {f.value} <span className="text-gray-600">(from {f.from})</span>
-                                        </p>
+                                        </div>
                                       ))}
                                     </div>
                                   </>
                                 ) : (
-                                  <p className="text-gray-500 text-[11px]">Name, phone, email, VIN, vehicle, mileage and address on the kept file are already filled in, so none of them change.</p>
+                                  <div className="text-gray-500 text-[11px]">Name, phone, email, VIN, vehicle, mileage and address on the kept file are already filled in, so none of them change.</div>
                                 )}
                               </div>
 
@@ -6921,16 +6921,16 @@ function TbdJobsModal({ onClose, jobs, onSelectJob }: {
       <div className="bg-gray-950 border border-gray-800 w-full max-w-lg my-8">
         <div className="sticky top-0 bg-gray-950 border-b border-gray-800 px-6 py-4 flex items-start justify-between z-10">
           <div>
-            <p className="text-red-500 text-xs font-bold uppercase tracking-widest mb-0.5">Date TBD</p>
+            <div className="text-red-500 text-xs font-bold uppercase tracking-widest mb-0.5">Date TBD</div>
             <h2 className="text-white font-black text-lg">Awaiting a Service Date</h2>
-            <p className="text-gray-500 text-xs mt-0.5">Estimates already sent — just need a real date once it's agreed on.</p>
+            <div className="text-gray-500 text-xs mt-0.5">Estimates already sent — just need a real date once it's agreed on.</div>
           </div>
           <button onClick={onClose} className="flex-shrink-0 text-gray-400 hover:text-white text-xs font-bold uppercase tracking-widest border border-gray-700 hover:border-red-600 px-3 py-2 mt-0.5 transition-colors">Close</button>
         </div>
 
         <div className="p-4">
           {tbdJobs.length === 0 ? (
-            <p className="text-gray-500 text-sm text-center py-8">Nothing waiting on a date right now.</p>
+            <div className="text-gray-500 text-sm text-center py-8">Nothing waiting on a date right now.</div>
           ) : (
             <div className="space-y-1.5">
               {tbdJobs.map(j => {
@@ -6942,13 +6942,13 @@ function TbdJobsModal({ onClose, jobs, onSelectJob }: {
                     className="w-full text-left flex items-center justify-between gap-3 px-4 py-3 bg-gray-900/50 hover:bg-gray-900 border border-gray-800 hover:border-indigo-700 transition-colors"
                   >
                     <div className="min-w-0">
-                      <p className="text-white text-sm font-bold truncate">{j.fname} {j.lname}</p>
-                      <p className="text-gray-500 text-xs truncate">{j.vehicle} · {resolveServiceName(j.service, j.notes)}</p>
-                      {createdStr && <p className="text-gray-600 text-[11px] mt-0.5">Lead created {createdStr}</p>}
+                      <div className="text-white text-sm font-bold truncate">{j.fname} {j.lname}</div>
+                      <div className="text-gray-500 text-xs truncate">{j.vehicle} · {resolveServiceName(j.service, j.notes)}</div>
+                      {createdStr && <div className="text-gray-600 text-[11px] mt-0.5">Lead created {createdStr}</div>}
                     </div>
                     <div className="flex-shrink-0 text-right">
                       {quotedTotals(j) && (
-                        <p className="text-gray-400 text-sm font-bold">${quotedTotals(j)!.total.toFixed(2)}</p>
+                        <div className="text-gray-400 text-sm font-bold">${quotedTotals(j)!.total.toFixed(2)}</div>
                       )}
                       <span className="text-indigo-400 text-[10px] font-bold uppercase tracking-wider">Set Date →</span>
                     </div>
@@ -7599,21 +7599,21 @@ function SelfPayForm({ job, onPaid }: { job: Job; onPaid: (updated: Job) => void
   if (done) return (
     <div className="mt-6 bg-emerald-900/20 border border-emerald-800 p-6 text-center">
       <div className="text-3xl mb-2">✓</div>
-      <p className="text-emerald-400 font-bold text-sm uppercase tracking-widest mb-1">Payment Successful</p>
-      <p className="text-gray-400 text-sm">A receipt has been sent to {job.email}.</p>
+      <div className="text-emerald-400 font-bold text-sm uppercase tracking-widest mb-1">Payment Successful</div>
+      <div className="text-gray-400 text-sm">A receipt has been sent to {job.email}.</div>
     </div>
   );
 
   return (
     <div className="mt-6 bg-white/5 border border-white/10 p-6">
-      <p className="text-white text-sm font-bold uppercase tracking-widest mb-1">Pay with a New Card</p>
-      <p className="text-gray-500 text-xs mb-4">
+      <div className="text-white text-sm font-bold uppercase tracking-widest mb-1">Pay with a New Card</div>
+      <div className="text-gray-500 text-xs mb-4">
         {amountPaidSoFar > 0
           ? `Enter your card details to pay the remaining balance of $${balanceDue.toFixed(2)} ($${amountPaidSoFar.toFixed(2)} already received).`
           : 'Enter your card details below to complete payment securely.'}
-      </p>
+      </div>
       <div ref={mountRef} className="bg-gray-900 border border-gray-700 px-3 py-3 mb-3" />
-      {cardError && <p className="text-red-400 text-xs mb-3">{cardError}</p>}
+      {cardError && <div className="text-red-400 text-xs mb-3">{cardError}</div>}
       <button
         onClick={handlePay}
         disabled={!cardComplete || paying}
@@ -7621,7 +7621,7 @@ function SelfPayForm({ job, onPaid }: { job: Job; onPaid: (updated: Job) => void
       >
         {paying ? 'Processing…' : `Pay $${balanceDue.toFixed(2)}`}
       </button>
-      <p className="text-gray-700 text-[10px] text-center mt-2">🔒 Secured by Stripe</p>
+      <div className="text-gray-700 text-[10px] text-center mt-2">🔒 Secured by Stripe</div>
     </div>
   );
 }
@@ -7649,7 +7649,7 @@ export function InvoicePage() {
 
   if (loading) return (
     <div className="min-h-screen bg-[#0f0f0f] flex items-center justify-center">
-      <p className="text-gray-600 text-sm font-bold uppercase tracking-widest">Loading…</p>
+      <div className="text-gray-600 text-sm font-bold uppercase tracking-widest">Loading…</div>
     </div>
   );
 
@@ -7658,7 +7658,7 @@ export function InvoicePage() {
       <div className="text-center">
         <div className="text-4xl mb-4">⚠️</div>
         <h1 className="text-white text-2xl font-black mb-3">Invoice Not Found</h1>
-        <p className="text-gray-500 text-sm mb-6">This link may be invalid. Please call us.</p>
+        <div className="text-gray-500 text-sm mb-6">This link may be invalid. Please call us.</div>
         <a href="tel:4807570476" className="inline-block bg-red-600 text-white text-xs font-bold uppercase tracking-widest px-8 py-4">Call 480-757-0476</a>
       </div>
     </div>
@@ -7725,26 +7725,26 @@ export function InvoicePage() {
               </div>
             </div>
             <div className="text-right text-xs leading-snug pt-1">
-              <p className="font-bold text-sm">GID Garage</p>
-              <p>Flagstaff, AZ</p>
-              <p>Phone: 480-757-0476</p>
-              <p>Website: gidgarage.com</p>
+              <div className="font-bold text-sm">GID Garage</div>
+              <div>Flagstaff, AZ</div>
+              <div>Phone: 480-757-0476</div>
+              <div>Website: gidgarage.com</div>
             </div>
           </div>
           <div className="border-t border-gray-300" />
 
           <div className="flex items-start justify-between mt-3 mb-3">
             <div>
-              <p className="font-bold text-sm uppercase tracking-wide mb-1">Bill To:</p>
-              <p className="text-sm">{job.fname} {job.lname}</p>
-              {job.phone && <p className="text-sm">{fmtPhone(job.phone)}</p>}
-              {job.serviceAddress && <p className="text-sm">{job.serviceAddress}</p>}
+              <div className="font-bold text-sm uppercase tracking-wide mb-1">Bill To:</div>
+              <div className="text-sm">{job.fname} {job.lname}</div>
+              {job.phone && <div className="text-sm">{fmtPhone(job.phone)}</div>}
+              {job.serviceAddress && <div className="text-sm">{job.serviceAddress}</div>}
             </div>
             <div className="text-right text-sm">
-              <p className="font-bold text-sm uppercase tracking-wide mb-1">Vehicle Details</p>
-              <p>{job.vehicle}</p>
-              {job.vin && <p className="text-sm">VIN: {job.vin}</p>}
-              {job.mileage && <p className="text-sm">{fmtMileage(job.mileage)} mi</p>}
+              <div className="font-bold text-sm uppercase tracking-wide mb-1">Vehicle Details</div>
+              <div>{job.vehicle}</div>
+              {job.vin && <div className="text-sm">VIN: {job.vin}</div>}
+              {job.mileage && <div className="text-sm">{fmtMileage(job.mileage)} mi</div>}
             </div>
           </div>
 
@@ -7779,7 +7779,7 @@ export function InvoicePage() {
           </table>
 
           {job.estimateNotes && (
-            <div className="text-sm text-gray-700 mt-2"><p className="font-bold">Scope of Work:</p><p className="whitespace-pre-wrap">{job.estimateNotes}</p></div>
+            <div className="text-sm text-gray-700 mt-2"><div className="font-bold">Scope of Work:</div><div className="whitespace-pre-wrap">{job.estimateNotes}</div></div>
           )}
 
           {/* Totals */}
@@ -7799,7 +7799,7 @@ export function InvoicePage() {
 
           {job.payments?.length > 0 && (
             <div className="mt-3 border-t border-gray-300 pt-2">
-              <p className="font-bold text-xs uppercase tracking-wide mb-1">Payments Received</p>
+              <div className="font-bold text-xs uppercase tracking-wide mb-1">Payments Received</div>
               {job.payments.map(p => (
                 <div key={p.id} className="flex justify-between text-sm py-0.5">
                   <span>{p.method}{p.note ? ` — ${p.note}` : ''} · {new Date(p.at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'America/Phoenix' })}</span>
@@ -7813,16 +7813,16 @@ export function InvoicePage() {
           {(job.customerAgreed || job.garageNotes) && (
             <div className="mt-4 border-t border-gray-300 pt-3">
               {job.customerAgreed && (
-                <p className="text-sm flex items-baseline gap-2 flex-wrap">
+                <div className="text-sm flex items-baseline gap-2 flex-wrap">
                   <span>Estimate approved by</span>
                   <span className="text-xl leading-none" style={{ fontFamily: "'Dancing Script', cursive" }}>{job.customerSignature}</span>
                   <span>
                     {job.signedAt ? `on ${new Date(job.signedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'America/Phoenix' })}` : ''}.
                   </span>
-                </p>
+                </div>
               )}
               {job.garageNotes && (
-                <div className="text-sm mt-1"><p className="font-bold">Technician Notes:</p><p className="whitespace-pre-wrap">{job.garageNotes}</p></div>
+                <div className="text-sm mt-1"><div className="font-bold">Technician Notes:</div><div className="whitespace-pre-wrap">{job.garageNotes}</div></div>
               )}
             </div>
           )}
@@ -7835,15 +7835,15 @@ export function InvoicePage() {
           {/* Title row */}
           <div className="px-6 py-5 border-b border-white/10 flex items-center justify-between">
             <div>
-              <p className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-0.5">{isPaid ? 'Receipt' : 'Invoice'}</p>
-              <p className="text-white font-mono text-sm">{invoiceNumber}</p>
+              <div className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-0.5">{isPaid ? 'Receipt' : 'Invoice'}</div>
+              <div className="text-white font-mono text-sm">{invoiceNumber}</div>
             </div>
             <div className="text-right">
-              <p className={`text-3xl font-black ${isPaid ? 'text-emerald-400' : isPartiallyPaid ? 'text-yellow-400' : 'text-red-400'}`}>
+              <div className={`text-3xl font-black ${isPaid ? 'text-emerald-400' : isPartiallyPaid ? 'text-yellow-400' : 'text-red-400'}`}>
                 ${isPartiallyPaid ? balanceDue.toFixed(2) : ((amount || 0) + (job.taxAmount || 0)).toFixed(2)}
-              </p>
+              </div>
               {isPartiallyPaid && (
-                <p className="text-gray-600 text-xs mt-0.5">of ${totalDue.toFixed(2)} total</p>
+                <div className="text-gray-600 text-xs mt-0.5">of ${totalDue.toFixed(2)} total</div>
               )}
             </div>
           </div>
@@ -7869,7 +7869,7 @@ export function InvoicePage() {
           {/* Line items */}
           {job.lineItems?.length > 0 && (
             <div className="border-t border-white/10">
-              <p className="text-gray-600 text-[10px] font-bold uppercase tracking-widest px-6 py-2">Services</p>
+              <div className="text-gray-600 text-[10px] font-bold uppercase tracking-widest px-6 py-2">Services</div>
               <div className="divide-y divide-white/5">
                 <LineHead pad="px-6" />{job.lineItems.map(item => <LineRow key={item.id} item={item} pad="px-6 py-2.5" />)}
                 {/* Price adjustment line — only shown on paid receipts when present */}
@@ -7890,8 +7890,8 @@ export function InvoicePage() {
           {/* Scope notes if present */}
           {job.estimateNotes && (
             <div className="px-6 py-4 border-t border-white/10">
-              <p className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-1.5">Scope of Work</p>
-              <p className="text-gray-300 text-sm leading-relaxed whitespace-pre-wrap">{job.estimateNotes}</p>
+              <div className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-1.5">Scope of Work</div>
+              <div className="text-gray-300 text-sm leading-relaxed whitespace-pre-wrap">{job.estimateNotes}</div>
             </div>
           )}
 
@@ -7922,7 +7922,7 @@ export function InvoicePage() {
           {/* Payments received — shown whenever any payment (full or partial) has been recorded */}
           {job.payments?.length > 0 && (
             <div className="border-t border-white/10 px-6 py-4">
-              <p className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-2">Payments Received</p>
+              <div className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-2">Payments Received</div>
               <div className="space-y-1.5">
                 {job.payments.map(p => (
                   <div key={p.id} className="flex justify-between text-sm gap-3">
@@ -7942,21 +7942,21 @@ export function InvoicePage() {
         {/* Signed disclaimer — screen only; folded into the print letterhead's Vehicle Details */}
         {job.customerAgreed && (
           <div className="mt-4 px-4 py-3 border border-white/10 bg-white/5 no-print">
-            <p className="text-gray-600 text-xs flex items-baseline gap-2 flex-wrap">
+            <div className="text-gray-600 text-xs flex items-baseline gap-2 flex-wrap">
               <span>Estimate approved by</span>
               <span className="text-lg leading-none text-gray-300" style={{ fontFamily: "'Dancing Script', cursive" }}>{job.customerSignature}</span>
               <span>
                 {job.signedAt ? `on ${new Date(job.signedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'America/Phoenix' })}` : ''}.
               </span>
-            </p>
+            </div>
           </div>
         )}
 
         {/* Garage notes if present — screen only; folded into the print letterhead's Vehicle Details */}
         {job.garageNotes && (
           <div className="mt-4 border border-white/10 bg-white/5 px-6 py-4 no-print">
-            <p className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-1.5">Technician Notes</p>
-            <p className="text-gray-300 text-sm leading-relaxed whitespace-pre-wrap">{job.garageNotes}</p>
+            <div className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-1.5">Technician Notes</div>
+            <div className="text-gray-300 text-sm leading-relaxed whitespace-pre-wrap">{job.garageNotes}</div>
           </div>
         )}
 
@@ -7964,7 +7964,7 @@ export function InvoicePage() {
             documentation the customer is getting */}
         {job.jobPhotos?.length > 0 && (
           <div className="mt-4 border border-white/10 bg-white/5 px-6 py-4 page-break-avoid print:border-0 print:bg-transparent print:px-0">
-            <p className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-3">Job Photos</p>
+            <div className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-3">Job Photos</div>
             <div className="space-y-3">
               {job.jobPhotos.map(photo => (
                 <div key={photo.id} className="page-break-avoid">
@@ -7973,7 +7973,7 @@ export function InvoicePage() {
                     <img src={photo.url || photo.dataUrl} alt="Job photo" className="w-full max-h-64 object-cover cursor-pointer" />
                   </button>
                   <img src={photo.url || photo.dataUrl} alt="Job photo" className="hidden print:block w-full max-h-64 object-cover" />
-                  {photo.note && <p className="text-gray-400 text-xs mt-1">{photo.note}</p>}
+                  {photo.note && <div className="text-gray-400 text-xs mt-1">{photo.note}</div>}
                 </div>
               ))}
             </div>
@@ -7983,12 +7983,12 @@ export function InvoicePage() {
         {/* Job videos if present — can't render on paper, hidden when printing */}
         {job.jobVideos?.length > 0 && (
           <div className="mt-4 border border-white/10 bg-white/5 px-6 py-4 no-print">
-            <p className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-3">Job Videos</p>
+            <div className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-3">Job Videos</div>
             <div className="space-y-3">
               {job.jobVideos.map(video => (
                 <div key={video.id}>
                   <video src={video.url} controls className="w-full max-h-64 bg-black" />
-                  {video.note && <p className="text-gray-400 text-xs mt-1">{video.note}</p>}
+                  {video.note && <div className="text-gray-400 text-xs mt-1">{video.note}</div>}
                 </div>
               ))}
             </div>
@@ -7998,7 +7998,7 @@ export function InvoicePage() {
         {/* Health scan reports — optional pre/post service scan documents */}
         {(job.preScan || job.postScan) && (
           <div className="mt-4 border border-white/10 bg-white/5 px-6 py-4 no-print">
-            <p className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-3">Vehicle Health Scan Reports</p>
+            <div className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-3">Vehicle Health Scan Reports</div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {job.preScan && (
                 <a href={job.preScan.url} target="_blank" rel="noopener noreferrer"
@@ -8053,13 +8053,13 @@ export function InvoicePage() {
           </button>
         </div>
 
-        <p className="mt-6 text-gray-500 text-xs leading-relaxed">{WARRANTY_SHORT}</p>
+        <div className="mt-6 text-gray-500 text-xs leading-relaxed">{WARRANTY_SHORT}</div>
 
         {/* Review CTA — only shown on paid receipts */}
         {isPaid && job.id !== 'GID-1781742991286' && (
           <div className="mt-8 border border-white/10 bg-white/5 px-6 py-5 text-center no-print">
-            <p className="text-gray-400 text-sm font-bold mb-1">How'd we do?</p>
-            <p className="text-gray-600 text-xs mb-4">Your review helps other Flagstaff drivers find a shop they can trust.</p>
+            <div className="text-gray-400 text-sm font-bold mb-1">How'd we do?</div>
+            <div className="text-gray-600 text-xs mb-4">Your review helps other Flagstaff drivers find a shop they can trust.</div>
             <a
               href="https://g.page/r/CdERSypGqVdlEAI/review"
               target="_blank"
@@ -8086,7 +8086,7 @@ export function InvoicePage() {
 
           const TireDisplay = ({ label, values, unit }: { label: string; values: TireReading; unit: string }) => (
             <div>
-              <p className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-3">{label}</p>
+              <div className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-3">{label}</div>
               {/* Car outline graphic */}
               <div className="relative mx-auto mb-3" style={{ width: 200, height: 110 }}>
                 <svg viewBox="0 0 200 110" width="200" height="110">
@@ -8124,26 +8124,26 @@ export function InvoicePage() {
                   <div className="text-xs font-mono font-bold text-white">{values.rr || '—'}</div>
                 </div>
               </div>
-              <p className="text-gray-700 text-[10px] text-center">{unit}</p>
+              <div className="text-gray-700 text-[10px] text-center">{unit}</div>
             </div>
           );
 
           return (
             <div className="mt-6 border border-white/10 bg-white/5">
               <div className="px-6 py-4 border-b border-white/10">
-                <p className="text-gray-400 text-xs font-bold uppercase tracking-widest">🔍 Vehicle Inspection Report</p>
+                <div className="text-gray-400 text-xs font-bold uppercase tracking-widest">🔍 Vehicle Inspection Report</div>
               </div>
               <div className="px-6 py-5 space-y-8">
                 {hasPressure && <TireDisplay label="Tire Pressure" values={tp} unit="PSI" />}
                 {hasTread && <TireDisplay label="Tire Tread Depth" values={tt} unit={'32nds of an inch · 2/32" = replace, 4/32" = caution'} />}
                 {hasCodes && (
                   <div>
-                    <p className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-3">Diagnostic Codes (DTC)</p>
+                    <div className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-3">Diagnostic Codes (DTC)</div>
                     <div className="space-y-4">
                       {dtcCodes.map(c => (
                         <div key={c.id} className="border border-white/10 bg-white/5 p-4">
-                          <p className="text-red-400 text-sm font-mono font-bold mb-1">{c.code}</p>
-                          {c.plan && <p className="text-gray-300 text-sm leading-relaxed">{c.plan}</p>}
+                          <div className="text-red-400 text-sm font-mono font-bold mb-1">{c.code}</div>
+                          {c.plan && <div className="text-gray-300 text-sm leading-relaxed">{c.plan}</div>}
                         </div>
                       ))}
                     </div>
@@ -8154,7 +8154,7 @@ export function InvoicePage() {
           );
         })()}
 
-        <p className="text-gray-700 text-xs text-center mt-8">GID Garage · Flagstaff, AZ · 480-757-0476 · gidgarage.com</p>
+        <div className="text-gray-700 text-xs text-center mt-8">GID Garage · Flagstaff, AZ · 480-757-0476 · gidgarage.com</div>
       </div>
       <DocViewerModal doc={viewer.doc} onClose={viewer.close} />
     </div>
@@ -8182,10 +8182,10 @@ export function InspectionPage() {
       <style>{`@media print { ${PRINT_DOC_STYLES} }`}</style>
       <div className="max-w-lg mx-auto print-full print-doc">
         <div className="mb-5">
-          <p className="text-red-500 text-xs font-bold uppercase tracking-[0.25em]">GID Garage · Mobile Mechanic</p>
+          <div className="text-red-500 text-xs font-bold uppercase tracking-[0.25em]">GID Garage · Mobile Mechanic</div>
           <h1 className="text-2xl font-black tracking-tight mt-1">Vehicle Inspection</h1>
-          <p className="text-gray-400 text-sm mt-1">{[job.fname, job.lname].filter(Boolean).join(' ')} · {job.vehicle}{job.vin ? ` · VIN ${job.vin}` : ''}</p>
-          <p className="text-gray-500 text-xs mt-0.5">Checked {checkedOn}{job.mileage ? ` · ${fmtMileage(job.mileage)} mi` : ''}</p>
+          <div className="text-gray-400 text-sm mt-1">{[job.fname, job.lname].filter(Boolean).join(' ')} · {job.vehicle}{job.vin ? ` · VIN ${job.vin}` : ''}</div>
+          <div className="text-gray-500 text-xs mt-0.5">Checked {checkedOn}{job.mileage ? ` · ${fmtMileage(job.mileage)} mi` : ''}</div>
         </div>
         <div className="border border-white/10 bg-white/5 print:border-0 print:bg-transparent">
           <NextVisitReport nextVisit={nv} />
@@ -8194,7 +8194,7 @@ export function InspectionPage() {
           <button type="button" onClick={() => window.print()} className="border border-gray-700 text-gray-300 hover:text-white text-xs font-bold uppercase tracking-widest px-4 py-2">Print / Save PDF</button>
           <a href={`/invoice?id=${encodeURIComponent(job.id)}`} className="border border-gray-700 text-gray-300 hover:text-white text-xs font-bold uppercase tracking-widest px-4 py-2">Back to invoice</a>
         </div>
-        <p className="text-gray-700 text-xs text-center mt-8">GID Garage · Flagstaff, AZ · 480-757-0476 · gidgarage.com</p>
+        <div className="text-gray-700 text-xs text-center mt-8">GID Garage · Flagstaff, AZ · 480-757-0476 · gidgarage.com</div>
       </div>
     </div>
   );
@@ -8206,7 +8206,7 @@ function CancelledJobNotice({ what }: { what: string }) {
     <div className="text-center">
       <div className="text-4xl mb-4">🚫</div>
       <h1 className="text-white text-2xl font-black mb-3">This {what} Is No Longer Active</h1>
-      <p className="text-gray-500 text-sm mb-6">This job was cancelled, so there's nothing to sign or pay here. If that's a mistake or you'd like to rebook, please call or text us.</p>
+      <div className="text-gray-500 text-sm mb-6">This job was cancelled, so there's nothing to sign or pay here. If that's a mistake or you'd like to rebook, please call or text us.</div>
       <a href="tel:4807570476" className="inline-block bg-red-600 text-white text-xs font-bold uppercase tracking-widest px-8 py-4">Call 480-757-0476</a>
     </div>
   );
@@ -8298,13 +8298,13 @@ export function EstimatePage() {
       <>
         {job.service === 'ppi' && (
           <div className="bg-white/5 border border-white/10 p-4">
-            <p className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-1">What We Check</p>
-            <p className="text-gray-400 text-sm mb-3">This pre-purchase inspection covers the following, as conditions and access allow:</p>
+            <div className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-1">What We Check</div>
+            <div className="text-gray-400 text-sm mb-3">This pre-purchase inspection covers the following, as conditions and access allow:</div>
             <div className="space-y-2.5">
               {PPI_CHECKLIST_GROUPS.map(([category, items]) => (
                 <div key={category}>
-                  <p className="text-white text-sm font-bold">{category}</p>
-                  <p className="text-gray-400 text-xs leading-relaxed">{items.join(' · ')}</p>
+                  <div className="text-white text-sm font-bold">{category}</div>
+                  <div className="text-gray-400 text-xs leading-relaxed">{items.join(' · ')}</div>
                 </div>
               ))}
             </div>
@@ -8353,13 +8353,13 @@ export function EstimatePage() {
         {/* Scope notes */}
         {job.estimateNotes && (
           <div className="bg-white/5 border-l-4 border-l-red-600 px-4 py-3">
-            <p className="text-gray-400 text-sm leading-relaxed whitespace-pre-wrap">{job.estimateNotes}</p>
+            <div className="text-gray-400 text-sm leading-relaxed whitespace-pre-wrap">{job.estimateNotes}</div>
           </div>
         )}
 
         {/* Terms */}
         <div className="bg-white/5 border border-white/10 p-4">
-          <p className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-3">Terms of Service</p>
+          <div className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-3">Terms of Service</div>
           {/* Core terms — always visible */}
           <ul className="space-y-2 mb-3">
             {estimateTermsFor(job).core.map((t, i) => (
@@ -8383,7 +8383,7 @@ export function EstimatePage() {
                   <span className="text-gray-600 font-bold flex-shrink-0">{i + 1}.</span> {t}
                 </div>
               ))}
-              <p className="text-gray-600 text-[10px] text-center pt-1 pb-0.5">— End of terms —</p>
+              <div className="text-gray-600 text-[10px] text-center pt-1 pb-0.5">— End of terms —</div>
             </div>
           </details>
         </div>
@@ -8403,14 +8403,14 @@ export function EstimatePage() {
         <img src={img('banner.PNG')} alt="GID Garage" className="hidden print:block h-auto block mb-6 print-banner" />
 
         {loading && (
-          <p className="text-center text-gray-600 text-sm font-bold uppercase tracking-widest">Loading estimate…</p>
+          <div className="text-center text-gray-600 text-sm font-bold uppercase tracking-widest">Loading estimate…</div>
         )}
 
         {notFound && (
           <div className="text-center">
             <div className="text-4xl mb-4">⚠️</div>
             <h1 className="text-white text-2xl font-black mb-3">Estimate Not Found</h1>
-            <p className="text-gray-500 text-sm mb-6">This link may be expired or invalid. Please call us.</p>
+            <div className="text-gray-500 text-sm mb-6">This link may be expired or invalid. Please call us.</div>
             <a href="tel:4807570476" className="inline-block bg-red-600 text-white text-xs font-bold uppercase tracking-widest px-8 py-4">Call 480-757-0476</a>
           </div>
         )}
@@ -8421,7 +8421,7 @@ export function EstimatePage() {
           <div className="text-center">
             <div className="text-4xl mb-4">✓</div>
             <h1 className="text-white text-2xl font-black mb-3">Already Signed</h1>
-            <p className="text-gray-500 text-sm mb-6">{job.dateTbd ? "You've already approved this estimate. We'll be in touch to schedule a date." : `You've already approved this estimate. We'll see you on ${dateStr}${apptTimeLabel(job.time)}.`}</p>
+            <div className="text-gray-500 text-sm mb-6">{job.dateTbd ? "You've already approved this estimate. We'll be in touch to schedule a date." : `You've already approved this estimate. We'll see you on ${dateStr}${apptTimeLabel(job.time)}.`}</div>
             <button
               onClick={() => setViewOnly(true)}
               className="w-full bg-red-600 hover:bg-red-500 text-white font-black text-sm uppercase tracking-widest py-4 transition-colors"
@@ -8437,7 +8437,7 @@ export function EstimatePage() {
           <div className="space-y-6">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <p className="text-red-500 text-xs font-bold uppercase tracking-[0.25em] mb-1">Signed Estimate</p>
+                <div className="text-red-500 text-xs font-bold uppercase tracking-[0.25em] mb-1">Signed Estimate</div>
                 <h1 className="text-white text-3xl font-black tracking-tight">View Only</h1>
               </div>
               <button
@@ -8451,17 +8451,17 @@ export function EstimatePage() {
 
             {/* Signature block — mirrors the admin panel's "Estimate Signed" display */}
             <div className="bg-white/5 border border-white/10 p-4">
-              <p className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-2">Signed By</p>
-              <p className="text-white text-3xl leading-none" style={{ fontFamily: "'Dancing Script', cursive" }}>{job.customerSignature}</p>
+              <div className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-2">Signed By</div>
+              <div className="text-white text-3xl leading-none" style={{ fontFamily: "'Dancing Script', cursive" }}>{job.customerSignature}</div>
               {job.signedAt && (
-                <p className="text-gray-600 text-xs mt-1">
+                <div className="text-gray-600 text-xs mt-1">
                   {new Date(job.signedAt).toLocaleString('en-US', { month: 'long', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: 'America/Phoenix' })}
-                </p>
+                </div>
               )}
             </div>
 
-            <p className="text-gray-500 text-sm text-center">{job.dateTbd ? "Approved — we'll be in touch to schedule a date." : `Approved — we'll see you on ${dateStr}${apptTimeLabel(job.time)}.`}</p>
-            <p className="text-gray-700 text-xs text-center">Questions? Call or text us at <strong className="text-gray-600">480-757-0476</strong></p>
+            <div className="text-gray-500 text-sm text-center">{job.dateTbd ? "Approved — we'll be in touch to schedule a date." : `Approved — we'll see you on ${dateStr}${apptTimeLabel(job.time)}.`}</div>
+            <div className="text-gray-700 text-xs text-center">Questions? Call or text us at <strong className="text-gray-600">480-757-0476</strong></div>
 
             <button
               onClick={() => window.print()}
@@ -8476,16 +8476,16 @@ export function EstimatePage() {
           <div className="text-center">
             <div className="text-5xl mb-4">✅</div>
             <h1 className="text-white text-2xl font-black mb-3">You're All Set!</h1>
-            <p className="text-gray-400 text-sm mb-2">Your estimate is approved and your appointment is confirmed.</p>
-            <p className="text-gray-600 text-sm">{dateStr}{apptTimeLabel(job?.time ?? '')}</p>
-            <p className="text-gray-700 text-xs mt-6">Questions? Call or text <strong className="text-gray-500">480-757-0476</strong></p>
+            <div className="text-gray-400 text-sm mb-2">Your estimate is approved and your appointment is confirmed.</div>
+            <div className="text-gray-600 text-sm">{dateStr}{apptTimeLabel(job?.time ?? '')}</div>
+            <div className="text-gray-700 text-xs mt-6">Questions? Call or text <strong className="text-gray-500">480-757-0476</strong></div>
           </div>
         )}
 
         {job && !alreadySigned && !done && !loading && !notFound && (
           <div className="space-y-6">
             <div>
-              <p className="text-red-500 text-xs font-bold uppercase tracking-[0.25em] mb-1">Your Estimate</p>
+              <div className="text-red-500 text-xs font-bold uppercase tracking-[0.25em] mb-1">Your Estimate</div>
               <h1 className="text-white text-3xl font-black tracking-tight">Review &amp; Approve</h1>
             </div>
 
@@ -8531,11 +8531,11 @@ export function EstimatePage() {
                     so the customer sees what they're "signing" before submitting. */}
                 <div className="border-b border-white/20 px-3 py-4 mt-3 min-h-[64px] flex items-end">
                   {signature.trim()
-                    ? <p className="text-white text-3xl leading-none" style={{ fontFamily: "'Dancing Script', cursive" }}>{signature}</p>
-                    : <p className="text-gray-700 text-xs">Your signature preview will appear here as you type</p>
+                    ? <div className="text-white text-3xl leading-none" style={{ fontFamily: "'Dancing Script', cursive" }}>{signature}</div>
+                    : <div className="text-gray-700 text-xs">Your signature preview will appear here as you type</div>
                   }
                 </div>
-                <p className="text-gray-500 text-[10px] mt-1.5">By checking the box above and typing your name, you are providing an electronic signature legally binding under the Uniform Electronic Transactions Act (UETA).</p>
+                <div className="text-gray-500 text-[10px] mt-1.5">By checking the box above and typing your name, you are providing an electronic signature legally binding under the Uniform Electronic Transactions Act (UETA).</div>
               </div>
 
               <button
@@ -8547,7 +8547,7 @@ export function EstimatePage() {
               </button>
             </div>
 
-            <p className="text-gray-700 text-xs text-center">Questions before signing? Call or text us at <strong className="text-gray-600">480-757-0476</strong></p>
+            <div className="text-gray-700 text-xs text-center">Questions before signing? Call or text us at <strong className="text-gray-600">480-757-0476</strong></div>
           </div>
         )}
       </div>
@@ -8913,7 +8913,7 @@ export function PPIPage() {
 
   if (loading) return (
     <div className="min-h-screen bg-[#0f0f0f] flex items-center justify-center">
-      <p className="text-gray-600 text-sm font-bold uppercase tracking-widest">Loading…</p>
+      <div className="text-gray-600 text-sm font-bold uppercase tracking-widest">Loading…</div>
     </div>
   );
 
@@ -8922,7 +8922,7 @@ export function PPIPage() {
       <div className="text-center">
         <div className="text-4xl mb-4">⚠️</div>
         <h1 className="text-white text-2xl font-black mb-3">Inspection Not Found</h1>
-        <p className="text-gray-500 text-sm mb-6">This link may be invalid. Please call us.</p>
+        <div className="text-gray-500 text-sm mb-6">This link may be invalid. Please call us.</div>
         <a href="tel:4807570476" className="inline-block bg-blue-600 text-white text-xs font-bold uppercase tracking-widest px-8 py-4">Call 480-757-0476</a>
       </div>
     </div>
@@ -8958,7 +8958,7 @@ export function PPIPage() {
             <div className="flex items-start justify-between mb-6 flex-wrap gap-2">
               <div>
                 <h1 className="text-white text-2xl font-black mb-1">{record.name || 'Pre-Purchase Inspection'}</h1>
-                <p className="text-gray-500 text-xs">{record.status === 'COMPLETE' ? `Completed ${completedDateStr}` : 'In Progress — not yet finalized'}</p>
+                <div className="text-gray-500 text-xs">{record.status === 'COMPLETE' ? `Completed ${completedDateStr}` : 'In Progress — not yet finalized'}</div>
               </div>
               {record.status === 'COMPLETE' && (
                 <span className={`text-xs font-bold uppercase tracking-widest px-3 py-1.5 ${failCount === 0 ? 'bg-emerald-900/30 text-emerald-400' : 'bg-yellow-900/30 text-yellow-400'}`}>
@@ -8981,16 +8981,16 @@ export function PPIPage() {
             <div className="space-y-6 mb-8">
               {grouped.map(([category, items]) => (
                 <div key={category} className="page-break-avoid">
-                  <p className="text-blue-400 text-xs font-bold uppercase tracking-widest mb-2 border-b border-gray-800 pb-1.5">{category}</p>
+                  <div className="text-blue-400 text-xs font-bold uppercase tracking-widest mb-2 border-b border-gray-800 pb-1.5">{category}</div>
                   <div className="space-y-1.5">
                     {items.map(it => (
                       <div key={it.id} className="page-break-avoid">
                         <div className="flex items-center justify-between gap-3 py-1">
-                          <p className="text-gray-300 text-xs flex-1">{it.label}</p>
+                          <div className="text-gray-300 text-xs flex-1">{it.label}</div>
                           {statusPill(it.status)}
                         </div>
                         {it.note && (
-                          <p className={`text-xs pl-3 pb-1 italic ${it.status === 'fail' ? 'text-red-400' : 'text-gray-500'}`}>— {it.note}</p>
+                          <div className={`text-xs pl-3 pb-1 italic ${it.status === 'fail' ? 'text-red-400' : 'text-gray-500'}`}>— {it.note}</div>
                         )}
                         {it.photos && it.photos.length > 0 && (
                           <div className="flex items-center gap-1.5 flex-wrap pl-3 pb-2">
@@ -9010,16 +9010,16 @@ export function PPIPage() {
 
             {record.overallNotes && (
               <div className="bg-gray-900 border border-gray-700 px-5 py-4 mb-8">
-                <p className="text-gray-500 text-[10px] font-bold uppercase tracking-widest mb-2">Overall Notes</p>
-                <p className="text-gray-300 text-sm whitespace-pre-wrap">{record.overallNotes}</p>
+                <div className="text-gray-500 text-[10px] font-bold uppercase tracking-widest mb-2">Overall Notes</div>
+                <div className="text-gray-300 text-sm whitespace-pre-wrap">{record.overallNotes}</div>
               </div>
             )}
 
             <button onClick={() => window.print()} className="no-print w-full border border-gray-700 text-gray-400 hover:border-white hover:text-white text-xs font-bold uppercase tracking-widest py-3 transition-colors">
               Export / Print This Inspection
             </button>
-            <p className="text-gray-500 text-xs leading-relaxed mt-4">{DIAGNOSTIC_SHORT}</p>
-            <p className="text-gray-700 text-[11px] text-center mt-4">Questions? Call or text <span className="text-gray-500">480-757-0476</span> · GID Garage · Flagstaff, AZ</p>
+            <div className="text-gray-500 text-xs leading-relaxed mt-4">{DIAGNOSTIC_SHORT}</div>
+            <div className="text-gray-700 text-[11px] text-center mt-4">Questions? Call or text <span className="text-gray-500">480-757-0476</span> · GID Garage · Flagstaff, AZ</div>
           </div>
         </div>
       </div>
@@ -9423,7 +9423,7 @@ function InvoiceExport() {
           <tr style="background:#1a0a00;"><td style="padding:10px 16px;font-size:11px;color:#b45309;text-transform:uppercase;">AZ TPT Collected</td><td style="padding:10px 16px;text-align:right;font-family:monospace;font-size:13px;color:#fbbf24;font-weight:700;">$${totals.tax.toFixed(2)}</td></tr>
           <tr style="background:#0a1a0a;"><td style="padding:10px 16px;font-size:11px;color:#4ade80;text-transform:uppercase;font-weight:700;">Total Revenue</td><td style="padding:10px 16px;text-align:right;font-family:monospace;font-size:14px;color:#4ade80;font-weight:900;">$${(totals.subtotal + totals.tax).toFixed(2)}</td></tr>
         </table>
-        <p style="font-size:10px;color:#444;margin-top:12px;">Remit TPT at AZTaxes.gov by the 20th of the following month. EIN: 42-2687870 · TPT License: 21663074</p>
+        <div style="font-size:10px;color:#444;margin-top:12px;">Remit TPT at AZTaxes.gov by the 20th of the following month. EIN: 42-2687870 · TPT License: 21663074</div>
       </div>`;
 
     const fullHtml = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>GID Garage Invoices — ${periodLabel}</title><style>*{box-sizing:border-box;}body{margin:0;background:#0f0f0f;}@media print{@page{margin:0;size:letter;}body{-webkit-print-color-adjust:exact;print-color-adjust:exact;}}</style></head><body>${invoiceHtml}${summaryHtml}</body></html>`;
@@ -9452,19 +9452,19 @@ function InvoiceExport() {
     setSharing(false);
   }
 
-  if (loading) return <p className="text-gray-600 text-xs py-4">Loading invoice data…</p>;
+  if (loading) return <div className="text-gray-600 text-xs py-4">Loading invoice data…</div>;
   if (loadError) return (
     <div className="bg-red-900/10 border border-red-800 px-4 py-3 mt-4">
-      <p className="text-red-400 text-xs font-bold mb-1">Couldn't load paid jobs</p>
-      <p className="text-gray-500 text-xs">{loadError}</p>
+      <div className="text-red-400 text-xs font-bold mb-1">Couldn't load paid jobs</div>
+      <div className="text-gray-500 text-xs">{loadError}</div>
     </div>
   );
   if (!allJobs.length) return null;
 
   return (
     <div className="mt-6 border border-gray-800 bg-gray-900/30 p-4">
-      <p className="text-gray-400 text-xs font-bold uppercase tracking-widest mb-1">🖨 Print Invoices</p>
-      <p className="text-gray-600 text-[10px] mb-3">Preview on screen, then Share/Save as a real PDF file (Print, AirDrop, etc. from there).</p>
+      <div className="text-gray-400 text-xs font-bold uppercase tracking-widest mb-1">🖨 Print Invoices</div>
+      <div className="text-gray-600 text-[10px] mb-3">Preview on screen, then Share/Save as a real PDF file (Print, AirDrop, etc. from there).</div>
       <div className="flex gap-2 mb-4">
         <button onClick={() => setMode('year')} className={`flex-1 text-xs font-bold uppercase tracking-wider py-2.5 border transition-colors ${mode === 'year' ? 'border-red-600 text-white bg-red-900/20' : 'border-gray-700 text-gray-500 hover:text-gray-300'}`}>By Year</button>
         <button onClick={() => setMode('month')} className={`flex-1 text-xs font-bold uppercase tracking-wider py-2.5 border transition-colors ${mode === 'month' ? 'border-red-600 text-white bg-red-900/20' : 'border-gray-700 text-gray-500 hover:text-gray-300'}`}>By Month</button>
@@ -9506,13 +9506,13 @@ function InvoiceExport() {
         </button>
       )}
       {filteredJobs.length === 0 && (mode === 'year' ? selectedYear : selectedMonth) && (
-        <p className="text-gray-600 text-xs text-center py-2">No paid invoices for this period.</p>
+        <div className="text-gray-600 text-xs text-center py-2">No paid invoices for this period.</div>
       )}
 
       {showPreview && (
         <div className="fixed inset-0 z-50 bg-black/90 flex flex-col p-3">
           <div className="flex items-center justify-between gap-2 mb-2 flex-shrink-0">
-            <p className="text-white text-xs font-bold uppercase tracking-wider truncate">Invoice Preview</p>
+            <div className="text-white text-xs font-bold uppercase tracking-wider truncate">Invoice Preview</div>
             <div className="flex gap-2 flex-shrink-0">
               <button onClick={shareInvoicePreview} disabled={sharing}
                 className="text-xs font-bold uppercase tracking-wider px-3 py-2 border border-emerald-700 text-emerald-400 hover:bg-emerald-900/30 transition-colors disabled:opacity-40">
@@ -9525,7 +9525,7 @@ function InvoiceExport() {
             </div>
           </div>
           {shareError && (
-            <p className="text-red-400 text-xs mb-2 flex-shrink-0">{shareError}</p>
+            <div className="text-red-400 text-xs mb-2 flex-shrink-0">{shareError}</div>
           )}
           <iframe title="Invoice preview" srcDoc={previewHtml} className="flex-1 w-full bg-[#0f0f0f] border border-gray-800" />
         </div>
@@ -9655,18 +9655,18 @@ function JobsCSVExport() {
 
   return (
     <div className="mt-6 border border-gray-800 bg-gray-900/30 p-4">
-      <p className="text-gray-400 text-xs font-bold uppercase tracking-widest mb-1">📑 Export Paid Jobs (CSV)</p>
-      <p className="text-gray-600 text-[10px] mb-3">Paid jobs only — revenue, tax, parts cost, and net profit. Preview on screen, then Share/Save or copy the text.</p>
+      <div className="text-gray-400 text-xs font-bold uppercase tracking-widest mb-1">📑 Export Paid Jobs (CSV)</div>
+      <div className="text-gray-600 text-[10px] mb-3">Paid jobs only — revenue, tax, parts cost, and net profit. Preview on screen, then Share/Save or copy the text.</div>
       <button onClick={exportCsv} disabled={exporting}
         className="w-full py-3 border border-gray-700 hover:border-yellow-700 hover:text-yellow-500 text-gray-300 text-xs font-bold uppercase tracking-widest transition-colors disabled:opacity-40">
         {exporting ? 'Exporting…' : '👁 Preview CSV'}
       </button>
-      {error && <p className="text-red-400 text-xs mt-2">{error}</p>}
+      {error && <div className="text-red-400 text-xs mt-2">{error}</div>}
 
       {showPreview && (
         <div className="fixed inset-0 z-50 bg-black/90 flex flex-col p-3">
           <div className="flex items-center justify-between gap-2 mb-2 flex-shrink-0">
-            <p className="text-white text-xs font-bold uppercase tracking-wider truncate">Paid Jobs — {previewRows.length - 1} job{previewRows.length - 1 !== 1 ? 's' : ''}</p>
+            <div className="text-white text-xs font-bold uppercase tracking-wider truncate">Paid Jobs — {previewRows.length - 1} job{previewRows.length - 1 !== 1 ? 's' : ''}</div>
             <div className="flex gap-2 flex-shrink-0">
               <button onClick={shareCsv} disabled={sharing}
                 className="text-xs font-bold uppercase tracking-wider px-3 py-2 border border-emerald-700 text-emerald-400 hover:bg-emerald-900/30 transition-colors disabled:opacity-40">
@@ -9678,8 +9678,8 @@ function JobsCSVExport() {
               </button>
             </div>
           </div>
-          {shareError && <p className="text-red-400 text-xs mb-2 flex-shrink-0">{shareError}</p>}
-          <p className="text-gray-600 text-[10px] mb-2 flex-shrink-0">Swipe sideways to see all columns. Share/Save exports the full file (CSV).</p>
+          {shareError && <div className="text-red-400 text-xs mb-2 flex-shrink-0">{shareError}</div>}
+          <div className="text-gray-600 text-[10px] mb-2 flex-shrink-0">Swipe sideways to see all columns. Share/Save exports the full file (CSV).</div>
           <div className="flex-1 overflow-auto border border-gray-800">
             <table className="min-w-full text-[11px] border-collapse">
               <thead className="sticky top-0 bg-gray-900">
@@ -9750,14 +9750,14 @@ function TaxRateSettings() {
     setSaving(false);
   }
 
-  if (loading) return <p className="text-gray-600 text-xs py-4">Loading tax rate…</p>;
+  if (loading) return <div className="text-gray-600 text-xs py-4">Loading tax rate…</div>;
 
   return (
     <div className="border border-gray-800 bg-gray-900/30 p-4">
-      <p className="text-gray-400 text-xs font-bold uppercase tracking-widest mb-1">⚙️ AZ TPT Rate</p>
-      <p className="text-gray-600 text-[10px] mb-3">
+      <div className="text-gray-400 text-xs font-bold uppercase tracking-widest mb-1">⚙️ AZ TPT Rate</div>
+      <div className="text-gray-600 text-[10px] mb-3">
         Flagstaff's published combined rate (state 5.6% + Coconino County 1.3% + city 2.486%) is currently <strong className="text-gray-400">9.386%</strong>, per the AZ Dept. of Revenue rate tables — confirmed January 2026. This app can't auto-detect future changes, so update it here if AZ ever changes it. Saving applies to every <em>new</em> estimate/invoice from then on — past paid jobs keep whatever rate was actually charged.
-      </p>
+      </div>
       <div className="flex gap-2 mb-1">
         <div className="flex items-center gap-1 bg-gray-900 border border-gray-700 px-2.5 flex-1">
           <input
@@ -9780,9 +9780,9 @@ function TaxRateSettings() {
         </button>
       </div>
       {savedRate != null && (
-        <p className="text-gray-700 text-[10px]">Currently saved: {(savedRate * 100).toFixed(3)}%</p>
+        <div className="text-gray-700 text-[10px]">Currently saved: {(savedRate * 100).toFixed(3)}%</div>
       )}
-      {error && <p className="text-red-400 text-xs mt-2">{error}</p>}
+      {error && <div className="text-red-400 text-xs mt-2">{error}</div>}
     </div>
   );
 }
@@ -9844,54 +9844,54 @@ function TaxSummary() {
       .catch(() => setLoading(false));
   }, []);
 
-  if (loading) return <p className="text-gray-600 text-xs py-4">Loading tax data…</p>;
+  if (loading) return <div className="text-gray-600 text-xs py-4">Loading tax data…</div>;
   if (!rows.length) return (
     <div className="bg-yellow-900/10 border border-yellow-800 px-4 py-3 mt-4">
-      <p className="text-yellow-400 text-xs font-bold mb-1">No paid invoices yet</p>
-      <p className="text-gray-500 text-xs">Once you mark jobs as PAID, your monthly tax summary will appear here automatically.</p>
+      <div className="text-yellow-400 text-xs font-bold mb-1">No paid invoices yet</div>
+      <div className="text-gray-500 text-xs">Once you mark jobs as PAID, your monthly tax summary will appear here automatically.</div>
     </div>
   );
 
   return (
     <div className="mt-4">
-      <p className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-3">📊 Monthly TPT Summary</p>
+      <div className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-3">📊 Monthly TPT Summary</div>
       <div className="space-y-2">
         {rows.map(r => {
           const [yr, mo] = r.month.split('-');
           const label = new Date(Date.UTC(Number(yr), Number(mo) - 1, 1, 12)).toLocaleDateString('en-US', { month: 'short', year: 'numeric', timeZone: 'UTC' });
           return (
             <div key={r.month} className="border border-gray-800 bg-gray-900/40 px-4 py-3 space-y-1.5">
-              <p className="text-white text-sm font-black">{label}</p>
+              <div className="text-white text-sm font-black">{label}</div>
               <div className="grid grid-cols-4 gap-2 text-center">
                 <div className="bg-gray-900 border border-gray-800 px-2 py-2">
-                  <p className="text-gray-500 text-[10px] font-bold uppercase tracking-wider mb-0.5">Subtotal</p>
-                  <p className="text-white text-sm font-mono font-bold">${r.subtotal.toFixed(2)}</p>
+                  <div className="text-gray-500 text-[10px] font-bold uppercase tracking-wider mb-0.5">Subtotal</div>
+                  <div className="text-white text-sm font-mono font-bold">${r.subtotal.toFixed(2)}</div>
                 </div>
                 <div className="bg-blue-900/20 border border-blue-800 px-2 py-2">
-                  <p className="text-blue-500 text-[10px] font-bold uppercase tracking-wider mb-0.5">Taxable Gross</p>
-                  <p className="text-blue-300 text-sm font-mono font-bold">${r.taxableGross.toFixed(2)}</p>
+                  <div className="text-blue-500 text-[10px] font-bold uppercase tracking-wider mb-0.5">Taxable Gross</div>
+                  <div className="text-blue-300 text-sm font-mono font-bold">${r.taxableGross.toFixed(2)}</div>
                 </div>
                 <div className="bg-yellow-900/20 border border-yellow-800 px-2 py-2">
-                  <p className="text-yellow-600 text-[10px] font-bold uppercase tracking-wider mb-0.5">Tax</p>
-                  <p className="text-yellow-400 text-sm font-mono font-bold">${r.tax.toFixed(2)}</p>
+                  <div className="text-yellow-600 text-[10px] font-bold uppercase tracking-wider mb-0.5">Tax</div>
+                  <div className="text-yellow-400 text-sm font-mono font-bold">${r.tax.toFixed(2)}</div>
                 </div>
                 <div className="bg-gray-900 border border-gray-700 px-2 py-2">
-                  <p className="text-gray-500 text-[10px] font-bold uppercase tracking-wider mb-0.5">Total</p>
-                  <p className="text-white text-sm font-mono font-bold">${r.total.toFixed(2)}</p>
+                  <div className="text-gray-500 text-[10px] font-bold uppercase tracking-wider mb-0.5">Total</div>
+                  <div className="text-white text-sm font-mono font-bold">${r.total.toFixed(2)}</div>
                 </div>
               </div>
-              <p className="text-gray-700 text-[10px] pt-0.5">Enter <strong className="text-blue-400">${r.taxableGross.toFixed(2)}</strong> as Gross on each AZTaxes.gov RETAIL-017 line item for this period.</p>
+              <div className="text-gray-700 text-[10px] pt-0.5">Enter <strong className="text-blue-400">${r.taxableGross.toFixed(2)}</strong> as Gross on each AZTaxes.gov RETAIL-017 line item for this period.</div>
             </div>
           );
         })}
         <div className="border border-gray-700 bg-gray-900/60 px-4 py-3 grid grid-cols-4 gap-2 text-center">
-          <div><p className="text-gray-600 text-[10px] uppercase tracking-wider">All Time</p><p className="text-gray-300 text-sm font-mono font-bold">${rows.reduce((s, r) => s + r.subtotal, 0).toFixed(2)}</p></div>
-          <div><p className="text-blue-700 text-[10px] uppercase tracking-wider">Taxable Gross</p><p className="text-blue-300 text-sm font-mono font-bold">${rows.reduce((s, r) => s + r.taxableGross, 0).toFixed(2)}</p></div>
-          <div><p className="text-yellow-700 text-[10px] uppercase tracking-wider">Tax</p><p className="text-yellow-400 text-sm font-mono font-bold">${rows.reduce((s, r) => s + r.tax, 0).toFixed(2)}</p></div>
-          <div><p className="text-gray-600 text-[10px] uppercase tracking-wider">Total</p><p className="text-white text-sm font-mono font-bold">${rows.reduce((s, r) => s + r.total, 0).toFixed(2)}</p></div>
+          <div><div className="text-gray-600 text-[10px] uppercase tracking-wider">All Time</div><div className="text-gray-300 text-sm font-mono font-bold">${rows.reduce((s, r) => s + r.subtotal, 0).toFixed(2)}</div></div>
+          <div><div className="text-blue-700 text-[10px] uppercase tracking-wider">Taxable Gross</div><div className="text-blue-300 text-sm font-mono font-bold">${rows.reduce((s, r) => s + r.taxableGross, 0).toFixed(2)}</div></div>
+          <div><div className="text-yellow-700 text-[10px] uppercase tracking-wider">Tax</div><div className="text-yellow-400 text-sm font-mono font-bold">${rows.reduce((s, r) => s + r.tax, 0).toFixed(2)}</div></div>
+          <div><div className="text-gray-600 text-[10px] uppercase tracking-wider">Total</div><div className="text-white text-sm font-mono font-bold">${rows.reduce((s, r) => s + r.total, 0).toFixed(2)}</div></div>
         </div>
       </div>
-      <p className="text-gray-700 text-[10px] mt-2">File & remit at AZTaxes.gov by the 20th of the following month. "Taxable Gross" is what goes in AZTaxes.gov's Gross field on each RETAIL-017 line — it excludes labor and the mobile fee.</p>
+      <div className="text-gray-700 text-[10px] mt-2">File & remit at AZTaxes.gov by the 20th of the following month. "Taxable Gross" is what goes in AZTaxes.gov's Gross field on each RETAIL-017 line — it excludes labor and the mobile fee.</div>
     </div>
   );
 }
@@ -10058,15 +10058,15 @@ export function OwnerPayPanel() {
 
   return (
     <div>
-      <p className="text-gray-600 text-[10px] mb-4">
+      <div className="text-gray-600 text-[10px] mb-4">
         Sized off your actual last 30 days of paid jobs, not a guess. Line up your real monthly overhead below and it's treated as a real cost — same for the Stripe fee estimate, which only covers card payments logged since payment tracking started (older jobs without a full log aren't included).
-      </p>
+      </div>
 
       {/* Overhead line items */}
       <div className="border border-gray-800 p-3 mb-4">
-        <p className="text-gray-500 text-[10px] font-bold uppercase tracking-wider mb-2">Monthly Overhead</p>
+        <div className="text-gray-500 text-[10px] font-bold uppercase tracking-wider mb-2">Monthly Overhead</div>
         {overheadItems.length === 0 && (
-          <p className="text-gray-700 text-xs italic py-2">No line items yet — add insurance, subscriptions, licensing, etc. below.</p>
+          <div className="text-gray-700 text-xs italic py-2">No line items yet — add insurance, subscriptions, licensing, etc. below.</div>
         )}
         <div className="space-y-1.5 mb-2">
           {overheadItems.map(item => (
@@ -10126,7 +10126,7 @@ export function OwnerPayPanel() {
             </div>
           </div>
         </div>
-        <p className="text-gray-700 text-[10px]">2.928% is your real July 2026 blended rate — $76.71 application fee (Bluevine's markup on Stripe) on $2,620.16 gross card sales, per your Stripe dashboard. Update this whenever you check a fresh month.</p>
+        <div className="text-gray-700 text-[10px]">2.928% is your real July 2026 blended rate — $76.71 application fee (Bluevine's markup on Stripe) on $2,620.16 gross card sales, per your Stripe dashboard. Update this whenever you check a fresh month.</div>
         <div>
           <label className="block text-gray-600 text-[10px] font-bold uppercase tracking-wider mb-1">Any Payday Tuesday (sets the cadence)</label>
           <input type="date" value={payAnchorDate} onChange={e => setPayAnchorDate(e.target.value)}
@@ -10136,10 +10136,10 @@ export function OwnerPayPanel() {
           className="w-full py-2 text-xs font-bold uppercase tracking-wider border border-cyan-700 text-cyan-500 hover:bg-cyan-900/20 transition-colors disabled:opacity-50">
           {savingSettings ? 'Saving…' : settingsSaved ? '✓ Saved' : 'Save Settings'}
         </button>
-        {settingsError && <p className="text-red-400 text-xs">{settingsError}</p>}
+        {settingsError && <div className="text-red-400 text-xs">{settingsError}</div>}
       </div>
 
-      {jobsError && <p className="text-red-400 text-xs mb-3">{jobsError}</p>}
+      {jobsError && <div className="text-red-400 text-xs mb-3">{jobsError}</div>}
 
       {jobs && (
         <>
@@ -10157,26 +10157,26 @@ export function OwnerPayPanel() {
 
           {inDeficit && (
             <div className="border border-red-900 bg-red-900/10 px-3 py-2.5 mb-4">
-              <p className="text-red-400 text-xs font-bold uppercase tracking-wider mb-1">⚠ Job margin doesn't cover overhead + fees</p>
-              <p className="text-red-300/80 text-[11px]">Last 30 days of paid jobs didn't clear your overhead and estimated Stripe fees — this window supports a $0 draw. Wait for the next payday to reassess rather than drawing from savings.</p>
+              <div className="text-red-400 text-xs font-bold uppercase tracking-wider mb-1">⚠ Job margin doesn't cover overhead + fees</div>
+              <div className="text-red-300/80 text-[11px]">Last 30 days of paid jobs didn't clear your overhead and estimated Stripe fees — this window supports a $0 draw. Wait for the next payday to reassess rather than drawing from savings.</div>
             </div>
           )}
 
           {/* Suggested draw */}
           <div className="bg-gray-950 border border-emerald-900/50 p-4 text-center mb-4">
-            <p className="text-gray-500 text-[10px] font-bold uppercase tracking-widest mb-1">Suggested Per Payday</p>
-            <p className={`text-3xl font-black font-mono ${suggestedPerPayday > 0 ? 'text-emerald-400' : 'text-gray-600'}`}>
+            <div className="text-gray-500 text-[10px] font-bold uppercase tracking-widest mb-1">Suggested Per Payday</div>
+            <div className={`text-3xl font-black font-mono ${suggestedPerPayday > 0 ? 'text-emerald-400' : 'text-gray-600'}`}>
               ${suggestedPerPayday.toFixed(2)}
-            </p>
+            </div>
             {nextPayday && (
-              <p className="text-gray-600 text-[10px] mt-1">Next payday: {new Date(nextPayday + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}</p>
+              <div className="text-gray-600 text-[10px] mt-1">Next payday: {new Date(nextPayday + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}</div>
             )}
-            {!payAnchorDate && <p className="text-gray-700 text-[10px] mt-1">Set a payday Tuesday above to see the next date.</p>}
+            {!payAnchorDate && <div className="text-gray-700 text-[10px] mt-1">Set a payday Tuesday above to see the next date.</div>}
           </div>
 
           {/* Log the draw */}
           <div className="border border-gray-800 p-3 space-y-2">
-            <p className="text-gray-500 text-[10px] font-bold uppercase tracking-wider">Log This Draw to the Equity Ledger</p>
+            <div className="text-gray-500 text-[10px] font-bold uppercase tracking-wider">Log This Draw to the Equity Ledger</div>
             <div className="flex gap-2">
               <div className="flex items-center gap-1 bg-gray-900 border border-gray-700 px-2.5 flex-1">
                 <span className="text-gray-500 text-xs font-bold">$</span>
@@ -10192,12 +10192,12 @@ export function OwnerPayPanel() {
               className="w-full py-2.5 text-xs font-bold uppercase tracking-wider border border-emerald-700 text-emerald-500 hover:bg-emerald-900/20 transition-colors disabled:opacity-50">
               {loggingDraw ? 'Logging…' : drawLogged ? '✓ Logged — see Equity Ledger in Hub → Banking' : '+ Log This Draw'}
             </button>
-            {drawError && <p className="text-red-400 text-xs">{drawError}</p>}
+            {drawError && <div className="text-red-400 text-xs">{drawError}</div>}
           </div>
         </>
       )}
 
-      {!jobs && !jobsError && <p className="text-gray-600 text-xs py-4 text-center">Loading job data…</p>}
+      {!jobs && !jobsError && <div className="text-gray-600 text-xs py-4 text-center">Loading job data…</div>}
     </div>
   );
 }
@@ -10303,23 +10303,23 @@ function EquityTracker() {
 
   return (
     <div className="mt-4 border border-gray-800 bg-gray-900/30 p-4">
-      <p className="text-gray-400 text-xs font-bold uppercase tracking-widest mb-1">🏦 Owner's Equity Ledger</p>
-      <p className="text-gray-600 text-[10px] mb-3">
+      <div className="text-gray-400 text-xs font-bold uppercase tracking-widest mb-1">🏦 Owner's Equity Ledger</div>
+      <div className="text-gray-600 text-[10px] mb-3">
         Contributions = personal money you've put into the business (parts fronted, seed cash, expenses paid personally — you're already tracking these in Zoho). Draws = money the business has paid back to you. Balance below is what the business still owes you, or how far ahead it's paid you back.
-      </p>
+      </div>
 
       <div className="grid grid-cols-3 gap-2 mb-4 text-center">
         <div className="bg-gray-900 border border-emerald-900 px-2 py-2">
-          <p className="text-emerald-600 text-[10px] font-bold uppercase tracking-wider mb-0.5">Contributions</p>
-          <p className="text-emerald-400 text-sm font-mono font-bold">${totalContributions.toFixed(2)}</p>
+          <div className="text-emerald-600 text-[10px] font-bold uppercase tracking-wider mb-0.5">Contributions</div>
+          <div className="text-emerald-400 text-sm font-mono font-bold">${totalContributions.toFixed(2)}</div>
         </div>
         <div className="bg-gray-900 border border-orange-900 px-2 py-2">
-          <p className="text-orange-600 text-[10px] font-bold uppercase tracking-wider mb-0.5">Draws</p>
-          <p className="text-orange-400 text-sm font-mono font-bold">${totalDraws.toFixed(2)}</p>
+          <div className="text-orange-600 text-[10px] font-bold uppercase tracking-wider mb-0.5">Draws</div>
+          <div className="text-orange-400 text-sm font-mono font-bold">${totalDraws.toFixed(2)}</div>
         </div>
         <div className="bg-gray-900 border border-cyan-900 px-2 py-2">
-          <p className="text-cyan-600 text-[10px] font-bold uppercase tracking-wider mb-0.5">Balance</p>
-          <p className={`text-sm font-mono font-bold ${balance >= 0 ? 'text-cyan-400' : 'text-red-400'}`}>${balance.toFixed(2)}</p>
+          <div className="text-cyan-600 text-[10px] font-bold uppercase tracking-wider mb-0.5">Balance</div>
+          <div className={`text-sm font-mono font-bold ${balance >= 0 ? 'text-cyan-400' : 'text-red-400'}`}>${balance.toFixed(2)}</div>
         </div>
       </div>
 
@@ -10363,14 +10363,14 @@ function EquityTracker() {
           disabled={saving}
           className="w-full py-2.5 text-xs font-bold uppercase tracking-wider border border-cyan-700 text-cyan-500 hover:bg-cyan-900/20 transition-colors disabled:opacity-50"
         >{saving ? 'Saving…' : '+ Add Entry'}</button>
-        {error && <p className="text-red-400 text-xs">{error}</p>}
+        {error && <div className="text-red-400 text-xs">{error}</div>}
       </div>
 
       {/* History — chronological, oldest first */}
       {loading ? (
-        <p className="text-gray-600 text-xs py-4">Loading ledger…</p>
+        <div className="text-gray-600 text-xs py-4">Loading ledger…</div>
       ) : !entries.length ? (
-        <p className="text-gray-700 text-xs italic py-2">No entries yet — log your first contribution or draw above.</p>
+        <div className="text-gray-700 text-xs italic py-2">No entries yet — log your first contribution or draw above.</div>
       ) : (
         <div className="space-y-1.5">
           {entries.map(e => (
@@ -10410,7 +10410,7 @@ function EquityTracker() {
                     onChange={ev => setEditNote(ev.target.value)}
                     className="w-full bg-gray-950 border border-gray-700 text-white px-2.5 py-1.5 text-sm outline-none placeholder-gray-700"
                   />
-                  {editError && <p className="text-red-400 text-xs">{editError}</p>}
+                  {editError && <div className="text-red-400 text-xs">{editError}</div>}
                   <div className="flex gap-2">
                     <button
                       onClick={() => saveEdit(e.id)}
@@ -10427,10 +10427,10 @@ function EquityTracker() {
               ) : (
                 <div className="flex items-center justify-between gap-3">
                   <div className="min-w-0">
-                    <p className={`text-xs font-bold uppercase tracking-wider ${e.entry_type === 'contribution' ? 'text-emerald-500' : 'text-orange-500'}`}>
+                    <div className={`text-xs font-bold uppercase tracking-wider ${e.entry_type === 'contribution' ? 'text-emerald-500' : 'text-orange-500'}`}>
                       {e.entry_type === 'contribution' ? 'Contribution' : 'Draw'}
-                    </p>
-                    <p className="text-gray-500 text-[11px] truncate">{e.note || '—'} · {new Date(e.entry_date + 'T00:00:00').toLocaleDateString('en-US')}</p>
+                    </div>
+                    <div className="text-gray-500 text-[11px] truncate">{e.note || '—'} · {new Date(e.entry_date + 'T00:00:00').toLocaleDateString('en-US')}</div>
                   </div>
                   <div className="flex items-center gap-3 flex-shrink-0">
                     <span className={`font-mono text-sm font-bold ${e.entry_type === 'contribution' ? 'text-emerald-400' : 'text-orange-400'}`}>
@@ -10538,10 +10538,10 @@ function LineGraph({ points, points2, series2Label, series2Color, valueFmt }: {
       </svg>
       {hover !== null && points[hover] && (
         <div className="absolute top-1 right-1 bg-gray-950 border border-emerald-800 px-2.5 py-1.5 text-right pointer-events-none space-y-0.5">
-          <p className="text-gray-500 text-[10px] font-bold uppercase tracking-wider">{points[hover].label}</p>
-          <p className="text-emerald-400 text-sm font-mono font-bold">{valueFmt(points[hover].value)}</p>
+          <div className="text-gray-500 text-[10px] font-bold uppercase tracking-wider">{points[hover].label}</div>
+          <div className="text-emerald-400 text-sm font-mono font-bold">{valueFmt(points[hover].value)}</div>
           {points2 && points2[hover] && (
-            <p className="text-sm font-mono font-bold" style={{ color: s2Color }}>{valueFmt(points2[hover].value)}</p>
+            <div className="text-sm font-mono font-bold" style={{ color: s2Color }}>{valueFmt(points2[hover].value)}</div>
           )}
         </div>
       )}
@@ -10577,7 +10577,7 @@ function RevenuePanel() {
       .catch(() => setLoading(false));
   }, []);
 
-  if (loading) return <p className="text-gray-600 text-xs py-8 text-center animate-pulse">Loading revenue…</p>;
+  if (loading) return <div className="text-gray-600 text-xs py-8 text-center animate-pulse">Loading revenue…</div>;
 
   const allEntries = rows.flatMap(revenueEntriesFor).filter(e => e.date);
   // Helper pay comes off net profit on the day it was paid (noon UTC = same Arizona day).
@@ -10703,22 +10703,22 @@ function RevenuePanel() {
           </div>
 
           {!rangeValid ? (
-            <p className="text-gray-700 text-xs italic py-16 text-center border border-gray-800 bg-gray-900/40">Pick a start and end date.</p>
+            <div className="text-gray-700 text-xs italic py-16 text-center border border-gray-800 bg-gray-900/40">Pick a start and end date.</div>
           ) : (
             <div className="grid grid-cols-2 gap-3">
               <div className="border border-emerald-800 bg-emerald-900/10 p-4 text-center">
-                <p className="text-emerald-400 text-2xl font-mono font-black">${rangeGross.toFixed(2)}</p>
-                <p className="text-gray-500 text-[10px] font-bold uppercase tracking-wider mt-1">Gross Revenue</p>
+                <div className="text-emerald-400 text-2xl font-mono font-black">${rangeGross.toFixed(2)}</div>
+                <div className="text-gray-500 text-[10px] font-bold uppercase tracking-wider mt-1">Gross Revenue</div>
               </div>
               <div className="border border-blue-800 bg-blue-900/10 p-4 text-center">
-                <p className="text-blue-400 text-2xl font-mono font-black">${rangeNet.toFixed(2)}</p>
-                <p className="text-gray-500 text-[10px] font-bold uppercase tracking-wider mt-1">Net Profit</p>
+                <div className="text-blue-400 text-2xl font-mono font-black">${rangeNet.toFixed(2)}</div>
+                <div className="text-gray-500 text-[10px] font-bold uppercase tracking-wider mt-1">Net Profit</div>
               </div>
             </div>
           )}
-          <p className="text-gray-700 text-[10px] mt-2">
+          <div className="text-gray-700 text-[10px] mt-2">
             Gross = payments collected in range. Net = gross minus sales tax collected minus parts cost, attributed to each job's paid date.
-          </p>
+          </div>
         </div>
       ) : (
         <>
@@ -10729,9 +10729,9 @@ function RevenuePanel() {
           className="w-8 h-8 flex items-center justify-center border border-gray-800 text-gray-500 hover:text-white hover:border-gray-600 transition-colors"
         >‹</button>
         <div className="text-center">
-          <p className="text-white text-sm font-black">{periodLabel}</p>
-          <p className="text-emerald-400 text-lg font-mono font-black">${periodTotal.toFixed(2)}</p>
-          <p className="text-blue-400 text-xs font-mono font-bold">${periodNetProfitTotal.toFixed(2)} net</p>
+          <div className="text-white text-sm font-black">{periodLabel}</div>
+          <div className="text-emerald-400 text-lg font-mono font-black">${periodTotal.toFixed(2)}</div>
+          <div className="text-blue-400 text-xs font-mono font-bold">${periodNetProfitTotal.toFixed(2)} net</div>
         </div>
         <button
           onClick={() => mode === 'month' ? setMonthOffset(o => Math.min(0, o + 1)) : setYearOffset(o => Math.min(0, o + 1))}
@@ -10745,12 +10745,12 @@ function RevenuePanel() {
         {hasAnyData ? (
           <LineGraph points={points} points2={netProfitPoints} series2Label="Net Profit" series2Color="#3b82f6" valueFmt={n => `$${n.toFixed(2)}`} />
         ) : (
-          <p className="text-gray-700 text-xs italic py-16 text-center">No paid revenue in this period.</p>
+          <div className="text-gray-700 text-xs italic py-16 text-center">No paid revenue in this period.</div>
         )}
       </div>
-      <p className="text-gray-700 text-[10px] mt-2">
+      <div className="text-gray-700 text-[10px] mt-2">
         {mode === 'month' ? 'Cumulative revenue and net profit by day of month.' : 'Cumulative revenue and net profit by month of year.'} Tap/hover a point for that day/month's running totals.
-      </p>
+      </div>
         </>
       )}
     </div>
@@ -10793,9 +10793,9 @@ function BackupBookingInspector({ backupKey }: { backupKey: string }) {
       </button>
       {open && (
         <div className="mt-3 space-y-2">
-          <p className="text-gray-500 text-[11px]">
+          <div className="text-gray-500 text-[11px]">
             Looks up specific job IDs inside the backup selected above, without changing anything live. Paste GID-… ids, one per line or comma-separated.
-          </p>
+          </div>
           <textarea value={idsText} onChange={e => setIdsText(e.target.value)} rows={3}
             placeholder="GID-1785180935122, GID-1785272578055, ..."
             className="w-full bg-gray-900 text-white text-xs font-mono px-3 py-2 outline-none border border-gray-700 focus:border-cyan-600 transition-colors" />
@@ -10803,8 +10803,8 @@ function BackupBookingInspector({ backupKey }: { backupKey: string }) {
             className="border border-cyan-700 text-cyan-400 hover:bg-cyan-900/20 disabled:opacity-50 text-xs font-bold uppercase tracking-wider px-4 py-2 transition-colors">
             {loading ? 'Looking up…' : 'Look Up in This Backup'}
           </button>
-          {error && <p className="text-red-400 text-xs">{error}</p>}
-          {rows && rows.length === 0 && <p className="text-gray-600 text-xs italic">No matching booking IDs found in this backup.</p>}
+          {error && <div className="text-red-400 text-xs">{error}</div>}
+          {rows && rows.length === 0 && <div className="text-gray-600 text-xs italic">No matching booking IDs found in this backup.</div>}
           {rows && rows.length > 0 && (
             <div className="overflow-x-auto border border-gray-800">
               <table className="w-full text-[11px]">
@@ -10913,22 +10913,22 @@ function RecoveryPanel() {
       {/* Big, unmissable status card */}
       <div className={`border-2 ${STATE_STYLE.border} ${STATE_STYLE.bg} p-5 mb-4`}>
         {loading ? (
-          <p className="text-gray-500 text-sm animate-pulse">Checking backup status…</p>
+          <div className="text-gray-500 text-sm animate-pulse">Checking backup status…</div>
         ) : (
           <>
-            <p className={`text-lg font-black ${STATE_STYLE.text} mb-1`}>{STATE_STYLE.label}</p>
+            <div className={`text-lg font-black ${STATE_STYLE.text} mb-1`}>{STATE_STYLE.label}</div>
             {status?.lastBackupAt ? (
               <>
-                <p className="text-gray-300 text-sm mb-0.5">
+                <div className="text-gray-300 text-sm mb-0.5">
                   Last backup: <span className="font-mono">{new Date(status.lastBackupAt).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'America/Phoenix' })}</span>
                   {' '}({hoursAgo! < 1 ? '<1 hr' : `${Math.round(hoursAgo!)} hr${Math.round(hoursAgo!) === 1 ? '' : 's'}`} ago)
-                </p>
-                <p className="text-gray-500 text-xs">
+                </div>
+                <div className="text-gray-500 text-xs">
                   {status.totalRows} rows saved ({Object.entries(status.rowCounts || {}).map(([t, n]) => `${t}: ${n}`).join(', ')}) — {(status.sizeBytes / 1024).toFixed(0)} KB
-                </p>
+                </div>
               </>
             ) : (
-              <p className="text-gray-400 text-sm">No backup has ever run. Set up the scheduled job below, or run one now.</p>
+              <div className="text-gray-400 text-sm">No backup has ever run. Set up the scheduled job below, or run one now.</div>
             )}
           </>
         )}
@@ -10941,17 +10941,17 @@ function RecoveryPanel() {
       >
         {running ? 'Running Backup…' : '🛟 Run Backup Now'}
       </button>
-      {runError && <p className="text-red-400 text-xs mb-2">{runError}</p>}
+      {runError && <div className="text-red-400 text-xs mb-2">{runError}</div>}
       <button onClick={load} className="w-full py-2 text-[11px] font-bold uppercase tracking-wider text-gray-600 hover:text-gray-300 transition-colors">↺ Refresh Status</button>
 
       {/* Restore from a backup */}
       <div className="mt-6 border-t border-gray-800 pt-4">
-        <p className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-3">Restore From Backup</p>
+        <div className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-3">Restore From Backup</div>
 
         {backupsLoading ? (
-          <p className="text-gray-600 text-xs animate-pulse">Loading backups…</p>
+          <div className="text-gray-600 text-xs animate-pulse">Loading backups…</div>
         ) : backups.length === 0 ? (
-          <p className="text-gray-700 text-xs italic">No backups available yet.</p>
+          <div className="text-gray-700 text-xs italic">No backups available yet.</div>
         ) : (
           <>
             <select
@@ -10977,11 +10977,11 @@ function RecoveryPanel() {
               >Full Replace (danger)</button>
             </div>
 
-            <p className="text-gray-600 text-[10px] mb-3 leading-relaxed">
+            <div className="text-gray-600 text-[10px] mb-3 leading-relaxed">
               {restoreMode === 'merge'
                 ? 'Restores every row from this backup, filling in anything missing or reverting anything changed — but never deletes jobs created after this backup ran.'
                 : 'DELETES everything currently in the database, then loads exactly what was in this backup. Anything created after this backup was taken — new bookings, payments, notes — is gone permanently.'}
-            </p>
+            </div>
 
             {restoreMode === 'replace' && (
               <input
@@ -11000,13 +11000,13 @@ function RecoveryPanel() {
             >
               {restoring ? 'Restoring…' : restoreMode === 'replace' ? '⚠️ Wipe & Restore' : '↩ Restore (Merge)'}
             </button>
-            {restoreError && <p className="text-red-400 text-xs mt-2">{restoreError}</p>}
+            {restoreError && <div className="text-red-400 text-xs mt-2">{restoreError}</div>}
             {restoreResult && (
               <div className="mt-2 border border-emerald-800 bg-emerald-900/10 px-3 py-2">
-                <p className="text-emerald-400 text-xs font-bold">✅ Restore complete ({restoreResult.mode})</p>
-                <p className="text-gray-500 text-[11px] mt-0.5">
+                <div className="text-emerald-400 text-xs font-bold">✅ Restore complete ({restoreResult.mode})</div>
+                <div className="text-gray-500 text-[11px] mt-0.5">
                   {Object.entries(restoreResult.rowCounts || {}).map(([t, n]) => `${t}: ${n}`).join(', ')}
-                </p>
+                </div>
               </div>
             )}
 
@@ -11016,11 +11016,11 @@ function RecoveryPanel() {
       </div>
 
       <div className="mt-6 border-t border-gray-800 pt-4 space-y-2">
-        <p className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-1">One-time setup for daily auto-backups</p>
-        <p className="text-gray-500 text-xs leading-relaxed">
+        <div className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-1">One-time setup for daily auto-backups</div>
+        <div className="text-gray-500 text-xs leading-relaxed">
           Cloudflare Pages Functions can't run on their own schedule, so a free external
           scheduler has to trigger it — this only needs to be set up once:
-        </p>
+        </div>
         <ol className="text-gray-500 text-xs leading-relaxed list-decimal list-inside space-y-1">
           <li>Cloudflare Pages → Settings → Environment variables → add <span className="text-gray-300 font-mono">CRON_SECRET</span> (any long random string).</li>
           <li>At a free service like cron-job.org, create a daily job hitting:<br/>
@@ -11028,15 +11028,15 @@ function RecoveryPanel() {
           </li>
           <li>Come back here after a day to confirm it went green.</li>
         </ol>
-        <p className="text-gray-600 text-[10px] mt-2">
+        <div className="text-gray-600 text-[10px] mt-2">
           Backups are stored as JSON in the same R2 bucket your job photos live in, under a <span className="font-mono">backups/</span> prefix, and kept for 30 days.
-        </p>
-        <p className="text-gray-600 text-[10px] mt-2">
+        </div>
+        <div className="text-gray-600 text-[10px] mt-2">
           <strong className="text-gray-500">If the site itself is down/broken</strong> and you can't reach this panel: log into
           Cloudflare dashboard → R2 → your photos bucket → <span className="font-mono">backups/</span> folder, download the JSON
           file for the date you want, and hand it to me (or paste its contents) — I can restore it directly via Supabase's SQL
           editor as a last resort.
-        </p>
+        </div>
       </div>
     </div>
   );
@@ -11067,7 +11067,7 @@ function HubCategoryPanel({ cat }: { cat: HubCategory }) {
     setEditingId(null);
   }
 
-  if (loading) return <p className="text-gray-600 text-xs py-8 text-center animate-pulse">Loading…</p>;
+  if (loading) return <div className="text-gray-600 text-xs py-8 text-center animate-pulse">Loading…</div>;
 
   if (cat.id === 'revenue') return <RevenuePanel />;
   if (cat.id === 'recovery') return <RecoveryPanel />;
@@ -11083,7 +11083,7 @@ function HubCategoryPanel({ cat }: { cat: HubCategory }) {
 
       <div className="space-y-2 mb-4">
         {notes.length === 0 && (
-          <p className="text-gray-700 text-xs italic py-6 text-center">No notes yet. Add one below.</p>
+          <div className="text-gray-700 text-xs italic py-6 text-center">No notes yet. Add one below.</div>
         )}
         {notes.map(note => (
           <div key={note.id} className={`border ${cat.border} ${cat.bg} px-4 py-3`}>
@@ -11103,7 +11103,7 @@ function HubCategoryPanel({ cat }: { cat: HubCategory }) {
               </div>
             ) : (
               <div>
-                <p className="text-gray-200 text-sm leading-relaxed mb-3">{note.content}</p>
+                <div className="text-gray-200 text-sm leading-relaxed mb-3">{note.content}</div>
                 <div className="flex gap-2">
                   <button onClick={() => startEdit(note)} className="text-[11px] font-bold uppercase tracking-wider px-3 py-1.5 border border-gray-700 text-gray-500 hover:text-white hover:border-gray-500 transition-colors active:bg-gray-800">Edit</button>
                   <button onClick={() => { if (confirm('Delete this note?')) deleteNote(note.id); }} className="text-[11px] font-bold uppercase tracking-wider px-3 py-1.5 border border-gray-800 text-gray-600 hover:text-red-400 hover:border-red-800 transition-colors active:bg-red-950">Delete</button>
@@ -11175,7 +11175,7 @@ export function BusinessHub() {
       {/* Header */}
       <div className="flex items-start justify-between mb-5">
         <div>
-          <p className="text-red-600 text-xs font-bold uppercase tracking-[0.25em] mb-1">Admin · GID Garage</p>
+          <div className="text-red-600 text-xs font-bold uppercase tracking-[0.25em] mb-1">Admin · GID Garage</div>
           <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tight">Business Hub</h2>
         </div>
         <button

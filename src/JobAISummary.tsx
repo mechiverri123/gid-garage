@@ -59,7 +59,7 @@ export function JobAISummary({ job }: { job: Job }) {
   return (
     <div className="no-print bg-gray-900 border border-gray-800 border-l-4 border-l-red-600 px-4 py-3">
       <div className="flex items-center justify-between gap-3">
-        <p className="text-gray-400 text-[11px] font-bold uppercase tracking-widest">✨ AI summary{when && <span className="normal-case tracking-normal font-normal text-gray-600"> · {when}</span>}</p>
+        <div className="text-gray-400 text-[11px] font-bold uppercase tracking-widest">✨ AI summary{when && <span className="normal-case tracking-normal font-normal text-gray-600"> · {when}</span>}</div>
         {(!res?.summary || changed) && (
           <button type="button" onClick={make} disabled={busy}
             className="text-[12px] font-bold uppercase tracking-wider px-3 py-1.5 border border-gray-700 text-gray-200 hover:border-red-600 disabled:opacity-50 whitespace-nowrap">
@@ -67,10 +67,10 @@ export function JobAISummary({ job }: { job: Job }) {
           </button>
         )}
       </div>
-      {res?.summary && <p className="text-gray-200 text-[14px] leading-relaxed whitespace-pre-wrap mt-2">{res.summary}</p>}
-      {outdated && <p className="text-amber-400 text-[12px] mt-2">The job changed since this summary. Tap Update for a fresh one.</p>}
-      {!res?.summary && !outdated && !err && !busy && <p className="text-gray-500 text-[12px] mt-1">A quick overview of this job from its notes, parts, inspection and payments (well under 1¢).</p>}
-      {err && <p className="text-red-400 text-[12px] mt-2" role="alert">{err}</p>}
+      {res?.summary && <div className="text-gray-200 text-[14px] leading-relaxed whitespace-pre-wrap mt-2">{res.summary}</div>}
+      {outdated && <div className="text-amber-400 text-[12px] mt-2">The job changed since this summary. Tap Update for a fresh one.</div>}
+      {!res?.summary && !outdated && !err && !busy && <div className="text-gray-500 text-[12px] mt-1">A quick overview of this job from its notes, parts, inspection and payments (well under 1¢).</div>}
+      {err && <div className="text-red-400 text-[12px] mt-2" role="alert">{err}</div>}
     </div>
   );
 }

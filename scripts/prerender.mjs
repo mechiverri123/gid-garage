@@ -39,7 +39,7 @@ const h1 = t => `<h1 style="color:#fff;font-size:40px;line-height:1.05;font-weig
 const h2 = t => `<h2 style="color:#fff;font-size:24px;margin:28px 0 10px">${esc(t)}</h2>`;
 const list = items => `<ul>${items.map(i => `<li>${i}</li>`).join('')}</ul>`;
 const serviceLinks = (except = null) => list(SERVICE_PAGES.filter(s => s.path !== except).map(s => `<a style="color:#f87171" href="${s.path}">${esc(s.h1)}</a>`));
-const callLine = `<p><a style="color:#f87171" href="tel:${PHONE}">Call or text ${PHONE}</a> · <a style="color:#f87171" href="/bookings">Book online</a></p>`;
+const callLine = `<div><a style="color:#f87171" href="tel:${PHONE}">Call or text ${PHONE}</a> · <a style="color:#f87171" href="/bookings">Book online</a></div>`;
 
 export function withRoot(html, inner) {
   const at = html.indexOf('</nav>', html.indexOf('<div id="root"'));
@@ -85,52 +85,52 @@ export function buildPages(template) {
 const pages = [];
 
 pages.push(['index.html', withRoot(withHead(template, HOME_PAGE), [
-  h1(HOME_PAGE.h1), `<p>${esc(HOME_PAGE.intro)}</p>`, callLine,
+  h1(HOME_PAGE.h1), `<div>${esc(HOME_PAGE.intro)}</div>`, callLine,
   h2('Services'), list(SERVICE_PAGES.map(s => `<a style="color:#f87171" href="${s.path}">${esc(s.h1)}</a> — ${esc(s.intro)}`)),
-  `<p><a style="color:#f87171" href="/service-area">Areas we serve around Flagstaff</a></p>`,
-  h2(AUTO_REPAIR.heading), `<p>${esc(AUTO_REPAIR.intro)}</p>`,
+  `<div><a style="color:#f87171" href="/service-area">Areas we serve around Flagstaff</a></div>`,
+  h2(AUTO_REPAIR.heading), `<div>${esc(AUTO_REPAIR.intro)}</div>`,
   list(AUTO_REPAIR.jobs.map(j => `<a style="color:#f87171" href="${j.path}">${esc(j.label)}</a> — ${esc(j.price)}`)),
-  AUTO_REPAIR.faq.map(f => `<h3 style="color:#fff;margin:14px 0 4px">${esc(f.q)}</h3><p>${esc(f.a)}</p>`).join(''),
-  h2('Why GID Garage'), WHY_US.map(w => `<h3 style="color:#fff;margin:14px 0 4px">${esc(w.title)}</h3><p>${esc(w.desc)}</p>`).join(''),
+  AUTO_REPAIR.faq.map(f => `<h3 style="color:#fff;margin:14px 0 4px">${esc(f.q)}</h3><div>${esc(f.a)}</div>`).join(''),
+  h2('Why GID Garage'), WHY_US.map(w => `<h3 style="color:#fff;margin:14px 0 4px">${esc(w.title)}</h3><div>${esc(w.desc)}</div>`).join(''),
   h2('How a mobile visit works'), `<ol>${HOW_IT_WORKS.map(s => `<li><strong>${esc(s.title)}.</strong> ${esc(s.text)}</li>`).join('')}</ol>`,
   h2('Real jobs'), list(CASE_STUDIES.map(c => `<a style="color:#f87171" href="${c.path}">${esc(c.h1)}</a>`)),
 ].join(''))]);
 
 for (const p of SERVICE_PAGES) {
   pages.push([`${p.path.slice(1)}.html`, withServiceSchema(withFaq(withRoot(withHead(template, p), [
-    h1(p.h1), `<p>${esc(p.intro)}</p>`, callLine,
+    h1(p.h1), `<div>${esc(p.intro)}</div>`, callLine,
     h2('Pricing'), list(p.pricing.map(x => `<strong>${esc(x.label)}</strong> — ${esc(x.detail)}`)),
     h2("What's included"), list(p.included.map(esc)),
     h2('How a mobile visit works'), `<ol>${p.howItWorks.map(s => `<li><strong>${esc(s.title)}.</strong> ${esc(s.text)}</li>`).join('')}</ol>`,
     casesFor(p).length ? h2('Real jobs like this') + list(casesFor(p).map(c => `<a style="color:#f87171" href="${c.path}">${esc(c.h1)}</a>`)) : '',
-    h2('Questions'), p.faq.map(f => `<h3 style="color:#fff;margin:14px 0 4px">${esc(f.q)}</h3><p>${esc(f.a)}</p>`).join(''),
+    h2('Questions'), p.faq.map(f => `<h3 style="color:#fff;margin:14px 0 4px">${esc(f.q)}</h3><div>${esc(f.a)}</div>`).join(''),
     h2('Other services'), serviceLinks(p.path),
   ].join('')), p.faq), p)]);
 }
 
 pages.push(['service-area.html', withoutFaq(withRoot(withHead(template, AREAS_PAGE), [
-  h1(AREAS_PAGE.h1), `<p>${esc(AREAS_PAGE.intro)}</p>`,
-  AREAS.map(a => `<h2 id="${a.slug}" style="color:#fff;font-size:20px;margin:20px 0 4px">${esc(a.name)}${a.miles ? ` · ~${a.miles} mi from Flagstaff` : ' · home base'}</h2><p>${esc(a.blurb)}</p>`).join(''),
+  h1(AREAS_PAGE.h1), `<div>${esc(AREAS_PAGE.intro)}</div>`,
+  AREAS.map(a => `<h2 id="${a.slug}" style="color:#fff;font-size:20px;margin:20px 0 4px">${esc(a.name)}${a.miles ? ` · ~${a.miles} mi from Flagstaff` : ' · home base'}</h2><div>${esc(a.blurb)}</div>`).join(''),
   h2('Services'), serviceLinks(), callLine,
 ].join('')))]);
 
-pages.push(['privacy.html', withoutFaq(withRoot(withHead(template, PRIVACY_PAGE), h1(PRIVACY_PAGE.h1) + `<p>${esc(PRIVACY_PAGE.description)}</p>`))]);
-pages.push(['terms.html', withoutFaq(withRoot(withHead(template, TERMS_PAGE), h1(TERMS_PAGE.h1) + `<p>${esc(TERMS_PAGE.description)}</p>`))]);
+pages.push(['privacy.html', withoutFaq(withRoot(withHead(template, PRIVACY_PAGE), h1(PRIVACY_PAGE.h1) + `<div>${esc(PRIVACY_PAGE.description)}</div>`))]);
+pages.push(['terms.html', withoutFaq(withRoot(withHead(template, TERMS_PAGE), h1(TERMS_PAGE.h1) + `<div>${esc(TERMS_PAGE.description)}</div>`))]);
 
 // Real-job case studies: /case-studies and /case-studies/<slug>.
 const caseLinks = (except = null) => list(CASE_STUDIES.filter(c => c.slug !== except).map(c => `<a style="color:#f87171" href="${c.path}">${esc(c.h1)}</a>`));
 pages.push(['case-studies.html', withoutFaq(withRoot(withHead(template, CASE_STUDIES_PAGE), [
-  h1(CASE_STUDIES_PAGE.h1), `<p>${esc(CASE_STUDIES_PAGE.intro)}</p>`, caseLinks(), callLine,
+  h1(CASE_STUDIES_PAGE.h1), `<div>${esc(CASE_STUDIES_PAGE.intro)}</div>`, caseLinks(), callLine,
 ].join('')))]);
 for (const c of CASE_STUDIES) {
   const service = SERVICE_PAGES.find(p => p.serviceId === c.serviceId);
   pages.push([`case-studies/${c.slug}.html`, withoutFaq(withRoot(withHead(template, c), [
-    h1(c.h1), `<p>${esc(c.vehicle)}${c.mileage ? ` · ${esc(c.mileage)}` : ''} · ${esc(c.month)} · mobile repair in the Flagstaff area</p>`,
-    h2('The problem'), `<p>${esc(c.complaint)}</p>`, h2('What we found'), `<p>${esc(c.diagnosis)}</p>`,
-    h2('What we did'), `<p>${esc(c.repair)}</p>`, h2('The result'), `<p>${esc(c.outcome)}</p>`,
+    h1(c.h1), `<div>${esc(c.vehicle)}${c.mileage ? ` · ${esc(c.mileage)}` : ''} · ${esc(c.month)} · mobile repair in the Flagstaff area</div>`,
+    h2('The problem'), `<div>${esc(c.complaint)}</div>`, h2('What we found'), `<div>${esc(c.diagnosis)}</div>`,
+    h2('What we did'), `<div>${esc(c.repair)}</div>`, h2('The result'), `<div>${esc(c.outcome)}</div>`,
     c.photos.map(p => `<img src="${p.src}" alt="${esc(p.alt)}" width="300" loading="lazy" style="max-width:48%;margin:4px">`).join(''),
-    h2('The takeaway'), `<p>${esc(c.lesson)}</p>`,
-    service ? `<p><a style="color:#f87171" href="${service.path}">${esc(service.h1)} — pricing</a></p>` : '', callLine,
+    h2('The takeaway'), `<div>${esc(c.lesson)}</div>`,
+    service ? `<div><a style="color:#f87171" href="${service.path}">${esc(service.h1)} — pricing</a></div>` : '', callLine,
     h2('More real jobs'), caseLinks(c.slug),
   ].join('')))]);
 }
@@ -146,7 +146,7 @@ pages.push(['llms.txt', llmsTxt()]);
 
 // A real 404: its own small page (no app), not indexable.
 pages.push(['404.html', `<!doctype html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex"><title>Page not found | GID Garage</title><link rel="icon" href="/favicon.ico"></head>
-<body style="margin:0;background:#0f0f0f;color:#e5e7eb;font-family:system-ui,sans-serif">${wrap(`${h1('Page not found')}<p>That page doesn't exist. GID Garage is Flagstaff's mobile mechanic — here's where to go:</p><p><a style="color:#f87171" href="/">Home</a> · <a style="color:#f87171" href="/service-area">Areas we serve</a></p>${serviceLinks()}${callLine}`)}</body></html>`]);
+<body style="margin:0;background:#0f0f0f;color:#e5e7eb;font-family:system-ui,sans-serif">${wrap(`${h1('Page not found')}<div>That page doesn't exist. GID Garage is Flagstaff's mobile mechanic — here's where to go:</div><div><a style="color:#f87171" href="/">Home</a> · <a style="color:#f87171" href="/service-area">Areas we serve</a></div>${serviceLinks()}${callLine}`)}</body></html>`]);
 
   return pages;
 }

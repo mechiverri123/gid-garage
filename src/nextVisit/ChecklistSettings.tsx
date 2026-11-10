@@ -36,11 +36,11 @@ export function ChecklistSettings() {
     setBusy(false);
   }
 
-  if (!list) return <p className="text-gray-500 text-sm">Loading checklist…</p>;
+  if (!list) return <div className="text-gray-500 text-sm">Loading checklist…</div>;
   return (
     <div className="space-y-4">
-      <p className="text-gray-400 text-sm">The items every next-visit check starts with. Yellow/red items show the <b className="text-white">recommended service</b> on the customer's invoice. Past checks aren't changed.</p>
-      {!migrated && <p className="text-amber-400 text-xs border border-amber-800 px-3 py-2">Using the built-in list. To save your own, run <code>next_visit_migration.sql</code> once in Supabase.</p>}
+      <div className="text-gray-400 text-sm">The items every next-visit check starts with. Yellow/red items show the <b className="text-white">recommended service</b> on the customer's invoice. Past checks aren't changed.</div>
+      {!migrated && <div className="text-amber-400 text-xs border border-amber-800 px-3 py-2">Using the built-in list. To save your own, run <code>next_visit_migration.sql</code> once in Supabase.</div>}
       <div className="hidden sm:grid grid-cols-[1fr_1.3fr_1.6fr_auto] gap-2 text-[11px] font-bold uppercase tracking-widest text-gray-500 px-1">
         <span>Category</span><span>Check</span><span>Recommended service</span><span />
       </div>
@@ -64,7 +64,7 @@ export function ChecklistSettings() {
         <button type="button" onClick={() => save(false)} disabled={busy || !dirty || !migrated} className="ml-auto bg-red-600 hover:bg-red-700 disabled:opacity-40 text-white text-xs font-bold uppercase tracking-widest px-4 py-2">{busy ? 'Saving…' : 'Save checklist'}</button>
         <button type="button" onClick={() => save(true)} disabled={busy || !migrated} className="border border-gray-700 text-gray-400 hover:text-white disabled:opacity-40 text-xs font-bold uppercase tracking-widest px-3 py-2">Reset to default</button>
       </div>
-      {msg && <p className="text-xs text-gray-400" role="status">{msg}</p>}
+      {msg && <div className="text-xs text-gray-400" role="status">{msg}</div>}
     </div>
   );
 }

@@ -330,7 +330,7 @@ function VehicleSelector({ form, setForm, errors, clearError }: {
       {/* Year / Make / Model — from NHTSA API */}
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mb-2">
         <div>
-          {errors.vehicleYear && <p className="text-red-500 text-xs mb-1">{errors.vehicleYear}</p>}
+          {errors.vehicleYear && <div className="text-red-500 text-xs mb-1">{errors.vehicleYear}</div>}
           <select className={sc('vehicleYear')} value={form.vehicleYear}
             onChange={e => { setForm(p => ({ ...p, vehicleYear: e.target.value, vehicleMake: '', vehicleModel: '', vehicleEngine: '', vehicleTrim: '' })); setModels([]); setTrimOther(false); setEngineOther(false); setModelOther(false); clearError('vehicleYear'); clearError('vehicleMake'); clearError('vehicleModel'); }}>
             <option value="">Year</option>
@@ -338,7 +338,7 @@ function VehicleSelector({ form, setForm, errors, clearError }: {
           </select>
         </div>
         <div>
-          {errors.vehicleMake && <p className="text-red-500 text-xs mb-1">{errors.vehicleMake}</p>}
+          {errors.vehicleMake && <div className="text-red-500 text-xs mb-1">{errors.vehicleMake}</div>}
           <select className={sc('vehicleMake')} value={form.vehicleMake} disabled={!form.vehicleYear || loadingMakes}
             onChange={e => { setForm(p => ({ ...p, vehicleMake: e.target.value, vehicleModel: '', vehicleEngine: '', vehicleTrim: '' })); setModels([]); setTrimOther(false); setEngineOther(false); setModelOther(false); clearError('vehicleMake'); clearError('vehicleModel'); }}>
             <option value="">{loadingMakes ? 'Loading…' : 'Make'}</option>
@@ -346,7 +346,7 @@ function VehicleSelector({ form, setForm, errors, clearError }: {
           </select>
         </div>
         <div className="col-span-2 sm:col-span-1">
-          {errors.vehicleModel && <p className="text-red-500 text-xs mb-1">{errors.vehicleModel}</p>}
+          {errors.vehicleModel && <div className="text-red-500 text-xs mb-1">{errors.vehicleModel}</div>}
           {models.length > 0 && !modelOther ? (
             <select className={sc('vehicleModel')} value={form.vehicleModel} disabled={!form.vehicleMake || loadingModels}
               onChange={e => {
@@ -383,7 +383,7 @@ function VehicleSelector({ form, setForm, errors, clearError }: {
         <div className="grid grid-cols-2 gap-2">
           {/* Trim */}
           <div>
-            {errors.vehicleTrim && <p className="text-red-500 text-xs mb-1">{errors.vehicleTrim}</p>}
+            {errors.vehicleTrim && <div className="text-red-500 text-xs mb-1">{errors.vehicleTrim}</div>}
             {trimOptions.length > 0 && !trimOther ? (
               <select
                 className={sc('vehicleTrim')}
@@ -417,7 +417,7 @@ function VehicleSelector({ form, setForm, errors, clearError }: {
 
           {/* Engine */}
           <div>
-            {errors.vehicleEngine && <p className="text-red-500 text-xs mb-1">{errors.vehicleEngine}</p>}
+            {errors.vehicleEngine && <div className="text-red-500 text-xs mb-1">{errors.vehicleEngine}</div>}
             {engineOptions.length > 0 && !engineOther ? (
               <select
                 className={sc('vehicleEngine')}
@@ -639,13 +639,13 @@ function BrakePadSelector({ value, onChange }: { value: string | null; onChange:
                     <span className="text-gray-300 text-xs leading-snug">{v}</span>
                   </div>
                 ))}
-                <p className="text-red-400/80 text-[11px] leading-snug mt-1 pt-1 border-t border-gray-800">{pad.details.note}</p>
+                <div className="text-red-400/80 text-[11px] leading-snug mt-1 pt-1 border-t border-gray-800">{pad.details.note}</div>
               </div>
             )}
           </div>
         ))}
       </div>
-      <p className="text-gray-400 text-xs mt-1.5">Not sure? We'll recommend the right fit for your vehicle when we follow up.</p>
+      <div className="text-gray-400 text-xs mt-1.5">Not sure? We'll recommend the right fit for your vehicle when we follow up.</div>
     </div>
   );
 }
@@ -902,26 +902,26 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
                 <div className="text-5xl mb-4">{s.service === 'other' ? '💬' : '✅'}</div>
                 <h2 className="text-3xl font-black text-white mb-3">{s.service === 'other' ? 'Message Sent!' : 'Request Received!'}</h2>
                 {s.service === 'other' ? (
-                  <p className="text-gray-400 text-sm leading-relaxed max-w-sm mx-auto">
+                  <div className="text-gray-400 text-sm leading-relaxed max-w-sm mx-auto">
                     Got it, {form.fname}! We've received your message and will reach out shortly — usually same day — with a quote and next steps.<br /><br />
                     In the meantime, feel free to call or text us at <a href={`tel:${PHONE.replace(/-/g,'')}`} className="text-red-500 font-bold">{PHONE}</a>.
-                  </p>
+                  </div>
                 ) : (
-                  <p className="text-gray-400 text-sm leading-relaxed">
+                  <div className="text-gray-400 text-sm leading-relaxed">
                     We've received your quote request for <span className="text-red-500 font-bold">{svc?.name}</span> on <span className="text-red-500 font-bold">{dateStr} at {s.time}</span>. We'll call you to confirm availability and finalize pricing.<br /><br />
                     A confirmation has been sent to {form.email || 'your email'}.<br />
                     <span className="text-gray-400 text-xs">If you don't see it, check your junk or spam folder.</span>
-                  </p>
+                  </div>
                 )}
                 {s.service === 'audio' && (
-                  <p className="text-yellow-500/80 text-xs mt-4 max-w-xs mx-auto">Note: If parts need to be sourced, we'll reach out to confirm a deposit and lead time before your appointment.</p>
+                  <div className="text-yellow-500/80 text-xs mt-4 max-w-xs mx-auto">Note: If parts need to be sourced, we'll reach out to confirm a deposit and lead time before your appointment.</div>
                 )}
-                <p className="text-gray-400 text-xs mt-4">Questions? Call <a href={`tel:${PHONE.replace(/-/g,'')}`} className="text-red-500 font-bold">{PHONE}</a></p>
+                <div className="text-gray-400 text-xs mt-4">Questions? Call <a href={`tel:${PHONE.replace(/-/g,'')}`} className="text-red-500 font-bold">{PHONE}</a></div>
                 <button onClick={reset} className="mt-6 border border-red-600 text-red-500 hover:bg-red-600 hover:text-white text-xs font-bold uppercase tracking-widest px-5 py-2.5 transition-colors">New Request</button>
               </div>
             ) : (
               <>
-                <p className="text-red-500 text-xs font-bold uppercase tracking-[0.25em] mb-1">Get a Quote</p>
+                <div className="text-red-500 text-xs font-bold uppercase tracking-[0.25em] mb-1">Get a Quote</div>
                 <h2 className="text-3xl font-black text-white tracking-tight mb-6">Request a Quote</h2>
 
                 {s.service !== 'other' && (
@@ -954,7 +954,7 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
                         <span className="text-white text-sm font-black tracking-tight">Don't See Your Problem Listed?</span>
                         {s.service === 'other' && <span className="text-[11px] font-bold uppercase tracking-widest text-red-500 bg-red-950/60 px-2 py-0.5">Selected</span>}
                       </div>
-                      <p className="text-gray-400 text-xs leading-relaxed">No worries — we handle all kinds of jobs. Tell us what's going on and we'll point you in the right direction with a custom quote.</p>
+                      <div className="text-gray-400 text-xs leading-relaxed">No worries — we handle all kinds of jobs. Tell us what's going on and we'll point you in the right direction with a custom quote.</div>
                       <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mt-2.5">
                         <a href={`tel:${PHONE.replace(/-/g,'')}`} onClick={e => e.stopPropagation()} className="flex items-center gap-1.5 min-h-6 py-1 text-red-500 hover:text-red-400 text-xs font-bold transition-colors whitespace-nowrap">
                           <span>📞</span> {PHONE}
@@ -971,7 +971,7 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
                 {s.service === 'other' && (
                   <div className="mt-3 space-y-4">
                     <div className="bg-gray-900/80 border border-gray-800 border-l-4 border-l-red-600 px-4 py-3">
-                      <p className="text-gray-300 text-xs leading-relaxed">We'll review your message and get back to you with a quote — usually same day. You can also call or text us directly at <a href={`tel:${PHONE.replace(/-/g,'')}`} className="text-red-500 font-bold">{PHONE}</a> or email <a href="mailto:info@gidgarage.com" className="text-red-500 font-bold">info@gidgarage.com</a>.</p>
+                      <div className="text-gray-300 text-xs leading-relaxed">We'll review your message and get back to you with a quote — usually same day. You can also call or text us directly at <a href={`tel:${PHONE.replace(/-/g,'')}`} className="text-red-500 font-bold">{PHONE}</a> or email <a href="mailto:info@gidgarage.com" className="text-red-500 font-bold">info@gidgarage.com</a>.</div>
                     </div>
 
                     {/* Contact fields */}
@@ -988,7 +988,7 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
                             value={form[f.id as keyof FormData] as string}
                             onChange={e => { setForm(p => ({ ...p, [f.id]: e.target.value })); setFieldErrors(p => ({ ...p, [f.id]: '' })); }}
                             className={`w-full bg-gray-900 text-white text-sm px-3 py-2.5 outline-none transition-colors border ${fieldErrors[f.id] ? 'border-red-500 focus:border-red-400' : 'border-gray-800 focus:border-red-600'}`} />
-                          {fieldErrors[f.id] && <p className="text-red-500 text-xs mt-1">{fieldErrors[f.id]}</p>}
+                          {fieldErrors[f.id] && <div className="text-red-500 text-xs mt-1">{fieldErrors[f.id]}</div>}
                         </div>
                       ))}
                     </div>
@@ -1008,8 +1008,8 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
                         rows={5}
                         className={`w-full bg-gray-900 text-white text-sm px-3 py-2.5 outline-none transition-colors resize-y placeholder:text-gray-500 leading-relaxed border ${fieldErrors.notes ? 'border-red-500 focus:border-red-400' : 'border-gray-800 focus:border-red-600'}`}
                       />
-                      {fieldErrors.notes && <p className="text-red-500 text-xs mt-1">{fieldErrors.notes}</p>}
-                      <p className="text-gray-400 text-[11px] mt-1">Be as specific as you can — sounds, when it happens, how long it's been going on. The more detail, the faster we can help.</p>
+                      {fieldErrors.notes && <div className="text-red-500 text-xs mt-1">{fieldErrors.notes}</div>}
+                      <div className="text-gray-400 text-[11px] mt-1">Be as specific as you can — sounds, when it happens, how long it's been going on. The more detail, the faster we can help.</div>
                     </div>
 
                     {submitError && <div className="bg-red-950/50 border border-red-700 text-red-400 text-sm px-4 py-3">{submitError}</div>}
@@ -1059,11 +1059,11 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
                     {/* Alignment disclaimer for parts that affect alignment */}
                     {s.suspensionPart && ['struts', 'control_arms', 'tie_rods'].includes(s.suspensionPart) && (
                       <div className="bg-yellow-950/40 border border-yellow-800/50 px-3 py-2.5 text-xs leading-relaxed space-y-1">
-                        <p className="text-yellow-400 font-bold">⚠️ Alignment Recommended After This Service</p>
-                        <p className="text-yellow-200/70">Replacing {s.suspensionPart === 'struts' ? 'struts' : s.suspensionPart === 'control_arms' ? 'control arms' : 'tie rods'} affects your vehicle's alignment. We do not perform alignments — you'll need to visit an alignment shop after this service to ensure proper tire wear and handling.</p>
+                        <div className="text-yellow-400 font-bold">⚠️ Alignment Recommended After This Service</div>
+                        <div className="text-yellow-200/70">Replacing {s.suspensionPart === 'struts' ? 'struts' : s.suspensionPart === 'control_arms' ? 'control arms' : 'tie rods'} affects your vehicle's alignment. We do not perform alignments — you'll need to visit an alignment shop after this service to ensure proper tire wear and handling.</div>
                       </div>
                     )}
-                    <p className="text-gray-400 text-xs">Pricing varies per vehicle — get a free estimate when you book!</p>
+                    <div className="text-gray-400 text-xs">Pricing varies per vehicle — get a free estimate when you book!</div>
                   </div>
                 )}
 
@@ -1103,7 +1103,7 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
                         onChange={v => setS(p => ({ ...p, brakePadType: v }))}
                       />
                     )}
-                    <p className="text-gray-400 text-xs">Pricing varies per vehicle — get a free estimate when you book!</p>
+                    <div className="text-gray-400 text-xs">Pricing varies per vehicle — get a free estimate when you book!</div>
                   </div>
                 )}
 
@@ -1127,7 +1127,7 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
                 )}
 
                 {s.service === 'oil' && (
-                  <p className="text-gray-400 text-xs mt-2">*Mobile service fee included. Price may vary by vehicle. Full synthetic only.</p>
+                  <div className="text-gray-400 text-xs mt-2">*Mobile service fee included. Price may vary by vehicle. Full synthetic only.</div>
                 )}
 
                 {s.step >= 2 && s.service !== 'other' && (<>
@@ -1135,7 +1135,7 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
                   <StepHeader n={2} current={s.step} label="Choose a Preferred Date" />
                   <div className="bg-gray-900/60 border border-gray-700 border-l-4 border-l-yellow-600 px-4 py-2.5 mb-4 flex items-center gap-2">
                     <span className="text-yellow-500 text-sm">📅</span>
-                    <p className="text-yellow-400/90 text-xs font-semibold">Preferred date &amp; time — we'll confirm availability when we follow up.</p>
+                    <div className="text-yellow-400/90 text-xs font-semibold">Preferred date &amp; time — we'll confirm availability when we follow up.</div>
                   </div>
                   <div className="flex items-center justify-between mb-4">
                     <button onClick={prevMonth} className="w-7 h-7 border border-gray-700 text-gray-400 hover:border-red-600 hover:text-white flex items-center justify-center transition-colors">‹</button>
@@ -1157,7 +1157,7 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
                       );
                     })}
                   </div>
-                  <p className="text-gray-400 text-[11px] mt-1">Mon–Fri: 1:30 PM–8 PM · Sat–Sun: 5 AM–8 PM</p>
+                  <div className="text-gray-400 text-[11px] mt-1">Mon–Fri: 1:30 PM–8 PM · Sat–Sun: 5 AM–8 PM</div>
                 </>)}
 
                 {s.step >= 3 && s.date && (<>
@@ -1205,7 +1205,7 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
                           value={form[f.id as keyof FormData] as string}
                           onChange={e => { setForm(p => ({ ...p, [f.id]: e.target.value })); setFieldErrors(p => ({ ...p, [f.id]: '' })); }}
                           className={`w-full bg-gray-900 text-white text-sm px-3 py-2.5 outline-none transition-colors border ${fieldErrors[f.id] ? 'border-red-500 focus:border-red-400' : 'border-gray-800 focus:border-red-600'}`} />
-                        {fieldErrors[f.id] && <p className="text-red-500 text-xs mt-1">{fieldErrors[f.id]}</p>}
+                        {fieldErrors[f.id] && <div className="text-red-500 text-xs mt-1">{fieldErrors[f.id]}</div>}
                       </div>
                     ))}
                     <VehicleSelector form={form} setForm={setForm} errors={fieldErrors} clearError={(k) => setFieldErrors(p => ({ ...p, [k]: '' }))} />
@@ -1224,7 +1224,7 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
                         value={form.serviceAddress}
                         onChange={e => { setForm(p => ({ ...p, serviceAddress: e.target.value })); setFieldErrors(p => ({ ...p, serviceAddress: '' })); }}
                         className={`w-full bg-gray-900 text-white text-sm px-3 py-2.5 outline-none transition-colors border ${fieldErrors.serviceAddress ? 'border-red-500 focus:border-red-400' : 'border-gray-800 focus:border-red-600'}`} />
-                      {fieldErrors.serviceAddress && <p className="text-red-500 text-xs mt-1">{fieldErrors.serviceAddress}</p>}
+                      {fieldErrors.serviceAddress && <div className="text-red-500 text-xs mt-1">{fieldErrors.serviceAddress}</div>}
                     </div>
                     <div className="col-span-2">
                       <label className={`block text-xs font-bold uppercase tracking-wider mb-1.5 ${fieldErrors.notes ? 'text-red-500' : 'text-gray-400'}`}>
@@ -1240,15 +1240,15 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
                         onChange={e => { setForm(p => ({ ...p, notes: e.target.value })); setFieldErrors(p => ({ ...p, notes: '' })); }}
                         rows={3}
                         className={`w-full bg-gray-900 text-white text-sm px-3 py-2.5 outline-none transition-colors resize-y border ${fieldErrors.notes ? 'border-red-500 focus:border-red-400' : 'border-gray-800 focus:border-red-600'}`} />
-                      {fieldErrors.notes && <p className="text-red-500 text-xs mt-1">{fieldErrors.notes}</p>}
-                      <p className="text-gray-400 text-xs mt-1">
+                      {fieldErrors.notes && <div className="text-red-500 text-xs mt-1">{fieldErrors.notes}</div>}
+                      <div className="text-gray-400 text-xs mt-1">
                         {s.service === 'diag'
                           ? 'The more detail you can provide, the more accurately we can scope the diagnostic.'
                           : <>💡 Include a preferred date &amp; time — we'll confirm availability. Note: we may need to assess your vehicle first before finalizing the scope of work.</>}
-                      </p>
+                      </div>
                     </div>
                   </div>
-                  <p className="text-gray-400 text-xs mt-3">By booking, you agree to our <a href="/terms" target="_blank" rel="noopener noreferrer" className="text-red-500 hover:text-red-400 underline underline-offset-2 transition-colors">Terms of Service</a> (including consent to photos, video and audio), <a href="/privacy" target="_blank" rel="noopener noreferrer" className="text-red-500 hover:text-red-400 underline underline-offset-2 transition-colors">Privacy Policy</a> and <button type="button" onClick={() => setShowCancelPolicy(true)} className="text-red-500 hover:text-red-400 underline underline-offset-2 transition-colors">cancellation policy</button>. Please cancel at least 24 hours in advance to avoid a cancellation fee.</p>
+                  <div className="text-gray-400 text-xs mt-3">By booking, you agree to our <a href="/terms" target="_blank" rel="noopener noreferrer" className="text-red-500 hover:text-red-400 underline underline-offset-2 transition-colors">Terms of Service</a> (including consent to photos, video and audio), <a href="/privacy" target="_blank" rel="noopener noreferrer" className="text-red-500 hover:text-red-400 underline underline-offset-2 transition-colors">Privacy Policy</a> and <button type="button" onClick={() => setShowCancelPolicy(true)} className="text-red-500 hover:text-red-400 underline underline-offset-2 transition-colors">cancellation policy</button>. Please cancel at least 24 hours in advance to avoid a cancellation fee.</div>
                   {submitError && (
                     <div className="mt-4 bg-red-950/50 border border-red-700 text-red-400 text-sm px-4 py-3">
                       {submitError}
@@ -1274,11 +1274,11 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
             <div className="w-8 h-1 bg-red-600 mb-5" />
             <h3 className="text-white text-xl font-extrabold tracking-tight mb-4">Cancellation Policy</h3>
             <div className="space-y-3 text-gray-400 text-sm leading-relaxed">
-              <p><span className="text-white font-semibold">24-Hour Notice Required.</span> To avoid a cancellation fee, please cancel or reschedule your appointment at least <span className="text-red-400 font-semibold">24 hours before</span> your scheduled time.</p>
-              <p><span className="text-white font-semibold">Late Cancellations.</span> Cancellations made less than 24 hours in advance may be subject to a cancellation fee of up to 50% of the quoted service cost.</p>
-              <p><span className="text-white font-semibold">No-Shows.</span> Failure to be present at the scheduled time and location without prior notice may result in a fee of up to 50% of the quoted service cost and may affect future booking eligibility.</p>
-              <p><span className="text-white font-semibold">How to Cancel.</span> Cancel by calling or texting <a href="tel:4807570476" className="text-red-400 hover:text-red-300 transition-colors">480-757-0476</a> or by replying to your confirmation email. Cancellations are not considered confirmed until acknowledged by GID Garage.</p>
-              <p><span className="text-white font-semibold">Emergency Exceptions.</span> We understand that emergencies happen. Contact us as soon as possible and we'll do our best to accommodate your situation.</p>
+              <div><span className="text-white font-semibold">24-Hour Notice Required.</span> To avoid a cancellation fee, please cancel or reschedule your appointment at least <span className="text-red-400 font-semibold">24 hours before</span> your scheduled time.</div>
+              <div><span className="text-white font-semibold">Late Cancellations.</span> Cancellations made less than 24 hours in advance may be subject to a cancellation fee of up to 50% of the quoted service cost.</div>
+              <div><span className="text-white font-semibold">No-Shows.</span> Failure to be present at the scheduled time and location without prior notice may result in a fee of up to 50% of the quoted service cost and may affect future booking eligibility.</div>
+              <div><span className="text-white font-semibold">How to Cancel.</span> Cancel by calling or texting <a href="tel:4807570476" className="text-red-400 hover:text-red-300 transition-colors">480-757-0476</a> or by replying to your confirmation email. Cancellations are not considered confirmed until acknowledged by GID Garage.</div>
+              <div><span className="text-white font-semibold">Emergency Exceptions.</span> We understand that emergencies happen. Contact us as soon as possible and we'll do our best to accommodate your situation.</div>
             </div>
             <button onClick={() => setShowCancelPolicy(false)} className="mt-6 w-full bg-red-600 hover:bg-red-500 text-white text-xs font-bold uppercase tracking-widest py-3 transition-colors">Got It</button>
           </div>
@@ -1326,14 +1326,14 @@ export function AdminPasswordGate({ onUnlock }: { onUnlock: () => void }) {
   return (
     <div className="min-h-screen bg-dark flex items-center justify-center px-4">
       <div className="w-full max-w-xs text-center">
-        <p className="text-red-500 text-xs font-bold uppercase tracking-[0.25em] mb-2">Admin Access</p>
+        <div className="text-red-500 text-xs font-bold uppercase tracking-[0.25em] mb-2">Admin Access</div>
         <h1 className="text-3xl font-black text-white mb-8">Enter PIN</h1>
         <div className="flex justify-center gap-4 mb-8">
           {[0,1,2,3].map(i => (
             <div key={i} className={`w-4 h-4 rounded-full border-2 transition-all duration-150 ${i < input.length ? 'bg-red-600 border-red-600' : 'bg-transparent border-gray-600'}`} />
           ))}
         </div>
-        {error && <p className="text-red-500 text-xs font-bold uppercase tracking-wider mb-4">Incorrect PIN</p>}
+        {error && <div className="text-red-500 text-xs font-bold uppercase tracking-wider mb-4">Incorrect PIN</div>}
         <div className="grid grid-cols-3 gap-3">
           {digits.slice(0, 9).map(d => (
             <button key={d} onClick={() => handleKey(d)}
@@ -1478,7 +1478,7 @@ function BlackoutDatesModal({ onClose }: { onClose: () => void }) {
         </div>
 
         <div className="p-5 space-y-4">
-          <p className="text-gray-400 text-xs">Days you're unavailable — later W2 shifts, vacation, etc. These dates disappear entirely from the customer booking calendar.</p>
+          <div className="text-gray-400 text-xs">Days you're unavailable — later W2 shifts, vacation, etc. These dates disappear entirely from the customer booking calendar.</div>
 
           {/* Add form */}
           <div className="bg-gray-800/50 border border-gray-700 p-3 space-y-2">
@@ -1507,20 +1507,20 @@ function BlackoutDatesModal({ onClose }: { onClose: () => void }) {
             </button>
           </div>
 
-          {error && <p className="text-red-400 text-xs">{error}</p>}
+          {error && <div className="text-red-400 text-xs">{error}</div>}
 
           {/* List */}
           {loading ? (
-            <p className="text-gray-400 text-xs text-center py-4">Loading…</p>
+            <div className="text-gray-400 text-xs text-center py-4">Loading…</div>
           ) : upcoming.length === 0 ? (
-            <p className="text-gray-400 text-xs text-center py-4">No upcoming blackout dates</p>
+            <div className="text-gray-400 text-xs text-center py-4">No upcoming blackout dates</div>
           ) : (
             <div className="space-y-1.5">
               {upcoming.map(d => (
                 <div key={d.date} className="flex items-center justify-between bg-gray-800/40 border border-gray-800 px-3 py-2">
                   <div>
-                    <p className="text-white text-sm font-bold">{fmt(d.date)}</p>
-                    {d.reason && <p className="text-gray-400 text-xs">{d.reason}</p>}
+                    <div className="text-white text-sm font-bold">{fmt(d.date)}</div>
+                    {d.reason && <div className="text-gray-400 text-xs">{d.reason}</div>}
                   </div>
                   <button onClick={() => removeDate(d.date)} disabled={saving} className="text-gray-400 hover:text-red-500 text-lg leading-none transition-colors disabled:opacity-40">×</button>
                 </div>
@@ -1839,7 +1839,7 @@ export function AdminSchedule() {
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-8">
           <div>
-            <p className="text-red-500 text-xs font-bold uppercase tracking-[0.25em] mb-1">Admin · GID Garage</p>
+            <div className="text-red-500 text-xs font-bold uppercase tracking-[0.25em] mb-1">Admin · GID Garage</div>
             <h1 className="text-4xl font-black text-white tracking-tight">Schedule</h1>
           </div>
           <div className="flex items-center gap-1 flex-wrap sm:flex-nowrap sm:gap-2">
@@ -2153,14 +2153,14 @@ export function AdminSchedule() {
       {adminTab === 'hub' && <BusinessHub />}
       {adminTab === 'helpers' && (
         <div className="max-w-3xl mx-auto py-4 px-3 sm:px-6">
-          <p className="text-red-500 text-xs font-bold uppercase tracking-[0.25em] mb-1">Admin · GID Garage</p>
+          <div className="text-red-500 text-xs font-bold uppercase tracking-[0.25em] mb-1">Admin · GID Garage</div>
           <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tight mb-5">Team &amp; Pay <a href="/admin/pay" className="text-gray-400 hover:text-white text-xs font-bold tracking-widest align-middle ml-2">/admin/pay ↗</a></h2>
           <HelperPay />
         </div>
       )}
       {adminTab === 'pay' && (
         <div className="max-w-2xl mx-auto py-4 px-3 sm:px-6">
-          <p className="text-red-500 text-xs font-bold uppercase tracking-[0.25em] mb-1">Admin · GID Garage</p>
+          <div className="text-red-500 text-xs font-bold uppercase tracking-[0.25em] mb-1">Admin · GID Garage</div>
           <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tight mb-5">Owner Pay</h2>
           <OwnerPayPanel />
         </div>

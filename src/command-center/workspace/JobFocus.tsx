@@ -46,8 +46,8 @@ function Row({ label, value, strong }: { label: string; value: ReactNode; strong
 }
 function Prose({ text, empty }: { text?: string | null; empty: string }) {
   return text?.trim()
-    ? <p className="text-[15px] leading-relaxed whitespace-pre-wrap break-words" style={{ color: C.text }}>{text}</p>
-    : <p className="text-[14px]" style={{ color: C.muted }}>{empty}</p>;
+    ? <div className="text-[15px] leading-relaxed whitespace-pre-wrap break-words" style={{ color: C.text }}>{text}</div>
+    : <div className="text-[14px]" style={{ color: C.muted }}>{empty}</div>;
 }
 
 // Reused admin panel, re-themed; same props and writes as in /admin.
@@ -194,7 +194,7 @@ function PaymentTab({ job }: { job: Job }) {
       <Section title="Payments received" icon={CheckCircle2}>
         {payments.length ? payments.map(p => (
           <Row key={p.id} label={`${shortDay(String(p.at).slice(0, 10))} · ${p.method}${p.note ? ` — ${p.note}` : ''}`} value={<span style={{ color: C.green }}>{money2(p.amount)}</span>} />
-        )) : <p className="text-[14px]" style={{ color: C.muted }}>{job.jobStatus === 'PAID' ? 'Paid in one charge (no itemized entries).' : 'No payments recorded.'}</p>}
+        )) : <div className="text-[14px]" style={{ color: C.muted }}>{job.jobStatus === 'PAID' ? 'Paid in one charge (no itemized entries).' : 'No payments recorded.'}</div>}
       </Section>
     </div>
   );
@@ -218,7 +218,7 @@ function InspectionTab({ job }: { job: Job }) {
               </div>
             ))}
           </div>
-        ) : <p className="text-[14px]" style={{ color: C.muted }}>No tire readings recorded.</p>}
+        ) : <div className="text-[14px]" style={{ color: C.muted }}>No tire readings recorded.</div>}
       </Section>
       <Section title="Diagnostic codes" icon={ClipboardCheck}>
         {ins?.dtcCodes?.length ? ins.dtcCodes.map(c => (
@@ -226,7 +226,7 @@ function InspectionTab({ job }: { job: Job }) {
             <div className="font-mono text-[16px] font-bold" style={{ color: C.amber }}>{c.code || '—'}</div>
             <Prose text={c.plan} empty="No plan written." />
           </div>
-        )) : <p className="text-[14px]" style={{ color: C.muted }}>No codes logged.</p>}
+        )) : <div className="text-[14px]" style={{ color: C.muted }}>No codes logged.</div>}
       </Section>
       <Section title="Scan reports" icon={FileText}>
         {scans.map(([label, doc]) => (
@@ -270,7 +270,7 @@ function NotesTab({ job, onUpdate }: { job: Job; onUpdate: (j: Job) => void }) {
       <Section title="Scope of work" icon={FileText}><Prose text={job.estimateNotes} empty="No scope written." /></Section>
       <Section title="Customer notes" icon={StickyNote}><Prose text={job.notes} empty="No customer notes." /></Section>
       <Section title="Photo notes" icon={ClipboardCheck}>
-        {photoNotes.length ? <ul className="flex flex-col gap-2">{photoNotes.map((n, i) => <li key={i} className="text-[15px]" style={{ color: C.text }}>• {n}</li>)}</ul> : <p className="text-[14px]" style={{ color: C.muted }}>No photo notes.</p>}
+        {photoNotes.length ? <ul className="flex flex-col gap-2">{photoNotes.map((n, i) => <li key={i} className="text-[15px]" style={{ color: C.text }}>• {n}</li>)}</ul> : <div className="text-[14px]" style={{ color: C.muted }}>No photo notes.</div>}
       </Section>
     </div>
   );
@@ -281,7 +281,7 @@ function PartsTab({ job }: { job: Job }) {
   return (
     <div className="grid gap-4 lg:grid-cols-2">
       <Section title="Parts billed" icon={Package}>
-        {parts.length ? parts.map(li => <Row key={li.id} label={li.label} value={money2(li.amount)} />) : <p className="text-[14px]" style={{ color: C.muted }}>No parts line items.</p>}
+        {parts.length ? parts.map(li => <Row key={li.id} label={li.label} value={money2(li.amount)} />) : <div className="text-[14px]" style={{ color: C.muted }}>No parts line items.</div>}
       </Section>
       <Section title="Parts cost" icon={CreditCard}>
         <Row label="What the parts cost you" value={money2(job.partsCost)} strong />
@@ -324,7 +324,7 @@ export function JobFocus({ job, tab, onTab, nav }: { job: Job; tab: Tab; onTab: 
   };
 
   return (
-    <article className="jv-glass jv-pop flex flex-col min-h-0 h-full" aria-label={`Job for ${customerName(job)}`}>
+    <div className="jv-glass jv-pop flex flex-col min-h-0 h-full" aria-label={`Job for ${customerName(job)}`}>
       <header className="px-5 sm:px-7 pt-5 sm:pt-6 pb-4 border-b" style={{ borderColor: C.border }}>
         {nav}
         <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
@@ -367,6 +367,6 @@ export function JobFocus({ job, tab, onTab, nav }: { job: Job; tab: Tab; onTab: 
         </div>,
         document.body,
       )}
-    </article>
+    </div>
   );
 }

@@ -209,7 +209,7 @@ export default function Blackjack() {
   if (!joined) {
     return (
       <div className="flex flex-col items-center gap-4 w-full" style={{ maxWidth: 340 }}>
-        <p className="text-white/70 text-sm text-center">Enter your info to grab your free spin credits</p>
+        <div className="text-white/70 text-sm text-center">Enter your info to grab your free spin credits</div>
         <input
           value={fname}
           onChange={(e) => setFname(e.target.value)}
@@ -223,7 +223,7 @@ export default function Blackjack() {
           type="tel"
           className="w-full bg-zinc-900 border border-white/10 rounded px-4 py-3 text-white text-base"
         />
-        {error && <p className="text-red-400 text-xs">{error}</p>}
+        {error && <div className="text-red-400 text-xs">{error}</div>}
         <button
           onClick={handleJoin}
           disabled={loading}
@@ -231,7 +231,7 @@ export default function Blackjack() {
         >
           {loading ? 'Loading…' : "Let's Play"}
         </button>
-        <p className="text-white/40 text-xs text-center">No purchase necessary. Free credits, just for fun — used only to redeem in-shop promos. Balance is shared with Spin & Win.</p>
+        <div className="text-white/40 text-xs text-center">No purchase necessary. Free credits, just for fun — used only to redeem in-shop promos. Balance is shared with Spin & Win.</div>
       </div>
     );
   }
@@ -261,7 +261,7 @@ export default function Blackjack() {
       <div className="bg-zinc-900 border-2 border-red-600 rounded-xl p-4 w-full flex flex-col items-center gap-4">
         {/* Dealer */}
         <div className="w-full">
-          <p className="text-white/50 text-xs uppercase mb-1 text-center">Dealer{dealerHand ? ` · ${handTotal(dealerHand)}` : ''}</p>
+          <div className="text-white/50 text-xs uppercase mb-1 text-center">Dealer{dealerHand ? ` · ${handTotal(dealerHand)}` : ''}</div>
           <div className="flex gap-2 justify-center">
             {inHand && dealerUpCard && !dealerHand && (
               <>
@@ -279,18 +279,18 @@ export default function Blackjack() {
         <div className="w-full flex gap-3 justify-center flex-wrap">
           {(inHand ? hands : lastResult?.hands ?? []).map((h, hi) => (
             <div key={hi} className={`flex flex-col items-center gap-1 ${inHand && hands.length > 1 ? (hi === activeIndex ? 'opacity-100' : 'opacity-50') : ''}`}>
-              <p className="text-white/50 text-xs uppercase">
+              <div className="text-white/50 text-xs uppercase">
                 {hands.length > 1 || (lastResult?.hands?.length ?? 0) > 1 ? `Hand ${hi + 1} · ` : 'You · '}
                 {h.total ?? handTotal(h.cards)}
                 {hi === activeIndex && inHand && hands.length > 1 ? ' ▾' : ''}
-              </p>
+              </div>
               <div className="flex gap-2 justify-center flex-wrap">
                 {h.cards.map((c, i) => (
                   <DealtCard key={i} index={i} red={isRedSuit(c.s)}>{cardLabel(c)}</DealtCard>
                 ))}
               </div>
               {!inHand && h.outcome && (
-                <p className={`text-xs font-bold ${outcomeLabel(h.outcome).className}`}>{outcomeLabel(h.outcome).text}</p>
+                <div className={`text-xs font-bold ${outcomeLabel(h.outcome).className}`}>{outcomeLabel(h.outcome).text}</div>
               )}
             </div>
           ))}
@@ -342,26 +342,26 @@ export default function Blackjack() {
           </button>
         )}
 
-        {spinsRemaining <= 0 && <p className="text-white/50 text-xs text-center">Daily hands used up — come back tomorrow!</p>}
-        {error && <p className="text-red-400 text-xs text-center">{error}</p>}
+        {spinsRemaining <= 0 && <div className="text-white/50 text-xs text-center">Daily hands used up — come back tomorrow!</div>}
+        {error && <div className="text-red-400 text-xs text-center">{error}</div>}
       </div>
 
       {lastResult && lastResult.hands.some((h) => h.prizeLabel) && (
         <div className="w-full bg-zinc-900 border border-white/10 rounded-xl p-4 text-center flex flex-col gap-3">
           {lastResult.hands.filter((h) => h.prizeLabel).map((h, i) => (
             <div key={i} className="flex flex-col items-center gap-2">
-              <p className="text-yellow-400 font-bold">🎉 You won: {h.prizeLabel}</p>
-              <p className="text-white text-sm">Show this code at GID Garage to redeem:</p>
-              <p className="text-white font-mono font-extrabold text-2xl tracking-widest bg-black px-4 py-2 rounded">{h.code}</p>
-              <p className="text-white/40 text-xs">Screenshot this — you'll need it at checkout.</p>
+              <div className="text-yellow-400 font-bold">🎉 You won: {h.prizeLabel}</div>
+              <div className="text-white text-sm">Show this code at GID Garage to redeem:</div>
+              <div className="text-white font-mono font-extrabold text-2xl tracking-widest bg-black px-4 py-2 rounded">{h.code}</div>
+              <div className="text-white/40 text-xs">Screenshot this — you'll need it at checkout.</div>
             </div>
           ))}
         </div>
       )}
       {lastResult && lastResult.hands.some((h) => (h.creditWin ?? 0) > 0) && (
-        <p className="text-green-400 font-bold text-sm">
+        <div className="text-green-400 font-bold text-sm">
           +${lastResult.hands.reduce((s, h) => s + (h.creditWin ?? 0), 0)} bonus credits 🍒
-        </p>
+        </div>
       )}
     </div>
   );

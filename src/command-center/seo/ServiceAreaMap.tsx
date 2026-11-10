@@ -143,9 +143,9 @@ export function ServiceAreaMap({ geo }: { geo?: SeoGeography }) {
             </li>
           ))}
         </ul>
-        <p className="text-[12.5px] leading-relaxed pt-2 border-t" style={{ color: SEO.faint, borderColor: SEO.border }}>
+        <div className="text-[12.5px] leading-relaxed pt-2 border-t" style={{ color: SEO.faint, borderColor: SEO.border }}>
           {geo.privacy} Numbers on green markers are booked jobs per community; blue rings are leads. Competitor diamonds use public Google Places locations.
-        </p>
+        </div>
       </aside>
     </div>
   );

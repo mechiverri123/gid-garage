@@ -175,12 +175,12 @@ export default function Game2048({ onGameEnd }: { onGameEnd: (score: number) => 
         </div>
         {(over || won) && (
           <div className="absolute inset-0 bg-black/85 rounded-lg flex flex-col items-center justify-center gap-3">
-            <p className="text-white font-bold">{won ? 'You hit 2048! 🎉' : 'No more moves'} — Score: {score}</p>
+            <div className="text-white font-bold">{won ? 'You hit 2048! 🎉' : 'No more moves'} — Score: {score}</div>
             <button onClick={reset} className="bg-red-600 active:bg-red-700 text-white font-bold px-5 py-3 rounded">Play Again</button>
           </div>
         )}
       </div>
-      <p className="text-white/50 text-xs">Swipe (or arrow keys) to merge tiles</p>
+      <div className="text-white/50 text-xs">Swipe (or arrow keys) to merge tiles</div>
     </div>
   );
 }

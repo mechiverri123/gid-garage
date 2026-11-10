@@ -77,7 +77,7 @@ function ReviewItem({ r }: { r: Any }) {
         </div>
         {fresh && <span className="ml-auto text-[11px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full shrink-0" style={{ color: C.green, border: '1px solid rgba(32,229,139,0.4)' }}>New</span>}
       </div>
-      {r.text && <p className="text-[14px] leading-relaxed mt-2 line-clamp-4 break-words" style={{ color: C.text2 }}>{r.text}</p>}
+      {r.text && <div className="text-[14px] leading-relaxed mt-2 line-clamp-4 break-words" style={{ color: C.text2 }}>{r.text}</div>}
     </li>
   );
 }

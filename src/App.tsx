@@ -193,9 +193,9 @@ function MissionStatement() {
             </h2>
           </Reveal>
           <Reveal delay={200}>
-            <p className="text-white/50 mt-8 max-w-md text-base md:text-lg leading-relaxed">
+            <div className="text-white/50 mt-8 max-w-md text-base md:text-lg leading-relaxed">
               We show up, we fix it right, you get your day back — full synthetic oil, high quality brakes, honest diagnostics, and pricing you know upfront, right at your location.
-            </p>
+            </div>
           </Reveal>
         </div>
         <Reveal delay={100}>
@@ -282,7 +282,7 @@ function Hero({ openBooking }: { openBooking: () => void }) {
       />
       <div className="relative z-10 w-full">
         <div className="max-w-[1500px] mx-auto px-5 md:px-10">
-          <p className="text-red-400 text-xs font-bold uppercase tracking-[0.3em] mb-4 md:mb-6">Get It Done Garage · Flagstaff, AZ</p>
+          <div className="text-red-400 text-xs font-bold uppercase tracking-[0.3em] mb-4 md:mb-6">Get It Done Garage · Flagstaff, AZ</div>
           <h1 className="text-white font-black uppercase leading-[0.82] tracking-tighter">
             <AnimatedWords as="div" text="Flagstaff" className="block text-[16vw] md:text-[9.5vw]" />
             <AnimatedWords as="div" text="Mobile" className="block text-[16vw] md:text-[9.5vw]" delay={0.1} />
@@ -290,7 +290,7 @@ function Hero({ openBooking }: { openBooking: () => void }) {
           </h1>
           <div className="mt-8 md:mt-12 flex flex-col md:flex-row md:items-end justify-between gap-8">
             <Reveal delay={700}>
-              <p className="text-white/60 text-base md:text-xl max-w-md leading-relaxed">We come to you — Flagstaff, Bellemont, Kachina, Fort Valley &amp; beyond. Honest pricing, expert work, no shop wait. Car care at 7,000 feet.</p>
+              <div className="text-white/60 text-base md:text-xl max-w-md leading-relaxed">We come to you — Flagstaff, Bellemont, Kachina, Fort Valley &amp; beyond. Honest pricing, expert work, no shop wait. Car care at 7,000 feet.</div>
             </Reveal>
             <Reveal delay={850}>
               <div className="flex flex-col sm:flex-row gap-4 flex-shrink-0">
@@ -340,7 +340,7 @@ function ServiceCard({ s, onBookService }: { s: typeof services[0]; onBookServic
                 </div>
               ))}
               {s.id === 'audio' && (
-                <p className="text-gray-400 text-[11px] mt-1">* Parts may need to be sourced — lead times vary. Deposit required for full system builds. You can also supply your own parts.</p>
+                <div className="text-gray-400 text-[11px] mt-1">* Parts may need to be sourced — lead times vary. Deposit required for full system builds. You can also supply your own parts.</div>
               )}
             </div>
           )}
@@ -392,9 +392,9 @@ function QuickQuoteForm() {
     return (
       <section className="py-12 bg-dark border-t border-white/5">
         <div className="max-w-xl mx-auto px-5 text-center">
-          <p className="text-red-500 text-xs font-bold uppercase tracking-[0.25em] mb-2">Got It</p>
-          <p className="text-white text-xl font-bold mb-1">Thanks, {name.split(' ')[0]}!</p>
-          <p className="text-white/60 text-sm">We'll text you back shortly — usually same day.</p>
+          <div className="text-red-500 text-xs font-bold uppercase tracking-[0.25em] mb-2">Got It</div>
+          <div className="text-white text-xl font-bold mb-1">Thanks, {name.split(' ')[0]}!</div>
+          <div className="text-white/60 text-sm">We'll text you back shortly — usually same day.</div>
         </div>
       </section>
     );
@@ -404,7 +404,7 @@ function QuickQuoteForm() {
     <section className="py-16 md:py-20 bg-dark border-t border-white/5">
       <div className="max-w-xl mx-auto px-5 md:px-8">
         <div className="text-center mb-8">
-          <p className="text-red-500 text-xs font-bold uppercase tracking-[0.25em] mb-2">Not Ready To Book Yet?</p>
+          <div className="text-red-500 text-xs font-bold uppercase tracking-[0.25em] mb-2">Not Ready To Book Yet?</div>
           <div className="text-3xl md:text-4xl font-extrabold text-white tracking-tight">Get a Fast Quote</div>
           <div className="text-white/50 text-sm mt-2">Tell us what's going on — we'll text you back, usually same day.</div>
         </div>
@@ -445,7 +445,7 @@ function QuickQuoteForm() {
           <button type="submit" disabled={status === 'sending'} className="btn-primary w-full text-xs py-4 disabled:opacity-40">
             {status === 'sending' ? 'Sending…' : 'Text Me A Quote'}
           </button>
-          {status === 'error' && <p className="text-red-400 text-xs text-center">Something went wrong — call or text us directly at {PHONE} instead.</p>}
+          {status === 'error' && <div className="text-red-400 text-xs text-center">Something went wrong — call or text us directly at {PHONE} instead.</div>}
         </form>
       </div>
     </section>
@@ -458,7 +458,7 @@ function Services({ onBookService }: { onBookService: (id: string) => void }) {
       <div className="max-w-7xl mx-auto px-5 md:px-8">
         <div className="mb-12 md:mb-16">
           <Reveal>
-            <p className="text-red-500 text-xs font-bold uppercase tracking-[0.25em] mb-3">What We Offer</p>
+            <div className="text-red-500 text-xs font-bold uppercase tracking-[0.25em] mb-3">What We Offer</div>
             <div className="text-white font-black uppercase tracking-tighter leading-[0.85] text-[14vw] md:text-[6vw]">Services</div>
             <div className="text-white/50 text-base mt-4 max-w-xl">Everything handled at your home, office, or wherever you're parked in the Flagstaff area.</div>
           </Reveal>
@@ -471,7 +471,7 @@ function Services({ onBookService }: { onBookService: (id: string) => void }) {
           ))}
         </div>
         <div className="mt-12 text-center">
-          <p className="text-white/50 text-sm mb-6">Don't see what you need? Call us — we handle virtually all automotive repair.</p>
+          <div className="text-white/50 text-sm mb-6">Don't see what you need? Call us — we handle virtually all automotive repair.</div>
           <a href={`tel:${PHONE}`} className="btn-primary inline-flex gap-2 items-center text-xs"><Phone className="w-4 h-4" />{PHONE}</a>
         </div>
       </div>
@@ -486,17 +486,17 @@ function AutoRepair() {
     <section id="auto-repair" className="py-20 md:py-28 bg-dark border-t border-white/5">
       <div className="max-w-7xl mx-auto px-5 md:px-8">
         <Reveal>
-          <p className="text-red-500 text-xs font-bold uppercase tracking-[0.25em] mb-3">Auto Repair · Flagstaff, AZ</p>
+          <div className="text-red-500 text-xs font-bold uppercase tracking-[0.25em] mb-3">Auto Repair · Flagstaff, AZ</div>
           <h2 className="text-white font-extrabold tracking-tight text-3xl md:text-5xl max-w-3xl">{AUTO_REPAIR.heading}</h2>
-          <p className="text-white/60 text-base mt-4 max-w-2xl leading-relaxed">{AUTO_REPAIR.intro}</p>
+          <div className="text-white/60 text-base mt-4 max-w-2xl leading-relaxed">{AUTO_REPAIR.intro}</div>
           <a href="/auto-repair-flagstaff" className="inline-block mt-4 text-sm text-red-400 hover:text-red-300 underline underline-offset-4">Everything we repair, with prices →</a>
         </Reveal>
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mt-10">
           {AUTO_REPAIR.jobs.map(j => (
             <a key={j.path} href={j.path} className="bg-white/5 border border-white/10 p-5 hover:border-red-600/40 hover:bg-white/10 transition-colors">
-              <p className="text-white font-bold">{j.label}</p>
-              <p className="text-red-400 text-sm mt-1">{j.price}</p>
-              <p className="text-white/60 text-xs mt-3">Details →</p>
+              <div className="text-white font-bold">{j.label}</div>
+              <div className="text-red-400 text-sm mt-1">{j.price}</div>
+              <div className="text-white/60 text-xs mt-3">Details →</div>
             </a>
           ))}
         </div>
@@ -514,7 +514,7 @@ function AutoRepair() {
               {HOW_IT_WORKS.map((s, i) => (
                 <li key={s.title} className="flex gap-4">
                   <span className="text-red-600 font-extrabold text-2xl leading-none w-6 flex-shrink-0">{i + 1}</span>
-                  <div><p className="text-white font-semibold text-sm">{s.title}</p><p className="text-white/60 text-sm leading-relaxed">{s.text}</p></div>
+                  <div><div className="text-white font-semibold text-sm">{s.title}</div><div className="text-white/60 text-sm leading-relaxed">{s.text}</div></div>
                 </li>
               ))}
             </ol>
@@ -524,7 +524,7 @@ function AutoRepair() {
             {AUTO_REPAIR.faq.map(f => (
               <details key={f.q} className="bg-white/5 border border-white/10 px-5 py-4 group">
                 <summary className="text-white font-semibold text-sm md:text-base cursor-pointer list-none flex justify-between gap-4">{f.q}<span className="text-red-500 text-xl leading-none group-open:rotate-45 transition-transform">+</span></summary>
-                <p className="text-white/60 text-sm leading-relaxed mt-3">{f.a}</p>
+                <div className="text-white/60 text-sm leading-relaxed mt-3">{f.a}</div>
               </details>
             ))}
           </div>
@@ -541,7 +541,7 @@ function WhyUs() {
       <div className="max-w-7xl mx-auto px-5 md:px-8">
         <div className="mb-10 md:mb-14">
           <Reveal>
-            <p className="text-red-400 text-xs font-bold uppercase tracking-[0.25em] mb-3">The GID Difference</p>
+            <div className="text-red-400 text-xs font-bold uppercase tracking-[0.25em] mb-3">The GID Difference</div>
             <div className="text-white font-black uppercase tracking-tighter leading-[0.85] text-[14vw] md:text-[6vw]">Why Us</div>
           </Reveal>
         </div>
@@ -559,19 +559,19 @@ function WhyUs() {
 
         {/* Hours of Operation */}
         <div className="mt-8 bg-white/5 border border-white/10 border-l-4 border-l-red-600 p-6 md:p-8 max-w-2xl mx-auto">
-          <p className="text-red-500 text-xs font-bold uppercase tracking-[0.25em] mb-3">Hours of Operation</p>
+          <div className="text-red-500 text-xs font-bold uppercase tracking-[0.25em] mb-3">Hours of Operation</div>
           <div className="grid grid-cols-2 gap-x-8 gap-y-2">
             <div>
-              <p className="text-white font-bold text-sm">Monday – Friday</p>
-              <p className="text-white/60 text-sm">1:30 PM – 8:00 PM</p>
+              <div className="text-white font-bold text-sm">Monday – Friday</div>
+              <div className="text-white/60 text-sm">1:30 PM – 8:00 PM</div>
             </div>
             <div>
-              <p className="text-white font-bold text-sm">Saturday – Sunday</p>
-              <p className="text-white/60 text-sm">5:00 AM – 8:00 PM</p>
-              <p className="text-white/60 text-xs mt-0.5">By appointment only</p>
+              <div className="text-white font-bold text-sm">Saturday – Sunday</div>
+              <div className="text-white/60 text-sm">5:00 AM – 8:00 PM</div>
+              <div className="text-white/60 text-xs mt-0.5">By appointment only</div>
             </div>
           </div>
-          <p className="text-white/60 text-xs mt-3">Appointments required. Same-day bookings subject to availability.</p>
+          <div className="text-white/60 text-xs mt-3">Appointments required. Same-day bookings subject to availability.</div>
         </div>
       </div>
     </section>
@@ -600,7 +600,7 @@ function RealJobsStrip() {
   return (
     <section className="bg-dark border-t border-white/5 py-16 md:py-20">
       <div className="max-w-7xl mx-auto px-5 md:px-8">
-        <p className="text-red-500 text-xs font-bold uppercase tracking-[0.25em] mb-6 text-center">From the Garage</p>
+        <div className="text-red-500 text-xs font-bold uppercase tracking-[0.25em] mb-6 text-center">From the Garage</div>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           {shots.map((s, i) => (
             <Reveal key={s.src} delay={i * 80}>
@@ -654,7 +654,7 @@ function BeforeAfterSlider() {
     <section className="py-20 md:py-28 bg-dark border-t border-white/5">
       <div className="max-w-3xl mx-auto px-5 md:px-8">
         <div className="text-center mb-10">
-          <p className="text-red-500 text-xs font-bold uppercase tracking-[0.25em] mb-2">Real Work, Real Results</p>
+          <div className="text-red-500 text-xs font-bold uppercase tracking-[0.25em] mb-2">Real Work, Real Results</div>
           <div className="text-4xl md:text-5xl font-extrabold text-white tracking-tight">Before &amp; After</div>
           <div className="text-white/50 text-base mt-3">A rotor from one of our brake jobs — drag to compare.</div>
         </div>
@@ -759,7 +759,7 @@ function GoogleReviewsSection() {
     <section className="py-20 md:py-28 bg-dark border-t border-white/5">
       <div className="max-w-7xl mx-auto px-5 md:px-8">
         <div className="text-center mb-10">
-          <p className="text-red-500 text-xs font-bold uppercase tracking-[0.25em] mb-2">Google Reviews</p>
+          <div className="text-red-500 text-xs font-bold uppercase tracking-[0.25em] mb-2">Google Reviews</div>
           <div className="text-4xl md:text-5xl font-extrabold text-white tracking-tight mb-3">What Customers Say</div>
           {data.rating != null && (
             <div className="flex items-center justify-center gap-2">
@@ -774,7 +774,7 @@ function GoogleReviewsSection() {
           {data.reviews.slice(0, 3).map((r: any, i: number) => (
             <div key={i} className="bg-white/5 border border-white/10 p-6 flex flex-col">
               <Stars rating={r.rating} />
-              <p className="text-white/70 text-sm leading-relaxed mt-3 flex-1 line-clamp-6">{r.text}</p>
+              <div className="text-white/70 text-sm leading-relaxed mt-3 flex-1 line-clamp-6">{r.text}</div>
               <div className="mt-4 pt-4 border-t border-white/10 flex items-center justify-between">
                 <span className="text-white text-xs font-bold">{r.author}</span>
                 <span className="text-white/60 text-[11px]">{r.relativeTime}</span>
@@ -842,7 +842,7 @@ function ServiceMap() {
     <section id="area" className="py-20 md:py-28 bg-dark border-t border-white/5">
       <div className="max-w-7xl mx-auto px-5 md:px-8">
         <div className="text-center mb-10">
-          <p className="text-red-500 text-xs font-bold uppercase tracking-[0.25em] mb-2">Service Area</p>
+          <div className="text-red-500 text-xs font-bold uppercase tracking-[0.25em] mb-2">Service Area</div>
           <div className="text-4xl md:text-5xl font-extrabold text-white tracking-tight">Flagstaff &amp; Surrounding Communities</div>
           <div className="text-white/50 text-base mt-3 max-w-xl mx-auto">We serve the greater Flagstaff region. Not sure if you're in range? Just call.</div>
         </div>
@@ -853,8 +853,8 @@ function ServiceMap() {
             const Card = (
               <>
                 {area.isHome && <div className="w-2 h-2 bg-red-600 rounded-full mx-auto mb-1.5 animate-pulse" />}
-                <p className={`text-xs font-bold ${area.isHome ? 'text-red-400' : 'text-white'}`}>{area.name}</p>
-                <p className="text-white/60 text-[11px] mt-0.5">{area.isHome ? 'Home Base' : `~${area.miles} mi`}</p>
+                <div className={`text-xs font-bold ${area.isHome ? 'text-red-400' : 'text-white'}`}>{area.name}</div>
+                <div className="text-white/60 text-[11px] mt-0.5">{area.isHome ? 'Home Base' : `~${area.miles} mi`}</div>
               </>
             );
             return area.isHome ? (
@@ -1025,7 +1025,7 @@ function FAQ() {
     <section id="faq" className="py-20 md:py-28 bg-dark border-t border-white/5">
       <div className="max-w-3xl mx-auto px-5 md:px-8">
         <div className="text-center mb-10">
-          <p className="text-red-500 text-xs font-bold uppercase tracking-[0.25em] mb-2">FAQ</p>
+          <div className="text-red-500 text-xs font-bold uppercase tracking-[0.25em] mb-2">FAQ</div>
           <div className="text-4xl md:text-5xl font-extrabold text-white tracking-tight">Common Questions</div>
         </div>
         <div className="space-y-3">
@@ -1054,7 +1054,7 @@ function ContactBar({ openBooking }: { openBooking: () => void }) {
     <section className="bg-red-600 py-12">
       <div className="max-w-7xl mx-auto px-5 md:px-8 flex flex-col md:flex-row items-center justify-between gap-6 text-center md:text-left">
         <div>
-          <p className="text-white text-sm uppercase tracking-widest font-semibold mb-1">Ready to Get Started?</p>
+          <div className="text-white text-sm uppercase tracking-widest font-semibold mb-1">Ready to Get Started?</div>
           <h3 className="text-white text-2xl md:text-3xl font-extrabold tracking-tight">We Come to You, Flagstaff.</h3>
         </div>
         <div className="flex flex-col sm:flex-row gap-4">
@@ -1073,13 +1073,13 @@ function Footer() {
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-8 mb-8">
           <div>
             <img src={OPT_LOGO} width={192} height={192} alt="GID Garage" className="h-16 w-auto mb-4" />
-            <p className="text-white/70 text-sm max-w-xs leading-relaxed">Mobile automotive repair and car audio in Flagstaff, AZ. Honest work. Fair prices. We come to you.</p>
-            <p className="text-white/50 text-xs mt-2 leading-relaxed">Based in Flagstaff, AZ · Serving Sedona, Munds Park, Parks, Bellemont, Kachina Village, Fort Valley, Doney Park, Winona &amp; Mountainaire</p>
+            <div className="text-white/70 text-sm max-w-xs leading-relaxed">Mobile automotive repair and car audio in Flagstaff, AZ. Honest work. Fair prices. We come to you.</div>
+            <div className="text-white/50 text-xs mt-2 leading-relaxed">Based in Flagstaff, AZ · Serving Sedona, Munds Park, Parks, Bellemont, Kachina Village, Fort Valley, Doney Park, Winona &amp; Mountainaire</div>
           </div>
           <div className="flex flex-col gap-3">
             <div className="text-white/50 text-xs uppercase tracking-widest font-semibold mb-1">Hours</div>
-            <p className="text-white/70 text-sm">Mon–Fri: 1:30 PM – 8:00 PM</p>
-            <p className="text-white/70 text-sm">Sat–Sun: 5:00 AM – 8:00 PM</p>
+            <div className="text-white/70 text-sm">Mon–Fri: 1:30 PM – 8:00 PM</div>
+            <div className="text-white/70 text-sm">Sat–Sun: 5:00 AM – 8:00 PM</div>
             <div className="border-t border-gray-800 pt-3 mt-1">
               <a href={`tel:${PHONE}`} className="flex items-center gap-3 text-white/70 hover:text-white transition-colors group">
                 <Phone className="w-4 h-4 text-red-600 group-hover:scale-110 transition-transform" />
@@ -1092,7 +1092,7 @@ function Footer() {
             </div>
           </div>
           <div className="flex flex-col gap-2">
-            <p className="text-white text-xs uppercase tracking-widest font-semibold mb-1">Quick Links</p>
+            <div className="text-white text-xs uppercase tracking-widest font-semibold mb-1">Quick Links</div>
             {[{ label: 'Services', href: '#services' }, { label: 'Why GID Garage', href: '#why' }, { label: 'Service Area', href: '#area' }, { label: 'Get a Quote', href: '#booking' }].map((l) => (
               <a key={l.label} href={l.href} className="text-white/60 hover:text-white text-sm transition-colors">{l.label}</a>
             ))}
@@ -1105,8 +1105,8 @@ function Footer() {
           </div>
         </div>
         <div className="border-t border-gray-800 pt-6 flex flex-col sm:flex-row items-center justify-between gap-3 text-white/50 text-xs">
-          <p>&copy; 2026 GID Garage. All rights reserved.</p>
-          <p>Flagstaff, Arizona</p>
+          <div>&copy; 2026 GID Garage. All rights reserved.</div>
+          <div>Flagstaff, Arizona</div>
         </div>
       </div>
     </footer>
@@ -1174,14 +1174,14 @@ function CancelPage({ bookingId, token }: { bookingId: string; token: string }) 
         </a>
 
         {state === 'verifying' && (
-          <p className="text-gray-500 text-sm uppercase tracking-wider font-bold">Verifying your link…</p>
+          <div className="text-gray-500 text-sm uppercase tracking-wider font-bold">Verifying your link…</div>
         )}
 
         {state === 'invalid' && (
           <>
             <div className="text-4xl mb-4">⚠️</div>
             <h1 className="text-2xl font-black text-white mb-3">Invalid or Expired Link</h1>
-            <p className="text-gray-500 text-sm mb-6">This cancellation link is no longer valid. If you need to cancel, please call us directly.</p>
+            <div className="text-gray-500 text-sm mb-6">This cancellation link is no longer valid. If you need to cancel, please call us directly.</div>
             <a href={`tel:480-757-0476`} className="btn-primary text-xs px-8 py-4 inline-block">Call Us</a>
           </>
         )}
@@ -1189,7 +1189,7 @@ function CancelPage({ bookingId, token }: { bookingId: string; token: string }) 
         {state === 'ready' && booking && (
           <>
             <div className="text-4xl mb-4">📅</div>
-            <p className="text-red-500 text-xs font-bold uppercase tracking-[0.25em] mb-2">Cancel Appointment</p>
+            <div className="text-red-500 text-xs font-bold uppercase tracking-[0.25em] mb-2">Cancel Appointment</div>
             <h1 className="text-2xl font-black text-white mb-6">Are you sure?</h1>
             <div className="bg-gray-900 border border-gray-800 p-5 mb-6 text-left space-y-2">
               <div className="flex justify-between border-b border-gray-800 pb-2">
@@ -1209,7 +1209,7 @@ function CancelPage({ bookingId, token }: { bookingId: string; token: string }) 
                 <span className="text-white text-sm">{booking.vehicle}</span>
               </div>
             </div>
-            <p className="text-gray-600 text-xs mb-6">Cancellations within 24 hours of your appointment may incur a fee.</p>
+            <div className="text-gray-600 text-xs mb-6">Cancellations within 24 hours of your appointment may incur a fee.</div>
             <div className="flex gap-3">
               <a href="/" className="flex-1 border border-gray-700 text-gray-400 hover:border-white hover:text-white text-xs font-bold uppercase tracking-wider py-3 transition-colors text-center">Keep It</a>
               <button onClick={confirmCancel} className="flex-1 bg-red-700 hover:bg-red-600 text-white text-xs font-bold uppercase tracking-wider py-3 transition-colors">Yes, Cancel</button>
@@ -1218,14 +1218,14 @@ function CancelPage({ bookingId, token }: { bookingId: string; token: string }) 
         )}
 
         {state === 'cancelling' && (
-          <p className="text-gray-500 text-sm uppercase tracking-wider font-bold">Cancelling your appointment…</p>
+          <div className="text-gray-500 text-sm uppercase tracking-wider font-bold">Cancelling your appointment…</div>
         )}
 
         {state === 'done' && (
           <>
             <div className="text-4xl mb-4">✓</div>
             <h1 className="text-2xl font-black text-white mb-3">Appointment Cancelled</h1>
-            <p className="text-gray-500 text-sm mb-6">Your appointment has been cancelled. We've sent a confirmation to your email.</p>
+            <div className="text-gray-500 text-sm mb-6">Your appointment has been cancelled. We've sent a confirmation to your email.</div>
             <a href="/" className="btn-primary text-xs px-8 py-4 inline-block">Back to Site</a>
           </>
         )}
@@ -1234,7 +1234,7 @@ function CancelPage({ bookingId, token }: { bookingId: string; token: string }) 
           <>
             <div className="text-4xl mb-4">⚠️</div>
             <h1 className="text-2xl font-black text-white mb-3">Something Went Wrong</h1>
-            <p className="text-gray-500 text-sm mb-6">We couldn't cancel your appointment. Please call us and we'll take care of it.</p>
+            <div className="text-gray-500 text-sm mb-6">We couldn't cancel your appointment. Please call us and we'll take care of it.</div>
             <a href={`tel:480-757-0476`} className="btn-primary text-xs px-8 py-4 inline-block">Call Us</a>
           </>
         )}
@@ -1249,17 +1249,17 @@ function PrivacyPolicyPage() {
       <main className="max-w-3xl mx-auto px-6 py-16">
         <a href="/" className="text-orange-500 text-sm font-bold">← Back to GID Garage</a>
         <h1 className="text-3xl md:text-4xl font-black text-white mt-6 mb-2">Privacy Policy</h1>
-        <p className="text-gray-400 text-sm mb-10">Last updated: November 6, 2026</p>
+        <div className="text-gray-400 text-sm mb-10">Last updated: November 6, 2026</div>
 
         <div className="space-y-8 text-gray-300 text-sm leading-relaxed">
           <section>
             <h2 className="text-white font-bold text-lg mb-2">1. Who We Are</h2>
-            <p>GID Garage ("we," "us," "our") is a mobile mechanic business operated by Echiverri Holdings LLC, serving Flagstaff, Arizona and the surrounding area. This policy explains what information we collect, how we use it, who we share it with, and the choices you have. It applies to gidgarage.com, our booking and admin tools, and any lead forms we run on third-party platforms (including Meta/Facebook/Instagram, Google, and Nextdoor).</p>
+            <div>GID Garage ("we," "us," "our") is a mobile mechanic business operated by Echiverri Holdings LLC, serving Flagstaff, Arizona and the surrounding area. This policy explains what information we collect, how we use it, who we share it with, and the choices you have. It applies to gidgarage.com, our booking and admin tools, and any lead forms we run on third-party platforms (including Meta/Facebook/Instagram, Google, and Nextdoor).</div>
           </section>
 
           <section>
             <h2 className="text-white font-bold text-lg mb-2">2. Information We Collect</h2>
-            <p className="mb-2">We collect information you provide directly, including:</p>
+            <div className="mb-2">We collect information you provide directly, including:</div>
             <ul className="list-disc pl-5 space-y-1">
               <li>Name, phone number, email address, and service address</li>
               <li>Vehicle information (year, make, model, mileage, and VIN or license plate where provided)</li>
@@ -1270,12 +1270,12 @@ function PrivacyPolicyPage() {
               <li>Communications between you and us (texts, emails, calls, and recordings of calls and conversations)</li>
               <li>Reviews, testimonials, and feedback you give us or post publicly</li>
             </ul>
-            <p className="mt-2">We also automatically collect limited technical information when you visit our site or interact with our booking tools, such as IP address, browser type, device type, and general usage/error data (see Section 4).</p>
+            <div className="mt-2">We also automatically collect limited technical information when you visit our site or interact with our booking tools, such as IP address, browser type, device type, and general usage/error data (see Section 4).</div>
           </section>
 
           <section>
             <h2 className="text-white font-bold text-lg mb-2">3. How We Use Your Information</h2>
-            <p className="mb-2">We use your information to:</p>
+            <div className="mb-2">We use your information to:</div>
             <ul className="list-disc pl-5 space-y-1">
               <li>Provide quotes, schedule and perform vehicle services, and process payments</li>
               <li>Contact you about your appointment, estimate, or invoice</li>
@@ -1285,19 +1285,19 @@ function PrivacyPolicyPage() {
               <li>Document our work and protect our business, including for safety, insurance, payment disputes, and legal claims</li>
               <li>Advertise our business, including publishing photos, video, audio, testimonials, and job write-ups as described in Section 13 of our <a href="/terms" className="text-orange-500 underline underline-offset-2">Terms of Service</a>, where you can also read how to opt out</li>
             </ul>
-            <p className="mt-2">We do not sell your personal information. We do not send you promotional text messages without your separate permission.</p>
+            <div className="mt-2">We do not sell your personal information. We do not send you promotional text messages without your separate permission.</div>
           </section>
 
           <section>
             <h2 className="text-white font-bold text-lg mb-2">4. Cookies, Tracking & Analytics</h2>
-            <p className="mb-2"><strong className="text-white">Website analytics (Microsoft Clarity).</strong> On our public marketing pages (the home page, service pages, service area, case studies, and policy pages), we use Microsoft Clarity to understand how visitors use the site and improve it. Clarity captures how you use those pages, such as clicks, scrolling, mouse movement, and page views, through first- and third-party cookies and similar technologies, and may create session replays and heatmaps. Text you type into our booking and quote forms is masked so it is not recorded. This data is processed by Microsoft; see the <a href="https://privacy.microsoft.com/privacystatement" target="_blank" rel="noopener noreferrer" className="text-orange-500 underline underline-offset-2">Microsoft Privacy Statement</a>. Clarity is not used on estimate, invoice, payment, or admin pages. You can block or delete these cookies in your browser settings, or use a browser extension that blocks analytics scripts, without affecting your ability to book.</p>
-            <p className="mb-2">We do not use advertising trackers on gidgarage.com: there is no Meta Pixel or Google Analytics, and we do not build advertising profiles of visitors or sell visitor data. Otherwise we use only what the site needs to work: Cloudflare may set security cookies to protect the site from abuse, your browser may store small settings locally (for example, a booking form you started), and Sentry receives technical error reports so we can fix bugs.</p>
-            <p>When you electronically sign an estimate, we record your device's IP address (looked up through the ipify service) along with your signature and the time, as evidence of your approval. If you respond to one of our ads on Meta (Facebook/Instagram), Google, or Nextdoor, that platform's own privacy policy and tracking apply on its site and lead forms. If we add other analytics or advertising tracking to our website, we will update this policy first.</p>
+            <div className="mb-2"><strong className="text-white">Website analytics (Microsoft Clarity).</strong> On our public marketing pages (the home page, service pages, service area, case studies, and policy pages), we use Microsoft Clarity to understand how visitors use the site and improve it. Clarity captures how you use those pages, such as clicks, scrolling, mouse movement, and page views, through first- and third-party cookies and similar technologies, and may create session replays and heatmaps. Text you type into our booking and quote forms is masked so it is not recorded. This data is processed by Microsoft; see the <a href="https://privacy.microsoft.com/privacystatement" target="_blank" rel="noopener noreferrer" className="text-orange-500 underline underline-offset-2">Microsoft Privacy Statement</a>. Clarity is not used on estimate, invoice, payment, or admin pages. You can block or delete these cookies in your browser settings, or use a browser extension that blocks analytics scripts, without affecting your ability to book.</div>
+            <div className="mb-2">We do not use advertising trackers on gidgarage.com: there is no Meta Pixel or Google Analytics, and we do not build advertising profiles of visitors or sell visitor data. Otherwise we use only what the site needs to work: Cloudflare may set security cookies to protect the site from abuse, your browser may store small settings locally (for example, a booking form you started), and Sentry receives technical error reports so we can fix bugs.</div>
+            <div>When you electronically sign an estimate, we record your device's IP address (looked up through the ipify service) along with your signature and the time, as evidence of your approval. If you respond to one of our ads on Meta (Facebook/Instagram), Google, or Nextdoor, that platform's own privacy policy and tracking apply on its site and lead forms. If we add other analytics or advertising tracking to our website, we will update this policy first.</div>
           </section>
 
           <section>
             <h2 className="text-white font-bold text-lg mb-2">5. Third Parties We Work With</h2>
-            <p className="mb-2">We use trusted service providers to operate our business. Each only receives the information needed to perform its function:</p>
+            <div className="mb-2">We use trusted service providers to operate our business. Each only receives the information needed to perform its function:</div>
             <ul className="list-disc pl-5 space-y-1">
               <li><strong className="text-white">Stripe</strong> — card payment processing and card storage (we do not store full card numbers ourselves)</li>
               <li><strong className="text-white">Bluevine</strong> — our business bank account and the payment links on our invoices (Bluevine processes those payments, including card and Apple Pay details)</li>
@@ -1314,45 +1314,45 @@ function PrivacyPolicyPage() {
               <li><strong className="text-white">CarAPI and FaxVIN</strong> — looking up a vehicle's year, make, model, and VIN from its license plate (the plate and state only, not your name or contact details)</li>
               <li><strong className="text-white">Meta, Google, Nextdoor</strong> — advertising platforms, when you submit a lead form or message us through them</li>
             </ul>
-            <p className="mt-3 mb-1"><strong className="text-white">AI tools.</strong> We use an AI assistant (Claude, by Anthropic) inside our own admin tools to help run the business, for example to summarize a job from its notes, parts, and payments, look up records, or draft a reply for the owner to review. To do that, details from your job and messages (such as your name, vehicle, the work requested, and job notes) are sent to Anthropic for processing. Job summaries are written without your address, phone number, or email. The AI only acts when the owner asks it to and does not make decisions about you on its own. Before the AI records a payment or sends you an email or message, the owner confirms it.</p>
-            <p className="mt-2">These providers are contractually or by policy restricted from using your data for their own purposes beyond providing their service to us. We do not sell or rent your information to marketers or data brokers.</p>
-            <p className="mt-2"><strong className="text-white">Other disclosures.</strong> We may also share information with our employees and contractors who work on your job; with suppliers when ordering parts; with our accountants, lawyers, and insurers; with payment providers to respond to a payment dispute; with government authorities or others when required by law or needed to protect our rights, safety, or property; and with a buyer or successor if the business is sold or transferred. Content we publish for marketing appears on our website and on social media and advertising platforms, where those platforms' own policies apply.</p>
+            <div className="mt-3 mb-1"><strong className="text-white">AI tools.</strong> We use an AI assistant (Claude, by Anthropic) inside our own admin tools to help run the business, for example to summarize a job from its notes, parts, and payments, look up records, or draft a reply for the owner to review. To do that, details from your job and messages (such as your name, vehicle, the work requested, and job notes) are sent to Anthropic for processing. Job summaries are written without your address, phone number, or email. The AI only acts when the owner asks it to and does not make decisions about you on its own. Before the AI records a payment or sends you an email or message, the owner confirms it.</div>
+            <div className="mt-2">These providers are contractually or by policy restricted from using your data for their own purposes beyond providing their service to us. We do not sell or rent your information to marketers or data brokers.</div>
+            <div className="mt-2"><strong className="text-white">Other disclosures.</strong> We may also share information with our employees and contractors who work on your job; with suppliers when ordering parts; with our accountants, lawyers, and insurers; with payment providers to respond to a payment dispute; with government authorities or others when required by law or needed to protect our rights, safety, or property; and with a buyer or successor if the business is sold or transferred. Content we publish for marketing appears on our website and on social media and advertising platforms, where those platforms' own policies apply.</div>
           </section>
 
           <section>
             <h2 className="text-white font-bold text-lg mb-2">6. How We Contact You</h2>
-            <p>By providing your phone number or email, you consent to be contacted by GID Garage via phone call, text message (SMS), or email regarding your service request, appointment, quote, invoice, or related follow-up. These are service messages about your job; we do not send promotional text messages without your separate permission. <strong className="text-white">Message and data rates may apply. Message frequency varies. Reply STOP to a text at any time to opt out of SMS messages, or contact us using the information in Section 12.</strong> Opting out of texts will not affect your ability to receive service — you can still reach us or be reached by phone or email.</p>
+            <div>By providing your phone number or email, you consent to be contacted by GID Garage via phone call, text message (SMS), or email regarding your service request, appointment, quote, invoice, or related follow-up. These are service messages about your job; we do not send promotional text messages without your separate permission. <strong className="text-white">Message and data rates may apply. Message frequency varies. Reply STOP to a text at any time to opt out of SMS messages, or contact us using the information in Section 12.</strong> Opting out of texts will not affect your ability to receive service — you can still reach us or be reached by phone or email.</div>
           </section>
 
           <section>
             <h2 className="text-white font-bold text-lg mb-2">7. Data Retention</h2>
-            <p>We retain customer and job information for as long as needed to provide our services, comply with tax and legal recordkeeping obligations (typically at least the period required by Arizona state law), maintain warranty history, and protect against claims. Photos, video, and audio may be kept as long as they remain useful for those purposes or for marketing as described in our Terms of Service. You may request earlier deletion of non-essential records at any time (see Section 9).</p>
+            <div>We retain customer and job information for as long as needed to provide our services, comply with tax and legal recordkeeping obligations (typically at least the period required by Arizona state law), maintain warranty history, and protect against claims. Photos, video, and audio may be kept as long as they remain useful for those purposes or for marketing as described in our Terms of Service. You may request earlier deletion of non-essential records at any time (see Section 9).</div>
           </section>
 
           <section>
             <h2 className="text-white font-bold text-lg mb-2">8. Data Security</h2>
-            <p>We use industry-standard measures to protect your information, including encrypted connections (HTTPS), restricted admin access behind authentication, and secure third-party processors for payments (Stripe) and data storage (Supabase, Cloudflare). No method of transmission or storage is 100% secure, but we work to protect your data appropriately for a small business handling personal and payment information.</p>
+            <div>We use industry-standard measures to protect your information, including encrypted connections (HTTPS), restricted admin access behind authentication, and secure third-party processors for payments (Stripe) and data storage (Supabase, Cloudflare). No method of transmission or storage is 100% secure, but we work to protect your data appropriately for a small business handling personal and payment information.</div>
           </section>
 
           <section>
             <h2 className="text-white font-bold text-lg mb-2">9. Your Rights & Choices</h2>
-            <p className="mb-2">Depending on where you live, you may have rights to access, correct, delete, or limit use of your personal information (for example, under the California Consumer Privacy Act if you are a California resident). To exercise any of these rights, contact us using the information below. We will respond within a reasonable time and will not discriminate against you for exercising these rights.</p>
-            <p>You may also opt out of marketing/promotional texts or emails at any time — this will not affect your ability to book or receive service from us.</p>
+            <div className="mb-2">Depending on where you live, you may have rights to access, correct, delete, or limit use of your personal information (for example, under the California Consumer Privacy Act if you are a California resident). To exercise any of these rights, contact us using the information below. We will respond within a reasonable time and will not discriminate against you for exercising these rights.</div>
+            <div>You may also opt out of marketing/promotional texts or emails at any time — this will not affect your ability to book or receive service from us.</div>
           </section>
 
           <section>
             <h2 className="text-white font-bold text-lg mb-2">10. Children's Privacy</h2>
-            <p>Our services are intended for adults (18+) seeking vehicle repair services. We do not knowingly collect personal information from children.</p>
+            <div>Our services are intended for adults (18+) seeking vehicle repair services. We do not knowingly collect personal information from children.</div>
           </section>
 
           <section>
             <h2 className="text-white font-bold text-lg mb-2">11. Changes to This Policy</h2>
-            <p>We may update this policy from time to time to reflect changes in our practices or legal requirements. The "Last updated" date at the top of this page will reflect the most recent revision.</p>
+            <div>We may update this policy from time to time to reflect changes in our practices or legal requirements. The "Last updated" date at the top of this page will reflect the most recent revision.</div>
           </section>
 
           <section>
             <h2 className="text-white font-bold text-lg mb-2">12. Contact Us</h2>
-            <p>Questions about this policy, or want your information corrected or removed? Contact us at <a href="mailto:info@gidgarage.com" className="text-orange-500 underline underline-offset-2">info@gidgarage.com</a> or call or text 480-757-0476. Use of our services is also governed by our <a href="/terms" className="text-orange-500 underline underline-offset-2">Terms of Service</a>.</p>
+            <div>Questions about this policy, or want your information corrected or removed? Contact us at <a href="mailto:info@gidgarage.com" className="text-orange-500 underline underline-offset-2">info@gidgarage.com</a> or call or text 480-757-0476. Use of our services is also governed by our <a href="/terms" className="text-orange-500 underline underline-offset-2">Terms of Service</a>.</div>
           </section>
         </div>
       </main>
@@ -1373,18 +1373,18 @@ function TermsOfServicePage() {
       <main className="max-w-3xl mx-auto px-6 py-16">
         <a href="/" className="text-orange-500 text-sm font-bold">← Back to GID Garage</a>
         <h1 className="text-3xl md:text-4xl font-black text-white mt-6 mb-2">Terms of Service</h1>
-        <p className="text-gray-400 text-sm mb-10">Last updated: November 6, 2026</p>
+        <div className="text-gray-400 text-sm mb-10">Last updated: November 6, 2026</div>
 
         <div className="space-y-8 text-gray-300 text-sm leading-relaxed">
           <section>
             <h2 className={h2}>1. Agreement to These Terms</h2>
-            <p className="mb-2">These Terms of Service ("Terms") are a binding agreement between you and Echiverri Holdings LLC, doing business as GID Garage ("GID Garage," "we," "us," "our"), a mobile mechanic business serving Flagstaff, Arizona and the surrounding area. They apply when you use gidgarage.com, request a quote, book an appointment, sign an estimate, pay an invoice, or receive any service from us.</p>
-            <p>By doing any of those things, you agree to these Terms and to our <a href="/privacy" className={link}>Privacy Policy</a>. If you do not agree, please do not use our website or services. <strong className={strong}>If these Terms conflict with an estimate you sign, the signed estimate controls for that job.</strong></p>
+            <div className="mb-2">These Terms of Service ("Terms") are a binding agreement between you and Echiverri Holdings LLC, doing business as GID Garage ("GID Garage," "we," "us," "our"), a mobile mechanic business serving Flagstaff, Arizona and the surrounding area. They apply when you use gidgarage.com, request a quote, book an appointment, sign an estimate, pay an invoice, or receive any service from us.</div>
+            <div>By doing any of those things, you agree to these Terms and to our <a href="/privacy" className={link}>Privacy Policy</a>. If you do not agree, please do not use our website or services. <strong className={strong}>If these Terms conflict with an estimate you sign, the signed estimate controls for that job.</strong></div>
           </section>
 
           <section>
             <h2 className={h2}>2. Eligibility and Authority Over the Vehicle</h2>
-            <p>You must be at least 18 years old to book or authorize service. By requesting service, you confirm that you own the vehicle or are authorized by its owner to request and approve repairs, and that you have permission to have the work done at the service location (for example, from a landlord, HOA, employer, or property owner). You are responsible for any fees, fines, or claims resulting from work performed at a location where it is not permitted.</p>
+            <div>You must be at least 18 years old to book or authorize service. By requesting service, you confirm that you own the vehicle or are authorized by its owner to request and approve repairs, and that you have permission to have the work done at the service location (for example, from a landlord, HOA, employer, or property owner). You are responsible for any fees, fines, or claims resulting from work performed at a location where it is not permitted.</div>
           </section>
 
           <section>
@@ -1439,18 +1439,18 @@ function TermsOfServicePage() {
               {WARRANTY_POLICY.map(part => (
                 <div key={part.title}>
                   <h3 className="text-white font-semibold mb-1">{part.title}</h3>
-                  {part.intro && <p className="mb-1">{part.intro}</p>}
+                  {part.intro && <div className="mb-1">{part.intro}</div>}
                   <ul className="list-disc pl-5 space-y-1">{part.items.map(item => <li key={item}>{item}</li>)}</ul>
-                  {part.outro && <p className="mt-1">{part.outro}</p>}
+                  {part.outro && <div className="mt-1">{part.outro}</div>}
                 </div>
               ))}
-              <p className="uppercase text-white">{WARRANTY_DISCLAIMER}</p>
+              <div className="uppercase text-white">{WARRANTY_DISCLAIMER}</div>
             </div>
           </section>
 
           <section>
             <h2 className={h2}>8. {OLDER_VEHICLES.title}</h2>
-            <p className="mb-1">{OLDER_VEHICLES.intro}</p>
+            <div className="mb-1">{OLDER_VEHICLES.intro}</div>
             <ul className="list-disc pl-5 space-y-1 mb-2">{OLDER_VEHICLES.examples.map(item => <li key={item}>{item}</li>)}</ul>
             <ul className="list-disc pl-5 space-y-1">
               {OLDER_VEHICLES.notes.map(item => <li key={item}>{item}</li>)}
@@ -1460,23 +1460,23 @@ function TermsOfServicePage() {
 
           <section>
             <h2 className={h2}>9. Limitation of Liability</h2>
-            <p className="uppercase text-white mb-2">To the fullest extent permitted by law, and except as stated in the next paragraph, GID Garage will not be liable for any indirect, incidental, special, consequential, or punitive damages, including loss of use of the vehicle, rental or towing costs, lost wages or profits, or inconvenience, arising from our services or this website. Our total liability for any claim relating to a job is limited to the amount you paid us for that job.</p>
-            <p>These limits do not apply to bodily injury, or to gross negligence, willful misconduct, fraud, or any other liability or consumer right that cannot be limited or waived under applicable law. If any part of this section cannot be enforced, the rest applies to the extent the law allows.</p>
+            <div className="uppercase text-white mb-2">To the fullest extent permitted by law, and except as stated in the next paragraph, GID Garage will not be liable for any indirect, incidental, special, consequential, or punitive damages, including loss of use of the vehicle, rental or towing costs, lost wages or profits, or inconvenience, arising from our services or this website. Our total liability for any claim relating to a job is limited to the amount you paid us for that job.</div>
+            <div>These limits do not apply to bodily injury, or to gross negligence, willful misconduct, fraud, or any other liability or consumer right that cannot be limited or waived under applicable law. If any part of this section cannot be enforced, the rest applies to the extent the law allows.</div>
           </section>
 
           <section>
             <h2 className={h2}>10. Your Responsibility for Information You Give Us</h2>
-            <p>You agree that the information you provide (including your identity, authority over the vehicle, permission to work at the service location, and the vehicle's known problems) is accurate. To the extent permitted by law, you agree to indemnify and hold GID Garage harmless from claims, losses, and costs, including reasonable attorney's fees, arising from false information you provided or from your violation of these Terms.</p>
+            <div>You agree that the information you provide (including your identity, authority over the vehicle, permission to work at the service location, and the vehicle's known problems) is accurate. To the extent permitted by law, you agree to indemnify and hold GID Garage harmless from claims, losses, and costs, including reasonable attorney's fees, arising from false information you provided or from your violation of these Terms.</div>
           </section>
 
           <section>
             <h2 className={h2}>11. Electronic Signatures and Records</h2>
-            <p>You agree that estimates, authorizations, invoices, and receipts may be provided and signed electronically, and that your electronic signature (including your typed name) has the same legal effect as a handwritten signature under the federal E-SIGN Act and the Arizona Electronic Transactions Act. When you sign, we record your name, the date and time, and your device's IP address as evidence of your approval. You may request a copy of any signed document at any time.</p>
+            <div>You agree that estimates, authorizations, invoices, and receipts may be provided and signed electronically, and that your electronic signature (including your typed name) has the same legal effect as a handwritten signature under the federal E-SIGN Act and the Arizona Electronic Transactions Act. When you sign, we record your name, the date and time, and your device's IP address as evidence of your approval. You may request a copy of any signed document at any time.</div>
           </section>
 
           <section>
             <h2 className={h2}>12. Communications</h2>
-            <p>By giving us your phone number or email, you agree that we may contact you by call, text message, or email about your quote, appointment, estimate, invoice, warranty, or follow-up (including a request to review our service). Message and data rates may apply; message frequency varies. Reply STOP to opt out of texts at any time. See our <a href="/privacy" className={link}>Privacy Policy</a> for details.</p>
+            <div>By giving us your phone number or email, you agree that we may contact you by call, text message, or email about your quote, appointment, estimate, invoice, warranty, or follow-up (including a request to review our service). Message and data rates may apply; message frequency varies. Reply STOP to opt out of texts at any time. See our <a href="/privacy" className={link}>Privacy Policy</a> for details.</div>
           </section>
 
           <section>
@@ -1495,14 +1495,14 @@ function TermsOfServicePage() {
 
           <section>
             <h2 className={h2}>14. Use of Our Website</h2>
-            <p>You agree not to misuse the website, including by submitting false bookings, attempting to access admin areas or other customers' information, interfering with the site's operation, or scraping it with automated tools. Website content (text, photos, logos) belongs to GID Garage and may not be copied for commercial use without permission. We may change, suspend, or discontinue any part of the website, and prices and service offerings may change at any time without notice.</p>
+            <div>You agree not to misuse the website, including by submitting false bookings, attempting to access admin areas or other customers' information, interfering with the site's operation, or scraping it with automated tools. Website content (text, photos, logos) belongs to GID Garage and may not be copied for commercial use without permission. We may change, suspend, or discontinue any part of the website, and prices and service offerings may change at any time without notice.</div>
           </section>
 
           <section>
             <h2 className={h2}>15. Disputes and Governing Law</h2>
-            <p className="mb-2">If you have a concern about our work or a charge, please contact us first at 480-757-0476 or <a href="mailto:info@gidgarage.com" className={link}>info@gidgarage.com</a>. Most issues can be resolved quickly and informally, and, to the extent permitted by law, you agree to give us 30 days to try to resolve a dispute before starting a legal proceeding or a payment dispute with your card issuer. This does not limit any legal right you have that cannot be waived.</p>
-            <p>These Terms and any dispute relating to our services or this website are governed by the laws of the State of Arizona, without regard to its conflict-of-law rules. Any legal proceeding will be brought in the courts located in Coconino County, Arizona (including the justice court for small claims), and you and we consent to that venue.</p>
-            <p className="mt-2">To the extent permitted by law, any claim relating to our services, other than a claim for bodily injury, must be filed within one year after the date of the service.</p>
+            <div className="mb-2">If you have a concern about our work or a charge, please contact us first at 480-757-0476 or <a href="mailto:info@gidgarage.com" className={link}>info@gidgarage.com</a>. Most issues can be resolved quickly and informally, and, to the extent permitted by law, you agree to give us 30 days to try to resolve a dispute before starting a legal proceeding or a payment dispute with your card issuer. This does not limit any legal right you have that cannot be waived.</div>
+            <div>These Terms and any dispute relating to our services or this website are governed by the laws of the State of Arizona, without regard to its conflict-of-law rules. Any legal proceeding will be brought in the courts located in Coconino County, Arizona (including the justice court for small claims), and you and we consent to that venue.</div>
+            <div className="mt-2">To the extent permitted by law, any claim relating to our services, other than a claim for bodily injury, must be filed within one year after the date of the service.</div>
           </section>
 
           <section>
@@ -1520,7 +1520,7 @@ function TermsOfServicePage() {
 
           <section>
             <h2 className={h2}>17. Contact Us</h2>
-            <p>GID Garage (Echiverri Holdings LLC) · Flagstaff, Arizona · Call or text <a href="tel:4807570476" className={link}>480-757-0476</a> · <a href="mailto:info@gidgarage.com" className={link}>info@gidgarage.com</a></p>
+            <div>GID Garage (Echiverri Holdings LLC) · Flagstaff, Arizona · Call or text <a href="tel:4807570476" className={link}>480-757-0476</a> · <a href="mailto:info@gidgarage.com" className={link}>info@gidgarage.com</a></div>
           </section>
         </div>
       </main>

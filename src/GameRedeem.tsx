@@ -32,7 +32,7 @@ export default function GameRedeem() {
   return (
     <div className="bg-dark min-h-screen flex flex-col items-center px-4 py-10 font-sans">
       <h1 className="text-white font-extrabold text-xl uppercase mb-1">Redeem Game Code</h1>
-      <p className="text-white/50 text-sm mb-6">Staff only — type the customer's 6-digit code</p>
+      <div className="text-white/50 text-sm mb-6">Staff only — type the customer's 6-digit code</div>
 
       <div className="w-full max-w-sm flex flex-col gap-3">
         <input
@@ -53,21 +53,21 @@ export default function GameRedeem() {
 
         {result && !result.ok && (
           <div className="bg-zinc-900 border border-red-700 rounded-lg p-4 text-center">
-            <p className="text-red-400 font-bold text-sm">{result.error}</p>
+            <div className="text-red-400 font-bold text-sm">{result.error}</div>
             {result.win && (
-              <p className="text-white/50 text-xs mt-1">
+              <div className="text-white/50 text-xs mt-1">
                 {result.win.prize_label} — already redeemed {result.win.redeemed_at ? `on ${new Date(result.win.redeemed_at).toLocaleString('en-US', { timeZone: 'America/Phoenix' })}` : ''}
-              </p>
+              </div>
             )}
           </div>
         )}
 
         {result && result.ok && result.win && (
           <div className="bg-zinc-900 border border-green-700 rounded-lg p-4 text-center">
-            <p className="text-green-400 font-bold text-sm mb-1">✓ Valid — now marked redeemed</p>
-            <p className="text-white font-bold">{result.win.prize_label}</p>
-            <p className="text-white/50 text-xs mt-1">{result.win.fname} · {result.win.phone}</p>
-            <p className="text-white/30 text-[11px] mt-2">Apply this manually in the invoice builder.</p>
+            <div className="text-green-400 font-bold text-sm mb-1">✓ Valid — now marked redeemed</div>
+            <div className="text-white font-bold">{result.win.prize_label}</div>
+            <div className="text-white/50 text-xs mt-1">{result.win.fname} · {result.win.phone}</div>
+            <div className="text-white/30 text-[11px] mt-2">Apply this manually in the invoice builder.</div>
           </div>
         )}
       </div>

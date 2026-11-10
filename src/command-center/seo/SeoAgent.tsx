@@ -94,7 +94,7 @@ export function ActionCard({ c, post, compact = false }: { c: Any; post: Post; c
           </div>
           <h3 className={`font-semibold leading-snug break-words ${high ? 'text-[17px]' : 'text-[15.5px]'}`} style={{ color: C.text }}>{c.title}</h3>
           <div className="text-[13px] mt-1" style={{ color: C.text2 }}>Impact {c.impact} · Effort {c.effort} · Confidence {c.confidence}{c.analyzedAt ? ` · analysed ${timeAgo(c.analyzedAt)}` : ''}</div>
-          {!compact && <p className="text-[14.5px] mt-2 leading-relaxed" style={{ color: C.text }}><b>Do this:</b> {c.action}</p>}
+          {!compact && <div className="text-[14.5px] mt-2 leading-relaxed" style={{ color: C.text }}><b>Do this:</b> {c.action}</div>}
         </div>
       </div>
       <div className="flex flex-wrap items-center gap-2 mt-3">
@@ -187,12 +187,12 @@ export function Top5View({ t }: { t: Any | undefined }) {
   if (!t) return <Skeleton className="h-[400px]" />;
   return (
     <div className="flex flex-col gap-4">
-      <p className="text-[15px] leading-relaxed" style={{ color: C.text }}>{t.summary}</p>
+      <div className="text-[15px] leading-relaxed" style={{ color: C.text }}>{t.summary}</div>
       <div className="grid gap-3 md:grid-cols-2">
         {t.sections.map((s: Any) => (
           <div key={s.id} className="rounded-xl p-4" style={box}>
             <div className="flex items-center gap-2 mb-1.5"><span className="font-semibold text-[15px]" style={{ color: C.text }}>{s.title}</span><span className="ml-auto"><StatusBadge tone={GAP_TONE[s.status]}>{s.status === 'info' ? 'context' : s.status}</StatusBadge></span></div>
-            <p className="text-[14px] leading-relaxed" style={{ color: C.text2 }}>{s.statement}</p>
+            <div className="text-[14px] leading-relaxed" style={{ color: C.text2 }}>{s.statement}</div>
           </div>
         ))}
       </div>
@@ -357,7 +357,7 @@ function Scorecard({ r, post, technical, connections }: { r: Any; post: Post; te
             {checkMsg && <span className="text-[13px]" role="status" style={{ color: C.muted }}>{checkMsg}</span>}
           </span>
         </div>
-        {!m ? <p className="text-[13.5px]" style={{ color: C.text2 }}>No automatic check yet. Press Check now; after that it runs by itself every day.</p> : <>
+        {!m ? <div className="text-[13.5px]" style={{ color: C.text2 }}>No automatic check yet. Press Check now; after that it runs by itself every day.</div> : <>
           <div className="grid gap-2 grid-cols-2 lg:grid-cols-4">
             <Tile label="In the map pack (top 3)" value={`${m.top3} of ${m.checks}`} tone={m.top3 ? C.green : C.amber} sub={m.top3Before != null ? <Delta now={m.top3} before={m.top3Before} /> : 'arrows start after a week of checks'} />
             <Tile label="Average Maps position (when shown)" value={m.average != null ? `#${m.average}` : '—'} tone={posTone(m.average)} sub={m.averageBefore != null && m.average != null ? <Delta now={m.average} before={m.averageBefore} lowerIsBetter /> : undefined} />
@@ -397,7 +397,7 @@ function Scorecard({ r, post, technical, connections }: { r: Any; post: Post; te
               <span className="text-[12.5px]" style={{ color: C.muted }}>Updated with the daily check. Categories you don't have are worth adding as extra categories in Google Business Profile if they truly fit what you do (hover a chip for who uses it).</span>
             </div>
           )}
-          <p className="text-[12.5px]" style={{ color: C.muted }}>From Google's own Places search, run from each town: very close to the Maps app, not identical (Maps also weighs each searcher's history and exact spot).</p>
+          <div className="text-[12.5px]" style={{ color: C.muted }}>From Google's own Places search, run from each town: very close to the Maps app, not identical (Maps also weighs each searcher's history and exact spot).</div>
         </>}
       </section>
 
@@ -411,7 +411,7 @@ function Scorecard({ r, post, technical, connections }: { r: Any; post: Post; te
             </select>
           </label>
         </div>
-        <p className="text-[13.5px]" style={{ color: C.text2 }}>Nothing to do here; the Maps positions above update by themselves. These buttons open the real results as if searching from {area.name}, if you want to see them. The Google number is Search Console's 28-day average. Logging a Maps number by hand is optional.</p>
+        <div className="text-[13.5px]" style={{ color: C.text2 }}>Nothing to do here; the Maps positions above update by themselves. These buttons open the real results as if searching from {area.name}, if you want to see them. The Google number is Search Console's 28-day average. Logging a Maps number by hand is optional.</div>
         <div className="flex flex-col gap-2">
           {(s?.searches || []).map((q: Any) => {
             const c = cell(q.query);
@@ -436,7 +436,7 @@ function Scorecard({ r, post, technical, connections }: { r: Any; post: Post; te
             );
           })}
         </div>
-        <p className="text-[12.5px]" style={{ color: C.muted }}>Tip: open these in a private window (Ctrl+Shift+N) so your own past searches don't skew the results.</p>
+        <div className="text-[12.5px]" style={{ color: C.muted }}>Tip: open these in a private window (Ctrl+Shift+N) so your own past searches don't skew the results.</div>
       </section>
 
       {/* 4. Review race */}
@@ -452,7 +452,7 @@ function Scorecard({ r, post, technical, connections }: { r: Any; post: Post; te
               </div>
             ))}
           </div>
-          <p className="text-[12.5px]" style={{ color: C.muted }}>Counted from {r.reviews.rows[0].since} (or 30 days ago, whichever is later).</p>
+          <div className="text-[12.5px]" style={{ color: C.muted }}>Counted from {r.reviews.rows[0].since} (or 30 days ago, whichever is later).</div>
         </section>
       )}
 
@@ -496,7 +496,7 @@ export function RankingsView({ r, post, technical, connections }: { r: Any | und
     <div className="flex flex-col gap-4">
       <Scorecard r={r} post={post} technical={technical} connections={connections} />
       <h3 className="font-semibold text-[15px] mt-2" style={{ color: C.text }}>Log a check by hand</h3>
-      <p className="text-[14px]" style={{ color: C.text2 }}>Local rank depends on where the searcher stands, so record it per area. Search on your phone from (or set to) that area, note GID's position in the map pack. No scraping — manual, CSV, or a rank-tracker export.</p>
+      <div className="text-[14px]" style={{ color: C.text2 }}>Local rank depends on where the searcher stands, so record it per area. Search on your phone from (or set to) that area, note GID's position in the map pack. No scraping — manual, CSV, or a rank-tracker export.</div>
       <div className="grid gap-2 sm:grid-cols-[2fr_1.3fr_0.8fr_auto_auto] items-end">
         <label className="flex flex-col gap-1"><span className="text-[12.5px]" style={{ color: C.text2 }}>Search</span><input className={input} style={inputStyle} value={keyword} onChange={e => setKeyword(e.target.value)} /></label>
         <label className="flex flex-col gap-1"><span className="text-[12.5px]" style={{ color: C.text2 }}>Area</span>
@@ -507,7 +507,7 @@ export function RankingsView({ r, post, technical, connections }: { r: Any | und
       </div>
       <details className="rounded-xl p-3" style={box}>
         <summary className="cursor-pointer text-[14px] inline-flex items-center gap-1.5" style={{ color: C.text }}><Upload size={14} />Import CSV</summary>
-        <p className="text-[13px] mt-2" style={{ color: C.muted }}>keyword,area,rank,date,in_local_pack,competitors — e.g. <code>mobile mechanic flagstaff,Doney Park,4,2026-09-29,yes,Munoz &amp; Sons;Flagstaff Mobile Mechanic LLC</code></p>
+        <div className="text-[13px] mt-2" style={{ color: C.muted }}>keyword,area,rank,date,in_local_pack,competitors — e.g. <code>mobile mechanic flagstaff,Doney Park,4,2026-09-29,yes,Munoz &amp; Sons;Flagstaff Mobile Mechanic LLC</code></div>
         <textarea value={csv} onChange={e => setCsv(e.target.value)} rows={4} className="w-full rounded-lg p-2 mt-2 text-[13px] outline-none" style={inputStyle} aria-label="CSV rows" />
         <ActionButton size="sm" onClick={() => save({ action: 'import_ranks', csv }, o => `${o.added} imported${o.skipped ? `, ${o.skipped} lines skipped` : ''}.`)}>Import</ActionButton>
       </details>
@@ -689,7 +689,7 @@ function LinkOutreach() {
   return (
     <section className="flex flex-col gap-2">
       <h3 className="font-semibold text-[15px]" style={{ color: C.text }}>Link outreach <span className="text-[12.5px] font-normal" style={{ color: C.muted }}>{o.checkedAt ? `last search ${timeAgo(o.checkedAt)}` : 'first search runs on the next weekly sync'} · {o.sentToday}/{o.cap} sent today · from {o.from || 'Zoho (not connected)'}</span></h3>
-      <p className="text-[13.5px]" style={{ color: C.text2 }}>Jarvis finds Flagstaff and Arizona sites that could link to you, reads the contact email each site publishes, and drafts a friendly note. You review and confirm every email; each site is emailed once at most.</p>
+      <div className="text-[13.5px]" style={{ color: C.text2 }}>Jarvis finds Flagstaff and Arizona sites that could link to you, reads the contact email each site publishes, and drafts a friendly note. You review and confirm every email; each site is emailed once at most.</div>
       <div><RunNow id="link_outreach" label="Find more sites now" onDone={() => setN(x => x + 1)} /></div>
       {ready.length > 0 ? <ul className="flex flex-col gap-2">{ready.map(p => (
         <li key={p.site} className="rounded-xl p-3 flex flex-col gap-1 text-[14px]" style={box}>
@@ -717,7 +717,7 @@ export function ResearchView({ k, post }: { k: Any | undefined; post: Post }) {
       <LinkOutreach />
       <h3 className="font-semibold text-[15px] mt-2" style={{ color: C.text }}>Guidance the recommendations cite</h3>
       {!k.ready && <NotSetUp what="Weekly re-checking of Google's documents" />}
-      <p className="text-[14px]" style={{ color: C.text2 }}>What the recommendations are allowed to cite. Google's pages are re-checked weekly; a changed page is flagged for review, and superseded guidance stops being cited.</p>
+      <div className="text-[14px]" style={{ color: C.text2 }}>What the recommendations are allowed to cite. Google's pages are re-checked weekly; a changed page is flagged for review, and superseded guidance stops being cited.</div>
       <ul className="flex flex-col gap-2.5">
         {k.entries.map((e: Any) => (
           <li key={e.id} className="rounded-xl p-3.5" style={{ ...box, borderColor: e.status === 'changed' ? 'rgba(255,184,77,0.5)' : C.border, opacity: e.status === 'superseded' ? 0.55 : 1 }}>
@@ -767,7 +767,7 @@ export function HistoryView({ hs }: { hs: Any | undefined }) {
             ))}</tbody>
           </table></div>
         ) : <Muted>Nothing marked done yet. Press "Done" on an action and its effect is measured at 7, 30, 90 and 180 days.</Muted>}
-        <p className="text-[12.5px] mt-2" style={{ color: C.muted }}>Before/after comparisons show correlation, not proof — season, competitors and Google updates move the same numbers.</p>
+        <div className="text-[12.5px] mt-2" style={{ color: C.muted }}>Before/after comparisons show correlation, not proof — season, competitors and Google updates move the same numbers.</div>
       </section>
       <section>
         <h3 className="font-semibold text-[15px] mb-2" style={{ color: C.text }}>What has worked for GID</h3>

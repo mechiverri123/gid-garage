@@ -35,14 +35,14 @@ function Shell({ children, onQuote }: { children: React.ReactNode; onQuote: () =
       <footer className="border-t border-white/10 py-10">
         <div className="max-w-5xl mx-auto px-5 md:px-8 grid gap-6 sm:grid-cols-2 text-sm">
           <div>
-            <p className="text-white font-bold mb-2">Services</p>
+            <div className="text-white font-bold mb-2">Services</div>
             <ul className="flex flex-col gap-1">{SERVICE_PAGES.map(s => <li key={s.path}><a href={s.path} className="text-white/60 hover:text-white">{s.h1}</a></li>)}</ul>
           </div>
           <div className="text-white/60">
-            <p className="text-white font-bold mb-2">GID Garage</p>
-            <p>Mobile mechanic based in Flagstaff, AZ.</p>
-            <p className="mt-1"><a href={`tel:${PHONE}`} className="hover:text-white">{PHONE}</a> · <a href="mailto:info@gidgarage.com" className="hover:text-white">info@gidgarage.com</a></p>
-            <p className="mt-1"><a href="/service-area" className="hover:text-white">Areas we serve</a> · <a href="/case-studies" className="hover:text-white">Real jobs</a> · <a href="/" className="hover:text-white">Home</a></p>
+            <div className="text-white font-bold mb-2">GID Garage</div>
+            <div>Mobile mechanic based in Flagstaff, AZ.</div>
+            <div className="mt-1"><a href={`tel:${PHONE}`} className="hover:text-white">{PHONE}</a> · <a href="mailto:info@gidgarage.com" className="hover:text-white">info@gidgarage.com</a></div>
+            <div className="mt-1"><a href="/service-area" className="hover:text-white">Areas we serve</a> · <a href="/case-studies" className="hover:text-white">Real jobs</a> · <a href="/" className="hover:text-white">Home</a></div>
           </div>
         </div>
       </footer>
@@ -63,9 +63,9 @@ export function ServicePage({ page }: { page: ServicePageData }) {
   const { openBooking, widget } = useBooking(page.serviceId);
   return (
     <Shell onQuote={openBooking}>
-      <p className="text-red-400 text-xs font-bold uppercase tracking-[0.3em] mb-3">GID Garage · Flagstaff, AZ</p>
+      <div className="text-red-400 text-xs font-bold uppercase tracking-[0.3em] mb-3">GID Garage · Flagstaff, AZ</div>
       <h1 className="text-white font-black uppercase tracking-tight leading-[0.95] text-4xl md:text-6xl">{page.h1}</h1>
-      <p className="text-white/70 text-base md:text-lg leading-relaxed mt-5 max-w-3xl">{page.intro}</p>
+      <div className="text-white/70 text-base md:text-lg leading-relaxed mt-5 max-w-3xl">{page.intro}</div>
       <div className="flex flex-col sm:flex-row gap-3 mt-7">
         <button onClick={openBooking} className="btn-primary text-sm px-8 py-4">Get a Quote</button>
         <a href={`tel:${PHONE}`} className="btn-outline text-sm px-8 py-4"><Phone className="w-4 h-4" />Call {PHONE}</a>
@@ -121,19 +121,19 @@ export function ServicePage({ page }: { page: ServicePageData }) {
       <section className="mt-12">
         <h2 className="text-white font-bold text-2xl tracking-tight mb-4">Questions</h2>
         <div className="flex flex-col gap-3">{page.faq.map(f => (
-          <div key={f.q} className="bg-white/5 border border-white/10 px-5 py-4"><h3 className="text-white font-semibold">{f.q}</h3><p className="text-white/60 text-sm leading-relaxed mt-1">{f.a}</p></div>
+          <div key={f.q} className="bg-white/5 border border-white/10 px-5 py-4"><h3 className="text-white font-semibold">{f.q}</h3><div className="text-white/60 text-sm leading-relaxed mt-1">{f.a}</div></div>
         ))}</div>
       </section>
 
       <section className="mt-12 bg-red-600 px-6 py-8 flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <p className="text-white text-2xl font-extrabold tracking-tight">We come to you, Flagstaff.</p>
+        <div className="text-white text-2xl font-extrabold tracking-tight">We come to you, Flagstaff.</div>
         <div className="flex flex-col sm:flex-row gap-3">
           <button onClick={openBooking} className="bg-white text-red-600 font-bold uppercase tracking-wide text-xs px-7 py-3">Get a Quote</button>
           <a href={`tel:${PHONE}`} className="inline-flex items-center justify-center gap-2 border-2 border-white text-white font-bold px-6 py-3 text-xs uppercase tracking-wide"><Phone className="w-4 h-4" />{PHONE}</a>
         </div>
       </section>
 
-      <p className="text-white/60 text-sm mt-10">Other services: {SERVICE_PAGES.filter(s => s.path !== page.path).map((s, i) => <span key={s.path}>{i ? ' · ' : ''}<a href={s.path} className="underline hover:text-white">{s.label}</a></span>)} · <a href="/service-area" className="underline hover:text-white">Areas we serve</a></p>
+      <div className="text-white/60 text-sm mt-10">Other services: {SERVICE_PAGES.filter(s => s.path !== page.path).map((s, i) => <span key={s.path}>{i ? ' · ' : ''}<a href={s.path} className="underline hover:text-white">{s.label}</a></span>)} · <a href="/service-area" className="underline hover:text-white">Areas we serve</a></div>
       {widget}
     </Shell>
   );
@@ -146,16 +146,16 @@ export function AreasPage() {
   return (
     <Shell onQuote={openBooking}>
       <h1 className="text-white font-black uppercase tracking-tight leading-[0.95] text-4xl md:text-6xl">{AREAS_PAGE.h1}</h1>
-      <p className="text-white/70 text-base md:text-lg leading-relaxed mt-5 max-w-3xl">{AREAS_PAGE.intro}</p>
+      <div className="text-white/70 text-base md:text-lg leading-relaxed mt-5 max-w-3xl">{AREAS_PAGE.intro}</div>
       <ul className="grid gap-3 sm:grid-cols-2 mt-10">
         {AREAS.map(a => (
           <li key={a.slug} id={a.slug} className="bg-white/5 border border-white/10 px-5 py-4">
             <h2 className="text-white font-bold text-lg">{a.name}{a.miles ? <span className="text-white/60 text-sm font-normal"> · ~{a.miles} mi from Flagstaff</span> : <span className="text-red-400 text-sm font-normal"> · home base</span>}</h2>
-            <p className="text-white/60 text-sm leading-relaxed mt-1">{a.blurb}</p>
+            <div className="text-white/60 text-sm leading-relaxed mt-1">{a.blurb}</div>
           </li>
         ))}
       </ul>
-      <p className="text-white/60 text-sm mt-10">Services: {SERVICE_PAGES.map((s, i) => <span key={s.path}>{i ? ' · ' : ''}<a href={s.path} className="underline hover:text-white">{s.label}</a></span>)}</p>
+      <div className="text-white/60 text-sm mt-10">Services: {SERVICE_PAGES.map((s, i) => <span key={s.path}>{i ? ' · ' : ''}<a href={s.path} className="underline hover:text-white">{s.label}</a></span>)}</div>
       {widget}
     </Shell>
   );
@@ -166,13 +166,13 @@ export function CaseStudyPage({ cs }: { cs: CaseStudy }) {
   const service = SERVICE_PAGES.find(p => p.serviceId === cs.serviceId);
   const { openBooking, widget } = useBooking(cs.serviceId);
   const part = (title: string, text: string) => (
-    <section className="mt-8"><h2 className="text-white font-bold text-xl tracking-tight mb-2">{title}</h2><p className="text-white/70 leading-relaxed">{text}</p></section>
+    <section className="mt-8"><h2 className="text-white font-bold text-xl tracking-tight mb-2">{title}</h2><div className="text-white/70 leading-relaxed">{text}</div></section>
   );
   return (
     <Shell onQuote={openBooking}>
-      <p className="text-red-400 text-xs font-bold uppercase tracking-[0.3em] mb-3"><a href="/case-studies" className="hover:underline">Real jobs</a> · {cs.month}</p>
+      <div className="text-red-400 text-xs font-bold uppercase tracking-[0.3em] mb-3"><a href="/case-studies" className="hover:underline">Real jobs</a> · {cs.month}</div>
       <h1 className="text-white font-black tracking-tight leading-[1.05] text-3xl md:text-5xl">{cs.h1}</h1>
-      <p className="text-white/60 text-sm mt-3">{cs.vehicle}{cs.mileage ? ` · ${cs.mileage}` : ''} · mobile repair in the Flagstaff area</p>
+      <div className="text-white/60 text-sm mt-3">{cs.vehicle}{cs.mileage ? ` · ${cs.mileage}` : ''} · mobile repair in the Flagstaff area</div>
       {part('The problem', cs.complaint)}
       {part('What we found', cs.diagnosis)}
       {part('What we did', cs.repair)}
@@ -183,13 +183,13 @@ export function CaseStudyPage({ cs }: { cs: CaseStudy }) {
         ))}</div>
       </section>
       <section className="mt-10 bg-white/5 border border-white/10 border-l-4 border-l-red-600 px-5 py-4">
-        <h2 className="text-white font-bold mb-1">The takeaway</h2><p className="text-white/70 leading-relaxed">{cs.lesson}</p>
+        <h2 className="text-white font-bold mb-1">The takeaway</h2><div className="text-white/70 leading-relaxed">{cs.lesson}</div>
       </section>
       <div className="flex flex-col sm:flex-row gap-3 mt-8">
         <button onClick={openBooking} className="btn-primary text-sm px-8 py-4">Get a Quote</button>
         {service && <a href={service.path} className="btn-outline text-sm px-8 py-4">{service.label} — pricing</a>}
       </div>
-      <p className="text-white/60 text-sm mt-10">More real jobs: {CASE_STUDIES.filter(c => c.slug !== cs.slug).map((c, i) => <span key={c.slug}>{i ? ' · ' : ''}<a href={c.path} className="underline hover:text-white">{c.vehicle}</a></span>)}</p>
+      <div className="text-white/60 text-sm mt-10">More real jobs: {CASE_STUDIES.filter(c => c.slug !== cs.slug).map((c, i) => <span key={c.slug}>{i ? ' · ' : ''}<a href={c.path} className="underline hover:text-white">{c.vehicle}</a></span>)}</div>
       {widget}
     </Shell>
   );
@@ -201,12 +201,12 @@ export function CaseStudiesIndex() {
   return (
     <Shell onQuote={openBooking}>
       <h1 className="text-white font-black uppercase tracking-tight leading-[0.95] text-4xl md:text-6xl">{CASE_STUDIES_PAGE.h1}</h1>
-      <p className="text-white/70 text-base md:text-lg leading-relaxed mt-5 max-w-3xl">{CASE_STUDIES_PAGE.intro}</p>
+      <div className="text-white/70 text-base md:text-lg leading-relaxed mt-5 max-w-3xl">{CASE_STUDIES_PAGE.intro}</div>
       <ul className="grid gap-4 sm:grid-cols-2 mt-10">{CASE_STUDIES.map(c => (
         <li key={c.slug}>
           <a href={c.path} className="block bg-white/5 border border-white/10 hover:border-red-600/50 transition-colors">
             <img src={c.photos[0].src} alt={c.photos[0].alt} loading="lazy" decoding="async" className="w-full aspect-[4/3] object-cover" />
-            <div className="px-4 py-3"><h2 className="text-white font-bold leading-snug">{c.h1}</h2><p className="text-white/60 text-sm mt-1">{c.month} · {c.vehicle}</p></div>
+            <div className="px-4 py-3"><h2 className="text-white font-bold leading-snug">{c.h1}</h2><div className="text-white/60 text-sm mt-1">{c.month} · {c.vehicle}</div></div>
           </a>
         </li>
       ))}</ul>

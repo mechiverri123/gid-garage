@@ -37,9 +37,9 @@ function Row({ item, children }: { item: NvItem; children?: React.ReactNode }) {
       <div className="flex items-start gap-3">
         <span className="mt-1.5 w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: item.status ? DOT[item.status] : '#4b5563' }} aria-hidden />
         <div className="flex-1 min-w-0">
-          <p className="text-white text-sm font-bold">{item.service || item.label}</p>
-          <p className="text-gray-500 text-xs">{[item.service && item.service !== item.label ? item.label : '', item.status ? NV_STATUS[item.status] : ''].filter(Boolean).join(' · ')}</p>
-          {item.note && <p className="text-gray-300 text-sm mt-1 leading-relaxed">{item.note}</p>}
+          <div className="text-white text-sm font-bold">{item.service || item.label}</div>
+          <div className="text-gray-500 text-xs">{[item.service && item.service !== item.label ? item.label : '', item.status ? NV_STATUS[item.status] : ''].filter(Boolean).join(' · ')}</div>
+          {item.note && <div className="text-gray-300 text-sm mt-1 leading-relaxed">{item.note}</div>}
           <Media item={item} />
         </div>
         {children}
@@ -87,8 +87,8 @@ export function NextVisitInvoice({ jobId, nextVisit }: { jobId: string; nextVisi
   return (
     <div className="mt-4 border border-white/10 bg-white/5 page-break-avoid print:border-0 print:bg-transparent">
       <div className="px-6 pt-5 pb-3 print:px-0">
-        <p className="text-gray-500 text-xs font-bold uppercase tracking-widest">Recommended for your next visit</p>
-        <p className="text-gray-400 text-sm mt-1">From the free next-visit check we did on your vehicle. {response ? '' : "Choose what you'd like us to take care of next time — we'll quote it before any work."}</p>
+        <div className="text-gray-500 text-xs font-bold uppercase tracking-widest">Recommended for your next visit</div>
+        <div className="text-gray-400 text-sm mt-1">From the free next-visit check we did on your vehicle. {response ? '' : "Choose what you'd like us to take care of next time — we'll quote it before any work."}</div>
       </div>
       <div className="divide-y divide-white/5 border-t border-white/10">
         {recs.map(item => (
@@ -115,27 +115,27 @@ export function NextVisitInvoice({ jobId, nextVisit }: { jobId: string; nextVisi
         <div className="px-6 py-4 border-t border-white/10 space-y-3 no-print">
           {approved.length > 0 && (
             <>
-              <p className="text-gray-500 text-xs font-bold uppercase tracking-widest">Pick a day and time</p>
+              <div className="text-gray-500 text-xs font-bold uppercase tracking-widest">Pick a day and time</div>
               <input type="date" value={date} min={today} max={addDaysYmd(today, 120)} onChange={e => setDate(e.target.value)}
                 className="w-full bg-black/40 border border-white/15 text-white px-3 py-2 text-sm outline-none focus:border-red-600" />
               {date && (slots.length ? (
                 <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
                   {slots.map(t => <button key={t} type="button" onClick={() => setTime(t)} className={`text-sm py-2 border transition-colors ${time === t ? 'bg-red-600 border-red-600 text-white' : 'border-white/15 text-gray-300 hover:border-red-600'}`}>{t}</button>)}
                 </div>
-              ) : <p className="text-gray-500 text-sm">No open times that day — try another date.</p>)}
+              ) : <div className="text-gray-500 text-sm">No open times that day — try another date.</div>)}
             </>
           )}
-          {error && <p role="alert" className="text-red-400 text-sm">{error}</p>}
+          {error && <div role="alert" className="text-red-400 text-sm">{error}</div>}
           <button type="button" onClick={submit} disabled={busy || !allAnswered || (approved.length > 0 && (!date || !time))}
             className="w-full bg-red-600 hover:bg-red-700 disabled:opacity-40 text-white text-xs font-bold uppercase tracking-widest py-3 transition-colors">
             {busy ? 'Sending…' : approved.length ? 'Book my next visit' : 'Send my answers'}
           </button>
-          {!allAnswered && <p className="text-gray-600 text-xs text-center">Choose "Yes, next time" or "Not now" for each item.</p>}
+          {!allAnswered && <div className="text-gray-600 text-xs text-center">Choose "Yes, next time" or "Not now" for each item.</div>}
         </div>
       )}
       <div className="px-6 pb-4 print:px-0">
         <a href={`/inspection?id=${encodeURIComponent(jobId)}`} className="text-red-400 hover:text-red-300 text-xs font-bold uppercase tracking-widest no-print">View inspection →</a>
-        <p className="hidden print:block text-xs text-gray-600">Full inspection: gidgarage.com/inspection?id={jobId}</p>
+        <div className="hidden print:block text-xs text-gray-600">Full inspection: gidgarage.com/inspection?id={jobId}</div>
       </div>
     </div>
   );
@@ -144,7 +144,7 @@ export function NextVisitInvoice({ jobId, nextVisit }: { jobId: string; nextVisi
 // The full checklist (inspection-only page): every checked item by category.
 export function NextVisitReport({ nextVisit }: { nextVisit?: NextVisit | null }) {
   const items = (nextVisit?.items || []).filter(i => i.status);
-  if (!items.length) return <p className="text-gray-500 text-sm px-6 py-5">No checklist items were recorded on this visit.</p>;
+  if (!items.length) return <div className="text-gray-500 text-sm px-6 py-5">No checklist items were recorded on this visit.</div>;
   const order: NvStatus[] = ['now', 'soon', 'good'];
   const byCat = items.reduce<Record<string, NvItem[]>>((a, i) => { (a[i.category] ||= []).push(i); return a; }, {});
   const counts = order.map(s => [s, items.filter(i => i.status === s).length] as const);
@@ -155,7 +155,7 @@ export function NextVisitReport({ nextVisit }: { nextVisit?: NextVisit | null })
       </div>
       {Object.entries(byCat).map(([cat, list]) => (
         <div key={cat} className="page-break-avoid">
-          <p className="text-gray-500 text-[11px] font-bold uppercase tracking-widest px-6 pt-4 pb-1 print:px-0">{cat}</p>
+          <div className="text-gray-500 text-[11px] font-bold uppercase tracking-widest px-6 pt-4 pb-1 print:px-0">{cat}</div>
           <div className="divide-y divide-white/5">
             {[...list].sort((a, b) => order.indexOf(a.status!) - order.indexOf(b.status!)).map(i => <Row key={i.id} item={{ ...i, service: i.status === 'good' ? i.label : i.service }} />)}
           </div>

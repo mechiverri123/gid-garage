@@ -148,14 +148,14 @@ export function NextVisitCheck({ job, onSaved }: { job: JobLike; onSaved: (inspe
     <div className="space-y-4">
       <div className="flex flex-wrap items-start gap-2">
         <div className="mr-auto">
-          <p className="text-gray-500 text-xs font-bold uppercase tracking-widest">Next-Visit Check</p>
-          <p className="text-gray-600 text-[11px] mt-0.5">Free check. Yellow and red items show on the customer's invoice as recommendations for next time.</p>
+          <div className="text-gray-500 text-xs font-bold uppercase tracking-widest">Next-Visit Check</div>
+          <div className="text-gray-600 text-[11px] mt-0.5">Free check. Yellow and red items show on the customer's invoice as recommendations for next time.</div>
         </div>
         <span className={`text-[11px] font-bold uppercase tracking-wider px-2 py-1 border ${state === 'offline' ? 'border-amber-700 text-amber-400' : state === 'error' ? 'border-red-700 text-red-400' : 'border-gray-800 text-gray-500'}`} role="status">
           {state === 'saving' ? 'Saving…' : state === 'offline' ? `No signal — will upload${totalWaiting ? ` (${totalWaiting} waiting)` : ''}` : state === 'error' ? 'Not saved' : '✓ Saved'}
         </span>
       </div>
-      {err && <p className="text-red-400 text-xs" role="alert">{err}</p>}
+      {err && <div className="text-red-400 text-xs" role="alert">{err}</div>}
       {answered && (
         <div className="border border-emerald-800 bg-emerald-900/10 px-3 py-2 text-xs text-emerald-300">
           Customer answered {new Date(nv.response!.at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'America/Phoenix' })}:
@@ -169,7 +169,7 @@ export function NextVisitCheck({ job, onSaved }: { job: JobLike; onSaved: (inspe
 
       {Object.entries(byCat).map(([cat, items]) => (
         <div key={cat}>
-          <p className="text-gray-600 text-[11px] font-bold uppercase tracking-widest mb-1.5">{cat}</p>
+          <div className="text-gray-600 text-[11px] font-bold uppercase tracking-widest mb-1.5">{cat}</div>
           <div className="space-y-1.5">
             {items.map(i => (
               <div key={i.id} className="bg-gray-900 border border-gray-800 px-3 py-2">
@@ -185,7 +185,7 @@ export function NextVisitCheck({ job, onSaved }: { job: JobLike; onSaved: (inspe
                 </div>
                 {(i.status === 'soon' || i.status === 'now') && (
                   <div className="mt-2 space-y-2 pl-4">
-                    <p className="text-[11px] text-gray-500">Recommends: <span className="text-gray-300">{i.service}</span> · {NV_STATUS[i.status]}</p>
+                    <div className="text-[11px] text-gray-500">Recommends: <span className="text-gray-300">{i.service}</span> · {NV_STATUS[i.status]}</div>
                     <input type="text" value={i.note} disabled={answered} onChange={e => update(i.id, { note: e.target.value })} placeholder="What you saw (the customer reads this) — e.g. 3mm left on the pads"
                       className="w-full bg-gray-800 border border-gray-700 text-white text-sm px-3 py-1.5 outline-none focus:border-red-600" />
                     <div className="flex flex-wrap items-center gap-2">
@@ -209,8 +209,8 @@ export function NextVisitCheck({ job, onSaved }: { job: JobLike; onSaved: (inspe
                       </label>
                       <span className="text-[11px] text-gray-600">(for you only — not shown to the customer)</span>
                     </div>
-                    {hours[i.id]?.text && <p className="text-[11px] text-gray-400">{hours[i.id].text}</p>}
-                    {hours[i.id]?.error && <p className="text-[11px] text-red-400">{hours[i.id].error}</p>}
+                    {hours[i.id]?.text && <div className="text-[11px] text-gray-400">{hours[i.id].text}</div>}
+                    {hours[i.id]?.error && <div className="text-[11px] text-red-400">{hours[i.id].error}</div>}
                   </div>
                 )}
               </div>

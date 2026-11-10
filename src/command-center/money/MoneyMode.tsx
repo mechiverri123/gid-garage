@@ -220,7 +220,7 @@ export function MoneyMode({ summary, onOpenView }: { summary: CommandCenterSumma
                 <div><div className="text-[12px] uppercase tracking-wider" style={{ color: C.muted }}>Paid</div><div className="text-[18px] font-bold tabular-nums" style={{ color: C.text }}>{money(s.salesTaxPaid, 2)}</div></div>
                 <div><div className="text-[12px] uppercase tracking-wider" style={{ color: C.muted }}>All-time left to pay</div><div className="text-[18px] font-bold tabular-nums" style={{ color: all?.salesTaxOwed > 0 ? C.amber : C.green }}>{money(Math.max(0, all?.salesTaxOwed ?? 0), 2)}</div></div>
               </div>
-              <p className="text-[13px] mt-3" style={{ color: C.text2 }}>Rough self-employment tax on this period's net: <b style={{ color: C.text }}>{money(selfEmp, 0)}</b> (15.3% × 92.35%), before income tax. An estimate to set money aside, not tax advice.</p>
+              <div className="text-[13px] mt-3" style={{ color: C.text2 }}>Rough self-employment tax on this period's net: <b style={{ color: C.text }}>{money(selfEmp, 0)}</b> (15.3% × 92.35%), before income tax. An estimate to set money aside, not tax advice.</div>
               <div className="mt-2"><ActionButton size="sm" variant="ghost" icon={Settings} onClick={() => onOpenView({ type: 'settings' })}>Tax rate & owner pay settings</ActionButton></div>
             </CommandCard>
 
@@ -230,7 +230,7 @@ export function MoneyMode({ summary, onOpenView }: { summary: CommandCenterSumma
                 <div><div className="text-[12px] uppercase tracking-wider" style={{ color: C.muted }}>This period</div><div className="text-[18px] font-bold tabular-nums" style={{ color: C.text }}>{money(s.ownerPay, 2)}</div></div>
                 <div><div className="text-[12px] uppercase tracking-wider" style={{ color: C.muted }}>All time</div><div className="text-[18px] font-bold tabular-nums" style={{ color: C.text }}>{money(all?.ownerPay, 2)}</div></div>
               </div>
-              {all?.ownerPayNotInLedger > 0 && <p className="text-[13px] mt-3" style={{ color: C.amber }}>{money(all.ownerPayNotInLedger, 2)} marked as your pay in Bluevine but not recorded in Team &amp; Pay — record it there so your weekly totals are right.</p>}
+              {all?.ownerPayNotInLedger > 0 && <div className="text-[13px] mt-3" style={{ color: C.amber }}>{money(all.ownerPayNotInLedger, 2)} marked as your pay in Bluevine but not recorded in Team &amp; Pay — record it there so your weekly totals are right.</div>}
               <div className="mt-2"><ActionButton size="sm" variant="ghost" onClick={() => { window.location.href = '/admin/pay'; }}>Open Team &amp; Pay</ActionButton></div>
             </CommandCard>
 
@@ -241,12 +241,12 @@ export function MoneyMode({ summary, onOpenView }: { summary: CommandCenterSumma
                 <div><div className="text-[12px] uppercase tracking-wider" style={{ color: C.muted }}>Paid back</div><div className="text-[18px] font-bold tabular-nums" style={{ color: C.text }}>{money(all?.ownerPaidBack, 2)}</div></div>
                 <div><div className="text-[12px] uppercase tracking-wider" style={{ color: C.muted }}>{(all?.ownerEquityNet ?? 0) >= 0 ? 'Still owed to you' : 'Paid back beyond'}</div><div className="text-[18px] font-bold tabular-nums" style={{ color: C.purple }}>{money(Math.abs(all?.ownerEquityNet ?? 0), 2)}</div></div>
               </div>
-              {data.equityLedger && !data.equityLedger.ok && <p className="text-[13px] mt-3" style={{ color: C.amber }}>Couldn't read the admin equity ledger.</p>}
+              {data.equityLedger && !data.equityLedger.ok && <div className="text-[13px] mt-3" style={{ color: C.amber }}>Couldn't read the admin equity ledger.</div>}
               {(all?.bankDrawsNotInLedger > 0 || all?.bankContributionsNotInLedger > 0) && (
-                <p className="text-[13px] mt-3" style={{ color: C.amber }}>
+                <div className="text-[13px] mt-3" style={{ color: C.amber }}>
                   In Bluevine but not in your ledger: {all.bankDrawsNotInLedger > 0 && <>{money(all.bankDrawsNotInLedger, 2)} paid to you</>}{all.bankDrawsNotInLedger > 0 && all.bankContributionsNotInLedger > 0 && ' · '}{all.bankContributionsNotInLedger > 0 && <>{money(all.bankContributionsNotInLedger, 2)} you deposited</>}.
                   {' '}If those were draws or contributions, add them in admin; otherwise tap them below (filter "Owner's equity") and pick what they were.
-                </p>)}
+                </div>)}
             </CommandCard>
           </div>
         </div>
@@ -273,7 +273,7 @@ export function MoneyMode({ summary, onOpenView }: { summary: CommandCenterSumma
                 {line(`Bluevine balance on ${src.bluevine.balanceDate}`, src.bluevine.balance)}
                 {line('= Not in the bank on that date', rest, true)}
               </div>
-              <p className="text-[13px] mt-2" style={{ color: C.text2 }}>That last line is money that's real but somewhere else: Stripe payouts still on the way, cash customers paid you that never went into Bluevine, Venmo transfers still pending, and anything spent after {src.bluevine.balanceDate} (upload a newer Bluevine export to include it).</p>
+              <div className="text-[13px] mt-2" style={{ color: C.text2 }}>That last line is money that's real but somewhere else: Stripe payouts still on the way, cash customers paid you that never went into Bluevine, Venmo transfers still pending, and anything spent after {src.bluevine.balanceDate} (upload a newer Bluevine export to include it).</div>
             </CommandCard>
           );
         })()}

@@ -547,7 +547,7 @@ export default function PromptGenerator() {
   return (
     <div className="min-h-screen bg-dark text-light px-4 py-10">
       <div className="max-w-3xl mx-auto">
-        <p className="section-label">Internal Tool</p>
+        <div className="section-label">Internal Tool</div>
         <h1 className="text-3xl md:text-4xl font-extrabold text-light mb-4">{mode === 'repair' ? 'Repair' : 'Diagnosis'} Prompt Generator</h1>
         <div role="tablist" aria-label="Prompt type" className="inline-flex border border-white/10 rounded-lg overflow-hidden mb-6">
           {(['repair', 'diagnosis'] as Mode[]).map(m => (
@@ -577,7 +577,7 @@ export default function PromptGenerator() {
                 {vinBusy ? 'Decoding...' : 'Decode VIN'}
               </button>
             </div>
-            {vinError && <p className="text-red-400 text-xs mt-1">{vinError}</p>}
+            {vinError && <div className="text-red-400 text-xs mt-1">{vinError}</div>}
           </div>
 
           <div className="text-xs text-white/30">— or fill in / adjust manually —</div>
@@ -637,9 +637,9 @@ export default function PromptGenerator() {
               className="w-full bg-[#0a0a0a] border border-white/10 rounded-lg p-4 text-white/80 text-xs font-mono leading-relaxed focus:outline-none focus:border-red-600"
               onClick={(e) => (e.target as HTMLTextAreaElement).select()}
             />
-            <p className="text-xs text-white/40">
+            <div className="text-xs text-white/40">
               Paste this whole prompt into a web-enabled AI. Sources should return as clickable links directly beside the specs they support.
-            </p>
+            </div>
           </div>
         )}
       </div>

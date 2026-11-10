@@ -70,7 +70,7 @@ export function HelperPay() {
   }
 
   if (error && !data) return <div className="border border-amber-800 text-amber-300 text-sm p-4">{error}</div>;
-  if (!data) return <p className="text-gray-500 text-sm py-8 text-center">Loading helper pay…</p>;
+  if (!data) return <div className="text-gray-500 text-sm py-8 text-center">Loading helper pay…</div>;
 
   return (
     <div className="space-y-6">
@@ -99,8 +99,8 @@ export function HelperPay() {
         <div className="bg-gray-900 border border-emerald-900/60 p-4">
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0">
-              <p className="text-white font-bold truncate">{ownerRow.person.name} <span className="text-emerald-400 text-xs font-bold uppercase tracking-wider">· You</span></p>
-              <p className="text-gray-500 text-xs">{ownerRow.person.hourly_rate != null ? `${$(ownerRow.person.hourly_rate)}/hr` : 'Set your hourly rate (Edit)'} · owner pay (not an expense)</p>
+              <div className="text-white font-bold truncate">{ownerRow.person.name} <span className="text-emerald-400 text-xs font-bold uppercase tracking-wider">· You</span></div>
+              <div className="text-gray-500 text-xs">{ownerRow.person.hourly_rate != null ? `${$(ownerRow.person.hourly_rate)}/hr` : 'Set your hourly rate (Edit)'} · owner pay (not an expense)</div>
             </div>
             <button type="button" onClick={() => setPanel({ type: 'person', person: ownerRow.person as Person })} className="text-gray-500 hover:text-white text-xs underline flex-shrink-0">Edit</button>
           </div>
@@ -109,7 +109,7 @@ export function HelperPay() {
             <div><div className="text-xl font-black text-white tabular-nums">{$(ownerWeeks[0]?.earned)}</div><div className="text-gray-500 text-[11px] font-bold uppercase tracking-wider">Earned this week</div></div>
             <div><div className={`text-xl font-black tabular-nums ${ownerRow.owed > 0 ? 'text-amber-400' : 'text-white'}`}>{$(Math.max(0, ownerRow.owed))}</div><div className="text-gray-500 text-[11px] font-bold uppercase tracking-wider">Not paid yet</div></div>
           </div>
-          <p className="text-gray-400 text-xs mt-2">Labor hours on this week's jobs: <b className="text-white tabular-nums">{weekJobHours}</b>{weekJobs.length ? ` (${weekJobs.map(x => `${jobLabel(x.j)} ${x.hours}h`).join(', ')})` : ' (set hours on a job\'s labor line)'}</p>
+          <div className="text-gray-400 text-xs mt-2">Labor hours on this week's jobs: <b className="text-white tabular-nums">{weekJobHours}</b>{weekJobs.length ? ` (${weekJobs.map(x => `${jobLabel(x.j)} ${x.hours}h`).join(', ')})` : ' (set hours on a job\'s labor line)'}</div>
           <div className="flex gap-2 mt-3">
             <button type="button" onClick={() => setPanel({ type: 'work', personId: ownerRow.person.id })} className="flex-1 border border-gray-700 text-gray-200 hover:border-red-600 text-[11px] font-bold uppercase tracking-widest py-2.5">Log my hours</button>
             <button type="button" onClick={() => setPanel({ type: 'payout', personId: ownerRow.person.id })} disabled={!(ownerRow.owed > 0)} className="flex-1 bg-red-600 hover:bg-red-700 disabled:opacity-40 text-white text-[11px] font-bold uppercase tracking-widest py-2.5">Pay myself {ownerRow.owed > 0 ? $(ownerRow.owed) : ''}</button>
@@ -132,8 +132,8 @@ export function HelperPay() {
 
       {!team.length ? (
         <div className="bg-gray-900 border border-gray-800 p-5 text-sm text-gray-400 space-y-2">
-          <p className="text-white font-bold">Add your team</p>
-          <p>Tap <b className="text-white">+ Add person</b>, pick Contractor or Employee, enter how you pay them (e.g. Venmo @name) and their usual rate. Then log work after each job and record each payment.</p>
+          <div className="text-white font-bold">Add your team</div>
+          <div>Tap <b className="text-white">+ Add person</b>, pick Contractor or Employee, enter how you pay them (e.g. Venmo @name) and their usual rate. Then log work after each job and record each payment.</div>
         </div>
       ) : (
         <div className="grid gap-3 sm:grid-cols-2">
@@ -141,8 +141,8 @@ export function HelperPay() {
             <div key={r.person.id} className={`bg-gray-900 border p-4 ${r.person.active ? 'border-gray-800' : 'border-gray-900 opacity-60'}`}>
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0">
-                  <p className="text-white font-bold truncate">{r.person.name}{!r.person.active && <span className="text-gray-500 font-normal"> · inactive</span>} <span className="text-gray-500 text-[11px] font-bold uppercase tracking-wider">· {r.person.role === 'employee' ? 'Employee' : 'Contractor'}</span></p>
-                  <p className="text-gray-500 text-xs truncate">{[r.person.hourly_rate != null ? `${$(r.person.hourly_rate)}/hr` : '', r.person.job_rate != null ? `${$(r.person.job_rate)}/job` : '', r.person.pay_method || ''].filter(Boolean).join(' · ') || 'No rates set'}</p>
+                  <div className="text-white font-bold truncate">{r.person.name}{!r.person.active && <span className="text-gray-500 font-normal"> · inactive</span>} <span className="text-gray-500 text-[11px] font-bold uppercase tracking-wider">· {r.person.role === 'employee' ? 'Employee' : 'Contractor'}</span></div>
+                  <div className="text-gray-500 text-xs truncate">{[r.person.hourly_rate != null ? `${$(r.person.hourly_rate)}/hr` : '', r.person.job_rate != null ? `${$(r.person.job_rate)}/job` : '', r.person.pay_method || ''].filter(Boolean).join(' · ') || 'No rates set'}</div>
                 </div>
                 <button type="button" onClick={() => setPanel({ type: 'person', person: r.person as Person })} className="text-gray-500 hover:text-white text-xs underline flex-shrink-0">Edit</button>
               </div>
@@ -153,7 +153,7 @@ export function HelperPay() {
                 </div>
                 <div className="text-right text-xs text-gray-500">Paid in {year}: <span className="text-gray-300 tabular-nums">{$(r.paidYear)}</span></div>
               </div>
-              {r.needs1099 && <p className="text-amber-400 text-xs mt-2">Paid {$(NEC_THRESHOLD)}+ this year: you'll likely need to send them a 1099-NEC (ask your tax preparer).</p>}
+              {r.needs1099 && <div className="text-amber-400 text-xs mt-2">Paid {$(NEC_THRESHOLD)}+ this year: you'll likely need to send them a 1099-NEC (ask your tax preparer).</div>}
               {r.person.active && (
                 <div className="flex gap-2 mt-3">
                   <button type="button" onClick={() => setPanel({ type: 'work', personId: r.person.id })} className="flex-1 border border-gray-700 text-gray-200 hover:border-red-600 text-[11px] font-bold uppercase tracking-widest py-2">Log work</button>
@@ -168,7 +168,7 @@ export function HelperPay() {
       {activity.length > 0 && (
         <div>
           <div className="flex items-center justify-between gap-2 mb-2">
-            <p className="text-gray-500 text-xs font-bold uppercase tracking-widest">History</p>
+            <div className="text-gray-500 text-xs font-bold uppercase tracking-widest">History</div>
             {people.length > 1 && (
               <select value={filter} onChange={e => setFilter(e.target.value)} aria-label="Show history for" className="bg-gray-900 border border-gray-700 text-gray-300 text-xs px-2 py-1.5">
                 <option value="all">Everyone</option>
@@ -195,19 +195,19 @@ export function HelperPay() {
               );
             })}
           </div>
-          <p className="text-gray-600 text-xs mt-2"><span className="text-amber-400">+ amber</span> = earned (you owe it) · <span className="text-emerald-400">− green</span> = paid. Payments lower net profit on the day you paid them.</p>
+          <div className="text-gray-600 text-xs mt-2"><span className="text-amber-400">+ amber</span> = earned (you owe it) · <span className="text-emerald-400">− green</span> = paid. Payments lower net profit on the day you paid them.</div>
         </div>
       )}
 
       <details className="bg-gray-900 border border-gray-800 p-4 text-sm text-gray-400">
         <summary className="cursor-pointer text-white font-bold">How does pay work here?</summary>
         <div className="mt-3 space-y-2 leading-relaxed">
-          <p><b className="text-white">Your own pay</b>: log your labor hours (per day or per job), and each week pay yourself what you earned at your rate. As a single-owner LLC that's <b className="text-white">owner pay</b> (in tax terms, a draw): it does not lower net profit, no tax is withheld, and it's kept separate from your Owner's Equity ledger, which is only money you put in and got back. You pay income tax on the business profit, so keep setting aside your tax reserve (the Pay tab estimates it).</p>
-          <p><b className="text-white">Employees (W-2)</b> need real payroll with tax withholding (Gusto, QuickBooks Payroll…). This page tracks their hours and pay; it doesn't withhold taxes.</p>
-          <p><b className="text-white">Hourly</b> is the simplest and fairest for someone who comes along to help: log the hours after each job and pay the total.</p>
-          <p><b className="text-white">Flat per job</b> (e.g. $40 a job) is easier if jobs are similar in length; set a per-job rate and pick the job.</p>
-          <p>Someone who helps now and then and isn't on a payroll is usually paid as an <b className="text-white">independent contractor</b>: no tax is withheld, they report it on their own taxes. Have them fill out a W-9 once. If you pay one person {$(NEC_THRESHOLD)} or more in a year (2026 rule), you send them a 1099-NEC by January 31. If you control their schedule and how they work like a regular employee, ask a tax preparer whether they should be on payroll instead.</p>
-          <p>Paying by Venmo from Bluevine: record the payment here with the same amount and date, and the Money tab counts that Venmo as helper pay instead of "paid yourself back".</p>
+          <div><b className="text-white">Your own pay</b>: log your labor hours (per day or per job), and each week pay yourself what you earned at your rate. As a single-owner LLC that's <b className="text-white">owner pay</b> (in tax terms, a draw): it does not lower net profit, no tax is withheld, and it's kept separate from your Owner's Equity ledger, which is only money you put in and got back. You pay income tax on the business profit, so keep setting aside your tax reserve (the Pay tab estimates it).</div>
+          <div><b className="text-white">Employees (W-2)</b> need real payroll with tax withholding (Gusto, QuickBooks Payroll…). This page tracks their hours and pay; it doesn't withhold taxes.</div>
+          <div><b className="text-white">Hourly</b> is the simplest and fairest for someone who comes along to help: log the hours after each job and pay the total.</div>
+          <div><b className="text-white">Flat per job</b> (e.g. $40 a job) is easier if jobs are similar in length; set a per-job rate and pick the job.</div>
+          <div>Someone who helps now and then and isn't on a payroll is usually paid as an <b className="text-white">independent contractor</b>: no tax is withheld, they report it on their own taxes. Have them fill out a W-9 once. If you pay one person {$(NEC_THRESHOLD)} or more in a year (2026 rule), you send them a 1099-NEC by January 31. If you control their schedule and how they work like a regular employee, ask a tax preparer whether they should be on payroll instead.</div>
+          <div>Paying by Venmo from Bluevine: record the payment here with the same amount and date, and the Money tab counts that Venmo as helper pay instead of "paid yourself back".</div>
         </div>
       </details>
     </div>
@@ -217,7 +217,7 @@ export function HelperPay() {
 function Shell({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
   return (
     <div className="bg-gray-900 border border-red-900/60 p-4 space-y-3">
-      <div className="flex items-center justify-between"><p className="text-white font-bold">{title}</p><button type="button" onClick={onClose} className="text-gray-500 hover:text-white text-sm" aria-label="Close">✕</button></div>
+      <div className="flex items-center justify-between"><div className="text-white font-bold">{title}</div><button type="button" onClick={onClose} className="text-gray-500 hover:text-white text-sm" aria-label="Close">✕</button></div>
       {children}
     </div>
   );
@@ -245,8 +245,8 @@ function PersonForm({ person, hasOwner, onClose, onSaved }: { person?: Person; h
         <select className={input} value={f.role} onChange={e => setF({ ...f, role: e.target.value as Role })}>
           {(Object.keys(ROLES) as Role[]).filter(r => r !== 'owner' || !hasOwner).map(r => <option key={r} value={r}>{ROLES[r]}</option>)}
         </select></label>
-      {f.role === 'owner' && <p className="text-gray-500 text-xs">Your pay for your work never lowers net profit, and it's tracked apart from money you put in and got back. Set your hourly rate below.</p>}
-      {f.role === 'employee' && <p className="text-amber-400/80 text-xs">Employees need real payroll with tax withholding (Gusto, QuickBooks Payroll…). This tracks their hours and pay only.</p>}
+      {f.role === 'owner' && <div className="text-gray-500 text-xs">Your pay for your work never lowers net profit, and it's tracked apart from money you put in and got back. Set your hourly rate below.</div>}
+      {f.role === 'employee' && <div className="text-amber-400/80 text-xs">Employees need real payroll with tax withholding (Gusto, QuickBooks Payroll…). This tracks their hours and pay only.</div>}
       <div className="grid gap-3 sm:grid-cols-2">
         <label><span className={label}>Name</span><input className={input} value={f.name} onChange={set('name')} placeholder="First and last name" /></label>
         <label><span className={label}>How you pay them</span><input className={input} value={f.pay_method} onChange={set('pay_method')} placeholder="Venmo @name" /></label>
@@ -256,7 +256,7 @@ function PersonForm({ person, hasOwner, onClose, onSaved }: { person?: Person; h
         <label><span className={label}>Notes (optional)</span><input className={input} value={f.notes} onChange={set('notes')} placeholder="W-9 received Oct 2026" /></label>
       </div>
       {editing && f.role !== 'owner' && <label className="flex items-center gap-2 text-sm text-gray-400"><input type="checkbox" checked={f.active} onChange={set('active')} /> Still helping (uncheck to hide from new entries)</label>}
-      {err && <p className="text-red-400 text-sm" role="alert">{err}</p>}
+      {err && <div className="text-red-400 text-sm" role="alert">{err}</div>}
       <button type="button" disabled={busy || !f.name.trim()} onClick={() => run('pay-person-save', { id: person?.id, fields: f })} className="w-full bg-red-600 hover:bg-red-700 disabled:opacity-40 text-white text-xs font-bold uppercase tracking-widest py-3">{busy ? 'Saving…' : 'Save'}</button>
     </Shell>
   );
@@ -310,7 +310,7 @@ function WorkForm({ people, personId, jobs, today, onClose, onSaved }: { people:
         <label><span className={label}>Amount</span><input className={input} inputMode="decimal" value={amount} onChange={e => setAmount(e.target.value)} placeholder="40.00" autoFocus /></label>
       )}
       <label><span className={label}>Note (optional)</span><input className={input} value={note} onChange={e => setNote(e.target.value)} placeholder="Held the light, ran for parts…" /></label>
-      {err && <p className="text-red-400 text-sm" role="alert">{err}</p>}
+      {err && <div className="text-red-400 text-sm" role="alert">{err}</div>}
       <button type="button" disabled={busy || !pid || !(total > 0)} onClick={() => run('pay-entry-add', { fields: { person_id: pid, work_date: date, kind, hours, rate, amount, booking_id: bookingId || null, note } })}
         className="w-full bg-red-600 hover:bg-red-700 disabled:opacity-40 text-white text-xs font-bold uppercase tracking-widest py-3">{busy ? 'Saving…' : `Save · ${$(total)} earned`}</button>
     </Shell>
@@ -344,10 +344,10 @@ function PayoutForm({ people, rows, personId, today, onClose, onSaved }: { peopl
         <label className="sm:col-span-2"><span className={label}>Note (optional)</span><input className={input} value={note} onChange={e => setNote(e.target.value)} placeholder="Week of Oct 6" /></label>
       </div>
       {method === 'Venmo' && <label><span className={label}>Venmo note or ID (optional)</span><input className={input} value={reference} onChange={e => setReference(e.target.value)} /></label>}
-      <p className="text-gray-500 text-xs">{toOwner
+      <div className="text-gray-500 text-xs">{toOwner
         ? "Recorded as owner pay for your work — not an expense, and separate from money you put in and got back. Use the same amount as the transfer so the Money tab matches it."
-        : 'This lowers net profit on the day you paid. If the Venmo went out from Bluevine, use the same amount and the Money tab will match it.'}</p>
-      {err && <p className="text-red-400 text-sm" role="alert">{err}</p>}
+        : 'This lowers net profit on the day you paid. If the Venmo went out from Bluevine, use the same amount and the Money tab will match it.'}</div>
+      {err && <div className="text-red-400 text-sm" role="alert">{err}</div>}
       <button type="button" disabled={busy || !pid || !(Number(amount) > 0)} onClick={() => run('pay-payout-add', { fields: { person_id: pid, paid_on: date, amount, method, reference, note } })}
         className="w-full bg-red-600 hover:bg-red-700 disabled:opacity-40 text-white text-xs font-bold uppercase tracking-widest py-3">{busy ? 'Saving…' : toOwner ? `Pay myself ${$(Number(amount) || 0)}` : `Record ${$(Number(amount) || 0)} paid`}</button>
     </Shell>
@@ -362,7 +362,7 @@ export default function HelperPayPage({ Gate }: { Gate: React.ComponentType<{ on
     <div className="min-h-screen bg-dark text-light px-3 sm:px-6 py-6" style={{ paddingTop: 'max(1.5rem, env(safe-area-inset-top))' }}>
       <div className="max-w-3xl mx-auto">
         <a href="/admin" className="text-gray-500 hover:text-white text-xs font-bold uppercase tracking-widest">← Admin</a>
-        <p className="text-red-600 text-xs font-bold uppercase tracking-[0.25em] mt-4 mb-1">Admin · GID Garage</p>
+        <div className="text-red-600 text-xs font-bold uppercase tracking-[0.25em] mt-4 mb-1">Admin · GID Garage</div>
         <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight mb-5">Team &amp; Pay</h1>
         <HelperPay />
       </div>

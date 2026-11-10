@@ -54,9 +54,9 @@ function VehicleId({ job, onSaved }: { job: Job; onSaved: (j: Job) => void }) {
       </div>
       {dirty && (
         <div>
-          {vehicle !== (job.vehicle || '') && <p className="text-gray-300 text-[13px] mb-2">Vehicle: {vehicle}</p>}
+          {vehicle !== (job.vehicle || '') && <div className="text-gray-300 text-[13px] mb-2">Vehicle: {vehicle}</div>}
           <button type="button" onClick={save} disabled={saving} className="w-full bg-red-600 disabled:opacity-50 text-white text-[13px] font-bold uppercase tracking-wider py-2.5">{saving ? 'Saving…' : 'Save vehicle info'}</button>
-          {error && <p className="text-red-300 text-[12px] mt-1">{error}</p>}
+          {error && <div className="text-red-300 text-[12px] mt-1">{error}</div>}
         </div>
       )}
     </div>
@@ -135,8 +135,8 @@ export default function TechApp() {
       </header>
       <main className="px-4 pt-3 space-y-2">
         {error && <div className="border border-red-800 text-red-300 text-sm p-3">{error} <button type="button" className="underline ml-1" onClick={load}>Retry</button></div>}
-        {!jobs && !error && <p className="text-gray-500 text-sm py-6 text-center">Loading jobs…</p>}
-        {jobs && !shown.length && <p className="text-gray-500 text-sm py-8 text-center">{list === 'search' ? (q ? 'No jobs match.' : 'Search any job.') : list === 'today' ? 'Nothing scheduled today.' : 'No jobs here.'}</p>}
+        {!jobs && !error && <div className="text-gray-500 text-sm py-6 text-center">Loading jobs…</div>}
+        {jobs && !shown.length && <div className="text-gray-500 text-sm py-8 text-center">{list === 'search' ? (q ? 'No jobs match.' : 'Search any job.') : list === 'today' ? 'Nothing scheduled today.' : 'No jobs here.'}</div>}
         {shown.map(j => (
           <button key={j.id} type="button" onClick={() => open(j.id)} className="w-full text-left bg-gray-900 border border-gray-800 active:border-red-600 p-3.5 flex gap-3">
             <div className="w-16 flex-shrink-0">
@@ -175,8 +175,8 @@ function JobScreen({ id, onBack, onChanged }: { id: string; onBack: () => void; 
     setJob(prev => (prev && prev.id === jid ? { ...prev, estimateNotes: v } : prev));
   });
 
-  if (error) return <Shell onBack={onBack} title="Job"><p className="text-red-300 text-sm p-4">{error}</p></Shell>;
-  if (!job) return <Shell onBack={onBack} title="Job"><p className="text-gray-500 text-sm p-6 text-center">Loading…</p></Shell>;
+  if (error) return <Shell onBack={onBack} title="Job"><div className="text-red-300 text-sm p-4">{error}</div></Shell>;
+  if (!job) return <Shell onBack={onBack} title="Job"><div className="text-gray-500 text-sm p-6 text-center">Loading…</div></Shell>;
 
   const name = `${job.fname} ${job.lname}`.trim();
   const step = NEXT_STEP[job.jobStatus];
@@ -228,7 +228,7 @@ function JobScreen({ id, onBack, onChanged }: { id: string; onBack: () => void; 
           {job.serviceAddress ? action(mapsUrl, 'Drive', '🧭') : <span />}
           <button type="button" onClick={() => job.vin && navigator.clipboard?.writeText(job.vin)} disabled={!job.vin} className="flex flex-col items-center gap-1 py-2.5 bg-gray-900 border border-gray-800 text-[12px] font-bold uppercase tracking-wider text-gray-200 disabled:opacity-30"><span className="text-lg leading-none">🔢</span>VIN</button>
         </div>
-        {voiceNote && <p className="text-gray-400 text-[12px] text-right" role="status">{voiceNote}</p>}
+        {voiceNote && <div className="text-gray-400 text-[12px] text-right" role="status">{voiceNote}</div>}
         {step && <button type="button" onClick={advance} disabled={busy} className="w-full bg-red-600 active:bg-red-700 disabled:opacity-50 text-white text-[14px] font-black uppercase tracking-widest py-3.5">{busy ? 'Saving…' : step.label}</button>}
 
         <div role="tablist" className="grid grid-cols-5 border-b border-gray-800">
@@ -245,15 +245,15 @@ function JobScreen({ id, onBack, onChanged }: { id: string; onBack: () => void; 
               {job.lineItems?.length > 0 && <Info label="Work on this job">{job.lineItems.map(li => <div key={li.id} className="flex justify-between gap-3"><span>{li.label}</span><span className="text-gray-400 tabular-nums">{money(li.amount)}</span></div>)}</Info>}
               {job.notes && <Info label="Booking notes"><span className="whitespace-pre-wrap">{job.notes}</span></Info>}
               <div>
-                <p className="text-gray-500 text-[11px] font-bold uppercase tracking-widest mb-1">Technician notes <span className="normal-case tracking-normal font-normal text-gray-600">(Scope of Work on the invoice · {notesDirty ? 'saving…' : 'saved'})</span></p>
+                <div className="text-gray-500 text-[11px] font-bold uppercase tracking-widest mb-1">Technician notes <span className="normal-case tracking-normal font-normal text-gray-600">(Scope of Work on the invoice · {notesDirty ? 'saving…' : 'saved'})</span></div>
                 <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={4} className="w-full bg-gray-900 border border-gray-700 text-white px-3 py-2 text-[15px] outline-none focus:border-red-600" />
               </div>
             </div>
           )}
           {tab === 'photos' && (
             <div className="space-y-6">
-              <div><p className="text-gray-500 text-[11px] font-bold uppercase tracking-widest mb-2">Photos</p><PhotoPanel job={job} onUpdate={update} /></div>
-              <div><p className="text-gray-500 text-[11px] font-bold uppercase tracking-widest mb-2">Videos</p><VideoPanel job={job} onUpdate={update} /></div>
+              <div><div className="text-gray-500 text-[11px] font-bold uppercase tracking-widest mb-2">Photos</div><PhotoPanel job={job} onUpdate={update} /></div>
+              <div><div className="text-gray-500 text-[11px] font-bold uppercase tracking-widest mb-2">Videos</div><VideoPanel job={job} onUpdate={update} /></div>
             </div>
           )}
           {tab === 'next' && <NextVisitCheck job={job} onSaved={d => update({ ...job, inspectionData: d as unknown as Job['inspectionData'] })} />}
@@ -261,9 +261,9 @@ function JobScreen({ id, onBack, onChanged }: { id: string; onBack: () => void; 
           {tab === 'pay' && (
             <div className="space-y-4">
               <div className="bg-gray-900 border border-gray-800 p-4 text-center">
-                <p className="text-gray-500 text-[11px] font-bold uppercase tracking-widest">{job.jobStatus === 'PAID' ? 'Paid in full' : 'Balance due'}</p>
-                <p className="text-4xl font-black tabular-nums mt-1">{money(job.jobStatus === 'PAID' ? m.amountPaid : due)}</p>
-                {m.invoiceTotal != null && <p className="text-gray-500 text-[12px] mt-1">Invoice {money(m.invoiceTotal)} incl. tax{m.amountPaid ? ` · paid ${money(m.amountPaid)}` : ''}</p>}
+                <div className="text-gray-500 text-[11px] font-bold uppercase tracking-widest">{job.jobStatus === 'PAID' ? 'Paid in full' : 'Balance due'}</div>
+                <div className="text-4xl font-black tabular-nums mt-1">{money(job.jobStatus === 'PAID' ? m.amountPaid : due)}</div>
+                {m.invoiceTotal != null && <div className="text-gray-500 text-[12px] mt-1">Invoice {money(m.invoiceTotal)} incl. tax{m.amountPaid ? ` · paid ${money(m.amountPaid)}` : ''}</div>}
               </div>
               {job.jobStatus !== 'PAID' && due > 0 && (
                 <button type="button" onClick={() => { void navigator.clipboard?.writeText(due.toFixed(2)); setCopied(true); setTimeout(() => setCopied(false), 2500); }}
@@ -273,12 +273,12 @@ function JobScreen({ id, onBack, onChanged }: { id: string; onBack: () => void; 
               )}
               {job.jobStatus !== 'PAID' && due > 0 && <>
                 <button type="button" onClick={sharePay} className="w-full bg-emerald-600 active:bg-emerald-700 text-white text-[14px] font-black uppercase tracking-widest py-3.5">💳 Send pay link to customer</button>
-                {payNote && <p role="status" className="text-emerald-400 text-[13px]">{payNote}</p>}
-                <p className="text-gray-500 text-[12px] leading-relaxed">They pay by card on their own phone. For an in-person tap: copy the amount, take the tap in the Bluevine app, then record it below as "Card (Tap to Pay)".</p>
+                {payNote && <div role="status" className="text-emerald-400 text-[13px]">{payNote}</div>}
+                <div className="text-gray-500 text-[12px] leading-relaxed">They pay by card on their own phone. For an in-person tap: copy the amount, take the tap in the Bluevine app, then record it below as "Card (Tap to Pay)".</div>
               </>}
               {job.jobStatus === 'PAID' && <>
                 <button type="button" onClick={askReview} className="w-full bg-amber-500 active:bg-amber-600 text-black text-[14px] font-black uppercase tracking-widest py-3.5">⭐ Ask for a Google review</button>
-                {payNote && <p role="status" className="text-emerald-400 text-[13px]">{payNote}</p>}
+                {payNote && <div role="status" className="text-emerald-400 text-[13px]">{payNote}</div>}
               </>}
               <PaymentPanel job={job} onUpdate={update} />
             </div>
@@ -301,5 +301,5 @@ function Shell({ onBack, title, sub, children }: { onBack: () => void; title: st
   );
 }
 const Info = ({ label, children }: { label: string; children: ReactNode }) => (
-  <div><p className="text-gray-500 text-[11px] font-bold uppercase tracking-widest mb-1">{label}</p><div className="text-[15px] text-gray-100 space-y-1">{children}</div></div>
+  <div><div className="text-gray-500 text-[11px] font-bold uppercase tracking-widest mb-1">{label}</div><div className="text-[15px] text-gray-100 space-y-1">{children}</div></div>
 );

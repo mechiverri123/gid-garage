@@ -78,12 +78,12 @@ export default function Memory({ onGameEnd }: { onGameEnd: (moves: number) => vo
         </div>
         {ended && (
           <div className="absolute inset-0 bg-black/85 rounded-lg flex flex-col items-center justify-center gap-3">
-            <p className="text-white font-bold">Solved in {moves} moves! 🎉</p>
+            <div className="text-white font-bold">Solved in {moves} moves! 🎉</div>
             <button onClick={reset} className="bg-red-600 active:bg-red-700 text-white font-bold px-5 py-3 rounded">Play Again</button>
           </div>
         )}
       </div>
-      <p className="text-white/50 text-xs">Tap two cards to find a match</p>
+      <div className="text-white/50 text-xs">Tap two cards to find a match</div>
     </div>
   );
 }

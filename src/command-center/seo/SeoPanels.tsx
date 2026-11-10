@@ -99,7 +99,7 @@ export function LocalityPanel({ overview, metric = 'impressions' }: { overview?:
               </li>
             ))}
           </ul>
-          <p className="text-[12.5px] leading-relaxed" style={{ color: C.muted }}>Search Console never reports a searcher's city: "likely local" comes from the query itself (a Flagstaff-area place or "near me"). "Confirmed local" is only your own bookings or ad-platform location data.</p>
+          <div className="text-[12.5px] leading-relaxed" style={{ color: C.muted }}>Search Console never reports a searcher's city: "likely local" comes from the query itself (a Flagstaff-area place or "near me"). "Confirmed local" is only your own bookings or ad-platform location data.</div>
         </div>
       )}
     </CommandCard>
@@ -252,7 +252,7 @@ export function OpportunityCard({ r, onAction, compact }: { r: SeoRecommendation
   const line = statusLine(r);
   const outcome = (r.metric && OUTCOME[r.metric.kind]) ?? null;
   return (
-    <article className="rounded-xl p-4 min-w-0 cc-fade-up" style={{ background: active ? 'linear-gradient(135deg, rgba(255,184,77,0.08), rgba(3,10,17,0.5))' : 'rgba(3,10,17,0.5)', border: `1px solid ${active ? 'rgba(255,184,77,0.45)' : C.border}`, borderLeft: `4px solid ${pc}` }}>
+    <div className="rounded-xl p-4 min-w-0 cc-fade-up" style={{ background: active ? 'linear-gradient(135deg, rgba(255,184,77,0.08), rgba(3,10,17,0.5))' : 'rgba(3,10,17,0.5)', border: `1px solid ${active ? 'rgba(255,184,77,0.45)' : C.border}`, borderLeft: `4px solid ${pc}` }}>
       <div className="flex items-start gap-3">
         <div className="shrink-0 w-12 h-12 rounded-xl flex flex-col items-center justify-center" style={{ background: `${pc}18`, border: `1px solid ${pc}55` }} title={`Priority score ${r.score}`}>
           <span className="text-[17px] font-bold tabular-nums leading-none" style={{ color: C.text }}>{r.requires_decision ? '!' : r.score}</span>
@@ -268,7 +268,7 @@ export function OpportunityCard({ r, onAction, compact }: { r: SeoRecommendation
         </div>
       </div>
       {line && <div className="text-[13px] mt-2.5 font-medium" style={{ color: r.status === 'measured' ? C.green : C.amber }}>{line}</div>}
-      {!compact && r.detail && <p className="text-[14px] mt-2 leading-relaxed" style={{ color: C.text2 }}>{r.detail}</p>}
+      {!compact && r.detail && <div className="text-[14px] mt-2 leading-relaxed" style={{ color: C.text2 }}>{r.detail}</div>}
       {!compact && outcome && <div className="text-[13px] mt-1.5" style={{ color: C.text2 }}>Expected outcome: <span style={{ color: C.text }}>{outcome}</span></div>}
       {r.outcome?.result && <div className="text-[13.5px] mt-2 font-semibold" style={{ color: r.outcome.result === 'improved' ? C.green : r.outcome.result === 'worse' ? C.red : C.text2 }}>Result: {r.outcome.result.replace(/_/g, ' ')} ({fmt(r.outcome.baseline)} → {fmt(r.outcome.current)})</div>}
       {(STATUS_ACTIONS[r.status] || []).length > 0 && (
@@ -276,7 +276,7 @@ export function OpportunityCard({ r, onAction, compact }: { r: SeoRecommendation
           {(STATUS_ACTIONS[r.status] || []).map(a => <ActionButton key={a.action} size="sm" variant={a.variant ?? 'secondary'} onClick={() => onAction(r.id, a.action)}>{a.label}</ActionButton>)}
         </div>
       )}
-    </article>
+    </div>
   );
 }
 export function OpportunityList({ recs, onAction, compact }: { recs?: SeoRecommendation[]; onAction: (id: string, action: string) => void; compact?: boolean }) {
@@ -348,7 +348,7 @@ export function CompetitorPanel({ c }: { c?: { you?: Comp | null; landscape: Com
   ];
   return (
     <div className="flex flex-col gap-4">
-      <p className="text-[13.5px]" style={{ color: C.text2 }}>{yourPlace != null && <b style={{ color: C.text }}>Strength score: you're #{yourPlace} of {c.landscape.length + 1} (an estimate from reviews and rating, not your Google position). </b>}{c.note} Your review pace: {c.ourReviewVelocity ?? '—'} per 30 days.</p>
+      <div className="text-[13.5px]" style={{ color: C.text2 }}>{yourPlace != null && <b style={{ color: C.text }}>Strength score: you're #{yourPlace} of {c.landscape.length + 1} (an estimate from reviews and rating, not your Google position). </b>}{c.note} Your review pace: {c.ourReviewVelocity ?? '—'} per 30 days.</div>
       <DataTable columns={cols} rows={rows} rowKey={x => x.id} />
       {c.recentChanges.length > 0 && <div className="text-[13.5px]" style={{ color: C.text2 }}>Recent changes: {c.recentChanges.slice(0, 5).map(ch => `${ch.name} ${ch.change_type.replace(/_/g, ' ')}`).join('; ')}</div>}
       {c.searchResultCompetitors.length > 0 && <div className="text-[13px]" style={{ color: C.muted }}>Search-result competitors (not businesses): {c.searchResultCompetitors.join(', ')}</div>}
@@ -365,7 +365,7 @@ export function SeasonalityPanel({ s }: { s?: { findings: Finding[]; insufficien
       {s.findings.length ? s.findings.map((f, i) => (
         <div key={i} className="flex gap-3 text-[14.5px] leading-relaxed"><span className="mt-2 w-2 h-2 rounded-full shrink-0" style={{ background: f.verdict === 'uplift' ? C.green : C.cyan }} /><span style={{ color: C.text }}>{f.statement}</span></div>
       )) : <EmptyState icon={History} title="No seasonal pattern proven yet">Patterns are only stated when the data shows a clear change.</EmptyState>}
-      <p className="text-[13px]" style={{ color: C.muted }}>{s.note} {s.insufficientDataCount} event/series pairs don't have enough data yet.{s.usingApproximateNauDates ? ' Using approximate NAU calendar dates — add the official dates to sharpen this.' : ''}</p>
+      <div className="text-[13px]" style={{ color: C.muted }}>{s.note} {s.insufficientDataCount} event/series pairs don't have enough data yet.{s.usingApproximateNauDates ? ' Using approximate NAU calendar dates — add the official dates to sharpen this.' : ''}</div>
     </div>
   );
 }

@@ -66,7 +66,7 @@ export default function GamesPage() {
       <main className={`flex-1 px-4 py-6 ${!dismissed ? 'pb-24' : ''}`}>
         {!active && (
           <>
-            <p className="text-white/60 text-sm mb-5">Stuck waiting on your service? Kill some time with a quick game.</p>
+            <div className="text-white/60 text-sm mb-5">Stuck waiting on your service? Kill some time with a quick game.</div>
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-2 max-w-md mx-auto">
               {GAMES.map((g) => {
                 const Icon = g.icon;
@@ -106,7 +106,7 @@ export default function GamesPage() {
           <div className="flex text-yellow-400 flex-shrink-0">
             {Array.from({ length: 5 }).map((_, i) => <Star key={i} className="w-3.5 h-3.5 fill-current" />)}
           </div>
-          <p className="text-white/70 text-xs flex-1 leading-snug">Enjoying the wait? A quick review helps us a ton.</p>
+          <div className="text-white/70 text-xs flex-1 leading-snug">Enjoying the wait? A quick review helps us a ton.</div>
           <a
             href={REVIEW_URL}
             target="_blank"

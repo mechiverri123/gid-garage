@@ -58,15 +58,15 @@ export class ErrorBoundary extends Component<Props, State> {
           alignItems: 'center', justifyContent: 'center', background: '#000',
           color: '#fff', padding: '24px', textAlign: 'center', fontFamily: 'system-ui, sans-serif',
         }}>
-          <p style={{ fontSize: '12px', fontWeight: 700, letterSpacing: '0.2em', textTransform: 'uppercase', color: '#dc2626', marginBottom: '12px' }}>
+          <div style={{ fontSize: '12px', fontWeight: 700, letterSpacing: '0.2em', textTransform: 'uppercase', color: '#dc2626', marginBottom: '12px' }}>
             Something went wrong
-          </p>
-          <p style={{ fontSize: '14px', color: '#9ca3af', marginBottom: '20px', maxWidth: '360px' }}>
+          </div>
+          <div style={{ fontSize: '14px', color: '#9ca3af', marginBottom: '20px', maxWidth: '360px' }}>
             The page hit an error and couldn't finish loading. This has been reported. Reloading usually fixes it.
-          </p>
-          <p style={{ fontSize: '14px', color: '#9ca3af', marginBottom: '20px' }}>
+          </div>
+          <div style={{ fontSize: '14px', color: '#9ca3af', marginBottom: '20px' }}>
             Still stuck? Call or text <a href="tel:4807570476" style={{ color: '#dc2626', fontWeight: 700 }}>(480)-757-0476</a>
-          </p>
+          </div>
           <div style={{ display: 'flex', gap: '12px' }}>
             <button onClick={() => window.location.reload()} style={{
               border: '1px solid #dc2626', color: '#dc2626', background: 'transparent',
