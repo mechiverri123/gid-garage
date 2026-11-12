@@ -4391,7 +4391,7 @@ export function JobDetailPanel({ job: initialJob, onClose, onJobUpdate, backLabe
             ) : (
               <h2 className="text-white font-black text-lg">{job.fname} {job.lname}</h2>
             )}
-            <div className="text-gray-500 text-sm">{resolveServiceName(job.service, job.notes)} · {job.vehicle}</div>
+            <div className="text-gray-500 text-sm truncate cursor-pointer" title="Tap to show all" onClick={e => e.currentTarget.classList.toggle('truncate')}>{resolveServiceName(job.service, job.notes)} · {job.vehicle}</div>
             {job.dateTbd ? (
               <div className="text-indigo-400 text-xs font-bold uppercase tracking-wider mt-0.5">Date TBD — not yet scheduled</div>
             ) : (
@@ -7391,9 +7391,9 @@ export function JobsTab() {
               }`}
             >
               <div className="flex items-center gap-4 flex-1 min-w-0">
-                <div className="flex-shrink-0">
-                  <div className="text-white font-bold text-sm">{job.fname} {job.lname}</div>
-                  <div className="text-gray-500 text-xs">{job.vehicle}</div>
+                <div className="min-w-0 max-w-[16rem]">
+                  <div className="text-white font-bold text-sm truncate">{job.fname} {job.lname}</div>
+                  <div className="text-gray-500 text-xs truncate">{job.vehicle}</div>
                   {job.fleetId && <div className="mt-1 inline-block text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 border border-sky-700 text-sky-300">{job.fleetNumber ? `Fleet #${job.fleetNumber}` : 'Fleet'}{job.fleetUnit ? ` · #${job.fleetUnit}` : ''}</div>}
                 </div>
                 <div className="hidden sm:block text-gray-600 text-xs">
