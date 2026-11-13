@@ -1132,6 +1132,53 @@ function AxleSchematic({ config, onChange, defaultHours }: {
   );
 }
 
+// Under a labor line: book labor time for this car and job (suggest-labor-hours,
+// the same AI call as Next-Visit), and the price that time comes to at LABOR_RATE.
+// "Use" fills the line's hours and price; the owner can still change either.
+function suggestedLaborPrice(hours: number) {
+  return Math.round((hours * LABOR_RATE) / 5) * 5;
+}
+function LaborHint({ label, vin, vehicle, context, onUse }: { label: string; vin?: string; vehicle?: string; context?: string; onUse: (hours: number, price: number) => void }) {
+  const [s, setS] = useState<{ hours: number; low: number; high: number; reason: string } | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+  const generic = !label.trim() || /^labor$/i.test(label.trim());
+  async function ask() {
+    setBusy(true); setErr('');
+    try {
+      const res = await fetch('/admin-api-data', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'suggest-labor-hours', vin, vehicle, service: generic ? (context || 'general repair') : label, note: context }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok || body.error) throw new Error(body.error || `HTTP ${res.status}`);
+      setS(body);
+    } catch (e: any) { setErr(e?.message || 'Could not get labor time.'); }
+    setBusy(false);
+  }
+  const price = s ? suggestedLaborPrice(s.hours) : 0;
+  return (
+    <div className="basis-full text-[11px] leading-snug">
+      {!s && (
+        <button onClick={ask} disabled={busy} className="text-sky-400 hover:text-sky-300 font-bold disabled:opacity-50">
+          {busy ? 'Looking up labor time…' : '⏱ Book labor time & price'}
+        </button>
+      )}
+      {err && <span className="text-red-400 ml-2">{err}</span>}
+      {s && (
+        <div className="text-gray-400">
+          <span className="text-white font-bold">{s.hours} h</span>
+          {(s.low !== s.hours || s.high !== s.hours) && <span> ({s.low}–{s.high})</span>}
+          {' '}× ${LABOR_RATE}/hr = <span className="text-white font-bold">${price}</span>
+          {s.reason && <span className="text-gray-500"> · {s.reason}</span>}
+          <button onClick={() => onUse(s.hours, price)} className="ml-2 border border-sky-600 text-sky-300 hover:bg-sky-600 hover:text-white font-bold px-2 py-0.5 transition-colors">Use</button>
+          <button onClick={() => setS(null)} className="ml-1 text-gray-600 hover:text-white px-1" title="Dismiss">×</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── QUOTE CALCULATOR ──────────────────────────────────────────────────────────
 
 function QuoteCalculator({ job, onApply }: { job: Job; onApply: (items: LineItem[], total: number, shopTotal: number) => void }) {
@@ -2717,6 +2764,18 @@ export function EstimatePanel({ job, onUpdate }: { job: Job; onUpdate: (j: Job) 
                 </label>
                 {lineQty(item) !== 1 && item.type !== 'labor' && <span className="text-gray-500 text-[11px] font-mono flex-shrink-0">= ${item.amount.toFixed(2)}</span>}
                 <button onClick={() => removeLineItem(item.id)} className="text-gray-700 hover:text-red-500 text-sm transition-colors w-5">×</button>
+                {item.type === 'labor' && (
+                  <LaborHint
+                    label={item.label} vin={job.vin} vehicle={job.vehicle}
+                    context={[resolveServiceName(job.service, job.notes), notes, job.notes].filter(Boolean).join('. ').slice(0, 300)}
+                    onUse={(hours, price) => {
+                      hasLocalEdits.current = true;
+                      setLineItems(prev => prev.map(i => i.id === item.id ? withLine(i, { qty: hours, rate: price }) : i));
+                      setRawQty(prev => { const next = { ...prev }; delete next[item.id]; return next; });
+                      setRawAmounts(prev => { const next = { ...prev }; delete next[item.id]; return next; });
+                    }}
+                  />
+                )}
               </div>
             );
           })}
@@ -5885,6 +5944,17 @@ export function ExternalLeadModal({ onClose, onAdded, jobs, inspection = false }
                   </select>
                   {lineQty(item) !== 1 && item.type !== 'labor' && <span className="text-gray-500 text-xs font-mono flex-shrink-0">= ${item.amount.toFixed(2)}</span>}
                   <button onClick={() => removeLine(item.id)} className="text-gray-700 hover:text-red-500 text-sm transition-colors w-5 flex-shrink-0">×</button>
+                  {item.type === 'labor' && item.label !== PPI_LINE_LABEL && (
+                    <LaborHint
+                      label={item.label} vin={f.vin} vehicle={f.vehicle}
+                      context={[SERVICE_NAMES[f.service], f.notes].filter(Boolean).join('. ').slice(0, 300)}
+                      onUse={(hours, price) => {
+                        setLineItems(prev => prev.map(li => li.id === item.id ? withLine(li, { qty: hours, rate: price }) : li));
+                        setRawQty(prev => { const next = { ...prev }; delete next[item.id]; return next; });
+                        setRawAmounts(prev => { const next = { ...prev }; delete next[item.id]; return next; });
+                      }}
+                    />
+                  )}
                 </div>
               ))}
             </div>
