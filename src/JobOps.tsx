@@ -936,208 +936,19 @@ function StatusBadge({ status }: { status: JobStatus }) {
 
 const LABOR_RATE = 110;
 const MOBILE_FEE = 25;
-const PARTS_MARKUP = 0.20;
 
-// ── VEHICLE TIERS ─────────────────────────────────────────────────────────────
-// Tier 1: Small car     — Civic, Corolla, Sentra, Fit, Elantra, Focus
-// Tier 2: Mid / CUV     — Camry, RAV4, CR-V, Accord, Altima, Rogue, Escape
-// Tier 3: Large SUV / half-ton truck — F-150, Silverado, Tahoe, 4Runner, Tundra, Expedition
-// Tier 4: HD truck      — F-250/350, Ram 2500/3500, Silverado/Sierra 2500/3500
-
-type VehicleTier = 1 | 2 | 3 | 4;
-
-// Small car models (subset of mid makes that are small)
-const SMALL_MODELS = ['civic','corolla','sentra','fit','elantra','accent','rio','yaris','versa','mirage','spark','sonic','aveo','focus','fiesta','impreza','juke','mini','fiat','smart','200','dart'];
-
-// Large/HD engine displacement thresholds
-const HD_ENGINES   = ['6.6l','6.7l','7.3l','6.6 duramax','6.7 powerstroke','6.7 cummins','diesel_6.6','diesel_6.7_powerstroke','diesel_6.7_cummins','diesel_7.3'];
-const LARGE_ENGINES = ['5.3l','5.0l v8','5.7l','6.2l','6.4l','4.6l v8','5.4l','5.6l','4.7l'];
-
-function classifyVehicle(vehicleStr: string): VehicleTier {
-  if (!vehicleStr) return 2;
-  const v = vehicleStr.toLowerCase();
-
-  // HD truck — engine or known HD models
-  if (HD_ENGINES.some(e => v.includes(e))) return 4;
-  if (/\b(f[- ]?250|f[- ]?350|f[- ]?450|ram\s*25|ram\s*35|silverado\s*25|silverado\s*35|sierra\s*25|sierra\s*35|2500|3500)\b/.test(v)) return 4;
-
-  // Large SUV / half-ton
-  if (LARGE_ENGINES.some(e => v.includes(e))) return 3;
-  if (/\b(f[- ]?150|silverado|sierra|tahoe|suburban|yukon|expedition|navigator|sequoia|tundra|4runner|4-runner|armada|titan|durango|commander|wagoneer|grand wagoneer|ram\s*15|ram 1500|bronco)\b/.test(v)) return 3;
-  if (/\b(v8|8cyl)\b/.test(v)) return 3;
-
-  // Small car — check model name
-  if (SMALL_MODELS.some(m => v.includes(m))) return 1;
-
-  // Default mid
-  return 2;
-}
-
-// Flagstaff shop averages by tier — per corner/axle for brakes/suspension
-const SHOP_AVERAGES_TIERED: Record<string, [number, number, number, number]> = {
-  //                                           T1    T2    T3    T4
-  oil:                     [79,   89,   99,   110],
-  diag:                    [100,  110,  120,  130],
-  full:                    [0,    0,    0,    0  ],
-  brakes_pads:             [160,  200,  240,  300],   // per axle
-  brakes_pads_rotors:      [320,  400,  480,  600],   // per axle
-  brakes_full:             [380,  475,  560,  700],   // per axle
-  suspension_struts_front: [420,  550,  650,  750],   // pair
-  suspension_struts_rear:  [320,  400,  480,  560],   // pair
-  suspension_control_arms: [280,  375,  450,  550],   // each
-  suspension_tie_rods:     [220,  300,  360,  440],   // each
-  suspension_cv_axles:     [280,  375,  450,  540],   // each
-  audio_head_unit:         [250,  250,  250,  250],
-  audio_speakers:          [300,  300,  300,  300],
-  audio_head_unit_supplied:[150,  150,  150,  150],
-  audio_4ch_amp:           [350,  350,  350,  350],
-  audio_mono_amp:          [400,  400,  400,  400],
-  audio_full_system:       [1400, 1400, 1400, 1400],
-};
-
-function getShopAvg(serviceKey: string, vehicleStr: string): number {
-  const tier = classifyVehicle(vehicleStr);
-  const row = SHOP_AVERAGES_TIERED[serviceKey];
-  if (!row) return 0;
-  return row[tier - 1];
-}
-
-const LABOR_HOURS: Record<string, number> = {
-  oil:                    0.5,
-  diag:                   1.0,
-  full:                   0.5,
-  brakes_pads:            1.0,   // per axle
-  brakes_pads_rotors:     1.5,   // per axle
-  brakes_full:            2.0,   // per axle
-  suspension_struts_front: 2.5,  // pair
-  suspension_struts_rear:  1.5,  // pair
-  suspension_control_arms: 1.5,  // each
-  suspension_tie_rods:     1.0,  // each
-  suspension_cv_axles:     1.5,  // each
-  audio_head_unit:         1.0,
-  audio_speakers:          1.5,
-  audio_head_unit_supplied: 1.0,
-  audio_4ch_amp:           2.0,
-  audio_mono_amp:          2.0,
-  audio_full_system:       6.0,
-};
-
-// ── AXLE SCHEMATIC ────────────────────────────────────────────────────────────
-
-export interface AxleConfig {
-  lf: { enabled: boolean; parts: string; hours: number };
-  rf: { enabled: boolean; parts: string; hours: number };
-  lr: { enabled: boolean; parts: string; hours: number };
-  rr: { enabled: boolean; parts: string; hours: number };
-  shopAvg: number;
-}
-
-function AxleSchematic({ config, onChange, defaultHours }: {
-  config: AxleConfig;
-  onChange: (c: AxleConfig) => void;
-  defaultHours: number;
-}) {
-  const corners = [
-    { key: 'lf' as const, label: 'LF', color: 'red' },
-    { key: 'rf' as const, label: 'RF', color: 'red' },
-    { key: 'lr' as const, label: 'LR', color: 'blue' },
-    { key: 'rr' as const, label: 'RR', color: 'blue' },
-  ];
-
-  function toggle(key: 'lf' | 'rf' | 'lr' | 'rr') {
-    const cur = config[key];
-    onChange({
-      ...config,
-      [key]: { ...cur, enabled: !cur.enabled, hours: cur.hours || defaultHours },
-    });
-  }
-
-  function update(key: 'lf' | 'rf' | 'lr' | 'rr', field: 'parts' | 'hours', val: string) {
-    onChange({
-      ...config,
-      [key]: { ...config[key], [field]: field === 'hours' ? parseFloat(val) || 0 : val },
-    });
-  }
-
-  return (
-    <div className="bg-gray-900 border border-gray-700 p-4 space-y-3">
-      <div className="text-gray-500 text-xs font-bold uppercase tracking-widest">Corner Selection — tap to enable</div>
-
-      {/* 2x2 grid matching car layout */}
-      <div className="grid grid-cols-2 gap-2 max-w-xs mx-auto">
-        {corners.map(({ key, label, color }) => {
-          const c = config[key];
-          const isRed = color === 'red';
-          const price = (parseFloat(c.parts) || 0) * (1 + PARTS_MARKUP) + c.hours * LABOR_RATE;
-          return (
-            <div key={key} className={`border-2 transition-all ${c.enabled
-              ? isRed ? 'border-red-500 bg-red-900/20' : 'border-blue-500 bg-blue-900/20'
-              : 'border-gray-700 bg-gray-800/50'}`}>
-              {/* Corner header — tap to toggle */}
-              <button
-                onClick={() => toggle(key)}
-                className="w-full flex items-center justify-between px-3 py-2"
-              >
-                <span className={`text-sm font-black ${c.enabled ? isRed ? 'text-red-400' : 'text-blue-400' : 'text-gray-600'}`}>
-                  {label}
-                </span>
-                {c.enabled && price > 0 && (
-                  <span className="text-white text-xs font-mono font-bold">${price.toFixed(2)}</span>
-                )}
-                {!c.enabled && <span className="text-gray-700 text-xs">off</span>}
-              </button>
-
-              {/* Inputs — only shown when enabled */}
-              {c.enabled && (
-                <div className="px-2 pb-2 space-y-1.5 border-t border-gray-700 pt-2">
-                  <div className="flex items-center gap-1">
-                    <span className="text-gray-600 text-[10px] w-10 flex-shrink-0">Parts $</span>
-                    <input
-                      type="number"
-                      value={c.parts}
-                      onChange={e => update(key, 'parts', e.target.value)}
-                      placeholder="0.00"
-                      className="flex-1 min-w-0 bg-gray-800 border border-gray-700 text-white px-2 py-1 text-xs font-mono focus:border-red-600 outline-none"
-                    />
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <span className="text-gray-600 text-[10px] w-10 flex-shrink-0">Hrs</span>
-                    <input
-                      type="number"
-                      step="0.5"
-                      value={c.hours}
-                      onChange={e => update(key, 'hours', e.target.value)}
-                      className="flex-1 min-w-0 bg-gray-800 border border-gray-700 text-white px-2 py-1 text-xs font-mono focus:border-red-600 outline-none"
-                    />
-                  </div>
-                  {c.parts && (
-                    <div className="text-gray-600 text-[10px]">
-                      Parts w/ markup: ${((parseFloat(c.parts) || 0) * (1 + PARTS_MARKUP)).toFixed(2)}
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          );
-        })}
-      </div>
-
-      {/* Vehicle body center */}
-      <div className="flex justify-center">
-        <div className="text-gray-700 text-xs font-bold uppercase tracking-widest">
-          {[config.lf, config.rf, config.lr, config.rr].filter(c => c.enabled).length} corner(s) selected
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// Under a labor line: book labor time for this car (vehicle field / VIN, matched to
-// year, make, model and engine) and this job's scope notes (suggest-labor-hours, the
-// same AI call as Next-Visit), and the price that time comes to at LABOR_RATE.
-// "Use" fills the line's hours and price; the owner can still change either.
+// One per estimate (replaced the old quote calculator): book labor time for this car
+// (vehicle field / VIN, matched to year, make, model and engine) and this job's scope
+// notes (suggest-labor-hours, the same AI call as Next-Visit), and the price that
+// time comes to at LABOR_RATE. "Use" puts it on the estimate's labor line (made if
+// there is none); the owner can still change either.
 function suggestedLaborPrice(hours: number) {
   return Math.round((hours * LABOR_RATE) / 5) * 5;
+}
+function withLaborTime(items: LineItem[], hours: number, price: number, skipLabel?: string): LineItem[] {
+  const i = items.findIndex(li => li.type === 'labor' && li.label !== skipLabel);
+  if (i < 0) return [...items, withLine({ id: `li-${Date.now()}-labor`, label: 'Labor', amount: 0, type: 'labor' }, { qty: hours, rate: price })];
+  return items.map((li, k) => (k === i ? withLine(li, { qty: hours, rate: price }) : li));
 }
 function LaborHint({ vin, vehicle, scope, onUse }: { vin?: string; vehicle?: string; scope: string; onUse: (hours: number, price: number) => void }) {
   const [s, setS] = useState<{ hours: number; low: number; high: number; reason: string; matched?: string; vehicle?: string; tasks?: { name: string; hours: number }[] } | null>(null);
@@ -1233,271 +1044,6 @@ function LaborHint({ vin, vehicle, scope, onUse }: { vin?: string; vehicle?: str
             </div>
           </div>
         </div>
-      )}
-    </div>
-  );
-}
-
-// ── QUOTE CALCULATOR ──────────────────────────────────────────────────────────
-
-function QuoteCalculator({ job, onApply }: { job: Job; onApply: (items: LineItem[], total: number, shopTotal: number) => void }) {
-  const [serviceType, setServiceType] = useState('');
-  const [partsCost, setPartsCost] = useState('');
-  const [laborHours, setLaborHours] = useState('');
-  const [extraQuarts, setExtraQuarts] = useState(0);
-  const [shopTotalOverride, setShopTotalOverride] = useState<string>('');
-  const [showShopComparison, setShowShopComparison] = useState(true);
-  const [axle, setAxle] = useState<AxleConfig>({
-    lf: { enabled: false, parts: '', hours: 0 },
-    rf: { enabled: false, parts: '', hours: 0 },
-    lr: { enabled: false, parts: '', hours: 0 },
-    rr: { enabled: false, parts: '', hours: 0 },
-    shopAvg: 0,
-  });
-
-  const isAxleService = serviceType.startsWith('brakes_') || serviceType.startsWith('suspension_');
-  const isOil = serviceType === 'oil';
-  const isDiag = serviceType === 'diag';
-  const isFull = serviceType === 'full';
-  const isFixed = isOil || isDiag || isFull;
-
-  function handleServiceChange(svc: string) {
-    setServiceType(svc);
-    const avg = getShopAvg(svc, job.vehicle);
-    setShopTotalOverride(avg > 0 ? avg.toFixed(2) : '');
-    if (LABOR_HOURS[svc]) setLaborHours(LABOR_HOURS[svc].toString());
-    const defaultHrs = LABOR_HOURS[svc] || 1.0;
-    // Reset axle with new default hours and shop avg
-    setAxle({
-      lf: { enabled: false, parts: '', hours: defaultHrs },
-      rf: { enabled: false, parts: '', hours: defaultHrs },
-      lr: { enabled: false, parts: '', hours: defaultHrs },
-      rr: { enabled: false, parts: '', hours: defaultHrs },
-      shopAvg: avg,
-    });
-  }
-
-  function buildLineItems(): { items: LineItem[]; total: number; shopTotal: number } {
-    const items: LineItem[] = [];
-    let shopTotal = getShopAvg(serviceType, job.vehicle);
-
-    items.push({ id: 'mobile', label: 'Mobile Service Fee', amount: MOBILE_FEE, type: 'mobile' });
-
-    if (isOil) {
-      items.push({ id: 'oil_labor', label: `Oil Change — Full Synthetic (up to 5qt)`, amount: 79.99, type: 'fixed' });
-      if (extraQuarts > 0) {
-        items.push({ id: 'oil_extra', label: `Extra Oil (${extraQuarts}qt @ $10.99/qt)`, amount: extraQuarts * 10.99, type: 'other' });
-      }
-      shopTotal = getShopAvg('oil', job.vehicle) + (extraQuarts * 15);
-    } else if (isDiag) {
-      items.push({ id: 'diag_labor', label: 'Diagnostics — OBD2 Scan & Repair Recommendation', amount: 99.99, type: 'fixed' });
-      shopTotal = getShopAvg('diag', job.vehicle);
-    } else if (isFull) {
-      items.push({ id: 'full_labor', label: 'Multi-Point Inspection (Complimentary)', amount: 0, type: 'fixed' });
-      shopTotal = 0;
-    } else if (isAxleService) {
-      const corners = [
-        { key: 'lf' as const, label: 'LF' },
-        { key: 'rf' as const, label: 'RF' },
-        { key: 'lr' as const, label: 'LR' },
-        { key: 'rr' as const, label: 'RR' },
-      ];
-      const svcLabel = serviceType.startsWith('brakes_') ? 'Brakes'
-        : serviceType.includes('strut') ? 'Strut'
-        : serviceType.includes('control') ? 'Control Arm'
-        : serviceType.includes('tie') ? 'Tie Rod'
-        : serviceType.includes('cv') ? 'CV Axle'
-        : 'Suspension';
-
-      let enabledCount = 0;
-      corners.forEach(({ key, label }) => {
-        const c = axle[key];
-        if (!c.enabled) return;
-        enabledCount++;
-        const parts = (parseFloat(c.parts) || 0) * (1 + PARTS_MARKUP);
-        const labor = c.hours * LABOR_RATE;
-        if (parts > 0) items.push({ id: `${key}_parts`, label: `${label} ${svcLabel} — Parts`, amount: parts, type: 'parts' });
-        if (labor > 0) items.push({ id: `${key}_labor`, label: `${label} ${svcLabel} — Labor`, amount: labor, type: 'labor' });
-      });
-
-      // Shop avg scales per corner enabled
-      shopTotal = axle.shopAvg * enabledCount;
-    } else if (serviceType) {
-      const parts = (parseFloat(partsCost) || 0) * (1 + PARTS_MARKUP);
-      const hrs = parseFloat(laborHours) || LABOR_HOURS[serviceType] || 1;
-      const labor = hrs * LABOR_RATE;
-      if (parts > 0) items.push({ id: 'parts', label: `Parts — ${serviceType.replace(/_/g, ' ')}`, amount: parts, type: 'parts' });
-      items.push({ id: 'labor', label: `Labor`, amount: labor, type: 'labor' });
-    }
-
-    const total = items.reduce((s, i) => s + i.amount, 0);
-    return { items, total, shopTotal };
-  }
-
-  const { items, total, shopTotal } = buildLineItems();
-  const canApply = items.length > 1 && total > 0;
-
-  const SERVICE_OPTIONS = [
-    { group: 'Fixed Price', options: [
-      { value: 'oil', label: 'Oil Change — $79.99' },
-      { value: 'diag', label: 'Diagnostics — $99.99 flat' },
-      { value: 'full', label: 'Full Service — Free' },
-    ]},
-    { group: 'Brakes', options: [
-      { value: 'brakes_pads', label: 'Brake Pads Only' },
-      { value: 'brakes_pads_rotors', label: 'Brake Pads + Rotors' },
-      { value: 'brakes_full', label: 'Full Brake Service (Pads + Rotors + Fluid)' },
-    ]},
-    { group: 'Suspension', options: [
-      { value: 'suspension_struts_front', label: 'Front Struts (pair)' },
-      { value: 'suspension_struts_rear', label: 'Rear Shocks (pair)' },
-      { value: 'suspension_control_arms', label: 'Control Arms' },
-      { value: 'suspension_tie_rods', label: 'Tie Rods' },
-      { value: 'suspension_cv_axles', label: 'CV Axles' },
-    ]},
-    { group: 'Car Audio', options: [
-      { value: 'audio_head_unit', label: 'Head Unit Replacement' },
-      { value: 'audio_speakers', label: 'Speaker Replacement (pair)' },
-      { value: 'audio_head_unit_supplied', label: 'Head Unit Install (Customer Parts)' },
-      { value: 'audio_4ch_amp', label: '4-Channel Amp Install' },
-      { value: 'audio_mono_amp', label: 'Monoblock + Sub Install' },
-      { value: 'audio_full_system', label: 'Full Sound System' },
-    ]},
-  ];
-
-  return (
-    <div className="space-y-4">
-      <div className="text-gray-500 text-xs font-bold uppercase tracking-widest">Quote Calculator</div>
-
-      {/* Service selector */}
-      <div>
-        <label className="text-gray-600 text-xs font-bold uppercase tracking-wider block mb-1">Service Type</label>
-        <select
-          value={serviceType}
-          onChange={e => handleServiceChange(e.target.value)}
-          className="bg-gray-800 border border-gray-700 text-white px-3 py-2 text-sm w-full focus:border-red-600 outline-none"
-        >
-          <option value="">— Select service —</option>
-          {SERVICE_OPTIONS.map(group => (
-            <optgroup key={group.group} label={group.group}>
-              {group.options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-            </optgroup>
-          ))}
-        </select>
-      </div>
-
-      {/* Oil extra quarts */}
-      {isOil && (
-        <div>
-          <label className="text-gray-600 text-xs font-bold uppercase tracking-wider block mb-1">Extra Quarts (over 5)</label>
-          <div className="flex items-center gap-3">
-            <button onClick={() => setExtraQuarts(Math.max(0, extraQuarts - 1))} className="w-8 h-8 bg-gray-800 border border-gray-700 text-white font-bold hover:border-red-600 transition-colors">−</button>
-            <span className="text-white font-mono w-4 text-center">{extraQuarts}</span>
-            <button onClick={() => setExtraQuarts(extraQuarts + 1)} className="w-8 h-8 bg-gray-800 border border-gray-700 text-white font-bold hover:border-red-600 transition-colors">+</button>
-            {extraQuarts > 0 && <span className="text-gray-500 text-xs">+${(extraQuarts * 10.99).toFixed(2)}</span>}
-          </div>
-        </div>
-      )}
-
-      {/* Axle schematic for brakes/struts */}
-      {isAxleService && (
-        <AxleSchematic config={axle} onChange={setAxle} defaultHours={LABOR_HOURS[serviceType] || 1} />
-      )}
-
-      {/* Parts + labor for non-fixed, non-axle services */}
-      {!isFixed && !isAxleService && serviceType && (
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="text-gray-600 text-xs font-bold uppercase tracking-wider block mb-1">Your Parts Cost</label>
-            <div className="flex items-center gap-1">
-              <span className="text-gray-500 text-sm">$</span>
-              <input type="number" value={partsCost} onChange={e => setPartsCost(e.target.value)}
-                placeholder="0.00" className="bg-gray-800 border border-gray-700 text-white px-2 py-2 text-sm font-mono w-full focus:border-red-600 outline-none" />
-            </div>
-            {partsCost && <div className="text-gray-600 text-[10px] mt-0.5">Customer sees: ${((parseFloat(partsCost) || 0) * (1 + PARTS_MARKUP)).toFixed(2)}</div>}
-          </div>
-          <div>
-            <label className="text-gray-600 text-xs font-bold uppercase tracking-wider block mb-1">Labor Hours</label>
-            <input type="number" step="0.5" value={laborHours} onChange={e => setLaborHours(e.target.value)}
-              className="bg-gray-800 border border-gray-700 text-white px-2 py-2 text-sm font-mono w-full focus:border-red-600 outline-none" />
-          </div>
-        </div>
-      )}
-
-      {/* Line items preview */}
-      {items.length > 1 && (
-        <div className="bg-gray-900 border border-gray-700 divide-y divide-gray-800">
-          <div className="text-gray-600 text-[10px] font-bold uppercase tracking-widest px-3 py-2">Itemized Quote</div>
-          {items.map(item => (
-            <div key={item.id} className="flex justify-between px-3 py-2">
-              <span className="text-gray-400 text-xs">{item.label}</span>
-              <span className={`text-xs font-mono font-bold ${item.amount === 0 ? 'text-gray-600' : 'text-white'}`}>
-                {item.amount === 0 ? 'FREE' : (item.amount < 0 ? `-$${Math.abs(item.amount).toFixed(2)}` : `$${item.amount.toFixed(2)}`)}
-              </span>
-            </div>
-          ))}
-          <div className="flex justify-between px-3 py-2.5 bg-gray-800/50">
-            <span className="text-white text-xs font-bold uppercase tracking-wider">Total</span>
-            <span className="text-white text-sm font-black">${total.toFixed(2)}</span>
-          </div>
-        </div>
-      )}
-
-      {/* Savings callout */}
-      {items.length > 1 && serviceType && (() => {
-        const effectiveShopTotal = shopTotalOverride !== '' ? (parseFloat(shopTotalOverride) || 0) : shopTotal;
-        const effectiveSavings = effectiveShopTotal > 0 ? effectiveShopTotal - total : 0;
-        return (
-          <div className="space-y-2">
-            <div className="flex items-center gap-2">
-              <label className="text-gray-600 text-xs font-bold uppercase tracking-widest whitespace-nowrap">Shop charges ~</label>
-              <div className="flex items-center gap-1 flex-1">
-                <span className="text-gray-500 text-sm">$</span>
-                <input
-                  type="number"
-                  value={shopTotalOverride}
-                  onChange={e => setShopTotalOverride(e.target.value)}
-                  className="bg-gray-800 border border-gray-700 text-white px-2 py-1.5 text-sm font-mono w-full focus:border-red-600 outline-none"
-                />
-              </div>
-              {shopTotalOverride !== '' && (
-                <button onClick={() => setShopTotalOverride('')} className="text-gray-600 hover:text-gray-400 text-xs whitespace-nowrap">reset</button>
-              )}
-              <label className="flex items-center gap-1.5 cursor-pointer flex-shrink-0 ml-1">
-                <input type="checkbox" checked={showShopComparison} onChange={e => setShowShopComparison(e.target.checked)} className="accent-emerald-600 w-3.5 h-3.5" />
-                <span className="text-gray-600 text-[10px] uppercase tracking-wider whitespace-nowrap">Show in email</span>
-              </label>
-            </div>
-            {effectiveSavings > 0 && showShopComparison && (
-              <div className="bg-emerald-900/20 border border-emerald-700 p-4 flex items-center justify-between">
-                <div>
-                  <div className="text-emerald-400 text-xs font-bold uppercase tracking-widest">vs. Flagstaff Shops</div>
-                  <div className="text-gray-400 text-xs mt-0.5">They'd charge ~${effectiveShopTotal.toFixed(2)}</div>
-                  <div className="text-emerald-500 text-xs mt-0.5 font-semibold">and we come to you!</div>
-                </div>
-                <div className="text-right">
-                  <div className="text-emerald-400 text-2xl font-black">-${effectiveSavings.toFixed(2)}</div>
-                  <div className="text-emerald-600 text-[10px] font-bold uppercase">Customer Saves</div>
-                </div>
-              </div>
-            )}
-            {effectiveSavings > 0 && !showShopComparison && (
-              <div className="text-gray-700 text-xs italic">Savings comparison hidden from customer email</div>
-            )}
-          </div>
-        );
-      })()}
-
-      {canApply && (
-        <button
-          onClick={() => {
-            const effectiveShopTotal = shopTotalOverride !== '' ? (parseFloat(shopTotalOverride) || 0) : shopTotal;
-            onApply(items, total, showShopComparison ? effectiveShopTotal : 0);
-          }}
-          className="w-full bg-red-600 hover:bg-red-500 text-white text-xs font-bold uppercase tracking-widest py-3 transition-colors"
-        >
-          Apply to Estimate →
-        </button>
       )}
     </div>
   );
@@ -2594,9 +2140,6 @@ export function EstimatePanel({ job, onUpdate }: { job: Job; onUpdate: (j: Job) 
       setTimeout(() => setLinkCopied(false), 2000);
     }).catch(() => alert(`Couldn't copy automatically — here's the link:\n\n${estimateUrl}`));
   }
-  const [showCalc, setShowCalc] = useState(!job.lineItems?.length);
-  const [shopAvg, setShopAvg] = useState(0);
-  const [showShopComparison, setShowShopComparison] = useState(true);
   const prevJobId = useRef(job.id);
   const hasLocalEdits = useRef(false);
   // Scope notes save themselves 3s after typing (same field the Tech app edits).
@@ -2616,11 +2159,9 @@ export function EstimatePanel({ job, onUpdate }: { job: Job; onUpdate: (j: Job) 
       hasLocalEdits.current = false;
       setLineItems(job.lineItems?.length ? job.lineItems : [{ id: 'mobile', label: 'Mobile Service Fee', amount: MOBILE_FEE, type: 'mobile' }]);
       setNotes(job.estimateNotes);
-      setShowCalc(!job.lineItems?.length);
     } else if (!hasLocalEdits.current && job.lineItems?.length) {
       setLineItems(job.lineItems);
       setNotes(job.estimateNotes);
-      setShowCalc(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [job.id, job.lineItems, job.estimateNotes]);
@@ -2641,12 +2182,6 @@ export function EstimatePanel({ job, onUpdate }: { job: Job; onUpdate: (j: Job) 
     if (jobRef.current.id === id) onUpdate({ ...jobRef.current, estimateAmount: amount, lineItems: items, taxAmount: tax, taxRateSnapshot: TAX_RATE });
   });
 
-  function handleApplyCalc(items: LineItem[], _total: number, calcShopAvg: number) {
-    hasLocalEdits.current = true;
-    setLineItems(items);
-    setShopAvg(calcShopAvg);
-    setShowCalc(false);
-  }
 
   function updateLineItemLabel(id: string, label: string) {
     hasLocalEdits.current = true;
@@ -2724,13 +2259,12 @@ export function EstimatePanel({ job, onUpdate }: { job: Job; onUpdate: (j: Job) 
       tax_rate_snapshot: TAX_RATE,
     });
     const updated = { ...job, estimateAmount: total, estimateNotes: notes, lineItems, jobStatus: 'ESTIMATE_SENT' as JobStatus, taxAmount: taxFromItems(lineItems), taxRateSnapshot: TAX_RATE };
-    await sendEstimateEmail(updated, showShopComparison ? shopAvg : 0);
+    await sendEstimateEmail(updated);
     onUpdate(updated);
     setSent(true);
   }
 
   const canSend = total > 0 && !!job.email;
-  const savings = shopAvg > 0 ? shopAvg - total : 0;
 
   return (
     <div className="space-y-5">
@@ -2746,15 +2280,14 @@ export function EstimatePanel({ job, onUpdate }: { job: Job; onUpdate: (j: Job) 
         </button>
       </div>
 
-      {/* Calculator toggle */}
-      <button
-        onClick={() => setShowCalc(v => !v)}
-        className="text-xs font-bold uppercase tracking-widest text-red-500 hover:text-red-400 transition-colors flex items-center gap-2"
-      >
-        🧮 {showCalc ? 'Hide Calculator' : 'Open Quote Calculator'}
-      </button>
-
-      {showCalc && <QuoteCalculator job={job} onApply={handleApplyCalc} />}
+      <LaborHint
+        vin={job.vin} vehicle={job.vehicle} scope={notes || ''}
+        onUse={(hours, price) => {
+          hasLocalEdits.current = true;
+          setLineItems(prev => withLaborTime(prev, hours, price));
+          setRawQty({}); setRawAmounts({});
+        }}
+      />
 
       {/* Line items editor */}
       <div>
@@ -2823,17 +2356,6 @@ export function EstimatePanel({ job, onUpdate }: { job: Job; onUpdate: (j: Job) 
                 </label>
                 {lineQty(item) !== 1 && item.type !== 'labor' && <span className="text-gray-500 text-[11px] font-mono flex-shrink-0">= ${item.amount.toFixed(2)}</span>}
                 <button onClick={() => removeLineItem(item.id)} className="text-gray-700 hover:text-red-500 text-sm transition-colors w-5">×</button>
-                {item.type === 'labor' && (
-                  <LaborHint
-                    vin={job.vin} vehicle={job.vehicle} scope={notes || ''}
-                    onUse={(hours, price) => {
-                      hasLocalEdits.current = true;
-                      setLineItems(prev => prev.map(i => i.id === item.id ? withLine(i, { qty: hours, rate: price }) : i));
-                      setRawQty(prev => { const next = { ...prev }; delete next[item.id]; return next; });
-                      setRawAmounts(prev => { const next = { ...prev }; delete next[item.id]; return next; });
-                    }}
-                  />
-                )}
               </div>
             );
           })}
@@ -2855,26 +2377,6 @@ export function EstimatePanel({ job, onUpdate }: { job: Job; onUpdate: (j: Job) 
           </div>
         </div>
       </div>
-
-      {/* Savings callout if shop avg set */}
-      {savings > 0 && (
-        <div className="space-y-1">
-          <div className="bg-emerald-900/20 border border-emerald-700 px-4 py-3 flex items-center justify-between">
-            <div>
-              <div className="text-emerald-400 text-xs font-bold uppercase tracking-widest">Customer saves vs shops</div>
-              <div className="text-emerald-500 text-xs mt-0.5 font-semibold">and we come to you!</div>
-            </div>
-            <div className="flex items-center gap-3">
-              <div className="text-emerald-400 font-black text-lg">-${savings.toFixed(2)}</div>
-              <label className="flex items-center gap-1.5 cursor-pointer">
-                <input type="checkbox" checked={showShopComparison} onChange={e => setShowShopComparison(e.target.checked)} className="accent-emerald-600 w-3.5 h-3.5" />
-                <span className="text-gray-500 text-[10px] uppercase tracking-wider">Show in email</span>
-              </label>
-            </div>
-          </div>
-          {!showShopComparison && <div className="text-gray-700 text-xs italic">Hidden from customer email</div>}
-        </div>
-      )}
 
       {/* Alignment clause — shown for suspension jobs */}
       {(job.service === 'suspension' || job.notes?.toLowerCase().includes('strut') || job.notes?.toLowerCase().includes('tie rod') || job.notes?.toLowerCase().includes('control arm')) && (
@@ -5937,6 +5439,13 @@ export function ExternalLeadModal({ onClose, onAdded, jobs, inspection = false }
             <h2 className="text-xl font-black text-white mb-1">Build Estimate</h2>
             <div className="text-gray-500 text-xs mb-5">{f.fname} {f.lname} · {f.vehicle} · {f.date}{f.time ? ` at ${f.time}` : ''}</div>
 
+            <div className="mb-4">
+              <LaborHint
+                vin={f.vin} vehicle={f.vehicle} scope={f.notes}
+                onUse={(hours, price) => { setLineItems(prev => withLaborTime(prev, hours, price, PPI_LINE_LABEL)); setRawQty({}); setRawAmounts({}); }}
+              />
+            </div>
+
             <div className="space-y-2 mb-3">
               {lineItems.map(item => (
                 <div key={item.id} className="flex flex-wrap gap-2 items-center">
@@ -6002,16 +5511,6 @@ export function ExternalLeadModal({ onClose, onAdded, jobs, inspection = false }
                   </select>
                   {lineQty(item) !== 1 && item.type !== 'labor' && <span className="text-gray-500 text-xs font-mono flex-shrink-0">= ${item.amount.toFixed(2)}</span>}
                   <button onClick={() => removeLine(item.id)} className="text-gray-700 hover:text-red-500 text-sm transition-colors w-5 flex-shrink-0">×</button>
-                  {item.type === 'labor' && item.label !== PPI_LINE_LABEL && (
-                    <LaborHint
-                      vin={f.vin} vehicle={f.vehicle} scope={f.notes}
-                      onUse={(hours, price) => {
-                        setLineItems(prev => prev.map(li => li.id === item.id ? withLine(li, { qty: hours, rate: price }) : li));
-                        setRawQty(prev => { const next = { ...prev }; delete next[item.id]; return next; });
-                        setRawAmounts(prev => { const next = { ...prev }; delete next[item.id]; return next; });
-                      }}
-                    />
-                  )}
                 </div>
               ))}
             </div>

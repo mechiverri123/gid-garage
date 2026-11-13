@@ -5,7 +5,7 @@
 // Output string order matches BookingWidget.vehicleString():
 //   "{year} {make} {model} {engine} {trim}"   e.g. "2019 Toyota RAV4 2.5L 4-cyl XLE"
 // The engine text follows the engineData.ts style ("5.3L V8", "2.0L 4-cyl",
-// "6.7L V8 Diesel") so classifyVehicle() in JobOps.tsx tiers it correctly.
+// "6.7L V8 Diesel").
 
 export interface DecodedVehicle {
   year: string;
