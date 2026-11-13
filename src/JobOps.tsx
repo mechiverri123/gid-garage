@@ -940,15 +940,19 @@ const MOBILE_FEE = 25;
 // One per estimate (replaced the old quote calculator): book labor time for this car
 // (vehicle field / VIN, matched to year, make, model and engine) and this job's scope
 // notes (suggest-labor-hours, the same AI call as Next-Visit), and the price that
-// time comes to at LABOR_RATE. "Use" puts it on the estimate's labor line (made if
-// there is none); the owner can still change either.
+// time comes to at LABOR_RATE. The owner can still change it after "Use".
 function suggestedLaborPrice(hours: number) {
   return Math.round((hours * LABOR_RATE) / 5) * 5;
 }
+// "Use" leaves ONE labor line, "Labor (X Hours)" at the total, in place of every
+// other labor line (the PPI fee line is kept).
 function withLaborTime(items: LineItem[], hours: number, price: number, skipLabel?: string): LineItem[] {
-  const i = items.findIndex(li => li.type === 'labor' && li.label !== skipLabel);
-  if (i < 0) return [...items, withLine({ id: `li-${Date.now()}-labor`, label: 'Labor', amount: 0, type: 'labor' }, { qty: hours, rate: price })];
-  return items.map((li, k) => (k === i ? withLine(li, { qty: hours, rate: price }) : li));
+  const isLabor = (li: LineItem) => li.type === 'labor' && li.label !== skipLabel;
+  const at = items.findIndex(isLabor);
+  const line = withLine({ id: `li-${Date.now()}-labor`, label: `Labor (${hours} Hour${hours === 1 ? '' : 's'})`, amount: 0, type: 'labor' }, { qty: hours, rate: price });
+  const rest = items.filter(li => !isLabor(li));
+  const pos = at < 0 ? rest.length : items.slice(0, at).filter(li => !isLabor(li)).length;
+  return [...rest.slice(0, pos), line, ...rest.slice(pos)];
 }
 function LaborHint({ vin, vehicle, scope, onUse }: { vin?: string; vehicle?: string; scope: string; onUse: (hours: number, price: number) => void }) {
   const [s, setS] = useState<{ hours: number; low: number; high: number; reason: string; matched?: string; vehicle?: string; tasks?: { name: string; hours: number }[] } | null>(null);
