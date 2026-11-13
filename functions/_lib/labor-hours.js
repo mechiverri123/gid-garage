@@ -29,6 +29,10 @@ export function parseSuggestion(text) {
     if (hours == null) return null;
     const out = { hours, low: n(j.low) ?? hours, high: n(j.high) ?? hours, reason: String(j.reason || '').slice(0, 300) };
     if (j.vehicle) out.matched = String(j.vehicle).slice(0, 120);
+    const tasks = (Array.isArray(j.tasks) ? j.tasks : []).slice(0, 15)
+      .map(t => ({ name: String(t?.name || '').slice(0, 160), hours: n(t?.hours) }))
+      .filter(t => t.name && t.hours != null);
+    if (tasks.length) out.tasks = tasks;
     return out;
   } catch { return null; }
 }
@@ -45,8 +49,8 @@ export async function suggestLaborHours({ base, headers, env, vin, vehicle, serv
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'x-api-key': env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' },
     body: JSON.stringify({
-      model: MODEL, max_tokens: 400,
-      system: 'You estimate auto-repair labor time the way a published labor guide would, for an experienced mobile mechanic working in a driveway. First pin down the exact vehicle: year, make, model and engine size (or electric motor). Use the VIN decode when given; the vehicle text may be messy, so pull the vehicle out of it. If the engine is not stated, use the most common engine for that year and model and add "(assumed)" after it. Base the time on that exact vehicle and engine. The service text is the scope of work and may list several jobs: give the total time for all of the work it describes. Reply with ONLY a JSON object: {"vehicle": "year make model engine", "hours": number, "low": number, "high": number, "reason": "one short sentence on what drives the time for this vehicle"}. Hours only: no prices, no parts, no torque specs.',
+      model: MODEL, max_tokens: 700,
+      system: 'You estimate auto-repair labor time the way a published labor guide would, for an experienced mobile mechanic working in a driveway. First pin down the exact vehicle: year, make, model and engine size (or electric motor). Use the VIN decode when given; the vehicle text may be messy, so pull the vehicle out of it. If the engine is not stated, use the most common engine for that year and model and add "(assumed)" after it. Base the time on that exact vehicle and engine. The service text is the scope of work and may list several jobs: give the total time for all of the work it describes. Break the work into its separate labor operations (one per job in the scope, plus any setup like lifting the vehicle when it is real time); the task hours add up to the total. Reply with ONLY a JSON object: {"vehicle": "year make model engine", "tasks": [{"name": "labor operation", "hours": number}], "hours": number, "low": number, "high": number, "reason": "one short sentence on what drives the time for this vehicle"}. Hours only: no prices, no parts, no torque specs.',
       messages: [{ role: 'user', content: `Vehicle: ${veh}\nScope of work: ${svc}${note ? `\nTechnician note: ${String(note).slice(0, 300)}` : ''}` }],
     }),
   });

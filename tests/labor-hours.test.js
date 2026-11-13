@@ -15,6 +15,7 @@ test('VIN decode: 17-character VINs only; vehicle text from vPIC', async () => {
 test('answer parsing: hours only, sane range', () => {
   assert.deepEqual(parseSuggestion('Sure: {"hours": 1.25, "low": 1, "high": 1.5, "reason": "Two-piston caliper"}'), { hours: 1.3, low: 1, high: 1.5, reason: 'Two-piston caliper' });
   assert.equal(parseSuggestion('{"vehicle": "2015 Acura TLX 3.5L V6", "hours": 1}').matched, '2015 Acura TLX 3.5L V6');
+  assert.deepEqual(parseSuggestion('{"hours": 2, "tasks": [{"name": "Front pads", "hours": 1.2}, {"name": "", "hours": 1}, {"name": "Rotors", "hours": 99}]}').tasks, [{ name: 'Front pads', hours: 1.2 }]);
   assert.equal(parseSuggestion('{"hours": 99}'), null);
   assert.equal(parseSuggestion('no json'), null);
 });

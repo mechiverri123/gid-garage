@@ -1140,7 +1140,8 @@ function suggestedLaborPrice(hours: number) {
   return Math.round((hours * LABOR_RATE) / 5) * 5;
 }
 function LaborHint({ vin, vehicle, scope, onUse }: { vin?: string; vehicle?: string; scope: string; onUse: (hours: number, price: number) => void }) {
-  const [s, setS] = useState<{ hours: number; low: number; high: number; reason: string; matched?: string; vehicle?: string } | null>(null);
+  const [s, setS] = useState<{ hours: number; low: number; high: number; reason: string; matched?: string; vehicle?: string; tasks?: { name: string; hours: number }[] } | null>(null);
+  const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
   async function ask() {
@@ -1156,27 +1157,81 @@ function LaborHint({ vin, vehicle, scope, onUse }: { vin?: string; vehicle?: str
       const body = await res.json().catch(() => ({}));
       if (!res.ok || body.error) throw new Error(body.error || `HTTP ${res.status}`);
       setS(body);
+      setOpen(true);
     } catch (e: any) { setErr(e?.message || 'Could not get labor time.'); }
     setBusy(false);
   }
   const price = s ? suggestedLaborPrice(s.hours) : 0;
+  const money = (n: number) => `$${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const btn = 'border border-sky-700 text-sky-300 hover:border-sky-400 hover:text-white text-xs font-bold uppercase tracking-wider px-3 py-1.5 transition-colors disabled:opacity-50';
   return (
-    <div className="basis-full text-[11px] leading-snug">
-      {!s && (
-        <button onClick={ask} disabled={busy} className="text-sky-400 hover:text-sky-300 font-bold disabled:opacity-50">
-          {busy ? 'Looking up labor time…' : '⏱ Book labor time & price'}
-        </button>
-      )}
-      {err && <span className="text-red-400 ml-2">{err}</span>}
-      {s && (
-        <div className="text-gray-400">
-          <div className="text-gray-500">For {s.matched || s.vehicle}</div>
-          <span className="text-white font-bold">{s.hours} h</span>
-          {(s.low !== s.hours || s.high !== s.hours) && <span> ({s.low}–{s.high})</span>}
-          {' '}× ${LABOR_RATE}/hr = <span className="text-white font-bold">${price}</span>
-          {s.reason && <span className="text-gray-500"> · {s.reason}</span>}
-          <button onClick={() => onUse(s.hours, price)} className="ml-2 border border-sky-600 text-sky-300 hover:bg-sky-600 hover:text-white font-bold px-2 py-0.5 transition-colors">Use</button>
-          <button onClick={() => setS(null)} className="ml-1 text-gray-600 hover:text-white px-1" title="Dismiss">×</button>
+    <div className="basis-full text-sm leading-snug">
+      <div className="flex flex-wrap items-center gap-2">
+        {!s ? (
+          <button onClick={ask} disabled={busy} className={btn}>{busy ? 'Looking up labor time…' : '⏱ Book labor time & price'}</button>
+        ) : (
+          <>
+            <button onClick={() => setOpen(true)} className={btn}>Open Breakdown</button>
+            <span className="text-gray-300"><span className="text-white font-bold">{s.hours} h</span> × ${LABOR_RATE}/hr = <span className="text-white font-bold">${price}</span></span>
+            <button onClick={() => onUse(s.hours, price)} className="border border-sky-600 text-sky-300 hover:bg-sky-600 hover:text-white text-xs font-bold uppercase tracking-wider px-3 py-1.5 transition-colors">Use</button>
+            <button onClick={ask} disabled={busy} className="text-gray-500 hover:text-white text-xs">{busy ? 'Looking up…' : 'Redo'}</button>
+          </>
+        )}
+        {err && <span className="text-red-400 text-sm">{err}</span>}
+      </div>
+
+      {open && s && (
+        <div className="fixed inset-0 z-[300] bg-black/80 flex items-center justify-center p-4" onClick={() => setOpen(false)}>
+          <div className="bg-[#111] border border-gray-700 w-full max-w-lg max-h-[90vh] overflow-y-auto p-5" onClick={e => e.stopPropagation()}>
+            <div className="flex items-start justify-between gap-3 mb-4">
+              <div>
+                <div className="text-sky-400 text-xs font-bold uppercase tracking-widest">Labor Breakdown</div>
+                <div className="text-white text-lg font-black">{s.matched || s.vehicle}</div>
+              </div>
+              <button onClick={() => setOpen(false)} className="text-gray-500 hover:text-white text-2xl leading-none">×</button>
+            </div>
+
+            <div className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-1">Scope</div>
+            <div className="text-gray-300 text-sm whitespace-pre-wrap mb-4 max-h-32 overflow-y-auto">{scope}</div>
+
+            <table className="w-full text-sm mb-4">
+              <thead>
+                <tr className="text-gray-500 text-xs uppercase tracking-wider text-left">
+                  <th className="font-bold pb-2">Operation</th>
+                  <th className="font-bold pb-2 text-right">Hours</th>
+                  <th className="font-bold pb-2 text-right">At ${LABOR_RATE}/hr</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-800">
+                {(s.tasks?.length ? s.tasks : [{ name: 'All work in scope', hours: s.hours }]).map((t, i) => (
+                  <tr key={i}>
+                    <td className="py-2 pr-2 text-gray-200">{t.name}</td>
+                    <td className="py-2 text-right text-gray-300 font-mono">{t.hours}</td>
+                    <td className="py-2 text-right text-gray-300 font-mono">{money(t.hours * LABOR_RATE)}</td>
+                  </tr>
+                ))}
+                <tr className="border-t border-gray-600">
+                  <td className="py-2 text-white font-bold">Total labor</td>
+                  <td className="py-2 text-right text-white font-bold font-mono">{s.hours}</td>
+                  <td className="py-2 text-right text-white font-bold font-mono">{money(s.hours * LABOR_RATE)}</td>
+                </tr>
+              </tbody>
+            </table>
+
+            <div className="space-y-1 text-sm text-gray-400 mb-5">
+              <div>Suggested price, rounded to $5: <span className="text-white font-bold">${price}</span></div>
+              {(s.low !== s.hours || s.high !== s.hours) && (
+                <div>Range: {s.low}–{s.high} h = {money(s.low * LABOR_RATE)}–{money(s.high * LABOR_RATE)}</div>
+              )}
+              {s.reason && <div className="text-gray-500">{s.reason}</div>}
+              <div className="text-gray-600 text-xs pt-1">AI estimate in the style of a labor guide, not a published guide. Labor only: parts are priced separately.</div>
+            </div>
+
+            <div className="flex gap-2">
+              <button onClick={() => { onUse(s.hours, price); setOpen(false); }} className="flex-1 bg-sky-600 hover:bg-sky-500 text-white text-sm font-bold uppercase tracking-widest py-3 transition-colors">Use {s.hours} h · ${price}</button>
+              <button onClick={() => setOpen(false)} className="border border-gray-700 text-gray-400 hover:text-white text-sm font-bold uppercase tracking-widest px-4 py-3 transition-colors">Close</button>
+            </div>
+          </div>
         </div>
       )}
     </div>
@@ -1235,7 +1290,7 @@ function QuoteCalculator({ job, onApply }: { job: Job; onApply: (items: LineItem
       }
       shopTotal = getShopAvg('oil', job.vehicle) + (extraQuarts * 15);
     } else if (isDiag) {
-      items.push({ id: 'diag_labor', label: 'Diagnostics — OBD2 Scan & Repair Recommendation', amount: 75, type: 'fixed' });
+      items.push({ id: 'diag_labor', label: 'Diagnostics — OBD2 Scan & Repair Recommendation', amount: 99.99, type: 'fixed' });
       shopTotal = getShopAvg('diag', job.vehicle);
     } else if (isFull) {
       items.push({ id: 'full_labor', label: 'Multi-Point Inspection (Complimentary)', amount: 0, type: 'fixed' });
@@ -1285,7 +1340,7 @@ function QuoteCalculator({ job, onApply }: { job: Job; onApply: (items: LineItem
   const SERVICE_OPTIONS = [
     { group: 'Fixed Price', options: [
       { value: 'oil', label: 'Oil Change — $79.99' },
-      { value: 'diag', label: 'Diagnostics — $75 flat' },
+      { value: 'diag', label: 'Diagnostics — $99.99 flat' },
       { value: 'full', label: 'Full Service — Free' },
     ]},
     { group: 'Brakes', options: [
