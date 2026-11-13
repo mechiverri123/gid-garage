@@ -944,12 +944,12 @@ const MOBILE_FEE = 25;
 function suggestedLaborPrice(hours: number) {
   return Math.round((hours * LABOR_RATE) / 5) * 5;
 }
-// "Use" leaves ONE labor line, "Labor (X Hours)" at the total, in place of every
+// "Use" leaves ONE labor line, "Labor" at the total (hours in its hrs box, never shown to customers), in place of every
 // other labor line (the PPI fee line is kept).
 function withLaborTime(items: LineItem[], hours: number, price: number, skipLabel?: string): LineItem[] {
   const isLabor = (li: LineItem) => li.type === 'labor' && li.label !== skipLabel;
   const at = items.findIndex(isLabor);
-  const line: LineItem = withLine({ id: `li-${Date.now()}-labor`, label: `Labor (${hours} Hour${hours === 1 ? '' : 's'})`, amount: 0, type: 'labor' as const }, { qty: hours, rate: price });
+  const line: LineItem = withLine({ id: `li-${Date.now()}-labor`, label: 'Labor', amount: 0, type: 'labor' as const }, { qty: hours, rate: price });
   const rest = items.filter(li => !isLabor(li));
   const pos = at < 0 ? rest.length : items.slice(0, at).filter(li => !isLabor(li)).length;
   return [...rest.slice(0, pos), line, ...rest.slice(pos)];
