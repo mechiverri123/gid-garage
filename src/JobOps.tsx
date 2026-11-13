@@ -949,7 +949,7 @@ function suggestedLaborPrice(hours: number) {
 function withLaborTime(items: LineItem[], hours: number, price: number, skipLabel?: string): LineItem[] {
   const isLabor = (li: LineItem) => li.type === 'labor' && li.label !== skipLabel;
   const at = items.findIndex(isLabor);
-  const line = withLine({ id: `li-${Date.now()}-labor`, label: `Labor (${hours} Hour${hours === 1 ? '' : 's'})`, amount: 0, type: 'labor' }, { qty: hours, rate: price });
+  const line: LineItem = withLine({ id: `li-${Date.now()}-labor`, label: `Labor (${hours} Hour${hours === 1 ? '' : 's'})`, amount: 0, type: 'labor' as const }, { qty: hours, rate: price });
   const rest = items.filter(li => !isLabor(li));
   const pos = at < 0 ? rest.length : items.slice(0, at).filter(li => !isLabor(li)).length;
   return [...rest.slice(0, pos), line, ...rest.slice(pos)];
