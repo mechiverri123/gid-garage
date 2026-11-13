@@ -934,7 +934,7 @@ function StatusBadge({ status }: { status: JobStatus }) {
 
 // ── PRICING CONSTANTS ─────────────────────────────────────────────────────────
 
-const LABOR_RATE = 75;
+const LABOR_RATE = 110;
 const MOBILE_FEE = 25;
 const PARTS_MARKUP = 0.20;
 
@@ -1132,23 +1132,26 @@ function AxleSchematic({ config, onChange, defaultHours }: {
   );
 }
 
-// Under a labor line: book labor time for this car and job (suggest-labor-hours,
-// the same AI call as Next-Visit), and the price that time comes to at LABOR_RATE.
+// Under a labor line: book labor time for this car (vehicle field / VIN, matched to
+// year, make, model and engine) and this job's scope notes (suggest-labor-hours, the
+// same AI call as Next-Visit), and the price that time comes to at LABOR_RATE.
 // "Use" fills the line's hours and price; the owner can still change either.
 function suggestedLaborPrice(hours: number) {
   return Math.round((hours * LABOR_RATE) / 5) * 5;
 }
-function LaborHint({ label, vin, vehicle, context, onUse }: { label: string; vin?: string; vehicle?: string; context?: string; onUse: (hours: number, price: number) => void }) {
-  const [s, setS] = useState<{ hours: number; low: number; high: number; reason: string } | null>(null);
+function LaborHint({ vin, vehicle, scope, onUse }: { vin?: string; vehicle?: string; scope: string; onUse: (hours: number, price: number) => void }) {
+  const [s, setS] = useState<{ hours: number; low: number; high: number; reason: string; matched?: string; vehicle?: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
-  const generic = !label.trim() || /^labor$/i.test(label.trim());
   async function ask() {
-    setBusy(true); setErr('');
+    setErr('');
+    if (!scope.trim()) { setErr('Write the scope notes first.'); return; }
+    if (!vin && !(vehicle || '').trim()) { setErr('Add the vehicle first.'); return; }
+    setBusy(true);
     try {
       const res = await fetch('/admin-api-data', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'suggest-labor-hours', vin, vehicle, service: generic ? (context || 'general repair') : label, note: context }),
+        body: JSON.stringify({ action: 'suggest-labor-hours', vin, vehicle, service: scope }),
       });
       const body = await res.json().catch(() => ({}));
       if (!res.ok || body.error) throw new Error(body.error || `HTTP ${res.status}`);
@@ -1167,6 +1170,7 @@ function LaborHint({ label, vin, vehicle, context, onUse }: { label: string; vin
       {err && <span className="text-red-400 ml-2">{err}</span>}
       {s && (
         <div className="text-gray-400">
+          <div className="text-gray-500">For {s.matched || s.vehicle}</div>
           <span className="text-white font-bold">{s.hours} h</span>
           {(s.low !== s.hours || s.high !== s.hours) && <span> ({s.low}–{s.high})</span>}
           {' '}× ${LABOR_RATE}/hr = <span className="text-white font-bold">${price}</span>
@@ -2766,8 +2770,7 @@ export function EstimatePanel({ job, onUpdate }: { job: Job; onUpdate: (j: Job) 
                 <button onClick={() => removeLineItem(item.id)} className="text-gray-700 hover:text-red-500 text-sm transition-colors w-5">×</button>
                 {item.type === 'labor' && (
                   <LaborHint
-                    label={item.label} vin={job.vin} vehicle={job.vehicle}
-                    context={[resolveServiceName(job.service, job.notes), notes, job.notes].filter(Boolean).join('. ').slice(0, 300)}
+                    vin={job.vin} vehicle={job.vehicle} scope={notes || ''}
                     onUse={(hours, price) => {
                       hasLocalEdits.current = true;
                       setLineItems(prev => prev.map(i => i.id === item.id ? withLine(i, { qty: hours, rate: price }) : i));
@@ -5946,8 +5949,7 @@ export function ExternalLeadModal({ onClose, onAdded, jobs, inspection = false }
                   <button onClick={() => removeLine(item.id)} className="text-gray-700 hover:text-red-500 text-sm transition-colors w-5 flex-shrink-0">×</button>
                   {item.type === 'labor' && item.label !== PPI_LINE_LABEL && (
                     <LaborHint
-                      label={item.label} vin={f.vin} vehicle={f.vehicle}
-                      context={[SERVICE_NAMES[f.service], f.notes].filter(Boolean).join('. ').slice(0, 300)}
+                      vin={f.vin} vehicle={f.vehicle} scope={f.notes}
                       onUse={(hours, price) => {
                         setLineItems(prev => prev.map(li => li.id === item.id ? withLine(li, { qty: hours, rate: price }) : li));
                         setRawQty(prev => { const next = { ...prev }; delete next[item.id]; return next; });

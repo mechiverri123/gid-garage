@@ -27,25 +27,27 @@ export function parseSuggestion(text) {
     const n = x => (Number.isFinite(Number(x)) && Number(x) >= 0 && Number(x) <= 40 ? Math.round(Number(x) * 10) / 10 : null);
     const hours = n(j.hours);
     if (hours == null) return null;
-    return { hours, low: n(j.low) ?? hours, high: n(j.high) ?? hours, reason: String(j.reason || '').slice(0, 300) };
+    const out = { hours, low: n(j.low) ?? hours, high: n(j.high) ?? hours, reason: String(j.reason || '').slice(0, 300) };
+    if (j.vehicle) out.matched = String(j.vehicle).slice(0, 120);
+    return out;
   } catch { return null; }
 }
 
 export async function suggestLaborHours({ base, headers, env, vin, vehicle, service, note, fetchImpl = (...a) => fetch(...a), now = new Date() }) {
   if (!env.ANTHROPIC_API_KEY) throw new Error('ANTHROPIC_API_KEY is not set.');
-  const svc = String(service || '').trim().slice(0, 120);
+  const svc = String(service || '').trim().slice(0, 800);
   if (!svc) throw new Error('Which service?');
   const budget = await readBudget({ base, headers, env, now, fetchImpl });
   if (budget.state === 'blocked') throw new Error('The monthly AI budget is used up (Settings → Usage).');
   const decoded = await decodeVin(vin, fetchImpl);
-  const veh = decoded || String(vehicle || '').trim().slice(0, 120) || 'unknown vehicle';
+  const veh = decoded || String(vehicle || '').trim().slice(0, 400) || 'unknown vehicle';
   const res = await fetchImpl('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'x-api-key': env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' },
     body: JSON.stringify({
-      model: MODEL, max_tokens: 300,
-      system: 'You estimate auto-repair labor time the way a published labor guide would, for an experienced mobile mechanic working in a driveway. Reply with ONLY a JSON object: {"hours": number, "low": number, "high": number, "reason": "one short sentence on what drives the time for this vehicle"}. Hours only: no prices, no parts, no torque specs. If the vehicle is unknown, give a typical range and say so in the reason.',
-      messages: [{ role: 'user', content: `Vehicle: ${veh}\nService: ${svc}${note ? `\nTechnician note: ${String(note).slice(0, 300)}` : ''}` }],
+      model: MODEL, max_tokens: 400,
+      system: 'You estimate auto-repair labor time the way a published labor guide would, for an experienced mobile mechanic working in a driveway. First pin down the exact vehicle: year, make, model and engine size (or electric motor). Use the VIN decode when given; the vehicle text may be messy, so pull the vehicle out of it. If the engine is not stated, use the most common engine for that year and model and add "(assumed)" after it. Base the time on that exact vehicle and engine. The service text is the scope of work and may list several jobs: give the total time for all of the work it describes. Reply with ONLY a JSON object: {"vehicle": "year make model engine", "hours": number, "low": number, "high": number, "reason": "one short sentence on what drives the time for this vehicle"}. Hours only: no prices, no parts, no torque specs.',
+      messages: [{ role: 'user', content: `Vehicle: ${veh}\nScope of work: ${svc}${note ? `\nTechnician note: ${String(note).slice(0, 300)}` : ''}` }],
     }),
   });
   const body = await res.json().catch(() => ({}));
