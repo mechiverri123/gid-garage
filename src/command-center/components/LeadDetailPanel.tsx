@@ -15,7 +15,7 @@ function Row({ label, value }: { label: string; value?: string | number | null }
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div className="mb-4">
-      <div className="text-[10px] font-semibold uppercase tracking-widest text-[#52616D] mb-1.5">{title}</div>
+      <div className="text-[11px] font-semibold uppercase tracking-widest text-[#52616D] mb-1.5">{title}</div>
       {children}
     </div>
   );

@@ -149,9 +149,9 @@ export function NextVisitCheck({ job, onSaved }: { job: JobLike; onSaved: (inspe
       <div className="flex flex-wrap items-start gap-2">
         <div className="mr-auto">
           <div className="text-gray-500 text-xs font-bold uppercase tracking-widest">Next-Visit Check</div>
-          <div className="text-gray-600 text-[11px] mt-0.5">Free check. Yellow and red items show on the customer's invoice as recommendations for next time.</div>
+          <div className="text-gray-600 text-xs mt-0.5">Free check. Yellow and red items show on the customer's invoice as recommendations for next time.</div>
         </div>
-        <span className={`text-[11px] font-bold uppercase tracking-wider px-2 py-1 border ${state === 'offline' ? 'border-amber-700 text-amber-400' : state === 'error' ? 'border-red-700 text-red-400' : 'border-gray-800 text-gray-500'}`} role="status">
+        <span className={`text-xs font-bold uppercase tracking-wider px-2 py-1 border ${state === 'offline' ? 'border-amber-700 text-amber-400' : state === 'error' ? 'border-red-700 text-red-400' : 'border-gray-800 text-gray-500'}`} role="status">
           {state === 'saving' ? 'Saving…' : state === 'offline' ? `No signal — will upload${totalWaiting ? ` (${totalWaiting} waiting)` : ''}` : state === 'error' ? 'Not saved' : '✓ Saved'}
         </span>
       </div>
@@ -164,12 +164,12 @@ export function NextVisitCheck({ job, onSaved }: { job: JobLike; onSaved: (inspe
       )}
       <div className="flex items-center gap-3 text-xs text-gray-400">
         <span>{checked} of {nv.items.length} checked · <b className="text-white">{recs.length}</b> recommendation{recs.length === 1 ? '' : 's'}</span>
-        {!answered && checked < nv.items.length && <button type="button" onClick={markRestGood} className="ml-auto text-[11px] font-bold uppercase tracking-widest text-emerald-500 hover:text-emerald-400">Mark the rest Good</button>}
+        {!answered && checked < nv.items.length && <button type="button" onClick={markRestGood} className="ml-auto text-xs font-bold uppercase tracking-widest text-emerald-500 hover:text-emerald-400">Mark the rest Good</button>}
       </div>
 
       {Object.entries(byCat).map(([cat, items]) => (
         <div key={cat}>
-          <div className="text-gray-600 text-[11px] font-bold uppercase tracking-widest mb-1.5">{cat}</div>
+          <div className="text-gray-600 text-xs font-bold uppercase tracking-widest mb-1.5">{cat}</div>
           <div className="space-y-1.5">
             {items.map(i => (
               <div key={i.id} className="bg-gray-900 border border-gray-800 px-3 py-2">
@@ -178,14 +178,14 @@ export function NextVisitCheck({ job, onSaved }: { job: JobLike; onSaved: (inspe
                   <span className="text-white text-sm flex-1 min-w-0">{i.label}</span>
                   {(['good', 'soon', 'now'] as NvStatus[]).map(st => (
                     <button key={st} type="button" disabled={answered} onClick={() => update(i.id, { status: i.status === st ? null : st })} aria-pressed={i.status === st}
-                      className={`text-[11px] font-bold uppercase tracking-wide px-2 py-1 border transition-colors disabled:opacity-60 ${i.status === st ? STATUS_STYLE[st].on : STATUS_STYLE[st].off}`}>
+                      className={`text-xs font-bold uppercase tracking-wide px-2 py-1 border transition-colors disabled:opacity-60 ${i.status === st ? STATUS_STYLE[st].on : STATUS_STYLE[st].off}`}>
                       {st === 'good' ? 'Good' : st === 'soon' ? 'Soon' : 'Now'}
                     </button>
                   ))}
                 </div>
                 {(i.status === 'soon' || i.status === 'now') && (
                   <div className="mt-2 space-y-2 pl-4">
-                    <div className="text-[11px] text-gray-500">Recommends: <span className="text-gray-300">{i.service}</span> · {NV_STATUS[i.status]}</div>
+                    <div className="text-xs text-gray-500">Recommends: <span className="text-gray-300">{i.service}</span> · {NV_STATUS[i.status]}</div>
                     <input type="text" value={i.note} disabled={answered} onChange={e => update(i.id, { note: e.target.value })} placeholder="What you saw (the customer reads this) — e.g. 3mm left on the pads"
                       className="w-full bg-gray-800 border border-gray-700 text-white text-sm px-3 py-1.5 outline-none focus:border-red-600" />
                     <div className="flex flex-wrap items-center gap-2">
@@ -195,22 +195,22 @@ export function NextVisitCheck({ job, onSaved }: { job: JobLike; onSaved: (inspe
                           {!answered && <button type="button" aria-label="Remove" onClick={() => update(i.id, { media: i.media.filter(x => x.id !== m.id) })} className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-black border border-gray-600 text-gray-300 text-xs leading-none">×</button>}
                         </div>
                       ))}
-                      {!!waiting[i.id] && <span className="text-[11px] text-amber-400">{waiting[i.id]} waiting for signal</span>}
+                      {!!waiting[i.id] && <span className="text-xs text-amber-400">{waiting[i.id]} waiting for signal</span>}
                       {!answered && <>
-                        <label className="cursor-pointer text-[11px] font-bold uppercase tracking-wider px-2 py-1 border border-gray-700 text-gray-300 hover:text-white">📷 Photo<input type="file" accept="image/*" capture="environment" multiple className="hidden" onChange={e => { void addMedia(i, e.target.files, 'photo'); e.target.value = ''; }} /></label>
-                        <label className="cursor-pointer text-[11px] font-bold uppercase tracking-wider px-2 py-1 border border-gray-700 text-gray-300 hover:text-white">🎥 Video<input type="file" accept="video/*" capture="environment" className="hidden" onChange={e => { void addMedia(i, e.target.files, 'video'); e.target.value = ''; }} /></label>
+                        <label className="cursor-pointer text-xs font-bold uppercase tracking-wider px-2 py-1 border border-gray-700 text-gray-300 hover:text-white">📷 Photo<input type="file" accept="image/*" capture="environment" multiple className="hidden" onChange={e => { void addMedia(i, e.target.files, 'photo'); e.target.value = ''; }} /></label>
+                        <label className="cursor-pointer text-xs font-bold uppercase tracking-wider px-2 py-1 border border-gray-700 text-gray-300 hover:text-white">🎥 Video<input type="file" accept="video/*" capture="environment" className="hidden" onChange={e => { void addMedia(i, e.target.files, 'video'); e.target.value = ''; }} /></label>
                       </>}
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
-                      <button type="button" disabled={hours[i.id]?.busy} onClick={() => void suggest(i)} className="text-[11px] font-bold uppercase tracking-wider px-2 py-1 border border-gray-700 text-gray-300 hover:text-white disabled:opacity-50">{hours[i.id]?.busy ? 'Thinking…' : '✨ Suggest labor hours'}</button>
-                      <label className="flex items-center gap-1 text-[11px] text-gray-500">Hours
+                      <button type="button" disabled={hours[i.id]?.busy} onClick={() => void suggest(i)} className="text-xs font-bold uppercase tracking-wider px-2 py-1 border border-gray-700 text-gray-300 hover:text-white disabled:opacity-50">{hours[i.id]?.busy ? 'Thinking…' : '✨ Suggest labor hours'}</button>
+                      <label className="flex items-center gap-1 text-xs text-gray-500">Hours
                         <input type="text" inputMode="decimal" value={i.laborHours ?? ''} onChange={e => update(i.id, { laborHours: e.target.value === '' ? null : Number(e.target.value.replace(/[^\d.]/g, '')) || 0 })}
                           className="w-14 bg-gray-800 border border-gray-700 text-white text-sm px-2 py-1 outline-none focus:border-red-600" />
                       </label>
-                      <span className="text-[11px] text-gray-600">(for you only — not shown to the customer)</span>
+                      <span className="text-xs text-gray-600">(for you only — not shown to the customer)</span>
                     </div>
-                    {hours[i.id]?.text && <div className="text-[11px] text-gray-400">{hours[i.id].text}</div>}
-                    {hours[i.id]?.error && <div className="text-[11px] text-red-400">{hours[i.id].error}</div>}
+                    {hours[i.id]?.text && <div className="text-xs text-gray-400">{hours[i.id].text}</div>}
+                    {hours[i.id]?.error && <div className="text-xs text-red-400">{hours[i.id].error}</div>}
                   </div>
                 )}
               </div>

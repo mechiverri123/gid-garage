@@ -48,7 +48,7 @@ function VehicleId({ job, onSaved }: { job: Job; onSaved: (j: Job) => void }) {
         onChange={(p, s) => { setPlate(p); setPlateState(s); }}
         onFound={(v, name) => { if (name) setVehicle(name); if (v) changeVin(v); }} />
       <div>
-        <label className="block text-gray-500 text-[11px] font-bold uppercase tracking-wider mb-1">VIN</label>
+        <label className="block text-gray-500 text-xs font-bold uppercase tracking-wider mb-1">VIN</label>
         <input type="text" value={vin} onChange={e => changeVin(e.target.value)} maxLength={17} placeholder="Paste or type the VIN" aria-label="VIN"
           className="w-full bg-gray-900 text-white text-sm px-3 py-2 outline-none border border-gray-700 focus:border-red-600 transition-colors font-mono" />
       </div>
@@ -84,7 +84,7 @@ const money = (n: number | null | undefined) => (n == null ? '—' : `$${n.toFix
 const GOOGLE_VOICE = 'googlevoice://';
 
 function Chip({ status }: { status: string }) {
-  return <span className={`text-[11px] font-bold uppercase tracking-wider px-2 py-0.5 border ${STATUS_TONE[status] || 'text-gray-400 border-gray-700'}`}>{STATUS_LABEL[status] || status}</span>;
+  return <span className={`text-xs font-bold uppercase tracking-wider px-2 py-0.5 border ${STATUS_TONE[status] || 'text-gray-400 border-gray-700'}`}>{STATUS_LABEL[status] || status}</span>;
 }
 
 export default function TechApp() {
@@ -245,15 +245,15 @@ function JobScreen({ id, onBack, onChanged }: { id: string; onBack: () => void; 
               {job.lineItems?.length > 0 && <Info label="Work on this job">{job.lineItems.map(li => <div key={li.id} className="flex justify-between gap-3"><span>{li.label}</span><span className="text-gray-400 tabular-nums">{money(li.amount)}</span></div>)}</Info>}
               {job.notes && <Info label="Booking notes"><span className="whitespace-pre-wrap">{job.notes}</span></Info>}
               <div>
-                <div className="text-gray-500 text-[11px] font-bold uppercase tracking-widest mb-1">Technician notes <span className="normal-case tracking-normal font-normal text-gray-600">(Scope of Work on the invoice · {notesDirty ? 'saving…' : 'saved'})</span></div>
+                <div className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-1">Technician notes <span className="normal-case tracking-normal font-normal text-gray-600">(Scope of Work on the invoice · {notesDirty ? 'saving…' : 'saved'})</span></div>
                 <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={4} className="w-full bg-gray-900 border border-gray-700 text-white px-3 py-2 text-[15px] outline-none focus:border-red-600" />
               </div>
             </div>
           )}
           {tab === 'photos' && (
             <div className="space-y-6">
-              <div><div className="text-gray-500 text-[11px] font-bold uppercase tracking-widest mb-2">Photos</div><PhotoPanel job={job} onUpdate={update} /></div>
-              <div><div className="text-gray-500 text-[11px] font-bold uppercase tracking-widest mb-2">Videos</div><VideoPanel job={job} onUpdate={update} /></div>
+              <div><div className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-2">Photos</div><PhotoPanel job={job} onUpdate={update} /></div>
+              <div><div className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-2">Videos</div><VideoPanel job={job} onUpdate={update} /></div>
             </div>
           )}
           {tab === 'next' && <NextVisitCheck job={job} onSaved={d => update({ ...job, inspectionData: d as unknown as Job['inspectionData'] })} />}
@@ -261,7 +261,7 @@ function JobScreen({ id, onBack, onChanged }: { id: string; onBack: () => void; 
           {tab === 'pay' && (
             <div className="space-y-4">
               <div className="bg-gray-900 border border-gray-800 p-4 text-center">
-                <div className="text-gray-500 text-[11px] font-bold uppercase tracking-widest">{job.jobStatus === 'PAID' ? 'Paid in full' : 'Balance due'}</div>
+                <div className="text-gray-500 text-xs font-bold uppercase tracking-widest">{job.jobStatus === 'PAID' ? 'Paid in full' : 'Balance due'}</div>
                 <div className="text-4xl font-black tabular-nums mt-1">{money(job.jobStatus === 'PAID' ? m.amountPaid : due)}</div>
                 {m.invoiceTotal != null && <div className="text-gray-500 text-[12px] mt-1">Invoice {money(m.invoiceTotal)} incl. tax{m.amountPaid ? ` · paid ${money(m.amountPaid)}` : ''}</div>}
               </div>
@@ -301,5 +301,5 @@ function Shell({ onBack, title, sub, children }: { onBack: () => void; title: st
   );
 }
 const Info = ({ label, children }: { label: string; children: ReactNode }) => (
-  <div><div className="text-gray-500 text-[11px] font-bold uppercase tracking-widest mb-1">{label}</div><div className="text-[15px] text-gray-100 space-y-1">{children}</div></div>
+  <div><div className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-1">{label}</div><div className="text-[15px] text-gray-100 space-y-1">{children}</div></div>
 );

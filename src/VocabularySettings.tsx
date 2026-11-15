@@ -48,7 +48,7 @@ export function VocabularySettings() {
                 <span className="text-white font-semibold break-words">"{e.said}"</span>
                 <span className="text-gray-500"> means </span>
                 <span className="text-gray-200 break-words">{e.meant}</span>
-                {e.source === 'correction' && <span className="ml-2 text-[11px] uppercase tracking-wider text-amber-400">from a correction</span>}
+                {e.source === 'correction' && <span className="ml-2 text-xs uppercase tracking-wider text-amber-400">from a correction</span>}
               </div>
               <button type="button" disabled={busy} onClick={() => run(vocab('vocab-remove', { id: e.id }))} className="px-2 border border-gray-700 text-gray-400 hover:text-red-400 shrink-0" aria-label={`Remove "${e.said}"`}>×</button>
             </li>

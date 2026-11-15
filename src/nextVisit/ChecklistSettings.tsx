@@ -41,7 +41,7 @@ export function ChecklistSettings() {
     <div className="space-y-4">
       <div className="text-gray-400 text-sm">The items every next-visit check starts with. Yellow/red items show the <b className="text-white">recommended service</b> on the customer's invoice. Past checks aren't changed.</div>
       {!migrated && <div className="text-amber-400 text-xs border border-amber-800 px-3 py-2">Using the built-in list. To save your own, run <code>next_visit_migration.sql</code> once in Supabase.</div>}
-      <div className="hidden sm:grid grid-cols-[1fr_1.3fr_1.6fr_auto] gap-2 text-[11px] font-bold uppercase tracking-widest text-gray-500 px-1">
+      <div className="hidden sm:grid grid-cols-[1fr_1.3fr_1.6fr_auto] gap-2 text-xs font-bold uppercase tracking-widest text-gray-500 px-1">
         <span>Category</span><span>Check</span><span>Recommended service</span><span />
       </div>
       <div className="space-y-2">

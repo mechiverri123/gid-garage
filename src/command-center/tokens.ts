@@ -29,7 +29,7 @@ export const PANEL =
 
 export const PANEL_PADDING = 'p-4 sm:p-5';
 
-export const LABEL = 'text-[10px] font-semibold uppercase tracking-widest text-[#52616D]';
+export const LABEL = 'text-[11px] font-semibold uppercase tracking-widest text-[#52616D]';
 export const METRIC_VALUE = 'text-[28px] sm:text-[32px] font-bold text-[#F5F8FA] leading-none tracking-tight';
 export const METRIC_CAPTION = 'text-[11px] text-[#8899A6] mt-1';
 

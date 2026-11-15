@@ -88,7 +88,7 @@ export function CommandPalette({ open, onClose, commands }: { open: boolean; onC
             ))
           )}
         </div>
-        <div className="text-[10px] text-[#52616D] px-4 py-2 border-t border-white/5">
+        <div className="text-[11px] text-[#52616D] px-4 py-2 border-t border-white/5">
           ↑↓ navigate · ↵ select · esc close
         </div>
       </div>

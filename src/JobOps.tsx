@@ -90,11 +90,11 @@ function CopyableField({ value, className }: { value: string; className?: string
       className={`no-print relative inline-flex items-center gap-1.5 text-left hover:text-red-400 transition-colors cursor-pointer group ${className || ''}`}
     >
       <span>{value}</span>
-      <span className={`text-[10px] transition-opacity ${copied ? 'opacity-100 text-emerald-400' : 'opacity-0 group-hover:opacity-60'}`}>
+      <span className={`text-xs transition-opacity ${copied ? 'opacity-100 text-emerald-400' : 'opacity-0 group-hover:opacity-60'}`}>
         {copied ? '✓' : '⧉'}
       </span>
       {copied && (
-        <span className="absolute -top-6 left-0 bg-emerald-900/90 border border-emerald-700 text-emerald-300 text-[10px] font-bold uppercase tracking-wider px-2 py-1 whitespace-nowrap animate-[fadeIn_0.15s_ease-out]">
+        <span className="absolute -top-6 left-0 bg-emerald-900/90 border border-emerald-700 text-emerald-300 text-xs font-bold uppercase tracking-wider px-2 py-1 whitespace-nowrap animate-[fadeIn_0.15s_ease-out]">
           Copied to clipboard
         </span>
       )}
@@ -107,7 +107,7 @@ const lineMoney = (n: number) => (n === 0 ? 'FREE' : n < 0 ? `-$${Math.abs(n).to
 // price (hours are never shown), so it reads qty 1 at its total.
 function LineHead({ pad = 'px-4' }: { pad?: string }) {
   return (
-    <div className={`flex gap-2 ${pad} pt-1 pb-1 text-gray-600 text-[10px] font-bold uppercase tracking-widest`}>
+    <div className={`flex gap-2 ${pad} pt-1 pb-1 text-gray-600 text-xs font-bold uppercase tracking-widest`}>
       <span className="flex-1">Item</span><span className="w-8 text-center">Qty</span><span className="w-20 text-right">Each</span><span className="w-24 text-right">Total</span>
     </div>
   );
@@ -171,7 +171,7 @@ function RecallCheck({ jobId, vin }: { jobId: string; vin?: string }) {
   const n = r.recalls.length;
   return (
     <div className="bg-white/5 border border-white/10 px-4 sm:px-6 py-4 flex flex-col gap-2">
-      <div className="text-gray-500 text-[10px] font-bold uppercase tracking-widest">Free safety recall check</div>
+      <div className="text-gray-500 text-xs font-bold uppercase tracking-widest">Free safety recall check</div>
       {n === 0
         ? <div className="text-green-400 text-sm">✓ No safety recalls on file for the {r.vehicle}.</div>
         : <>
@@ -213,7 +213,7 @@ function DocViewerModal({ doc, onClose }: { doc: { url: string; name: string } |
     <div className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4" onClick={onClose}>
       <div className="absolute top-3 right-3 flex gap-2 z-10">
         <a href={doc.url} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}
-          className="text-gray-300 hover:text-white text-[10px] font-bold uppercase tracking-wider bg-black/70 px-3 py-2 transition-colors">
+          className="text-gray-300 hover:text-white text-xs font-bold uppercase tracking-wider bg-black/70 px-3 py-2 transition-colors">
           Open Original
         </a>
         <button onClick={e => { e.stopPropagation(); onClose(); }} aria-label="Close"
@@ -1230,7 +1230,7 @@ function AdminPhotoPanel({ entityId, onSave, initialPhotos, onPhotosChange }: {
   return (
     <div className="border-t border-gray-800 pt-4 mt-2">
       <div className="text-yellow-600 text-xs font-bold uppercase tracking-widest mb-1">🔒 Admin Photos</div>
-      <div className="text-gray-600 text-[10px] mb-3">Internal records only — VIN plate, license plate, damage, documentation. Not visible to customer.</div>
+      <div className="text-gray-600 text-xs mb-3">Internal records only — VIN plate, license plate, damage, documentation. Not visible to customer.</div>
 
       <input ref={fileRef} type="file" accept="image/*" multiple className="hidden"
         onChange={async e => {
@@ -1255,7 +1255,7 @@ function AdminPhotoPanel({ entityId, onSave, initialPhotos, onPhotosChange }: {
                 </button>
                 <button onClick={() => deletePhoto(p.key)}
                   className="absolute top-2 right-2 w-7 h-7 bg-black/70 text-red-500 hover:bg-red-900/80 flex items-center justify-center text-sm transition-colors">×</button>
-                <span className="absolute bottom-2 left-2 text-[10px] text-gray-400 bg-black/60 px-1.5 py-0.5">{p.name}</span>
+                <span className="absolute bottom-2 left-2 text-xs text-gray-400 bg-black/60 px-1.5 py-0.5">{p.name}</span>
               </div>
               <div className="p-2">
                 {editingNote === p.key ? (
@@ -1401,9 +1401,9 @@ export function PartsCostPanel({ job, onUpdate }: { job: Job; onUpdate: (j: Job)
   return (
     <div className="border-t border-gray-800 pt-4 mt-2">
       <div className="text-yellow-600 text-xs font-bold uppercase tracking-widest mb-1">🔒 Parts Cost & Profit</div>
-      <div className="text-gray-600 text-[10px] mb-3">Admin only — never shown to the customer.</div>
+      <div className="text-gray-600 text-xs mb-3">Admin only — never shown to the customer.</div>
 
-      <label className="block text-gray-500 text-[10px] font-bold uppercase tracking-wider mb-1">Amount Paid for Parts</label>
+      <label className="block text-gray-500 text-xs font-bold uppercase tracking-wider mb-1">Amount Paid for Parts</label>
       <div className="flex gap-2 mb-1">
         <div className="flex items-center gap-1 bg-gray-900 border border-gray-700 px-2.5 flex-1">
           <span className="text-gray-500 text-xs font-bold">$</span>
@@ -1455,7 +1455,7 @@ export function PartsCostPanel({ job, onUpdate }: { job: Job; onUpdate: (j: Job)
               )}
               <span className="flex-1 min-w-0 text-gray-400 text-xs truncate">{r.name}</span>
               <button onClick={() => viewer.open({ url: r.url, name: r.name })}
-                className="text-[10px] font-bold uppercase tracking-wider text-gray-500 hover:text-yellow-500 flex-shrink-0 transition-colors">View</button>
+                className="text-xs font-bold uppercase tracking-wider text-gray-500 hover:text-yellow-500 flex-shrink-0 transition-colors">View</button>
               <button onClick={() => deleteReceipt(r.key)}
                 className="text-gray-600 hover:text-red-500 transition-colors flex-shrink-0" title="Delete">×</button>
             </div>
@@ -1693,7 +1693,7 @@ export function PhotoPanel({ job, onUpdate }: { job: Job; onUpdate: (j: Job) => 
                 onClick={() => deletePhoto(photo.id)}
                 className="absolute top-2 right-2 w-7 h-7 bg-black/70 text-red-500 hover:bg-red-900/80 flex items-center justify-center text-sm transition-colors"
               >×</button>
-              <span className="absolute bottom-2 left-2 text-[10px] text-gray-400 bg-black/60 px-1.5 py-0.5">
+              <span className="absolute bottom-2 left-2 text-xs text-gray-400 bg-black/60 px-1.5 py-0.5">
                 {new Date(photo.takenAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZone: 'America/Phoenix' })}
               </span>
             </div>
@@ -1875,7 +1875,7 @@ export function VideoPanel({ job, onUpdate }: { job: Job; onUpdate: (j: Job) => 
                 onClick={() => deleteVideo(video.id)}
                 className="absolute top-2 right-2 w-7 h-7 bg-black/70 text-red-500 hover:bg-red-900/80 flex items-center justify-center text-sm transition-colors"
               >×</button>
-              <span className="absolute bottom-2 left-2 text-[10px] text-gray-400 bg-black/60 px-1.5 py-0.5">
+              <span className="absolute bottom-2 left-2 text-xs text-gray-400 bg-black/60 px-1.5 py-0.5">
                 {new Date(video.takenAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZone: 'America/Phoenix' })}
               </span>
             </div>
@@ -2130,16 +2130,16 @@ export function PlateLookup({ plate, state, vin, onChange, onFound }: {
   return (
     <div>
       <div className="flex items-center justify-between gap-3 mb-1">
-        <label className="block text-gray-500 text-[11px] font-bold uppercase tracking-wider">License Plate</label>
+        <label className="block text-gray-500 text-xs font-bold uppercase tracking-wider">License Plate</label>
         <span className="flex items-center gap-3">
           {ready && (
             <a href={`https://www.faxvin.com/license-plate-lookup/decoding?plate=${encodeURIComponent(plate)}&state=${encodeURIComponent(state)}`} target="_blank" rel="noopener noreferrer"
               onClick={() => setMsg({ kind: 'ok', text: 'Copy the VIN from that page and paste it in the VIN box.' })}
-              className="text-[11px] font-bold uppercase tracking-wider text-red-500 hover:text-red-400 transition-colors">Free Lookup ↗</a>
+              className="text-xs font-bold uppercase tracking-wider text-red-500 hover:text-red-400 transition-colors">Free Lookup ↗</a>
           )}
           {auto && (
             <button type="button" onClick={lookUp} disabled={busy || !ready}
-              className="text-[11px] font-bold uppercase tracking-wider text-red-500 hover:text-red-400 disabled:text-gray-700 disabled:cursor-not-allowed transition-colors">
+              className="text-xs font-bold uppercase tracking-wider text-red-500 hover:text-red-400 disabled:text-gray-700 disabled:cursor-not-allowed transition-colors">
               {busy ? 'Looking up…' : 'Look Up'}
             </button>
           )}
@@ -2152,7 +2152,7 @@ export function PlateLookup({ plate, state, vin, onChange, onFound }: {
           className="w-14 bg-gray-900 text-white text-sm px-3 py-2 outline-none border border-gray-700 focus:border-red-600 transition-colors font-mono text-center" />
       </div>
       {msg && (
-        <div className={`text-[11px] mt-1 ${msg.kind === 'ok' ? 'text-emerald-500' : msg.kind === 'warn' ? 'text-yellow-500' : 'text-red-400'}`}>
+        <div className={`text-xs mt-1 ${msg.kind === 'ok' ? 'text-emerald-500' : msg.kind === 'warn' ? 'text-yellow-500' : 'text-red-400'}`}>
           {msg.text}
           {msg.use && (
             <button type="button" onClick={() => { const u = msg.use; setMsg(null); if (u) onFound(u.vin, u.vehicle); }}
@@ -2315,7 +2315,7 @@ export function EstimatePanel({ job, onUpdate }: { job: Job; onUpdate: (j: Job) 
     <div className="space-y-5">
       {/* Estimate link — always accessible regardless of how job was created */}
       <div className="flex items-center gap-2 bg-gray-800/50 border border-gray-700 px-3 py-2">
-        <span className="text-gray-500 text-[10px] font-bold uppercase tracking-wider flex-shrink-0">Link</span>
+        <span className="text-gray-500 text-xs font-bold uppercase tracking-wider flex-shrink-0">Link</span>
         <code className="text-gray-400 text-xs flex-1 truncate">{estimateUrl}</code>
         <button
           onClick={copyEstimateLink}
@@ -2548,7 +2548,7 @@ function EmailQuickEdit({ job, onUpdate }: { job: Job; onUpdate: (j: Job) => voi
       <button
         onClick={save}
         disabled={saving || !dirty}
-        className="text-[10px] font-bold uppercase tracking-wider text-gray-400 hover:text-white border border-gray-600 hover:border-white px-2.5 py-1.5 transition-colors disabled:opacity-40 flex-shrink-0"
+        className="text-xs font-bold uppercase tracking-wider text-gray-400 hover:text-white border border-gray-600 hover:border-white px-2.5 py-1.5 transition-colors disabled:opacity-40 flex-shrink-0"
       >
         {saving ? '…' : saved ? '✓ Saved' : 'Save'}
       </button>
@@ -2853,7 +2853,7 @@ export function PaymentPanel({ job, onUpdate, onRequote }: { job: Job; onUpdate:
       <div key={p.id} className="flex justify-between items-start text-xs gap-3 group">
         <span className="text-gray-400">
           {p.method}{p.note ? ` — ${p.note}` : ''}
-          {p.stripeId && <span className="block text-gray-600 font-mono text-[10px]">{p.stripeId}</span>}
+          {p.stripeId && <span className="block text-gray-600 font-mono text-xs">{p.stripeId}</span>}
         </span>
         <div className="flex items-center gap-2 flex-shrink-0">
           <span className={`${amountColorClass} font-mono`}>${p.amount.toFixed(2)}</span>
@@ -3121,7 +3121,7 @@ export function PaymentPanel({ job, onUpdate, onRequote }: { job: Job; onUpdate:
           🧾 View / Print Invoice
         </a>
         <div className="flex items-center gap-2 bg-black/20 border border-emerald-800/50 px-3 py-2 mt-2">
-          <span className="text-emerald-700 text-[10px] font-bold uppercase tracking-wider flex-shrink-0">Link</span>
+          <span className="text-emerald-700 text-xs font-bold uppercase tracking-wider flex-shrink-0">Link</span>
           <code className="text-emerald-300/70 text-xs flex-1 truncate">{invoiceUrl}</code>
           <button
             onClick={copyInvoiceLink}
@@ -3139,7 +3139,7 @@ export function PaymentPanel({ job, onUpdate, onRequote }: { job: Job; onUpdate:
           <button
             onClick={resendInvoice}
             disabled={resending || !job.email}
-            className="text-[10px] font-bold uppercase tracking-wider text-emerald-600 hover:text-emerald-300 underline flex-shrink-0 disabled:opacity-40"
+            className="text-xs font-bold uppercase tracking-wider text-emerald-600 hover:text-emerald-300 underline flex-shrink-0 disabled:opacity-40"
           >
             {resending ? 'Sending…' : job.invoiceSentCount ? 'Resend' : 'Send Now'}
           </button>
@@ -3154,7 +3154,7 @@ export function PaymentPanel({ job, onUpdate, onRequote }: { job: Job; onUpdate:
     <div className="space-y-4">
       {/* Invoice link — always accessible regardless of how job was created */}
       <div className="flex items-center gap-2 bg-gray-800/50 border border-gray-700 px-3 py-2">
-        <span className="text-gray-500 text-[10px] font-bold uppercase tracking-wider flex-shrink-0">Link</span>
+        <span className="text-gray-500 text-xs font-bold uppercase tracking-wider flex-shrink-0">Link</span>
         <code className="text-gray-400 text-xs flex-1 truncate">{invoiceUrl}</code>
         <button
           onClick={copyInvoiceLink}
@@ -3172,7 +3172,7 @@ export function PaymentPanel({ job, onUpdate, onRequote }: { job: Job; onUpdate:
         <button
           onClick={resendInvoice}
           disabled={resending || !job.email}
-          className="text-[10px] font-bold uppercase tracking-wider text-gray-500 hover:text-white underline flex-shrink-0 disabled:opacity-40"
+          className="text-xs font-bold uppercase tracking-wider text-gray-500 hover:text-white underline flex-shrink-0 disabled:opacity-40"
         >
           {resending ? 'Sending…' : job.invoiceSentCount ? 'Resend' : 'Send Now'}
         </button>
@@ -3250,7 +3250,7 @@ export function PaymentPanel({ job, onUpdate, onRequote }: { job: Job; onUpdate:
           Use this for any payment that didn't come through Stripe, full or partial. */}
       <div className="bg-gray-900 border border-gray-700 p-4 space-y-3">
         <div className="text-gray-400 text-xs font-bold uppercase tracking-widest">Record a Payment</div>
-        <div className="text-gray-600 text-[11px]">For cash, check, Zelle, Venmo, or any payment not run through Stripe. Can be partial — balance carries forward.</div>
+        <div className="text-gray-600 text-xs">For cash, check, Zelle, Venmo, or any payment not run through Stripe. Can be partial — balance carries forward.</div>
         <div className="flex gap-2">
           <div className="flex items-center gap-1.5 bg-gray-800 border border-gray-700 px-3">
             <span className="text-gray-500 text-sm font-bold">$</span>
@@ -3406,7 +3406,7 @@ function SignedDocSection({ job }: { job: Job }) {
             <div className="text-white text-sm font-bold">{job.customerSignature}</div>
             {job.preExistingDamage && <div className="text-gray-400 text-xs">Pre-existing damage: {job.preExistingDamage}</div>}
             {job.signedAt && <div className="text-gray-600 text-xs">{signedDate}</div>}
-            {job.signedIp && <div className="text-gray-700 text-[10px] font-mono">IP: {job.signedIp}</div>}
+            {job.signedIp && <div className="text-gray-700 text-xs font-mono">IP: {job.signedIp}</div>}
           </div>
           <button
             onClick={() => setOpen(true)}
@@ -3453,7 +3453,7 @@ function SignedDocSection({ job }: { job: Job }) {
               {/* Line items */}
               {job.lineItems?.length > 0 && (
                 <div className="border border-white/10 divide-y divide-white/5">
-                  <div className="text-gray-600 text-[10px] font-bold uppercase tracking-widest px-4 py-2">Itemized</div>
+                  <div className="text-gray-600 text-xs font-bold uppercase tracking-widest px-4 py-2">Itemized</div>
                   <LineHead pad="px-4" />{job.lineItems.map(item => <LineRow key={item.id} item={item} pad="px-4 py-2" />)}
                 </div>
               )}
@@ -3490,7 +3490,7 @@ function SignedDocSection({ job }: { job: Job }) {
                 <div className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-2">Electronic Signature</div>
                 <div className="text-white text-lg font-bold" style={{ fontFamily: 'Georgia, serif', fontStyle: 'italic' }}>{job.customerSignature}</div>
                 <div className="text-gray-600 text-xs mt-1">{signedDate}</div>
-                <div className="text-gray-700 text-[10px] mt-2">Signed electronically under the Uniform Electronic Transactions Act (UETA). This constitutes a legally binding agreement.</div>
+                <div className="text-gray-700 text-xs mt-2">Signed electronically under the Uniform Electronic Transactions Act (UETA). This constitutes a legally binding agreement.</div>
               </div>
 
               <button
@@ -3581,7 +3581,7 @@ function ScanUploadBox({ job, stage, onUpdate }: { job: Job; stage: 'pre' | 'pos
           <button onClick={() => viewer.open({ url: doc.url, name: doc.name })} className="block text-indigo-400 hover:text-indigo-300 text-xs truncate underline text-left">
             {doc.name}
           </button>
-          <button onClick={handleRemove} className="text-gray-600 hover:text-red-500 text-[10px] font-bold uppercase tracking-wider transition-colors">
+          <button onClick={handleRemove} className="text-gray-600 hover:text-red-500 text-xs font-bold uppercase tracking-wider transition-colors">
             Remove
           </button>
         </div>
@@ -3589,10 +3589,10 @@ function ScanUploadBox({ job, stage, onUpdate }: { job: Job; stage: 'pre' | 'pos
         <div className="space-y-2">
           {/* Upload vs. paste-a-link toggle */}
           <div className="flex gap-1">
-            <button onClick={() => setMode('upload')} className={`flex-1 text-[10px] font-bold uppercase tracking-wider py-1.5 border transition-colors ${mode === 'upload' ? 'bg-yellow-800/40 border-yellow-700 text-yellow-500' : 'border-gray-700 text-gray-600 hover:text-gray-400'}`}>
+            <button onClick={() => setMode('upload')} className={`flex-1 text-xs font-bold uppercase tracking-wider py-1.5 border transition-colors ${mode === 'upload' ? 'bg-yellow-800/40 border-yellow-700 text-yellow-500' : 'border-gray-700 text-gray-600 hover:text-gray-400'}`}>
               Upload File
             </button>
-            <button onClick={() => setMode('link')} className={`flex-1 text-[10px] font-bold uppercase tracking-wider py-1.5 border transition-colors ${mode === 'link' ? 'bg-yellow-800/40 border-yellow-700 text-yellow-500' : 'border-gray-700 text-gray-600 hover:text-gray-400'}`}>
+            <button onClick={() => setMode('link')} className={`flex-1 text-xs font-bold uppercase tracking-wider py-1.5 border transition-colors ${mode === 'link' ? 'bg-yellow-800/40 border-yellow-700 text-yellow-500' : 'border-gray-700 text-gray-600 hover:text-gray-400'}`}>
               Paste Link
             </button>
           </div>
@@ -3621,7 +3621,7 @@ function ScanUploadBox({ job, stage, onUpdate }: { job: Job; stage: 'pre' | 'pos
               <button
                 onClick={handleSaveLink}
                 disabled={!linkUrl.trim() || savingLink}
-                className="w-full bg-yellow-700 hover:bg-yellow-600 disabled:opacity-40 text-white text-[10px] font-bold uppercase tracking-wider py-1.5 transition-colors"
+                className="w-full bg-yellow-700 hover:bg-yellow-600 disabled:opacity-40 text-white text-xs font-bold uppercase tracking-wider py-1.5 transition-colors"
               >
                 {savingLink ? 'Saving…' : 'Save Link'}
               </button>
@@ -3629,7 +3629,7 @@ function ScanUploadBox({ job, stage, onUpdate }: { job: Job; stage: 'pre' | 'pos
           )}
         </div>
       )}
-      {error && <div className="text-red-400 text-[10px] mt-1">{error}</div>}
+      {error && <div className="text-red-400 text-xs mt-1">{error}</div>}
       <DocViewerModal doc={viewer.doc} onClose={viewer.close} />
     </div>
   );
@@ -3676,12 +3676,12 @@ function PaymentLinkBox({ job, onUpdate }: { job: Job; onUpdate: (j: Job) => voi
           <a href={job.paymentLink} target="_blank" rel="noopener noreferrer" className="block text-indigo-400 hover:text-indigo-300 text-xs truncate underline">
             {job.paymentLink}
           </a>
-          <div className="text-gray-600 text-[10px]">Shown to the customer as a "Pay Now" button on their invoice.</div>
+          <div className="text-gray-600 text-xs">Shown to the customer as a "Pay Now" button on their invoice.</div>
           <div className="flex gap-3">
-            <button onClick={() => { setLinkUrl(job.paymentLink || ''); setEditing(true); }} className="text-gray-500 hover:text-gray-300 text-[10px] font-bold uppercase tracking-wider transition-colors">
+            <button onClick={() => { setLinkUrl(job.paymentLink || ''); setEditing(true); }} className="text-gray-500 hover:text-gray-300 text-xs font-bold uppercase tracking-wider transition-colors">
               Edit
             </button>
-            <button onClick={handleRemove} className="text-gray-600 hover:text-red-500 text-[10px] font-bold uppercase tracking-wider transition-colors">
+            <button onClick={handleRemove} className="text-gray-600 hover:text-red-500 text-xs font-bold uppercase tracking-wider transition-colors">
               Remove
             </button>
           </div>
@@ -3699,21 +3699,21 @@ function PaymentLinkBox({ job, onUpdate }: { job: Job; onUpdate: (j: Job) => voi
             <button
               onClick={handleSave}
               disabled={!linkUrl.trim() || saving}
-              className="flex-1 bg-yellow-700 hover:bg-yellow-600 disabled:opacity-40 text-white text-[10px] font-bold uppercase tracking-wider py-1.5 transition-colors"
+              className="flex-1 bg-yellow-700 hover:bg-yellow-600 disabled:opacity-40 text-white text-xs font-bold uppercase tracking-wider py-1.5 transition-colors"
             >
               {saving ? 'Saving…' : 'Save Link'}
             </button>
             {editing && (
               <button onClick={() => { setEditing(false); setLinkUrl(''); setError(null); }}
-                className="px-3 border border-gray-700 text-gray-400 text-[10px] font-bold uppercase tracking-wider hover:border-gray-500 transition-colors">
+                className="px-3 border border-gray-700 text-gray-400 text-xs font-bold uppercase tracking-wider hover:border-gray-500 transition-colors">
                 Cancel
               </button>
             )}
           </div>
-          <div className="text-gray-600 text-[10px]">Paste your pay.bluevine.com link for this customer.</div>
+          <div className="text-gray-600 text-xs">Paste your pay.bluevine.com link for this customer.</div>
         </div>
       )}
-      {error && <div className="text-red-400 text-[10px] mt-1">{error}</div>}
+      {error && <div className="text-red-400 text-xs mt-1">{error}</div>}
     </div>
   );
 }
@@ -3809,23 +3809,23 @@ function JobMileageBox({ job }: { job: Job }) {
               onClick={handleAutoCalc}
               disabled={calculating || !job.serviceAddress}
               title={!job.serviceAddress ? 'No service address on this job' : 'Auto-calc round trip from your home address'}
-              className="border border-gray-700 text-gray-300 hover:border-indigo-600 hover:text-indigo-400 disabled:opacity-30 text-[10px] font-bold uppercase tracking-wider px-2.5 py-1.5 transition-colors whitespace-nowrap"
+              className="border border-gray-700 text-gray-300 hover:border-indigo-600 hover:text-indigo-400 disabled:opacity-30 text-xs font-bold uppercase tracking-wider px-2.5 py-1.5 transition-colors whitespace-nowrap"
             >
               {calculating ? '…' : '📍 Auto-calc'}
             </button>
             <button
               onClick={handleSave}
               disabled={!miles || saving}
-              className="bg-yellow-700 hover:bg-yellow-600 disabled:opacity-40 text-white text-[10px] font-bold uppercase tracking-wider px-3 py-1.5 transition-colors whitespace-nowrap"
+              className="bg-yellow-700 hover:bg-yellow-600 disabled:opacity-40 text-white text-xs font-bold uppercase tracking-wider px-3 py-1.5 transition-colors whitespace-nowrap"
             >
               {saving ? 'Saving…' : savedMiles != null ? 'Update' : 'Log Miles'}
             </button>
           </div>
-          {calcErr && <div className="text-red-400 text-[10px] break-words">{calcErr}</div>}
+          {calcErr && <div className="text-red-400 text-xs break-words">{calcErr}</div>}
         </div>
       )}
       {savedMiles != null && !loading && (
-        <div className="text-gray-600 text-[10px] mt-1.5">Logged in the Mileage tab — counts toward your YTD deduction total.</div>
+        <div className="text-gray-600 text-xs mt-1.5">Logged in the Mileage tab — counts toward your YTD deduction total.</div>
       )}
     </div>
   );
@@ -4086,7 +4086,7 @@ export function JobDetailPanel({ job: initialJob, onClose, onJobUpdate, backLabe
                 <div key={s} className="flex items-center">
                   <button
                     onClick={() => setJobStatus(s)}
-                    className={`text-[10px] font-bold uppercase tracking-wider px-2.5 py-1.5 transition-colors whitespace-nowrap ${
+                    className={`text-xs font-bold uppercase tracking-wider px-2.5 py-1.5 transition-colors whitespace-nowrap ${
                       active ? `${cfg.bg} ${cfg.color} border border-current` :
                       done ? 'text-gray-600 hover:text-gray-400' :
                       'text-gray-700 hover:text-gray-500'
@@ -4178,46 +4178,46 @@ export function JobDetailPanel({ job: initialJob, onClose, onJobUpdate, backLabe
                 <div className="no-print space-y-3">
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-gray-500 text-[10px] font-bold uppercase tracking-wider mb-1">First Name</label>
+                      <label className="block text-gray-500 text-xs font-bold uppercase tracking-wider mb-1">First Name</label>
                       <input type="text" value={editFname} onChange={e => setEditFname(e.target.value)} placeholder="John"
                         className="w-full bg-gray-900 text-white text-sm px-3 py-2 outline-none border border-gray-700 focus:border-red-600 transition-colors" />
                     </div>
                     <div>
-                      <label className="block text-gray-500 text-[10px] font-bold uppercase tracking-wider mb-1">Last Name</label>
+                      <label className="block text-gray-500 text-xs font-bold uppercase tracking-wider mb-1">Last Name</label>
                       <input type="text" value={editLname} onChange={e => setEditLname(e.target.value)} placeholder="Smith (optional)"
                         className="w-full bg-gray-900 text-white text-sm px-3 py-2 outline-none border border-gray-700 focus:border-red-600 transition-colors" />
                     </div>
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-gray-500 text-[10px] font-bold uppercase tracking-wider mb-1">Date</label>
+                      <label className="block text-gray-500 text-xs font-bold uppercase tracking-wider mb-1">Date</label>
                       <input type="date" value={editDate} onChange={e => setEditDate(e.target.value)}
                         className="w-full bg-gray-900 text-white text-sm px-3 py-2 outline-none border border-gray-700 focus:border-red-600 transition-colors" />
                     </div>
                     <div>
-                      <label className="block text-gray-500 text-[10px] font-bold uppercase tracking-wider mb-1">Time</label>
+                      <label className="block text-gray-500 text-xs font-bold uppercase tracking-wider mb-1">Time</label>
                       <input type="time" value={from12h(editTime)} onChange={e => setEditTime(to12h(e.target.value))}
                         className="w-full bg-gray-900 text-white text-sm px-3 py-2 outline-none border border-gray-700 focus:border-red-600 transition-colors" />
                     </div>
                   </div>
                   <div>
-                    <label className="block text-gray-500 text-[10px] font-bold uppercase tracking-wider mb-1">Vehicle</label>
+                    <label className="block text-gray-500 text-xs font-bold uppercase tracking-wider mb-1">Vehicle</label>
                     <input type="text" value={editVehicle} onChange={e => setEditVehicle(e.target.value)} placeholder="Year Make Model Trim Engine"
                       className="w-full bg-gray-900 text-white text-sm px-3 py-2 outline-none border border-gray-700 focus:border-red-600 transition-colors" />
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <div className="flex items-center justify-between mb-1">
-                        <label className="block text-gray-500 text-[10px] font-bold uppercase tracking-wider">VIN</label>
+                        <label className="block text-gray-500 text-xs font-bold uppercase tracking-wider">VIN</label>
                         <button type="button" onClick={() => runVinDecode(editVin)} disabled={vinBusy || editVin.length !== 17}
-                          className="text-[10px] font-bold uppercase tracking-wider text-red-500 hover:text-red-400 disabled:text-gray-700 disabled:cursor-not-allowed transition-colors">
+                          className="text-xs font-bold uppercase tracking-wider text-red-500 hover:text-red-400 disabled:text-gray-700 disabled:cursor-not-allowed transition-colors">
                           {vinBusy ? 'Decoding…' : 'Decode'}
                         </button>
                       </div>
                       <input type="text" value={editVin} onChange={e => onVinInput(e.target.value)} placeholder="1FTFW1E5..."
                         className="w-full bg-gray-900 text-white text-sm px-3 py-2 outline-none border border-gray-700 focus:border-red-600 transition-colors font-mono" />
                       {vinMsg && (
-                        <div className={`text-[10px] mt-1 ${vinMsg.kind === 'ok' ? 'text-emerald-500' : vinMsg.kind === 'warn' ? 'text-yellow-500' : 'text-red-400'}`}>
+                        <div className={`text-xs mt-1 ${vinMsg.kind === 'ok' ? 'text-emerald-500' : vinMsg.kind === 'warn' ? 'text-yellow-500' : 'text-red-400'}`}>
                           {vinMsg.text}
                           {vinMsg.kind === 'ok' && vinMsg.undo !== undefined && (
                             <button type="button" onClick={() => { setEditVehicle(vinMsg.undo ?? ''); setVinMsg(null); }}
@@ -4227,7 +4227,7 @@ export function JobDetailPanel({ job: initialJob, onClose, onJobUpdate, backLabe
                       )}
                     </div>
                     <div>
-                      <label className="block text-gray-500 text-[10px] font-bold uppercase tracking-wider mb-1">Mileage</label>
+                      <label className="block text-gray-500 text-xs font-bold uppercase tracking-wider mb-1">Mileage</label>
                       <input type="text" inputMode="numeric" value={fmtMileage(editMileage)} onChange={e => setEditMileage(e.target.value.replace(/[^0-9]/g, ''))} placeholder="98,000"
                         className="w-full bg-gray-900 text-white text-sm px-3 py-2 outline-none border border-gray-700 focus:border-red-600 transition-colors" />
                     </div>
@@ -4241,23 +4241,23 @@ export function JobDetailPanel({ job: initialJob, onClose, onJobUpdate, backLabe
                     }} />
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-gray-500 text-[10px] font-bold uppercase tracking-wider mb-1">Phone</label>
+                      <label className="block text-gray-500 text-xs font-bold uppercase tracking-wider mb-1">Phone</label>
                       <input type="tel" value={editPhone} onChange={e => setEditPhone(e.target.value)}
                         className="w-full bg-gray-900 text-white text-sm px-3 py-2 outline-none border border-gray-700 focus:border-red-600 transition-colors" />
                     </div>
                     <div>
-                      <label className="block text-gray-500 text-[10px] font-bold uppercase tracking-wider mb-1">Email</label>
+                      <label className="block text-gray-500 text-xs font-bold uppercase tracking-wider mb-1">Email</label>
                       <input type="email" value={editEmail} onChange={e => setEditEmail(e.target.value)}
                         className="w-full bg-gray-900 text-white text-sm px-3 py-2 outline-none border border-gray-700 focus:border-red-600 transition-colors" />
                     </div>
                   </div>
                   <div>
-                    <label className="block text-gray-500 text-[10px] font-bold uppercase tracking-wider mb-1">Service Address</label>
+                    <label className="block text-gray-500 text-xs font-bold uppercase tracking-wider mb-1">Service Address</label>
                     <input type="text" value={editServiceAddress} onChange={e => setEditServiceAddress(e.target.value)} placeholder="123 Main St, Flagstaff, AZ"
                       className="w-full bg-gray-900 text-white text-sm px-3 py-2 outline-none border border-gray-700 focus:border-red-600 transition-colors" />
                   </div>
                   <div>
-                    <label className="block text-gray-500 text-[10px] font-bold uppercase tracking-wider mb-1">Notes</label>
+                    <label className="block text-gray-500 text-xs font-bold uppercase tracking-wider mb-1">Notes</label>
                     <textarea value={editNotes} onChange={e => setEditNotes(e.target.value)} rows={3}
                       className="w-full bg-gray-900 text-white text-sm px-3 py-2 outline-none border border-gray-700 focus:border-red-600 transition-colors resize-none" />
                   </div>
@@ -4266,26 +4266,26 @@ export function JobDetailPanel({ job: initialJob, onClose, onJobUpdate, backLabe
                     <div className="border border-yellow-700/60 bg-yellow-900/10 p-3 space-y-2">
                       <div className="text-yellow-500 text-xs font-bold uppercase tracking-wider">This customer has other jobs</div>
                       <div className="text-gray-300 text-xs">{identityPrompt.changes}</div>
-                      <div className="text-gray-500 text-[11px]">
+                      <div className="text-gray-500 text-xs">
                         This customer file has {identityPrompt.others} other job{identityPrompt.others === 1 ? '' : 's'} ({identityPrompt.open} still open). Signed jobs are never changed. Nothing is saved until you pick one.
                       </div>
                       <button onClick={() => saveAppt('job')} disabled={apptSaving}
                         className="w-full text-left border border-gray-700 hover:border-emerald-600 text-gray-200 text-xs font-bold px-3 py-2 transition-colors">
                         Update this job only
-                        <span className="block text-gray-500 text-[10px] font-normal">The customer file and other jobs keep their old details.</span>
+                        <span className="block text-gray-500 text-xs font-normal">The customer file and other jobs keep their old details.</span>
                       </button>
                       <button onClick={() => saveAppt('customer')} disabled={apptSaving}
                         className="w-full text-left border border-gray-700 hover:border-yellow-600 text-gray-200 text-xs font-bold px-3 py-2 transition-colors">
                         Update the customer file{identityPrompt.open > 0 ? ` and ${identityPrompt.open} other open job${identityPrompt.open === 1 ? '' : 's'}` : ''}
-                        <span className="block text-gray-500 text-[10px] font-normal">Same person, corrected details (typo, new phone, new email).</span>
+                        <span className="block text-gray-500 text-xs font-normal">Same person, corrected details (typo, new phone, new email).</span>
                       </button>
                       <button onClick={() => saveAppt('move')} disabled={apptSaving}
                         className="w-full text-left border border-gray-700 hover:border-red-600 text-gray-200 text-xs font-bold px-3 py-2 transition-colors">
                         This is a different person: give this job its own file
-                        <span className="block text-gray-500 text-[10px] font-normal">Only this job moves. The old customer's file is not changed.</span>
+                        <span className="block text-gray-500 text-xs font-normal">Only this job moves. The old customer's file is not changed.</span>
                       </button>
                       <button onClick={() => setIdentityPrompt(null)}
-                        className="text-gray-500 hover:text-gray-300 text-[11px] font-bold uppercase tracking-wider transition-colors">
+                        className="text-gray-500 hover:text-gray-300 text-xs font-bold uppercase tracking-wider transition-colors">
                         Back to editing
                       </button>
                     </div>
@@ -4300,7 +4300,7 @@ export function JobDetailPanel({ job: initialJob, onClose, onJobUpdate, backLabe
                       Cancel
                     </button>
                   </div>
-                  <div className="text-yellow-600/70 text-[10px]">⚠️ Customer will not be auto-notified of changes — call or text them manually.</div>
+                  <div className="text-yellow-600/70 text-xs">⚠️ Customer will not be auto-notified of changes — call or text them manually.</div>
                 </div>
               )}
 
@@ -4324,7 +4324,7 @@ export function JobDetailPanel({ job: initialJob, onClose, onJobUpdate, backLabe
                   SignedDocSection's own itemized list) already covers it. */}
               {job.lineItems?.length > 0 && job.jobStatus !== 'PAID' && !job.customerAgreed && (
                 <div className="hidden print:block border border-white/10 divide-y divide-white/5">
-                  <div className="text-gray-600 text-[10px] font-bold uppercase tracking-widest px-4 py-2">Estimate</div>
+                  <div className="text-gray-600 text-xs font-bold uppercase tracking-widest px-4 py-2">Estimate</div>
                   <LineHead pad="px-4" />{job.lineItems.map(item => <LineRow key={item.id} item={item} pad="px-4 py-2" />)}
                   <div className="flex justify-between px-4 py-2">
                     <span className="text-gray-500 text-xs font-bold uppercase tracking-wider">Subtotal</span>
@@ -4545,7 +4545,7 @@ function CustomerFileModal({ customerId, jobs, onClose, onSelectJob }: {
               <div className="flex items-center gap-2 flex-wrap">
                 <h2 className="text-white font-black text-lg truncate">{fullName}</h2>
                 {customerJobs.length > 1 && (
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-gray-500 border border-gray-700 px-1.5 py-0.5 flex-shrink-0">Repeat</span>
+                  <span className="text-xs font-bold uppercase tracking-wider text-gray-500 border border-gray-700 px-1.5 py-0.5 flex-shrink-0">Repeat</span>
                 )}
               </div>
               <div className="flex flex-wrap items-center gap-x-3 text-gray-500 text-xs mt-0.5">
@@ -4560,17 +4560,17 @@ function CustomerFileModal({ customerId, jobs, onClose, onSelectJob }: {
         {/* Hero stat — lifetime revenue leads, everything else is supporting context */}
         <div className="px-6 py-5 border-b border-gray-800 flex items-end justify-between gap-4">
           <div>
-            <div className="text-gray-500 text-[10px] font-bold uppercase tracking-wider mb-1">Lifetime Revenue</div>
+            <div className="text-gray-500 text-xs font-bold uppercase tracking-wider mb-1">Lifetime Revenue</div>
             <div className="text-emerald-400 font-black text-4xl leading-none">${totalRevenue.toFixed(0)}</div>
           </div>
           <div className="flex gap-5 flex-shrink-0 pb-0.5">
             <div className="text-right">
               <div className="text-white font-black text-lg leading-none">{filteredJobs.length}</div>
-              <div className="text-gray-500 text-[10px] font-bold uppercase tracking-wider mt-1">Job{filteredJobs.length === 1 ? '' : 's'}</div>
+              <div className="text-gray-500 text-xs font-bold uppercase tracking-wider mt-1">Job{filteredJobs.length === 1 ? '' : 's'}</div>
             </div>
             <div className="text-right">
               <div className="text-white font-black text-lg leading-none">{sinceLabel}</div>
-              <div className="text-gray-500 text-[10px] font-bold uppercase tracking-wider mt-1">Since</div>
+              <div className="text-gray-500 text-xs font-bold uppercase tracking-wider mt-1">Since</div>
             </div>
           </div>
         </div>
@@ -4578,9 +4578,9 @@ function CustomerFileModal({ customerId, jobs, onClose, onSelectJob }: {
         {vehicles.length > 0 && (
           <div className="px-6 py-3 border-b border-gray-800">
             <div className="flex items-center justify-between mb-1.5">
-              <div className="text-gray-500 text-[10px] font-bold uppercase tracking-wider">Vehicles on File</div>
+              <div className="text-gray-500 text-xs font-bold uppercase tracking-wider">Vehicles on File</div>
               {vehicleFilter && (
-                <button onClick={() => setVehicleFilter(null)} className="text-red-400 hover:text-red-300 text-[10px] font-bold uppercase tracking-wider transition-colors">
+                <button onClick={() => setVehicleFilter(null)} className="text-red-400 hover:text-red-300 text-xs font-bold uppercase tracking-wider transition-colors">
                   Clear filter ✕
                 </button>
               )}
@@ -4613,7 +4613,7 @@ function CustomerFileModal({ customerId, jobs, onClose, onSelectJob }: {
 
         {/* Job history — a real timeline, since it's genuinely chronological */}
         <div className="px-6 py-4">
-          <div className="text-gray-500 text-[10px] font-bold uppercase tracking-wider mb-3">
+          <div className="text-gray-500 text-xs font-bold uppercase tracking-wider mb-3">
             {vehicleFilter ? `Job History · ${vehicleFilter}` : 'Job History'}
           </div>
           <div className="relative">
@@ -4831,15 +4831,15 @@ export function CustomersTab() {
       <div className="grid grid-cols-3 gap-2 sm:gap-3 mb-6">
         <div className="cust-stat bg-gray-900 border border-gray-800 px-4 py-3" style={{ animationDelay: '0ms' }}>
           <div className="text-white font-black text-2xl sm:text-3xl leading-none">{Math.round(statCustomers)}</div>
-          <div className="text-gray-500 text-[10px] font-bold uppercase tracking-wider mt-1">Customers</div>
+          <div className="text-gray-500 text-xs font-bold uppercase tracking-wider mt-1">Customers</div>
         </div>
         <div className="cust-stat bg-gray-900 border border-gray-800 px-4 py-3" style={{ animationDelay: '60ms' }}>
           <div className="text-emerald-400 font-black text-2xl sm:text-3xl leading-none">${statRevenue.toFixed(0)}</div>
-          <div className="text-gray-500 text-[10px] font-bold uppercase tracking-wider mt-1">Lifetime Revenue</div>
+          <div className="text-gray-500 text-xs font-bold uppercase tracking-wider mt-1">Lifetime Revenue</div>
         </div>
         <div className="cust-stat bg-gray-900 border border-gray-800 px-4 py-3" style={{ animationDelay: '120ms' }}>
           <div className="text-amber-400 font-black text-2xl sm:text-3xl leading-none">{statRepeatPct.toFixed(0)}%</div>
-          <div className="text-gray-500 text-[10px] font-bold uppercase tracking-wider mt-1">Repeat Rate</div>
+          <div className="text-gray-500 text-xs font-bold uppercase tracking-wider mt-1">Repeat Rate</div>
         </div>
       </div>
 
@@ -4857,7 +4857,7 @@ export function CustomersTab() {
             <button
               key={s}
               onClick={() => setSort(s)}
-              className={`text-[11px] font-bold uppercase tracking-wider px-2.5 py-1.5 transition-colors ${sort === s ? 'bg-red-600 text-white' : 'text-gray-500 hover:text-gray-300'}`}
+              className={`text-xs font-bold uppercase tracking-wider px-2.5 py-1.5 transition-colors ${sort === s ? 'bg-red-600 text-white' : 'text-gray-500 hover:text-gray-300'}`}
             >
               {s === 'recent' ? 'Recent' : s === 'revenue' ? 'Top $' : s === 'visits' ? 'Most Visits' : 'A–Z'}
             </button>
@@ -4905,32 +4905,32 @@ export function CustomersTab() {
                     <div className="min-w-0">
                       <div className="flex items-center gap-1.5 flex-wrap">
                         <div className="text-white font-bold text-sm truncate">{fullName}</div>
-                        {isVip && <span className="text-amber-400 text-[10px]">👑</span>}
+                        {isVip && <span className="text-amber-400 text-xs">👑</span>}
                       </div>
                       <div className="text-gray-500 text-xs truncate">{c.phone || c.email || 'no contact on file'}</div>
                     </div>
                   </div>
                   {c.jobCount > 1 && (
-                    <span className="flex-shrink-0 text-[10px] font-bold uppercase tracking-wider text-gray-500 border border-gray-700 px-1.5 py-0.5">Repeat</span>
+                    <span className="flex-shrink-0 text-xs font-bold uppercase tracking-wider text-gray-500 border border-gray-700 px-1.5 py-0.5">Repeat</span>
                   )}
                 </div>
 
                 <div className="flex items-end justify-between gap-2">
                   <div>
                     <div className="text-emerald-400 font-black text-xl leading-none group-hover:text-emerald-300 transition-colors">${c.totalRevenue.toFixed(0)}</div>
-                    <div className="text-gray-600 text-[10px] font-bold uppercase tracking-wider mt-1">Lifetime</div>
+                    <div className="text-gray-600 text-xs font-bold uppercase tracking-wider mt-1">Lifetime</div>
                   </div>
                   <div className="text-right">
                     <div className="flex items-center gap-1.5 justify-end">
                       <span className={`w-1.5 h-1.5 rounded-full ${dotColor}`} />
                       <div className="text-gray-300 text-xs font-bold">{c.jobCount} job{c.jobCount === 1 ? '' : 's'}</div>
                     </div>
-                    <div className="text-gray-600 text-[10px] mt-1">Last {lastStr}</div>
+                    <div className="text-gray-600 text-xs mt-1">Last {lastStr}</div>
                   </div>
                 </div>
 
                 {c.vehicles.length > 0 && (
-                  <div className="text-gray-600 text-[11px] truncate mt-2.5 pt-2.5 border-t border-gray-800">{c.vehicles.join(' · ')}</div>
+                  <div className="text-gray-600 text-xs truncate mt-2.5 pt-2.5 border-t border-gray-800">{c.vehicles.join(' · ')}</div>
                 )}
               </button>
             );
@@ -5276,7 +5276,7 @@ export function ExternalLeadModal({ onClose, onAdded, jobs, inspection = false }
         disabled={disabled}
         className={`w-full bg-gray-900 text-white text-sm px-3 py-2.5 outline-none border transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${fieldErr[k] ? 'border-red-500' : 'border-gray-700 focus:border-red-600'}`}
       />
-      {fieldErr[k] && <div className="text-red-500 text-[10px] mt-0.5">{fieldErr[k]}</div>}
+      {fieldErr[k] && <div className="text-red-500 text-xs mt-0.5">{fieldErr[k]}</div>}
     </div>
   );
 
@@ -5331,7 +5331,7 @@ export function ExternalLeadModal({ onClose, onAdded, jobs, inspection = false }
                 {inp('lname', 'Last Name', 'text', 'Smith')}
                 <div>
                   {inp('phone', phoneUnknown ? 'Phone' : 'Phone *', 'tel', phoneUnknown ? 'No phone on file' : '480-555-0100', phoneUnknown)}
-                  <label className="flex items-center gap-1.5 mt-1 text-gray-500 text-[11px] cursor-pointer select-none">
+                  <label className="flex items-center gap-1.5 mt-1 text-gray-500 text-xs cursor-pointer select-none">
                     <input
                       type="checkbox"
                       checked={phoneUnknown}
@@ -5361,11 +5361,11 @@ export function ExternalLeadModal({ onClose, onAdded, jobs, inspection = false }
                         className={`px-3 py-1.5 text-xs font-bold border transition-colors ${f.vehicle === v.label && f.vin === v.vin ? 'border-indigo-500 text-white bg-indigo-500/10' : 'border-gray-700 text-gray-400 hover:border-gray-500'}`}
                       >
                         {v.label}
-                        {v.vin && <span className="ml-1.5 font-mono text-[10px] font-normal text-gray-500">…{v.vin.slice(-6)}</span>}
+                        {v.vin && <span className="ml-1.5 font-mono text-xs font-normal text-gray-500">…{v.vin.slice(-6)}</span>}
                       </button>
                     ))}
                   </div>
-                  <div className="text-gray-600 text-[11px] mt-1">Or type a new vehicle for this customer below.</div>
+                  <div className="text-gray-600 text-xs mt-1">Or type a new vehicle for this customer below.</div>
                 </div>
               )}
               {inp('vehicle', 'Vehicle * (Year Make Model Trim)', 'text', '2019 Toyota Camry LE')}
@@ -5380,10 +5380,10 @@ export function ExternalLeadModal({ onClose, onAdded, jobs, inspection = false }
                   className="w-full bg-gray-900 text-white text-sm px-3 py-2.5 outline-none border border-gray-700 focus:border-red-600 transition-colors font-mono uppercase tracking-wider"
                 />
                 {vinAutoFor !== null && f.vin && (
-                  <div className="text-emerald-500 text-[10px] mt-0.5">Filled from this vehicle's previous job. Confirm it matches the car.</div>
+                  <div className="text-emerald-500 text-xs mt-0.5">Filled from this vehicle's previous job. Confirm it matches the car.</div>
                 )}
                 {f.vin.length === 17 && !vinCheckDigitOk(f.vin) && (
-                  <div className="text-yellow-500 text-[10px] mt-0.5">Check digit fails, likely a typo. You can still continue.</div>
+                  <div className="text-yellow-500 text-xs mt-0.5">Check digit fails, likely a typo. You can still continue.</div>
                 )}
               </div>
               <PlateLookup plate={f.plate} state={f.plateState} vin={f.vin}
@@ -5621,7 +5621,7 @@ export function ExternalLeadModal({ onClose, onAdded, jobs, inspection = false }
           <>
             <h2 className="text-xl font-black text-white mb-1">✓ Estimate Ready</h2>
             <div className="text-gray-500 text-xs mb-5">{createdJob.fname} {createdJob.lname} · {createdJob.vehicle} · ${total.toFixed(2)}</div>
-            <div className="text-gray-600 text-[10px] mb-5">Once they sign and you're ready to bill, invoice from the job itself (Payment tab) — not from here.</div>
+            <div className="text-gray-600 text-xs mb-5">Once they sign and you're ready to bill, invoice from the job itself (Payment tab) — not from here.</div>
             {inspection && (
               <div className={`text-xs mb-5 ${ppiDraftFailed ? 'text-yellow-500' : 'text-gray-500'}`}>
                 {ppiDraftFailed ? "The estimate is ready, but the checklist didn't save. Start one under PrePI with Blank Checklist." : 'The inspection checklist is saved as a draft under PrePI.'}
@@ -5871,7 +5871,7 @@ function PrePIModal({ onClose, onNewEstimate }: { onClose: () => void; onNewEsti
         onChange={e => setField(k, e.target.value)}
         className={`w-full bg-gray-900 text-white text-sm px-3 py-2.5 outline-none border transition-colors ${opts.uppercase ? 'uppercase tracking-wider font-mono' : ''} ${fieldErr[k] ? 'border-red-500' : 'border-gray-700 focus:border-blue-600'}`}
       />
-      {fieldErr[k] && <div className="text-red-500 text-[10px] mt-0.5">{fieldErr[k]}</div>}
+      {fieldErr[k] && <div className="text-red-500 text-xs mt-0.5">{fieldErr[k]}</div>}
     </div>
   );
 
@@ -5952,7 +5952,7 @@ function PrePIModal({ onClose, onNewEstimate }: { onClose: () => void; onNewEsti
                         </div>
                         <div className="text-gray-500 text-xs truncate">{d.vehicle || 'No vehicle info yet'} {(d.fname || d.lname) && d.name && `· ${d.fname} ${d.lname}`}</div>
                       </div>
-                      <span className={`text-[10px] font-bold uppercase tracking-wider flex-shrink-0 px-2 py-1 ${d.status === 'COMPLETE' ? 'bg-blue-900/30 text-blue-400' : 'bg-gray-800 text-gray-500'}`}>
+                      <span className={`text-xs font-bold uppercase tracking-wider flex-shrink-0 px-2 py-1 ${d.status === 'COMPLETE' ? 'bg-blue-900/30 text-blue-400' : 'bg-gray-800 text-gray-500'}`}>
                         {d.status === 'COMPLETE' ? 'Complete' : 'Draft'}
                       </span>
                     </button>
@@ -5999,7 +5999,7 @@ function PrePIModal({ onClose, onNewEstimate }: { onClose: () => void; onNewEsti
                                 key={s}
                                 type="button"
                                 onClick={() => setItem(it.id, { status: it.status === s ? '' : s })}
-                                className={`w-9 py-1 text-[10px] font-bold uppercase tracking-wider border transition-colors ${
+                                className={`w-9 py-1 text-xs font-bold uppercase tracking-wider border transition-colors ${
                                   it.status === s
                                     ? s === 'pass' ? 'bg-emerald-600 border-emerald-600 text-white'
                                     : s === 'fail' ? 'bg-red-600 border-red-600 text-white'
@@ -6030,7 +6030,7 @@ function PrePIModal({ onClose, onNewEstimate }: { onClose: () => void; onNewEsti
                               <button
                                 type="button"
                                 onClick={() => removeItemPhoto(it.id, p.key)}
-                                className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-red-600 hover:bg-red-500 text-white text-[9px] flex items-center justify-center leading-none"
+                                className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-red-600 hover:bg-red-500 text-white text-xs flex items-center justify-center leading-none"
                               >✕</button>
                             </div>
                           ))}
@@ -6405,7 +6405,7 @@ function DuplicateCustomersModal({ onClose, jobs, onMerged }: {
           {recentMerges.length > 0 && (
             <div className="mb-4 border border-gray-800 bg-gray-900/40">
               <div className="px-4 py-2.5 border-b border-gray-800">
-                <span className="text-gray-400 text-[10px] font-bold uppercase tracking-wider">Recent merges — undo available for 30 days</span>
+                <span className="text-gray-400 text-xs font-bold uppercase tracking-wider">Recent merges — undo available for 30 days</span>
               </div>
               <div className="divide-y divide-gray-800">
                 {recentMerges.map(m => {
@@ -6418,8 +6418,8 @@ function DuplicateCustomersModal({ onClose, jobs, onMerged }: {
                         <div className="text-gray-300 text-xs">
                           <span className="text-white font-bold">{m.mergedName}</span> merged into <span className="text-white font-bold">{m.keptName}</span> · {m.jobCount} job{m.jobCount === 1 ? '' : 's'} moved
                         </div>
-                        {err && <div className="text-red-400 text-[10px] mt-0.5">{err}</div>}
-                        {done && <div className="text-emerald-400 text-[10px] mt-0.5">✓ Undone — {m.mergedName}'s file is restored.</div>}
+                        {err && <div className="text-red-400 text-xs mt-0.5">{err}</div>}
+                        {done && <div className="text-emerald-400 text-xs mt-0.5">✓ Undone — {m.mergedName}'s file is restored.</div>}
                       </div>
                       {!done && (
                         <button
@@ -6449,10 +6449,10 @@ function DuplicateCustomersModal({ onClose, jobs, onMerged }: {
                 return (
                   <div key={group.key} className="border border-gray-800 bg-gray-900/40">
                     <div className="px-4 py-2.5 border-b border-gray-800 flex items-center justify-between">
-                      <span className="text-gray-400 text-[10px] font-bold uppercase tracking-wider">
+                      <span className="text-gray-400 text-xs font-bold uppercase tracking-wider">
                         {group.matchType === 'phone' ? 'Matched by phone number' : 'Matched by name + email'}
                       </span>
-                      <span className="text-gray-600 text-[10px] font-bold uppercase tracking-wider">{group.customers.length} records</span>
+                      <span className="text-gray-600 text-xs font-bold uppercase tracking-wider">{group.customers.length} records</span>
                     </div>
 
                     <div className="divide-y divide-gray-800">
@@ -6471,7 +6471,7 @@ function DuplicateCustomersModal({ onClose, jobs, onMerged }: {
                             <div className="min-w-0 flex-1">
                               <div className="flex items-center gap-2 flex-wrap">
                                 <span className="text-white text-sm font-bold">{c.fname} {c.lname}</span>
-                                {selected && <span className="text-emerald-400 text-[10px] font-bold uppercase tracking-wider border border-emerald-800 px-1.5 py-0.5">Keep</span>}
+                                {selected && <span className="text-emerald-400 text-xs font-bold uppercase tracking-wider border border-emerald-800 px-1.5 py-0.5">Keep</span>}
                               </div>
                               <div className="text-gray-500 text-xs mt-0.5">
                                 {c.phone || 'no phone'} · {c.email || 'no email'}
@@ -6502,7 +6502,7 @@ function DuplicateCustomersModal({ onClose, jobs, onMerged }: {
                           const preview = previewMerge(keeperRow, others, jobs);
                           return (
                             <div className="space-y-3">
-                              <div className="text-yellow-500 text-[10px] font-bold uppercase tracking-widest">Nothing is saved yet — review below, then choose Cancel or Confirm</div>
+                              <div className="text-yellow-500 text-xs font-bold uppercase tracking-widest">Nothing is saved yet — review below, then choose Cancel or Confirm</div>
 
                               {/* Big, plain KEEP / DELETE statement — this is the one thing that
                                   has to be unmissable before anyone clicks Confirm. */}
@@ -6521,7 +6521,7 @@ function DuplicateCustomersModal({ onClose, jobs, onMerged }: {
                                 <div className="text-gray-300 text-sm font-bold mb-1.5">
                                   {preview.movedJobs.length} job{preview.movedJobs.length === 1 ? '' : 's'} will move onto {keeperRow.fname} {keeperRow.lname}'s file
                                 </div>
-                                <div className="text-gray-500 text-[11px] mb-2">The jobs themselves (photos, notes, pricing) don't change — only which customer file they're filed under.</div>
+                                <div className="text-gray-500 text-xs mb-2">The jobs themselves (photos, notes, pricing) don't change — only which customer file they're filed under.</div>
                                 {preview.movedJobs.length > 0 && (
                                   <div className="space-y-1 max-h-40 overflow-y-auto">
                                     {preview.movedJobs.map(j => (
@@ -6542,7 +6542,7 @@ function DuplicateCustomersModal({ onClose, jobs, onMerged }: {
                                 </div>
                                 {preview.filled.length > 0 ? (
                                   <>
-                                    <div className="text-gray-500 text-[11px] mb-2">These are currently blank on the kept file — nothing that already has a value gets overwritten.</div>
+                                    <div className="text-gray-500 text-xs mb-2">These are currently blank on the kept file — nothing that already has a value gets overwritten.</div>
                                     <div className="space-y-1">
                                       {preview.filled.map((f, i) => (
                                         <div key={i} className="text-xs text-gray-300">
@@ -6552,7 +6552,7 @@ function DuplicateCustomersModal({ onClose, jobs, onMerged }: {
                                     </div>
                                   </>
                                 ) : (
-                                  <div className="text-gray-500 text-[11px]">Name, phone, email, VIN, vehicle, mileage and address on the kept file are already filled in, so none of them change.</div>
+                                  <div className="text-gray-500 text-xs">Name, phone, email, VIN, vehicle, mileage and address on the kept file are already filled in, so none of them change.</div>
                                 )}
                               </div>
 
@@ -6634,13 +6634,13 @@ function TbdJobsModal({ onClose, jobs, onSelectJob }: {
                     <div className="min-w-0">
                       <div className="text-white text-sm font-bold truncate">{j.fname} {j.lname}</div>
                       <div className="text-gray-500 text-xs truncate">{j.vehicle} · {resolveServiceName(j.service, j.notes)}</div>
-                      {createdStr && <div className="text-gray-600 text-[11px] mt-0.5">Lead created {createdStr}</div>}
+                      {createdStr && <div className="text-gray-600 text-xs mt-0.5">Lead created {createdStr}</div>}
                     </div>
                     <div className="flex-shrink-0 text-right">
                       {quotedTotals(j) && (
                         <div className="text-gray-400 text-sm font-bold">${quotedTotals(j)!.total.toFixed(2)}</div>
                       )}
-                      <span className="text-indigo-400 text-[10px] font-bold uppercase tracking-wider">Set Date →</span>
+                      <span className="text-indigo-400 text-xs font-bold uppercase tracking-wider">Set Date →</span>
                     </div>
                   </button>
                 );
@@ -6959,43 +6959,43 @@ export function JobsTab() {
           <div className="mt-2 bg-gray-900 border border-gray-800 p-4 grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-3">
             <div>
               <div className="text-white font-mono font-bold">${activeBreakdown.laborBilled.toFixed(2)}</div>
-              <div className="text-gray-600 text-[10px] font-bold uppercase tracking-wider">Labor Billed</div>
+              <div className="text-gray-600 text-xs font-bold uppercase tracking-wider">Labor Billed</div>
             </div>
             <div>
               <div className="text-white font-mono font-bold">${activeBreakdown.partsBilled.toFixed(2)}</div>
-              <div className="text-gray-600 text-[10px] font-bold uppercase tracking-wider">Parts Billed</div>
+              <div className="text-gray-600 text-xs font-bold uppercase tracking-wider">Parts Billed</div>
             </div>
             <div>
               <div className="text-red-400 font-mono font-bold">-${activeBreakdown.partsCost.toFixed(2)}</div>
-              <div className="text-gray-600 text-[10px] font-bold uppercase tracking-wider">Parts Cost (Actual)</div>
+              <div className="text-gray-600 text-xs font-bold uppercase tracking-wider">Parts Cost (Actual)</div>
             </div>
             <div>
               <div className={`font-mono font-bold ${partsMargin >= 0 ? 'text-emerald-400' : 'text-red-500'}`}>${partsMargin.toFixed(2)}</div>
-              <div className="text-gray-600 text-[10px] font-bold uppercase tracking-wider">Parts Margin</div>
+              <div className="text-gray-600 text-xs font-bold uppercase tracking-wider">Parts Margin</div>
             </div>
             <div>
               <div className="text-white font-mono font-bold">${activeBreakdown.mobileBilled.toFixed(2)}</div>
-              <div className="text-gray-600 text-[10px] font-bold uppercase tracking-wider">Mobile Fees Billed</div>
+              <div className="text-gray-600 text-xs font-bold uppercase tracking-wider">Mobile Fees Billed</div>
             </div>
             {activeBreakdown.otherBilled !== 0 && (
               <div>
                 <div className="text-white font-mono font-bold">${activeBreakdown.otherBilled.toFixed(2)}</div>
-                <div className="text-gray-600 text-[10px] font-bold uppercase tracking-wider">Other / Fixed / Discounts</div>
+                <div className="text-gray-600 text-xs font-bold uppercase tracking-wider">Other / Fixed / Discounts</div>
               </div>
             )}
             <div>
               <div className="text-gray-400 font-mono font-bold">-${activeBreakdown.taxCollected.toFixed(2)}</div>
-              <div className="text-gray-600 text-[10px] font-bold uppercase tracking-wider">Sales Tax (Not Income)</div>
+              <div className="text-gray-600 text-xs font-bold uppercase tracking-wider">Sales Tax (Not Income)</div>
             </div>
             {activeHelperPay > 0 && (
               <div>
                 <div className="text-red-400 font-mono font-bold">-${activeHelperPay.toFixed(2)}</div>
-                <div className="text-gray-600 text-[10px] font-bold uppercase tracking-wider">Helper Pay</div>
+                <div className="text-gray-600 text-xs font-bold uppercase tracking-wider">Helper Pay</div>
               </div>
             )}
             <div>
               <div className="text-gray-400 font-mono font-bold">{activeBreakdown.jobCount}</div>
-              <div className="text-gray-600 text-[10px] font-bold uppercase tracking-wider">Paid Jobs</div>
+              <div className="text-gray-600 text-xs font-bold uppercase tracking-wider">Paid Jobs</div>
             </div>
           </div>
         )}
@@ -7011,7 +7011,7 @@ export function JobsTab() {
           className="bg-gray-900 border border-gray-700 text-white px-3 py-2 text-sm focus:border-red-600 outline-none flex-1 min-w-48"
         />
         {refreshing && (
-          <span className="text-gray-600 text-[10px] font-bold uppercase tracking-widest flex items-center gap-1.5 flex-shrink-0">
+          <span className="text-gray-600 text-xs font-bold uppercase tracking-widest flex items-center gap-1.5 flex-shrink-0">
             <span className="w-1.5 h-1.5 rounded-full bg-yellow-600 animate-pulse" /> Updating…
           </span>
         )}
@@ -7084,7 +7084,7 @@ export function JobsTab() {
                 <div className="min-w-0 max-w-[16rem]">
                   <div className="text-white font-bold text-sm truncate">{job.fname} {job.lname}</div>
                   <div className="text-gray-500 text-xs truncate">{job.vehicle}</div>
-                  {job.fleetId && <div className="mt-1 inline-block text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 border border-sky-700 text-sky-300">{job.fleetNumber ? `Fleet #${job.fleetNumber}` : 'Fleet'}{job.fleetUnit ? ` · #${job.fleetUnit}` : ''}</div>}
+                  {job.fleetId && <div className="mt-1 inline-block text-xs font-bold uppercase tracking-wider px-1.5 py-0.5 border border-sky-700 text-sky-300">{job.fleetNumber ? `Fleet #${job.fleetNumber}` : 'Fleet'}{job.fleetUnit ? ` · #${job.fleetUnit}` : ''}</div>}
                 </div>
                 <div className="hidden sm:block text-gray-600 text-xs">
                   <div>{resolveServiceName(job.service, job.notes)}</div>
@@ -7097,12 +7097,12 @@ export function JobsTab() {
                 )}
               </div>
               <div className="flex items-center gap-2 flex-shrink-0">
-                {job.dateTbd && <span className="text-indigo-400 text-[10px] font-bold uppercase bg-indigo-900/20 px-2 py-0.5">TBD</span>}
-                {job.service === 'other' && <span className="text-purple-400 text-[10px] font-bold uppercase bg-purple-900/30 px-2 py-0.5">Inquiry</span>}
-                {job.service === 'quote' && <span className="text-blue-400 text-[10px] font-bold uppercase bg-blue-900/30 px-2 py-0.5">Quick Quote</span>}
-                {job.status === 'pending' && <span className="text-amber-400 text-[10px] font-bold uppercase bg-amber-900/30 px-2 py-0.5">No Card</span>}
-                {isOverdue && <span className="text-yellow-600 text-[10px] font-bold uppercase">Overdue</span>}
-                {mileageJobIds.has(job.id) && <span className="text-emerald-500 text-[10px] font-bold uppercase bg-emerald-900/20 px-2 py-0.5" title="Trip mileage logged">🚗 Mi</span>}
+                {job.dateTbd && <span className="text-indigo-400 text-xs font-bold uppercase bg-indigo-900/20 px-2 py-0.5">TBD</span>}
+                {job.service === 'other' && <span className="text-purple-400 text-xs font-bold uppercase bg-purple-900/30 px-2 py-0.5">Inquiry</span>}
+                {job.service === 'quote' && <span className="text-blue-400 text-xs font-bold uppercase bg-blue-900/30 px-2 py-0.5">Quick Quote</span>}
+                {job.status === 'pending' && <span className="text-amber-400 text-xs font-bold uppercase bg-amber-900/30 px-2 py-0.5">No Card</span>}
+                {isOverdue && <span className="text-yellow-600 text-xs font-bold uppercase">Overdue</span>}
+                {mileageJobIds.has(job.id) && <span className="text-emerald-500 text-xs font-bold uppercase bg-emerald-900/20 px-2 py-0.5" title="Trip mileage logged">🚗 Mi</span>}
                 <StatusBadge status={job.jobStatus} />
               </div>
             </button>
@@ -7311,7 +7311,7 @@ function SelfPayForm({ job, onPaid }: { job: Job; onPaid: (updated: Job) => void
       >
         {paying ? 'Processing…' : `Pay $${balanceDue.toFixed(2)}`}
       </button>
-      <div className="text-gray-700 text-[10px] text-center mt-2">🔒 Secured by Stripe</div>
+      <div className="text-gray-700 text-xs text-center mt-2">🔒 Secured by Stripe</div>
     </div>
   );
 }
@@ -7559,7 +7559,7 @@ export function InvoicePage() {
           {/* Line items */}
           {job.lineItems?.length > 0 && (
             <div className="border-t border-white/10">
-              <div className="text-gray-600 text-[10px] font-bold uppercase tracking-widest px-6 py-2">Services</div>
+              <div className="text-gray-600 text-xs font-bold uppercase tracking-widest px-6 py-2">Services</div>
               <div className="divide-y divide-white/5">
                 <LineHead pad="px-6" />{job.lineItems.map(item => <LineRow key={item.id} item={item} pad="px-6 py-2.5" />)}
                 {/* Price adjustment line — only shown on paid receipts when present */}
@@ -7695,7 +7695,7 @@ export function InvoicePage() {
                   className="flex items-center gap-2 border border-white/10 hover:border-indigo-500 px-4 py-3 transition-colors">
                   <span className="text-lg">🔍</span>
                   <span>
-                    <span className="block text-gray-400 text-[10px] font-bold uppercase tracking-wider">Pre-Service Scan</span>
+                    <span className="block text-gray-400 text-xs font-bold uppercase tracking-wider">Pre-Service Scan</span>
                     <span className="block text-indigo-400 text-sm underline truncate max-w-[180px]">{job.preScan.name}</span>
                   </span>
                 </a>
@@ -7705,7 +7705,7 @@ export function InvoicePage() {
                   className="flex items-center gap-2 border border-white/10 hover:border-indigo-500 px-4 py-3 transition-colors">
                   <span className="text-lg">✅</span>
                   <span>
-                    <span className="block text-gray-400 text-[10px] font-bold uppercase tracking-wider">Post-Service Scan</span>
+                    <span className="block text-gray-400 text-xs font-bold uppercase tracking-wider">Post-Service Scan</span>
                     <span className="block text-indigo-400 text-sm underline truncate max-w-[180px]">{job.postScan.name}</span>
                   </span>
                 </a>
@@ -7795,26 +7795,26 @@ export function InvoicePage() {
                 </svg>
                 {/* FL */}
                 <div className="absolute text-center" style={{ top: 48, left: 2 }}>
-                  <div className="text-[9px] text-gray-600 font-bold">FL</div>
+                  <div className="text-xs text-gray-600 font-bold">FL</div>
                   <div className="text-xs font-mono font-bold text-white">{values.fl || '—'}</div>
                 </div>
                 {/* FR */}
                 <div className="absolute text-center" style={{ top: 48, right: 2 }}>
-                  <div className="text-[9px] text-gray-600 font-bold">FR</div>
+                  <div className="text-xs text-gray-600 font-bold">FR</div>
                   <div className="text-xs font-mono font-bold text-white">{values.fr || '—'}</div>
                 </div>
                 {/* RL */}
                 <div className="absolute text-center" style={{ bottom: 0, left: 2 }}>
-                  <div className="text-[9px] text-gray-600 font-bold">RL</div>
+                  <div className="text-xs text-gray-600 font-bold">RL</div>
                   <div className="text-xs font-mono font-bold text-white">{values.rl || '—'}</div>
                 </div>
                 {/* RR */}
                 <div className="absolute text-center" style={{ bottom: 0, right: 2 }}>
-                  <div className="text-[9px] text-gray-600 font-bold">RR</div>
+                  <div className="text-xs text-gray-600 font-bold">RR</div>
                   <div className="text-xs font-mono font-bold text-white">{values.rr || '—'}</div>
                 </div>
               </div>
-              <div className="text-gray-700 text-[10px] text-center">{unit}</div>
+              <div className="text-gray-700 text-xs text-center">{unit}</div>
             </div>
           );
 
@@ -8074,7 +8074,7 @@ export function EstimatePage() {
                   <span className="text-gray-600 font-bold flex-shrink-0">{i + 1}.</span> {t}
                 </div>
               ))}
-              <div className="text-gray-600 text-[10px] text-center pt-1 pb-0.5">— End of terms —</div>
+              <div className="text-gray-600 text-xs text-center pt-1 pb-0.5">— End of terms —</div>
             </div>
           </details>
         </div>
@@ -8226,7 +8226,7 @@ export function EstimatePage() {
                     : <div className="text-gray-700 text-xs">Your signature preview will appear here as you type</div>
                   }
                 </div>
-                <div className="text-gray-500 text-[10px] mt-1.5">By checking the box above and typing your name, you are providing an electronic signature legally binding under the Uniform Electronic Transactions Act (UETA).</div>
+                <div className="text-gray-500 text-xs mt-1.5">By checking the box above and typing your name, you are providing an electronic signature legally binding under the Uniform Electronic Transactions Act (UETA).</div>
               </div>
 
               <button
@@ -8380,23 +8380,23 @@ export function MileageTab() {
     <div>
       {/* Home base address — used to auto-calc round trip miles on each job */}
       <div className="border border-gray-800 bg-gray-900/30 px-3 py-2.5 mb-4 flex items-center gap-2">
-        <span className="text-gray-500 text-[10px] font-bold uppercase tracking-wider flex-shrink-0">🏠 Home Base</span>
+        <span className="text-gray-500 text-xs font-bold uppercase tracking-wider flex-shrink-0">🏠 Home Base</span>
         {editingHome ? (
           <>
             <input type="text" value={homeInput} onChange={e => setHomeInput(e.target.value)} placeholder="Your home address, Flagstaff, AZ"
               className="flex-1 bg-black border border-gray-800 text-white text-xs px-2 py-1.5 outline-none focus:border-yellow-700" />
             <button onClick={saveHome} disabled={homeSaving || !homeInput.trim()}
-              className="text-[10px] font-bold uppercase tracking-wider text-yellow-500 hover:text-yellow-400 disabled:opacity-40 flex-shrink-0">
+              className="text-xs font-bold uppercase tracking-wider text-yellow-500 hover:text-yellow-400 disabled:opacity-40 flex-shrink-0">
               {homeSaving ? 'Saving…' : 'Save'}
             </button>
             <button onClick={() => { setEditingHome(false); setHomeInput(homeAddress); }}
-              className="text-[10px] font-bold uppercase tracking-wider text-gray-500 hover:text-gray-300 flex-shrink-0">Cancel</button>
+              className="text-xs font-bold uppercase tracking-wider text-gray-500 hover:text-gray-300 flex-shrink-0">Cancel</button>
           </>
         ) : (
           <>
             <span className="flex-1 text-gray-300 text-xs truncate">{homeAddress || 'Not set'}</span>
             <button onClick={() => setEditingHome(true)}
-              className="text-[10px] font-bold uppercase tracking-wider text-gray-500 hover:text-white flex-shrink-0">Edit</button>
+              className="text-xs font-bold uppercase tracking-wider text-gray-500 hover:text-white flex-shrink-0">Edit</button>
           </>
         )}
       </div>
@@ -8410,7 +8410,7 @@ export function MileageTab() {
         ].map(([label, val, cls]) => (
           <div key={label as string} className="border border-gray-800 bg-gray-900/30 px-3 py-3 text-center">
             <div className={`text-xl font-black ${cls}`}>{val}</div>
-            <div className="text-[10px] text-gray-500 uppercase tracking-wider mt-0.5">{label}</div>
+            <div className="text-xs text-gray-500 uppercase tracking-wider mt-0.5">{label}</div>
           </div>
         ))}
       </div>
@@ -8421,7 +8421,7 @@ export function MileageTab() {
           {years.map(y => <option key={y} value={y}>{y}</option>)}
         </select>
         <div className="flex items-center gap-3">
-          <span className="text-[10px] text-gray-500 uppercase tracking-wider">Current IRS rate: {currentRate}¢/mi</span>
+          <span className="text-xs text-gray-500 uppercase tracking-wider">Current IRS rate: {currentRate}¢/mi</span>
           <button onClick={() => { resetForm(); setShowForm(true); }}
             className="bg-red-600 hover:bg-red-500 text-white text-xs font-bold uppercase tracking-wider px-4 py-2 transition-colors">
             + Log Trip
@@ -8433,30 +8433,30 @@ export function MileageTab() {
         <div className="border border-gray-800 bg-gray-900/40 p-4 mb-6 space-y-3">
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-gray-500 text-[10px] font-bold uppercase tracking-wider mb-1">Date</label>
+              <label className="block text-gray-500 text-xs font-bold uppercase tracking-wider mb-1">Date</label>
               <input type="date" value={fDate} onChange={e => setFDate(e.target.value)}
                 className="w-full bg-black border border-gray-800 text-white text-sm px-3 py-2" />
             </div>
             <div>
-              <label className="block text-gray-500 text-[10px] font-bold uppercase tracking-wider mb-1">Miles</label>
+              <label className="block text-gray-500 text-xs font-bold uppercase tracking-wider mb-1">Miles</label>
               <input type="text" inputMode="decimal" value={fMiles} onChange={e => setFMiles(e.target.value.replace(/[^0-9.]/g, ''))} placeholder="24"
                 className="w-full bg-black border border-gray-800 text-white text-sm px-3 py-2" />
             </div>
           </div>
           <div>
-            <label className="block text-gray-500 text-[10px] font-bold uppercase tracking-wider mb-1">Purpose</label>
+            <label className="block text-gray-500 text-xs font-bold uppercase tracking-wider mb-1">Purpose</label>
             <select value={fPurpose} onChange={e => setFPurpose(e.target.value)}
               className="w-full bg-black border border-gray-800 text-white text-sm px-3 py-2">
               {MILEAGE_PURPOSES.map(p => <option key={p} value={p}>{p}</option>)}
             </select>
           </div>
           <div>
-            <label className="block text-gray-500 text-[10px] font-bold uppercase tracking-wider mb-1">Destination / Job</label>
+            <label className="block text-gray-500 text-xs font-bold uppercase tracking-wider mb-1">Destination / Job</label>
             <input type="text" value={fDest} onChange={e => setFDest(e.target.value)} placeholder="123 Main St, Flagstaff, AZ (or customer name)"
               className="w-full bg-black border border-gray-800 text-white text-sm px-3 py-2" />
           </div>
           <div>
-            <label className="block text-gray-500 text-[10px] font-bold uppercase tracking-wider mb-1">Notes (optional)</label>
+            <label className="block text-gray-500 text-xs font-bold uppercase tracking-wider mb-1">Notes (optional)</label>
             <input type="text" value={fNotes} onChange={e => setFNotes(e.target.value)}
               className="w-full bg-black border border-gray-800 text-white text-sm px-3 py-2" />
           </div>
@@ -8631,10 +8631,10 @@ export function PPIPage() {
     : null;
 
   const statusPill = (s: PPIItemStatus) => {
-    if (s === 'pass') return <span className="text-emerald-400 bg-emerald-900/30 text-[10px] font-bold uppercase tracking-wider px-2.5 py-1">Pass</span>;
-    if (s === 'fail') return <span className="text-red-400 bg-red-900/30 text-[10px] font-bold uppercase tracking-wider px-2.5 py-1">Fail</span>;
-    if (s === 'na') return <span className="text-gray-500 bg-gray-800/50 text-[10px] font-bold uppercase tracking-wider px-2.5 py-1">N/A</span>;
-    return <span className="text-gray-600 bg-gray-800/30 text-[10px] font-bold uppercase tracking-wider px-2.5 py-1">Not Checked</span>;
+    if (s === 'pass') return <span className="text-emerald-400 bg-emerald-900/30 text-xs font-bold uppercase tracking-wider px-2.5 py-1">Pass</span>;
+    if (s === 'fail') return <span className="text-red-400 bg-red-900/30 text-xs font-bold uppercase tracking-wider px-2.5 py-1">Fail</span>;
+    if (s === 'na') return <span className="text-gray-500 bg-gray-800/50 text-xs font-bold uppercase tracking-wider px-2.5 py-1">N/A</span>;
+    return <span className="text-gray-600 bg-gray-800/30 text-xs font-bold uppercase tracking-wider px-2.5 py-1">Not Checked</span>;
   };
 
   return (
@@ -8701,7 +8701,7 @@ export function PPIPage() {
 
             {record.overallNotes && (
               <div className="bg-gray-900 border border-gray-700 px-5 py-4 mb-8">
-                <div className="text-gray-500 text-[10px] font-bold uppercase tracking-widest mb-2">Overall Notes</div>
+                <div className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-2">Overall Notes</div>
                 <div className="text-gray-300 text-sm whitespace-pre-wrap">{record.overallNotes}</div>
               </div>
             )}
@@ -8710,7 +8710,7 @@ export function PPIPage() {
               Export / Print This Inspection
             </button>
             <div className="text-gray-500 text-xs leading-relaxed mt-4">{DIAGNOSTIC_SHORT}</div>
-            <div className="text-gray-700 text-[11px] text-center mt-4">Questions? Call or text <span className="text-gray-500">480-757-0476</span> · GID Garage · Flagstaff, AZ</div>
+            <div className="text-gray-700 text-xs text-center mt-4">Questions? Call or text <span className="text-gray-500">480-757-0476</span> · GID Garage · Flagstaff, AZ</div>
           </div>
         </div>
       </div>
@@ -9155,7 +9155,7 @@ function InvoiceExport() {
   return (
     <div className="mt-6 border border-gray-800 bg-gray-900/30 p-4">
       <div className="text-gray-400 text-xs font-bold uppercase tracking-widest mb-1">🖨 Print Invoices</div>
-      <div className="text-gray-600 text-[10px] mb-3">Preview on screen, then Share/Save as a real PDF file (Print, AirDrop, etc. from there).</div>
+      <div className="text-gray-600 text-xs mb-3">Preview on screen, then Share/Save as a real PDF file (Print, AirDrop, etc. from there).</div>
       <div className="flex gap-2 mb-4">
         <button onClick={() => setMode('year')} className={`flex-1 text-xs font-bold uppercase tracking-wider py-2.5 border transition-colors ${mode === 'year' ? 'border-red-600 text-white bg-red-900/20' : 'border-gray-700 text-gray-500 hover:text-gray-300'}`}>By Year</button>
         <button onClick={() => setMode('month')} className={`flex-1 text-xs font-bold uppercase tracking-wider py-2.5 border transition-colors ${mode === 'month' ? 'border-red-600 text-white bg-red-900/20' : 'border-gray-700 text-gray-500 hover:text-gray-300'}`}>By Month</button>
@@ -9347,7 +9347,7 @@ function JobsCSVExport() {
   return (
     <div className="mt-6 border border-gray-800 bg-gray-900/30 p-4">
       <div className="text-gray-400 text-xs font-bold uppercase tracking-widest mb-1">📑 Export Paid Jobs (CSV)</div>
-      <div className="text-gray-600 text-[10px] mb-3">Paid jobs only — revenue, tax, parts cost, and net profit. Preview on screen, then Share/Save or copy the text.</div>
+      <div className="text-gray-600 text-xs mb-3">Paid jobs only — revenue, tax, parts cost, and net profit. Preview on screen, then Share/Save or copy the text.</div>
       <button onClick={exportCsv} disabled={exporting}
         className="w-full py-3 border border-gray-700 hover:border-yellow-700 hover:text-yellow-500 text-gray-300 text-xs font-bold uppercase tracking-widest transition-colors disabled:opacity-40">
         {exporting ? 'Exporting…' : '👁 Preview CSV'}
@@ -9370,9 +9370,9 @@ function JobsCSVExport() {
             </div>
           </div>
           {shareError && <div className="text-red-400 text-xs mb-2 flex-shrink-0">{shareError}</div>}
-          <div className="text-gray-600 text-[10px] mb-2 flex-shrink-0">Swipe sideways to see all columns. Share/Save exports the full file (CSV).</div>
+          <div className="text-gray-600 text-xs mb-2 flex-shrink-0">Swipe sideways to see all columns. Share/Save exports the full file (CSV).</div>
           <div className="flex-1 overflow-auto border border-gray-800">
-            <table className="min-w-full text-[11px] border-collapse">
+            <table className="min-w-full text-xs border-collapse">
               <thead className="sticky top-0 bg-gray-900">
                 <tr>
                   {previewHeaders.map(h => (
@@ -9446,7 +9446,7 @@ function TaxRateSettings() {
   return (
     <div className="border border-gray-800 bg-gray-900/30 p-4">
       <div className="text-gray-400 text-xs font-bold uppercase tracking-widest mb-1">⚙️ AZ TPT Rate</div>
-      <div className="text-gray-600 text-[10px] mb-3">
+      <div className="text-gray-600 text-xs mb-3">
         Flagstaff's published combined rate (state 5.6% + Coconino County 1.3% + city 2.486%) is currently <strong className="text-gray-400">9.386%</strong>, per the AZ Dept. of Revenue rate tables — confirmed January 2026. This app can't auto-detect future changes, so update it here if AZ ever changes it. Saving applies to every <em>new</em> estimate/invoice from then on — past paid jobs keep whatever rate was actually charged.
       </div>
       <div className="flex gap-2 mb-1">
@@ -9471,7 +9471,7 @@ function TaxRateSettings() {
         </button>
       </div>
       {savedRate != null && (
-        <div className="text-gray-700 text-[10px]">Currently saved: {(savedRate * 100).toFixed(3)}%</div>
+        <div className="text-gray-700 text-xs">Currently saved: {(savedRate * 100).toFixed(3)}%</div>
       )}
       {error && <div className="text-red-400 text-xs mt-2">{error}</div>}
     </div>
@@ -9555,34 +9555,34 @@ function TaxSummary() {
               <div className="text-white text-sm font-black">{label}</div>
               <div className="grid grid-cols-4 gap-2 text-center">
                 <div className="bg-gray-900 border border-gray-800 px-2 py-2">
-                  <div className="text-gray-500 text-[10px] font-bold uppercase tracking-wider mb-0.5">Subtotal</div>
+                  <div className="text-gray-500 text-xs font-bold uppercase tracking-wider mb-0.5">Subtotal</div>
                   <div className="text-white text-sm font-mono font-bold">${r.subtotal.toFixed(2)}</div>
                 </div>
                 <div className="bg-blue-900/20 border border-blue-800 px-2 py-2">
-                  <div className="text-blue-500 text-[10px] font-bold uppercase tracking-wider mb-0.5">Taxable Gross</div>
+                  <div className="text-blue-500 text-xs font-bold uppercase tracking-wider mb-0.5">Taxable Gross</div>
                   <div className="text-blue-300 text-sm font-mono font-bold">${r.taxableGross.toFixed(2)}</div>
                 </div>
                 <div className="bg-yellow-900/20 border border-yellow-800 px-2 py-2">
-                  <div className="text-yellow-600 text-[10px] font-bold uppercase tracking-wider mb-0.5">Tax</div>
+                  <div className="text-yellow-600 text-xs font-bold uppercase tracking-wider mb-0.5">Tax</div>
                   <div className="text-yellow-400 text-sm font-mono font-bold">${r.tax.toFixed(2)}</div>
                 </div>
                 <div className="bg-gray-900 border border-gray-700 px-2 py-2">
-                  <div className="text-gray-500 text-[10px] font-bold uppercase tracking-wider mb-0.5">Total</div>
+                  <div className="text-gray-500 text-xs font-bold uppercase tracking-wider mb-0.5">Total</div>
                   <div className="text-white text-sm font-mono font-bold">${r.total.toFixed(2)}</div>
                 </div>
               </div>
-              <div className="text-gray-700 text-[10px] pt-0.5">Enter <strong className="text-blue-400">${r.taxableGross.toFixed(2)}</strong> as Gross on each AZTaxes.gov RETAIL-017 line item for this period.</div>
+              <div className="text-gray-700 text-xs pt-0.5">Enter <strong className="text-blue-400">${r.taxableGross.toFixed(2)}</strong> as Gross on each AZTaxes.gov RETAIL-017 line item for this period.</div>
             </div>
           );
         })}
         <div className="border border-gray-700 bg-gray-900/60 px-4 py-3 grid grid-cols-4 gap-2 text-center">
-          <div><div className="text-gray-600 text-[10px] uppercase tracking-wider">All Time</div><div className="text-gray-300 text-sm font-mono font-bold">${rows.reduce((s, r) => s + r.subtotal, 0).toFixed(2)}</div></div>
-          <div><div className="text-blue-700 text-[10px] uppercase tracking-wider">Taxable Gross</div><div className="text-blue-300 text-sm font-mono font-bold">${rows.reduce((s, r) => s + r.taxableGross, 0).toFixed(2)}</div></div>
-          <div><div className="text-yellow-700 text-[10px] uppercase tracking-wider">Tax</div><div className="text-yellow-400 text-sm font-mono font-bold">${rows.reduce((s, r) => s + r.tax, 0).toFixed(2)}</div></div>
-          <div><div className="text-gray-600 text-[10px] uppercase tracking-wider">Total</div><div className="text-white text-sm font-mono font-bold">${rows.reduce((s, r) => s + r.total, 0).toFixed(2)}</div></div>
+          <div><div className="text-gray-600 text-xs uppercase tracking-wider">All Time</div><div className="text-gray-300 text-sm font-mono font-bold">${rows.reduce((s, r) => s + r.subtotal, 0).toFixed(2)}</div></div>
+          <div><div className="text-blue-700 text-xs uppercase tracking-wider">Taxable Gross</div><div className="text-blue-300 text-sm font-mono font-bold">${rows.reduce((s, r) => s + r.taxableGross, 0).toFixed(2)}</div></div>
+          <div><div className="text-yellow-700 text-xs uppercase tracking-wider">Tax</div><div className="text-yellow-400 text-sm font-mono font-bold">${rows.reduce((s, r) => s + r.tax, 0).toFixed(2)}</div></div>
+          <div><div className="text-gray-600 text-xs uppercase tracking-wider">Total</div><div className="text-white text-sm font-mono font-bold">${rows.reduce((s, r) => s + r.total, 0).toFixed(2)}</div></div>
         </div>
       </div>
-      <div className="text-gray-700 text-[10px] mt-2">File & remit at AZTaxes.gov by the 20th of the following month. "Taxable Gross" is what goes in AZTaxes.gov's Gross field on each RETAIL-017 line — it excludes labor and the mobile fee.</div>
+      <div className="text-gray-700 text-xs mt-2">File & remit at AZTaxes.gov by the 20th of the following month. "Taxable Gross" is what goes in AZTaxes.gov's Gross field on each RETAIL-017 line — it excludes labor and the mobile fee.</div>
     </div>
   );
 }
@@ -9749,13 +9749,13 @@ export function OwnerPayPanel() {
 
   return (
     <div>
-      <div className="text-gray-600 text-[10px] mb-4">
+      <div className="text-gray-600 text-xs mb-4">
         Sized off your actual last 30 days of paid jobs, not a guess. Line up your real monthly overhead below and it's treated as a real cost — same for the Stripe fee estimate, which only covers card payments logged since payment tracking started (older jobs without a full log aren't included).
       </div>
 
       {/* Overhead line items */}
       <div className="border border-gray-800 p-3 mb-4">
-        <div className="text-gray-500 text-[10px] font-bold uppercase tracking-wider mb-2">Monthly Overhead</div>
+        <div className="text-gray-500 text-xs font-bold uppercase tracking-wider mb-2">Monthly Overhead</div>
         {overheadItems.length === 0 && (
           <div className="text-gray-700 text-xs italic py-2">No line items yet — add insurance, subscriptions, licensing, etc. below.</div>
         )}
@@ -9801,7 +9801,7 @@ export function OwnerPayPanel() {
       <div className="border border-gray-800 p-3 mb-4 space-y-2">
         <div className="grid grid-cols-2 gap-2">
           <div>
-            <label className="block text-gray-600 text-[10px] font-bold uppercase tracking-wider mb-1">Card Processing Fee % (Bluevine)</label>
+            <label className="block text-gray-600 text-xs font-bold uppercase tracking-wider mb-1">Card Processing Fee % (Bluevine)</label>
             <div className="flex items-center gap-1 bg-gray-900 border border-gray-700 px-2.5">
               <input type="number" min="0" max="100" step="0.01" value={stripeFeePct} onChange={e => setStripeFeePct(e.target.value)}
                 className="bg-transparent text-white py-2 text-sm font-mono w-full outline-none" />
@@ -9809,7 +9809,7 @@ export function OwnerPayPanel() {
             </div>
           </div>
           <div>
-            <label className="block text-gray-600 text-[10px] font-bold uppercase tracking-wider mb-1">Tax Reserve %</label>
+            <label className="block text-gray-600 text-xs font-bold uppercase tracking-wider mb-1">Tax Reserve %</label>
             <div className="flex items-center gap-1 bg-gray-900 border border-gray-700 px-2.5">
               <input type="number" min="0" max="100" step="1" value={taxReservePct} onChange={e => setTaxReservePct(e.target.value)}
                 className="bg-transparent text-white py-2 text-sm font-mono w-full outline-none" />
@@ -9817,9 +9817,9 @@ export function OwnerPayPanel() {
             </div>
           </div>
         </div>
-        <div className="text-gray-700 text-[10px]">2.928% is your real July 2026 blended rate — $76.71 application fee (Bluevine's markup on Stripe) on $2,620.16 gross card sales, per your Stripe dashboard. Update this whenever you check a fresh month.</div>
+        <div className="text-gray-700 text-xs">2.928% is your real July 2026 blended rate — $76.71 application fee (Bluevine's markup on Stripe) on $2,620.16 gross card sales, per your Stripe dashboard. Update this whenever you check a fresh month.</div>
         <div>
-          <label className="block text-gray-600 text-[10px] font-bold uppercase tracking-wider mb-1">Any Payday Tuesday (sets the cadence)</label>
+          <label className="block text-gray-600 text-xs font-bold uppercase tracking-wider mb-1">Any Payday Tuesday (sets the cadence)</label>
           <input type="date" value={payAnchorDate} onChange={e => setPayAnchorDate(e.target.value)}
             className="w-full bg-gray-900 border border-gray-700 text-white px-2.5 py-2 text-sm outline-none" />
         </div>
@@ -9849,25 +9849,25 @@ export function OwnerPayPanel() {
           {inDeficit && (
             <div className="border border-red-900 bg-red-900/10 px-3 py-2.5 mb-4">
               <div className="text-red-400 text-xs font-bold uppercase tracking-wider mb-1">⚠ Job margin doesn't cover overhead + fees</div>
-              <div className="text-red-300/80 text-[11px]">Last 30 days of paid jobs didn't clear your overhead and estimated Stripe fees — this window supports a $0 draw. Wait for the next payday to reassess rather than drawing from savings.</div>
+              <div className="text-red-300/80 text-xs">Last 30 days of paid jobs didn't clear your overhead and estimated Stripe fees — this window supports a $0 draw. Wait for the next payday to reassess rather than drawing from savings.</div>
             </div>
           )}
 
           {/* Suggested draw */}
           <div className="bg-gray-950 border border-emerald-900/50 p-4 text-center mb-4">
-            <div className="text-gray-500 text-[10px] font-bold uppercase tracking-widest mb-1">Suggested Per Payday</div>
+            <div className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-1">Suggested Per Payday</div>
             <div className={`text-3xl font-black font-mono ${suggestedPerPayday > 0 ? 'text-emerald-400' : 'text-gray-600'}`}>
               ${suggestedPerPayday.toFixed(2)}
             </div>
             {nextPayday && (
-              <div className="text-gray-600 text-[10px] mt-1">Next payday: {new Date(nextPayday + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}</div>
+              <div className="text-gray-600 text-xs mt-1">Next payday: {new Date(nextPayday + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}</div>
             )}
-            {!payAnchorDate && <div className="text-gray-700 text-[10px] mt-1">Set a payday Tuesday above to see the next date.</div>}
+            {!payAnchorDate && <div className="text-gray-700 text-xs mt-1">Set a payday Tuesday above to see the next date.</div>}
           </div>
 
           {/* Log the draw */}
           <div className="border border-gray-800 p-3 space-y-2">
-            <div className="text-gray-500 text-[10px] font-bold uppercase tracking-wider">Log This Draw to the Equity Ledger</div>
+            <div className="text-gray-500 text-xs font-bold uppercase tracking-wider">Log This Draw to the Equity Ledger</div>
             <div className="flex gap-2">
               <div className="flex items-center gap-1 bg-gray-900 border border-gray-700 px-2.5 flex-1">
                 <span className="text-gray-500 text-xs font-bold">$</span>
@@ -9995,21 +9995,21 @@ function EquityTracker() {
   return (
     <div className="mt-4 border border-gray-800 bg-gray-900/30 p-4">
       <div className="text-gray-400 text-xs font-bold uppercase tracking-widest mb-1">🏦 Owner's Equity Ledger</div>
-      <div className="text-gray-600 text-[10px] mb-3">
+      <div className="text-gray-600 text-xs mb-3">
         Contributions = personal money you've put into the business (parts fronted, seed cash, expenses paid personally — you're already tracking these in Zoho). Draws = money the business has paid back to you. Balance below is what the business still owes you, or how far ahead it's paid you back.
       </div>
 
       <div className="grid grid-cols-3 gap-2 mb-4 text-center">
         <div className="bg-gray-900 border border-emerald-900 px-2 py-2">
-          <div className="text-emerald-600 text-[10px] font-bold uppercase tracking-wider mb-0.5">Contributions</div>
+          <div className="text-emerald-600 text-xs font-bold uppercase tracking-wider mb-0.5">Contributions</div>
           <div className="text-emerald-400 text-sm font-mono font-bold">${totalContributions.toFixed(2)}</div>
         </div>
         <div className="bg-gray-900 border border-orange-900 px-2 py-2">
-          <div className="text-orange-600 text-[10px] font-bold uppercase tracking-wider mb-0.5">Draws</div>
+          <div className="text-orange-600 text-xs font-bold uppercase tracking-wider mb-0.5">Draws</div>
           <div className="text-orange-400 text-sm font-mono font-bold">${totalDraws.toFixed(2)}</div>
         </div>
         <div className="bg-gray-900 border border-cyan-900 px-2 py-2">
-          <div className="text-cyan-600 text-[10px] font-bold uppercase tracking-wider mb-0.5">Balance</div>
+          <div className="text-cyan-600 text-xs font-bold uppercase tracking-wider mb-0.5">Balance</div>
           <div className={`text-sm font-mono font-bold ${balance >= 0 ? 'text-cyan-400' : 'text-red-400'}`}>${balance.toFixed(2)}</div>
         </div>
       </div>
@@ -10071,11 +10071,11 @@ function EquityTracker() {
                   <div className="flex gap-2">
                     <button
                       onClick={() => setEditType('contribution')}
-                      className={`flex-1 py-1.5 text-[11px] font-bold uppercase tracking-wider border transition-colors ${editType === 'contribution' ? 'bg-emerald-900/20 border-emerald-800 text-emerald-400' : 'border-gray-800 text-gray-500 hover:text-gray-300'}`}
+                      className={`flex-1 py-1.5 text-xs font-bold uppercase tracking-wider border transition-colors ${editType === 'contribution' ? 'bg-emerald-900/20 border-emerald-800 text-emerald-400' : 'border-gray-800 text-gray-500 hover:text-gray-300'}`}
                     >Contribution</button>
                     <button
                       onClick={() => setEditType('draw')}
-                      className={`flex-1 py-1.5 text-[11px] font-bold uppercase tracking-wider border transition-colors ${editType === 'draw' ? 'bg-orange-900/20 border-orange-800 text-orange-400' : 'border-gray-800 text-gray-500 hover:text-gray-300'}`}
+                      className={`flex-1 py-1.5 text-xs font-bold uppercase tracking-wider border transition-colors ${editType === 'draw' ? 'bg-orange-900/20 border-orange-800 text-orange-400' : 'border-gray-800 text-gray-500 hover:text-gray-300'}`}
                     >Draw</button>
                   </div>
                   <div className="flex gap-2">
@@ -10106,12 +10106,12 @@ function EquityTracker() {
                     <button
                       onClick={() => saveEdit(e.id)}
                       disabled={editSaving}
-                      className="flex-1 text-[11px] font-bold uppercase tracking-wider px-3 py-2 bg-cyan-700 hover:bg-cyan-600 text-white transition-colors disabled:opacity-50"
+                      className="flex-1 text-xs font-bold uppercase tracking-wider px-3 py-2 bg-cyan-700 hover:bg-cyan-600 text-white transition-colors disabled:opacity-50"
                     >{editSaving ? 'Saving…' : 'Save'}</button>
                     <button
                       onClick={() => setEditingId(null)}
                       disabled={editSaving}
-                      className="flex-1 text-[11px] font-bold uppercase tracking-wider px-3 py-2 border border-gray-700 text-gray-400 hover:text-white transition-colors"
+                      className="flex-1 text-xs font-bold uppercase tracking-wider px-3 py-2 border border-gray-700 text-gray-400 hover:text-white transition-colors"
                     >Cancel</button>
                   </div>
                 </div>
@@ -10121,13 +10121,13 @@ function EquityTracker() {
                     <div className={`text-xs font-bold uppercase tracking-wider ${e.entry_type === 'contribution' ? 'text-emerald-500' : 'text-orange-500'}`}>
                       {e.entry_type === 'contribution' ? 'Contribution' : 'Draw'}
                     </div>
-                    <div className="text-gray-500 text-[11px] truncate">{e.note || '—'} · {new Date(e.entry_date + 'T00:00:00').toLocaleDateString('en-US')}</div>
+                    <div className="text-gray-500 text-xs truncate">{e.note || '—'} · {new Date(e.entry_date + 'T00:00:00').toLocaleDateString('en-US')}</div>
                   </div>
                   <div className="flex items-center gap-3 flex-shrink-0">
                     <span className={`font-mono text-sm font-bold ${e.entry_type === 'contribution' ? 'text-emerald-400' : 'text-orange-400'}`}>
                       {e.entry_type === 'contribution' ? '+' : '-'}${Number(e.amount).toFixed(2)}
                     </span>
-                    <button onClick={() => startEdit(e)} className="text-[11px] font-bold uppercase tracking-wider px-2 py-1 border border-gray-700 text-gray-500 hover:text-white hover:border-gray-500 transition-colors">Edit</button>
+                    <button onClick={() => startEdit(e)} className="text-xs font-bold uppercase tracking-wider px-2 py-1 border border-gray-700 text-gray-500 hover:text-white hover:border-gray-500 transition-colors">Edit</button>
                     <button onClick={() => removeEntry(e.id)} className="text-gray-600 hover:text-red-500 transition-colors" title="Delete">×</button>
                   </div>
                 </div>
@@ -10184,7 +10184,7 @@ function LineGraph({ points, points2, series2Label, series2Color, valueFmt }: {
   return (
     <div className="relative">
       {points2 && points2.length > 0 && (
-        <div className="flex items-center gap-4 mb-2 text-[10px] font-bold uppercase tracking-wider">
+        <div className="flex items-center gap-4 mb-2 text-xs font-bold uppercase tracking-wider">
           <span className="flex items-center gap-1.5 text-emerald-400"><span className="w-2.5 h-2.5 rounded-full bg-emerald-400 inline-block" /> Revenue</span>
           <span className="flex items-center gap-1.5" style={{ color: s2Color }}><span className="w-2.5 h-2.5 rounded-full inline-block" style={{ background: s2Color }} /> {series2Label || 'Net Profit'}</span>
         </div>
@@ -10229,7 +10229,7 @@ function LineGraph({ points, points2, series2Label, series2Color, valueFmt }: {
       </svg>
       {hover !== null && points[hover] && (
         <div className="absolute top-1 right-1 bg-gray-950 border border-emerald-800 px-2.5 py-1.5 text-right pointer-events-none space-y-0.5">
-          <div className="text-gray-500 text-[10px] font-bold uppercase tracking-wider">{points[hover].label}</div>
+          <div className="text-gray-500 text-xs font-bold uppercase tracking-wider">{points[hover].label}</div>
           <div className="text-emerald-400 text-sm font-mono font-bold">{valueFmt(points[hover].value)}</div>
           {points2 && points2[hover] && (
             <div className="text-sm font-mono font-bold" style={{ color: s2Color }}>{valueFmt(points2[hover].value)}</div>
@@ -10361,13 +10361,13 @@ function RevenuePanel() {
           {/* Date range pickers */}
           <div className="flex items-center gap-2 mb-4">
             <div className="flex-1">
-              <label className="block text-gray-500 text-[10px] font-bold uppercase tracking-wider mb-1">Start</label>
+              <label className="block text-gray-500 text-xs font-bold uppercase tracking-wider mb-1">Start</label>
               <input type="date" value={rangeStart} max={rangeEnd || undefined} onChange={e => setRangeStart(e.target.value)}
                 className="w-full bg-gray-900 text-white text-sm px-3 py-2 outline-none border border-gray-700 focus:border-emerald-600 transition-colors" />
             </div>
             <span className="text-gray-600 text-xs pt-5">to</span>
             <div className="flex-1">
-              <label className="block text-gray-500 text-[10px] font-bold uppercase tracking-wider mb-1">End</label>
+              <label className="block text-gray-500 text-xs font-bold uppercase tracking-wider mb-1">End</label>
               <input type="date" value={rangeEnd} min={rangeStart || undefined} onChange={e => setRangeEnd(e.target.value)}
                 className="w-full bg-gray-900 text-white text-sm px-3 py-2 outline-none border border-gray-700 focus:border-emerald-600 transition-colors" />
             </div>
@@ -10388,7 +10388,7 @@ function RevenuePanel() {
                   setRangeStart(p.days === null ? `${toDateInputStr(end).slice(0, 4)}-01-01` : toDateInputStr(new Date(end.getTime() - (p.days - 1) * 86400000)));
                   setRangeEnd(toDateInputStr(end));
                 }}
-                className="flex-1 py-1.5 text-[10px] font-bold uppercase tracking-wider border border-gray-800 text-gray-500 hover:text-white hover:border-gray-600 transition-colors"
+                className="flex-1 py-1.5 text-xs font-bold uppercase tracking-wider border border-gray-800 text-gray-500 hover:text-white hover:border-gray-600 transition-colors"
               >{p.label}</button>
             ))}
           </div>
@@ -10399,15 +10399,15 @@ function RevenuePanel() {
             <div className="grid grid-cols-2 gap-3">
               <div className="border border-emerald-800 bg-emerald-900/10 p-4 text-center">
                 <div className="text-emerald-400 text-2xl font-mono font-black">${rangeGross.toFixed(2)}</div>
-                <div className="text-gray-500 text-[10px] font-bold uppercase tracking-wider mt-1">Gross Revenue</div>
+                <div className="text-gray-500 text-xs font-bold uppercase tracking-wider mt-1">Gross Revenue</div>
               </div>
               <div className="border border-blue-800 bg-blue-900/10 p-4 text-center">
                 <div className="text-blue-400 text-2xl font-mono font-black">${rangeNet.toFixed(2)}</div>
-                <div className="text-gray-500 text-[10px] font-bold uppercase tracking-wider mt-1">Net Profit</div>
+                <div className="text-gray-500 text-xs font-bold uppercase tracking-wider mt-1">Net Profit</div>
               </div>
             </div>
           )}
-          <div className="text-gray-700 text-[10px] mt-2">
+          <div className="text-gray-700 text-xs mt-2">
             Gross = payments collected in range. Net = gross minus sales tax collected minus parts cost, attributed to each job's paid date.
           </div>
         </div>
@@ -10439,7 +10439,7 @@ function RevenuePanel() {
           <div className="text-gray-700 text-xs italic py-16 text-center">No paid revenue in this period.</div>
         )}
       </div>
-      <div className="text-gray-700 text-[10px] mt-2">
+      <div className="text-gray-700 text-xs mt-2">
         {mode === 'month' ? 'Cumulative revenue and net profit by day of month.' : 'Cumulative revenue and net profit by month of year.'} Tap/hover a point for that day/month's running totals.
       </div>
         </>
@@ -10484,7 +10484,7 @@ function BackupBookingInspector({ backupKey }: { backupKey: string }) {
       </button>
       {open && (
         <div className="mt-3 space-y-2">
-          <div className="text-gray-500 text-[11px]">
+          <div className="text-gray-500 text-xs">
             Looks up specific job IDs inside the backup selected above, without changing anything live. Paste GID-… ids, one per line or comma-separated.
           </div>
           <textarea value={idsText} onChange={e => setIdsText(e.target.value)} rows={3}
@@ -10498,7 +10498,7 @@ function BackupBookingInspector({ backupKey }: { backupKey: string }) {
           {rows && rows.length === 0 && <div className="text-gray-600 text-xs italic">No matching booking IDs found in this backup.</div>}
           {rows && rows.length > 0 && (
             <div className="overflow-x-auto border border-gray-800">
-              <table className="w-full text-[11px]">
+              <table className="w-full text-xs">
                 <thead>
                   <tr className="bg-gray-900 text-gray-500 uppercase tracking-wider">
                     {['id','fname','lname','phone','email','vin','vehicle','service_address','notes'].map(h => (
@@ -10633,7 +10633,7 @@ function RecoveryPanel() {
         {running ? 'Running Backup…' : '🛟 Run Backup Now'}
       </button>
       {runError && <div className="text-red-400 text-xs mb-2">{runError}</div>}
-      <button onClick={load} className="w-full py-2 text-[11px] font-bold uppercase tracking-wider text-gray-600 hover:text-gray-300 transition-colors">↺ Refresh Status</button>
+      <button onClick={load} className="w-full py-2 text-xs font-bold uppercase tracking-wider text-gray-600 hover:text-gray-300 transition-colors">↺ Refresh Status</button>
 
       {/* Restore from a backup */}
       <div className="mt-6 border-t border-gray-800 pt-4">
@@ -10660,15 +10660,15 @@ function RecoveryPanel() {
             <div className="flex gap-2 mb-3">
               <button
                 onClick={() => { setRestoreMode('merge'); setConfirmText(''); }}
-                className={`flex-1 py-2 text-[11px] font-bold uppercase tracking-wider border transition-colors ${restoreMode === 'merge' ? 'bg-emerald-900/20 border-emerald-700 text-emerald-400' : 'border-gray-800 text-gray-500 hover:text-gray-300'}`}
+                className={`flex-1 py-2 text-xs font-bold uppercase tracking-wider border transition-colors ${restoreMode === 'merge' ? 'bg-emerald-900/20 border-emerald-700 text-emerald-400' : 'border-gray-800 text-gray-500 hover:text-gray-300'}`}
               >Merge (safe)</button>
               <button
                 onClick={() => { setRestoreMode('replace'); setConfirmText(''); }}
-                className={`flex-1 py-2 text-[11px] font-bold uppercase tracking-wider border transition-colors ${restoreMode === 'replace' ? 'bg-red-900/20 border-red-700 text-red-400' : 'border-gray-800 text-gray-500 hover:text-gray-300'}`}
+                className={`flex-1 py-2 text-xs font-bold uppercase tracking-wider border transition-colors ${restoreMode === 'replace' ? 'bg-red-900/20 border-red-700 text-red-400' : 'border-gray-800 text-gray-500 hover:text-gray-300'}`}
               >Full Replace (danger)</button>
             </div>
 
-            <div className="text-gray-600 text-[10px] mb-3 leading-relaxed">
+            <div className="text-gray-600 text-xs mb-3 leading-relaxed">
               {restoreMode === 'merge'
                 ? 'Restores every row from this backup, filling in anything missing or reverting anything changed — but never deletes jobs created after this backup ran.'
                 : 'DELETES everything currently in the database, then loads exactly what was in this backup. Anything created after this backup was taken — new bookings, payments, notes — is gone permanently.'}
@@ -10695,7 +10695,7 @@ function RecoveryPanel() {
             {restoreResult && (
               <div className="mt-2 border border-emerald-800 bg-emerald-900/10 px-3 py-2">
                 <div className="text-emerald-400 text-xs font-bold">✅ Restore complete ({restoreResult.mode})</div>
-                <div className="text-gray-500 text-[11px] mt-0.5">
+                <div className="text-gray-500 text-xs mt-0.5">
                   {Object.entries(restoreResult.rowCounts || {}).map(([t, n]) => `${t}: ${n}`).join(', ')}
                 </div>
               </div>
@@ -10719,10 +10719,10 @@ function RecoveryPanel() {
           </li>
           <li>Come back here after a day to confirm it went green.</li>
         </ol>
-        <div className="text-gray-600 text-[10px] mt-2">
+        <div className="text-gray-600 text-xs mt-2">
           Backups are stored as JSON in the same R2 bucket your job photos live in, under a <span className="font-mono">backups/</span> prefix, and kept for 30 days.
         </div>
-        <div className="text-gray-600 text-[10px] mt-2">
+        <div className="text-gray-600 text-xs mt-2">
           <strong className="text-gray-500">If the site itself is down/broken</strong> and you can't reach this panel: log into
           Cloudflare dashboard → R2 → your photos bucket → <span className="font-mono">backups/</span> folder, download the JSON
           file for the date you want, and hand it to me (or paste its contents) — I can restore it directly via Supabase's SQL
@@ -10796,8 +10796,8 @@ function HubCategoryPanel({ cat }: { cat: HubCategory }) {
               <div>
                 <div className="text-gray-200 text-sm leading-relaxed mb-3">{note.content}</div>
                 <div className="flex gap-2">
-                  <button onClick={() => startEdit(note)} className="text-[11px] font-bold uppercase tracking-wider px-3 py-1.5 border border-gray-700 text-gray-500 hover:text-white hover:border-gray-500 transition-colors active:bg-gray-800">Edit</button>
-                  <button onClick={() => { if (confirm('Delete this note?')) deleteNote(note.id); }} className="text-[11px] font-bold uppercase tracking-wider px-3 py-1.5 border border-gray-800 text-gray-600 hover:text-red-400 hover:border-red-800 transition-colors active:bg-red-950">Delete</button>
+                  <button onClick={() => startEdit(note)} className="text-xs font-bold uppercase tracking-wider px-3 py-1.5 border border-gray-700 text-gray-500 hover:text-white hover:border-gray-500 transition-colors active:bg-gray-800">Edit</button>
+                  <button onClick={() => { if (confirm('Delete this note?')) deleteNote(note.id); }} className="text-xs font-bold uppercase tracking-wider px-3 py-1.5 border border-gray-800 text-gray-600 hover:text-red-400 hover:border-red-800 transition-colors active:bg-red-950">Delete</button>
                 </div>
               </div>
             )}
@@ -10872,7 +10872,7 @@ export function BusinessHub() {
         <button
           onClick={resetAllNotes}
           disabled={resetting}
-          className="text-[10px] font-bold uppercase tracking-wider px-2.5 py-1.5 border border-gray-800 text-gray-700 hover:border-red-800 hover:text-red-600 transition-colors disabled:opacity-40 flex-shrink-0 mt-1"
+          className="text-xs font-bold uppercase tracking-wider px-2.5 py-1.5 border border-gray-800 text-gray-700 hover:border-red-800 hover:text-red-600 transition-colors disabled:opacity-40 flex-shrink-0 mt-1"
           title="Reset all notes to defaults"
         >
           {resetting ? 'Resetting…' : '↺ Reset'}

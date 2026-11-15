@@ -22,7 +22,7 @@ export function JobCard({ payload }: { payload: any[] }) {
           <div key={j.id || i} className="bg-black/20 border border-white/5 rounded-lg p-3">
             <div className="flex items-center justify-between mb-1.5">
               <div className="text-[11px] font-semibold text-[#32D9FF] uppercase tracking-wide">{fmtDate(j.date)}{j.time ? ` · ${j.time}` : ''}</div>
-              <div className="text-[10px] font-semibold uppercase tracking-wide" style={{ color }}>{j.job_status || '—'}</div>
+              <div className="text-[11px] font-semibold uppercase tracking-wide" style={{ color }}>{j.job_status || '—'}</div>
             </div>
             <div className="text-[13px] text-[#F5F8FA] mb-1 line-clamp-2">{j.service || 'Job'} — {j.vehicle || 'vehicle on file'}</div>
             {(j.fname || j.lname) && <FieldRow label="Customer" value={`${j.fname || ''} ${j.lname || ''}`.trim()} />}

@@ -19,7 +19,7 @@ type Panel = null | { type: 'person'; person?: Person } | { type: 'work'; person
 
 const $ = (n: number | null | undefined) => `$${Number(n || 0).toFixed(2)}`;
 const input = 'w-full bg-gray-800 border border-gray-700 text-white text-sm px-3 py-2.5 outline-none focus:border-red-600 min-w-0';
-const label = 'block text-gray-500 text-[11px] font-bold uppercase tracking-widest mb-1';
+const label = 'block text-gray-500 text-xs font-bold uppercase tracking-widest mb-1';
 const fmtDay = (ymd: string) => { const [y, m, d] = ymd.split('-').map(Number); return new Date(Date.UTC(y, m - 1, d, 12)).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC' }); };
 const jobLabel = (j: Job) => `${`${j.fname} ${j.lname}`.trim() || 'Job'} · ${j.vehicle || 'vehicle?'}`;
 
@@ -80,7 +80,7 @@ export function HelperPay() {
         {[['Team owed', owedTotal, owedTotal > 0 ? 'text-amber-400' : 'text-white'], ['Team paid this month', paidMonth, 'text-white'], [`Team paid in ${year}`, paidYear, 'text-white']].map(([l, v, c]) => (
           <div key={l as string} className="bg-gray-900 border border-gray-800 p-3 sm:p-4">
             <div className={`text-lg sm:text-2xl font-black tabular-nums ${c}`}>{$(v as number)}</div>
-            <div className="text-gray-500 text-[11px] font-bold uppercase tracking-wider">{l}</div>
+            <div className="text-gray-500 text-xs font-bold uppercase tracking-wider">{l}</div>
           </div>
         ))}
       </div>
@@ -105,19 +105,19 @@ export function HelperPay() {
             <button type="button" onClick={() => setPanel({ type: 'person', person: ownerRow.person as Person })} className="text-gray-500 hover:text-white text-xs underline flex-shrink-0">Edit</button>
           </div>
           <div className="grid grid-cols-3 gap-2 mt-3">
-            <div><div className="text-xl font-black text-white tabular-nums">{ownerWeeks[0]?.hours ?? 0}</div><div className="text-gray-500 text-[11px] font-bold uppercase tracking-wider">Hours this week</div></div>
-            <div><div className="text-xl font-black text-white tabular-nums">{$(ownerWeeks[0]?.earned)}</div><div className="text-gray-500 text-[11px] font-bold uppercase tracking-wider">Earned this week</div></div>
-            <div><div className={`text-xl font-black tabular-nums ${ownerRow.owed > 0 ? 'text-amber-400' : 'text-white'}`}>{$(Math.max(0, ownerRow.owed))}</div><div className="text-gray-500 text-[11px] font-bold uppercase tracking-wider">Not paid yet</div></div>
+            <div><div className="text-xl font-black text-white tabular-nums">{ownerWeeks[0]?.hours ?? 0}</div><div className="text-gray-500 text-xs font-bold uppercase tracking-wider">Hours this week</div></div>
+            <div><div className="text-xl font-black text-white tabular-nums">{$(ownerWeeks[0]?.earned)}</div><div className="text-gray-500 text-xs font-bold uppercase tracking-wider">Earned this week</div></div>
+            <div><div className={`text-xl font-black tabular-nums ${ownerRow.owed > 0 ? 'text-amber-400' : 'text-white'}`}>{$(Math.max(0, ownerRow.owed))}</div><div className="text-gray-500 text-xs font-bold uppercase tracking-wider">Not paid yet</div></div>
           </div>
           <div className="text-gray-400 text-xs mt-2">Labor hours on this week's jobs: <b className="text-white tabular-nums">{weekJobHours}</b>{weekJobs.length ? ` (${weekJobs.map(x => `${jobLabel(x.j)} ${x.hours}h`).join(', ')})` : ' (set hours on a job\'s labor line)'}</div>
           <div className="flex gap-2 mt-3">
-            <button type="button" onClick={() => setPanel({ type: 'work', personId: ownerRow.person.id })} className="flex-1 border border-gray-700 text-gray-200 hover:border-red-600 text-[11px] font-bold uppercase tracking-widest py-2.5">Log my hours</button>
-            <button type="button" onClick={() => setPanel({ type: 'payout', personId: ownerRow.person.id })} disabled={!(ownerRow.owed > 0)} className="flex-1 bg-red-600 hover:bg-red-700 disabled:opacity-40 text-white text-[11px] font-bold uppercase tracking-widest py-2.5">Pay myself {ownerRow.owed > 0 ? $(ownerRow.owed) : ''}</button>
+            <button type="button" onClick={() => setPanel({ type: 'work', personId: ownerRow.person.id })} className="flex-1 border border-gray-700 text-gray-200 hover:border-red-600 text-xs font-bold uppercase tracking-widest py-2.5">Log my hours</button>
+            <button type="button" onClick={() => setPanel({ type: 'payout', personId: ownerRow.person.id })} disabled={!(ownerRow.owed > 0)} className="flex-1 bg-red-600 hover:bg-red-700 disabled:opacity-40 text-white text-xs font-bold uppercase tracking-widest py-2.5">Pay myself {ownerRow.owed > 0 ? $(ownerRow.owed) : ''}</button>
           </div>
           <details className="mt-3">
             <summary className="cursor-pointer text-gray-400 text-xs font-bold uppercase tracking-widest">Last 6 weeks (Mon–Sun)</summary>
             <table className="w-full text-sm mt-2">
-              <thead><tr className="text-gray-500 text-[11px] uppercase tracking-wider"><th className="text-left font-bold py-1">Week of</th><th className="text-right font-bold">Hours</th><th className="text-right font-bold">Earned</th><th className="text-right font-bold">Paid</th></tr></thead>
+              <thead><tr className="text-gray-500 text-xs uppercase tracking-wider"><th className="text-left font-bold py-1">Week of</th><th className="text-right font-bold">Hours</th><th className="text-right font-bold">Earned</th><th className="text-right font-bold">Paid</th></tr></thead>
               <tbody>{ownerWeeks.map(w => (
                 <tr key={w.start} className="border-t border-gray-800"><td className="py-1.5 text-gray-300">{fmtDay(w.start)}</td><td className="text-right tabular-nums text-gray-300">{w.hours}</td><td className="text-right tabular-nums text-gray-300">{$(w.earned)}</td><td className="text-right tabular-nums text-emerald-400">{w.paid ? $(w.paid) : '—'}</td></tr>
               ))}</tbody>
@@ -141,7 +141,7 @@ export function HelperPay() {
             <div key={r.person.id} className={`bg-gray-900 border p-4 ${r.person.active ? 'border-gray-800' : 'border-gray-900 opacity-60'}`}>
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0">
-                  <div className="text-white font-bold truncate">{r.person.name}{!r.person.active && <span className="text-gray-500 font-normal"> · inactive</span>} <span className="text-gray-500 text-[11px] font-bold uppercase tracking-wider">· {r.person.role === 'employee' ? 'Employee' : 'Contractor'}</span></div>
+                  <div className="text-white font-bold truncate">{r.person.name}{!r.person.active && <span className="text-gray-500 font-normal"> · inactive</span>} <span className="text-gray-500 text-xs font-bold uppercase tracking-wider">· {r.person.role === 'employee' ? 'Employee' : 'Contractor'}</span></div>
                   <div className="text-gray-500 text-xs truncate">{[r.person.hourly_rate != null ? `${$(r.person.hourly_rate)}/hr` : '', r.person.job_rate != null ? `${$(r.person.job_rate)}/job` : '', r.person.pay_method || ''].filter(Boolean).join(' · ') || 'No rates set'}</div>
                 </div>
                 <button type="button" onClick={() => setPanel({ type: 'person', person: r.person as Person })} className="text-gray-500 hover:text-white text-xs underline flex-shrink-0">Edit</button>
@@ -149,15 +149,15 @@ export function HelperPay() {
               <div className="flex items-end justify-between mt-3">
                 <div>
                   <div className={`text-2xl font-black tabular-nums ${r.owed > 0 ? 'text-amber-400' : r.owed < 0 ? 'text-cyan-400' : 'text-white'}`}>{$(Math.abs(r.owed))}</div>
-                  <div className="text-gray-500 text-[11px] font-bold uppercase tracking-wider">{r.owed > 0 ? 'You owe' : r.owed < 0 ? 'Paid ahead' : 'All paid up'}</div>
+                  <div className="text-gray-500 text-xs font-bold uppercase tracking-wider">{r.owed > 0 ? 'You owe' : r.owed < 0 ? 'Paid ahead' : 'All paid up'}</div>
                 </div>
                 <div className="text-right text-xs text-gray-500">Paid in {year}: <span className="text-gray-300 tabular-nums">{$(r.paidYear)}</span></div>
               </div>
               {r.needs1099 && <div className="text-amber-400 text-xs mt-2">Paid {$(NEC_THRESHOLD)}+ this year: you'll likely need to send them a 1099-NEC (ask your tax preparer).</div>}
               {r.person.active && (
                 <div className="flex gap-2 mt-3">
-                  <button type="button" onClick={() => setPanel({ type: 'work', personId: r.person.id })} className="flex-1 border border-gray-700 text-gray-200 hover:border-red-600 text-[11px] font-bold uppercase tracking-widest py-2">Log work</button>
-                  <button type="button" onClick={() => setPanel({ type: 'payout', personId: r.person.id })} className="flex-1 border border-gray-700 text-gray-200 hover:border-red-600 text-[11px] font-bold uppercase tracking-widest py-2">Pay</button>
+                  <button type="button" onClick={() => setPanel({ type: 'work', personId: r.person.id })} className="flex-1 border border-gray-700 text-gray-200 hover:border-red-600 text-xs font-bold uppercase tracking-widest py-2">Log work</button>
+                  <button type="button" onClick={() => setPanel({ type: 'payout', personId: r.person.id })} className="flex-1 border border-gray-700 text-gray-200 hover:border-red-600 text-xs font-bold uppercase tracking-widest py-2">Pay</button>
                 </div>
               )}
             </div>
@@ -298,7 +298,7 @@ function WorkForm({ people, personId, jobs, today, onClose, onSaved }: { people:
       </div>
       <div className="grid grid-cols-3 border border-gray-700" role="radiogroup" aria-label="Pay type">
         {(Object.keys(PAY_KINDS) as (keyof typeof PAY_KINDS)[]).map(k => (
-          <button key={k} type="button" role="radio" aria-checked={kind === k} onClick={() => setKind(k)} className={`py-2.5 text-[11px] font-bold uppercase tracking-wider ${kind === k ? 'bg-red-600 text-white' : 'text-gray-400'}`}>{PAY_KINDS[k]}</button>
+          <button key={k} type="button" role="radio" aria-checked={kind === k} onClick={() => setKind(k)} className={`py-2.5 text-xs font-bold uppercase tracking-wider ${kind === k ? 'bg-red-600 text-white' : 'text-gray-400'}`}>{PAY_KINDS[k]}</button>
         ))}
       </div>
       {kind === 'hours' ? (

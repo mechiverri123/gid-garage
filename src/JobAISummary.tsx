@@ -59,7 +59,7 @@ export function JobAISummary({ job }: { job: Job }) {
   return (
     <div className="no-print bg-gray-900 border border-gray-800 border-l-4 border-l-red-600 px-4 py-3">
       <div className="flex items-center justify-between gap-3">
-        <div className="text-gray-400 text-[11px] font-bold uppercase tracking-widest">✨ AI summary{when && <span className="normal-case tracking-normal font-normal text-gray-600"> · {when}</span>}</div>
+        <div className="text-gray-400 text-xs font-bold uppercase tracking-widest">✨ AI summary{when && <span className="normal-case tracking-normal font-normal text-gray-600"> · {when}</span>}</div>
         {(!res?.summary || changed) && (
           <button type="button" onClick={make} disabled={busy}
             className="text-[12px] font-bold uppercase tracking-wider px-3 py-1.5 border border-gray-700 text-gray-200 hover:border-red-600 disabled:opacity-50 whitespace-nowrap">

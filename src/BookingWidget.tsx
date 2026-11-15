@@ -368,7 +368,7 @@ function VehicleSelector({ form, setForm, errors, clearError }: {
               />
               {models.length > 0 && (
                 <button type="button" onClick={() => { setModelOther(false); setForm(p => ({ ...p, vehicleModel: '', vehicleEngine: '', vehicleTrim: '' })); }}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-red-400 text-[11px] font-bold uppercase tracking-wider">
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-red-400 text-xs font-bold uppercase tracking-wider">
                   ← list
                 </button>
               )}
@@ -406,7 +406,7 @@ function VehicleSelector({ form, setForm, errors, clearError }: {
                 />
                 {trimOptions.length > 0 && (
                   <button type="button" onClick={() => { setTrimOther(false); setForm(p => ({ ...p, vehicleTrim: '' })); }}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-red-400 text-[11px] font-bold uppercase tracking-wider">
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-red-400 text-xs font-bold uppercase tracking-wider">
                     ← list
                   </button>
                 )}
@@ -440,7 +440,7 @@ function VehicleSelector({ form, setForm, errors, clearError }: {
                 />
                 {engineOptions.length > 0 && (
                   <button type="button" onClick={() => { setEngineOther(false); setForm(p => ({ ...p, vehicleEngine: '' })); }}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-red-400 text-[11px] font-bold uppercase tracking-wider">
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-red-400 text-xs font-bold uppercase tracking-wider">
                     ← list
                   </button>
                 )}
@@ -618,7 +618,7 @@ function BrakePadSelector({ value, onChange }: { value: string | null; onChange:
                   <button
                     type="button"
                     onClick={e => { e.stopPropagation(); setInfoOpen(infoOpen === pad.id ? null : pad.id); }}
-                    className="w-5 h-5 rounded-full border border-gray-600 text-gray-400 hover:border-red-500 hover:text-red-400 flex items-center justify-center text-[11px] font-bold transition-colors flex-shrink-0"
+                    className="w-5 h-5 rounded-full border border-gray-600 text-gray-400 hover:border-red-500 hover:text-red-400 flex items-center justify-center text-xs font-bold transition-colors flex-shrink-0"
                     aria-label={`Info about ${pad.label}`}
                   >i</button>
                 </div>
@@ -634,11 +634,11 @@ function BrakePadSelector({ value, onChange }: { value: string | null; onChange:
                   ['Best for', pad.details.best],
                 ].map(([k, v]) => (
                   <div key={k} className="flex gap-2">
-                    <span className="text-gray-400 text-[11px] font-bold uppercase tracking-wider w-14 flex-shrink-0 pt-px">{k}</span>
+                    <span className="text-gray-400 text-xs font-bold uppercase tracking-wider w-14 flex-shrink-0 pt-px">{k}</span>
                     <span className="text-gray-300 text-xs leading-snug">{v}</span>
                   </div>
                 ))}
-                <div className="text-red-400/80 text-[11px] leading-snug mt-1 pt-1 border-t border-gray-800">{pad.details.note}</div>
+                <div className="text-red-400/80 text-xs leading-snug mt-1 pt-1 border-t border-gray-800">{pad.details.note}</div>
               </div>
             )}
           </div>
@@ -951,7 +951,7 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1">
                         <span className="text-white text-sm font-black tracking-tight">Don't See Your Problem Listed?</span>
-                        {s.service === 'other' && <span className="text-[11px] font-bold uppercase tracking-widest text-red-500 bg-red-950/60 px-2 py-0.5">Selected</span>}
+                        {s.service === 'other' && <span className="text-xs font-bold uppercase tracking-widest text-red-500 bg-red-950/60 px-2 py-0.5">Selected</span>}
                       </div>
                       <div className="text-gray-400 text-xs leading-relaxed">No worries — we handle all kinds of jobs. Tell us what's going on and we'll point you in the right direction with a custom quote.</div>
                       <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mt-2.5">
@@ -1008,7 +1008,7 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
                         className={`w-full bg-gray-900 text-white text-sm px-3 py-2.5 outline-none transition-colors resize-y placeholder:text-gray-500 leading-relaxed border ${fieldErrors.notes ? 'border-red-500 focus:border-red-400' : 'border-gray-800 focus:border-red-600'}`}
                       />
                       {fieldErrors.notes && <div className="text-red-500 text-xs mt-1">{fieldErrors.notes}</div>}
-                      <div className="text-gray-400 text-[11px] mt-1">Be as specific as you can — sounds, when it happens, how long it's been going on. The more detail, the faster we can help.</div>
+                      <div className="text-gray-400 text-xs mt-1">Be as specific as you can — sounds, when it happens, how long it's been going on. The more detail, the faster we can help.</div>
                     </div>
 
                     {submitError && <div className="bg-red-950/50 border border-red-700 text-red-400 text-sm px-4 py-3">{submitError}</div>}
@@ -1156,7 +1156,7 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
                       );
                     })}
                   </div>
-                  <div className="text-gray-400 text-[11px] mt-1">Mon–Fri: 1:30 PM–8 PM · Sat–Sun: 5 AM–8 PM</div>
+                  <div className="text-gray-400 text-xs mt-1">Mon–Fri: 1:30 PM–8 PM · Sat–Sun: 5 AM–8 PM</div>
                 </>)}
 
                 {s.step >= 3 && s.date && (<>
@@ -1387,11 +1387,11 @@ function GarageNotesField({ booking, onSave }: { booking: Booking; onSave: (id: 
       <div className="flex items-center justify-between mb-1.5">
         <label className="text-xs font-bold uppercase tracking-wider text-yellow-600">🔧 Garage Notes</label>
         <div className="flex items-center gap-2">
-          {saving && <span className="text-gray-400 text-[11px] uppercase tracking-wider">Saving…</span>}
-          {!saving && saved && text !== '' && <span className="text-gray-400 text-[11px] uppercase tracking-wider">✓ Saved</span>}
-          {!saving && !saved && <span className="text-gray-400 text-[11px] uppercase tracking-wider">Unsaved</span>}
+          {saving && <span className="text-gray-400 text-xs uppercase tracking-wider">Saving…</span>}
+          {!saving && saved && text !== '' && <span className="text-gray-400 text-xs uppercase tracking-wider">✓ Saved</span>}
+          {!saving && !saved && <span className="text-gray-400 text-xs uppercase tracking-wider">Unsaved</span>}
           <button onClick={handleManualSave} disabled={saving}
-            className="text-[11px] font-bold uppercase tracking-wider px-2 py-1 border border-yellow-800/60 text-yellow-700 hover:border-yellow-600 hover:text-yellow-500 transition-colors disabled:opacity-50">
+            className="text-xs font-bold uppercase tracking-wider px-2 py-1 border border-yellow-800/60 text-yellow-700 hover:border-yellow-600 hover:text-yellow-500 transition-colors disabled:opacity-50">
             Save
           </button>
         </div>
@@ -1844,19 +1844,19 @@ export function AdminSchedule() {
           <div className="flex items-center gap-1 flex-wrap sm:flex-nowrap sm:gap-2">
             {notifPerm !== 'unsupported' && notifPerm !== 'granted' && (
               <button onClick={requestNotifications}
-                className="border border-yellow-700 text-yellow-600 hover:border-yellow-500 hover:text-yellow-400 text-[9px] sm:text-xs font-bold uppercase tracking-wide px-1.5 sm:px-3 py-1.5 sm:py-2 transition-colors whitespace-nowrap">🔔 Alerts</button>
+                className="border border-yellow-700 text-yellow-600 hover:border-yellow-500 hover:text-yellow-400 text-xs sm:text-xs font-bold uppercase tracking-wide px-1.5 sm:px-3 py-1.5 sm:py-2 transition-colors whitespace-nowrap">🔔 Alerts</button>
             )}
             {notifPerm === 'granted' && (
-              <span className="text-[9px] sm:text-xs text-green-600 font-bold uppercase tracking-wide px-1.5 sm:px-3 py-1.5 sm:py-2 whitespace-nowrap">🔔 On</span>
+              <span className="text-xs sm:text-xs text-green-600 font-bold uppercase tracking-wide px-1.5 sm:px-3 py-1.5 sm:py-2 whitespace-nowrap">🔔 On</span>
             )}
             <a href="/jarvis"
-              className="border border-gray-700 text-gray-400 hover:border-red-600 hover:text-white text-[9px] sm:text-xs font-bold uppercase tracking-wide px-1.5 sm:px-3 py-1.5 sm:py-2 transition-colors whitespace-nowrap">🎯 Jarvis</a>
+              className="border border-gray-700 text-gray-400 hover:border-red-600 hover:text-white text-xs sm:text-xs font-bold uppercase tracking-wide px-1.5 sm:px-3 py-1.5 sm:py-2 transition-colors whitespace-nowrap">🎯 Jarvis</a>
             <button onClick={() => getSupabaseBookings().then(setBookings)}
-              className="border border-gray-700 text-gray-400 hover:border-red-600 hover:text-white text-[9px] sm:text-xs font-bold uppercase tracking-wide px-1.5 sm:px-3 py-1.5 sm:py-2 transition-colors whitespace-nowrap">↻ Refresh</button>
+              className="border border-gray-700 text-gray-400 hover:border-red-600 hover:text-white text-xs sm:text-xs font-bold uppercase tracking-wide px-1.5 sm:px-3 py-1.5 sm:py-2 transition-colors whitespace-nowrap">↻ Refresh</button>
             <button onClick={() => { sessionStorage.removeItem('gg_admin_auth'); setUnlocked(false); }}
-              className="border border-gray-700 text-gray-400 hover:border-red-600 hover:text-white text-[9px] sm:text-xs font-bold uppercase tracking-wide px-1.5 sm:px-3 py-1.5 sm:py-2 transition-colors whitespace-nowrap">🔒 Lock</button>
+              className="border border-gray-700 text-gray-400 hover:border-red-600 hover:text-white text-xs sm:text-xs font-bold uppercase tracking-wide px-1.5 sm:px-3 py-1.5 sm:py-2 transition-colors whitespace-nowrap">🔒 Lock</button>
             <a href="/"
-              className="border border-gray-700 text-gray-400 hover:border-red-600 hover:text-white text-[9px] sm:text-xs font-bold uppercase tracking-wide px-1.5 sm:px-3 py-1.5 sm:py-2 transition-colors whitespace-nowrap">← Site</a>
+              className="border border-gray-700 text-gray-400 hover:border-red-600 hover:text-white text-xs sm:text-xs font-bold uppercase tracking-wide px-1.5 sm:px-3 py-1.5 sm:py-2 transition-colors whitespace-nowrap">← Site</a>
           </div>
         </div>
 
@@ -1945,11 +1945,11 @@ export function AdminSchedule() {
                         draggable
                         onDragStart={e => { e.dataTransfer.setData('text/plain', b.id); setDraggingId(b.id); }}
                         onDragEnd={() => { setDraggingId(null); setDropTargetKey(null); }}
-                        className={`w-full text-left bg-red-900/50 hover:bg-red-900/80 text-red-300 text-[11px] px-1 py-0.5 mb-0.5 truncate transition-colors cursor-grab active:cursor-grabbing ${draggingId === b.id ? 'opacity-40' : ''}`}>
+                        className={`w-full text-left bg-red-900/50 hover:bg-red-900/80 text-red-300 text-xs px-1 py-0.5 mb-0.5 truncate transition-colors cursor-grab active:cursor-grabbing ${draggingId === b.id ? 'opacity-40' : ''}`}>
                         {b.time} {b.fname}
                       </button>
                     ))}
-                    {dayBookings.length > 2 && <div className="text-gray-400 text-[11px]">+{dayBookings.length - 2} more</div>}
+                    {dayBookings.length > 2 && <div className="text-gray-400 text-xs">+{dayBookings.length - 2} more</div>}
                   </div>
                 );
               })}
@@ -1968,7 +1968,7 @@ export function AdminSchedule() {
             <div className="min-w-[600px]">
               {/* Day headers */}
               <div className="grid grid-cols-8 gap-1 mb-1">
-                <div className="text-gray-700 text-[11px] font-bold uppercase py-1" />
+                <div className="text-gray-700 text-xs font-bold uppercase py-1" />
                 {weekDates.map(d => {
                   const dKey = dateKey(d.getFullYear(), d.getMonth(), d.getDate());
                   const isToday = dKey === today;
@@ -1982,7 +1982,7 @@ export function AdminSchedule() {
               {/* Time rows */}
               {ALL_SLOTS.map(slot => (
                 <div key={slot} className="grid grid-cols-8 gap-1 border-t border-gray-800">
-                  <div className="text-gray-400 text-[11px] py-2 pr-2 text-right font-mono">{slot}</div>
+                  <div className="text-gray-400 text-xs py-2 pr-2 text-right font-mono">{slot}</div>
                   {weekDates.map(d => {
                     const dKey = dateKey(d.getFullYear(), d.getMonth(), d.getDate());
                     const slotBookings = bookings.filter(b => b.date === dKey && b.time === slot && b.status !== 'cancelled');
@@ -2004,7 +2004,7 @@ export function AdminSchedule() {
                             draggable
                             onDragStart={e => { e.dataTransfer.setData('text/plain', b.id); setDraggingId(b.id); }}
                             onDragEnd={() => { setDraggingId(null); setDropTargetKey(null); }}
-                            className={`w-full text-left bg-red-900/50 hover:bg-red-900/80 text-red-300 text-[11px] px-1 py-0.5 truncate transition-colors cursor-grab active:cursor-grabbing ${draggingId === b.id ? 'opacity-40' : ''}`}>
+                            className={`w-full text-left bg-red-900/50 hover:bg-red-900/80 text-red-300 text-xs px-1 py-0.5 truncate transition-colors cursor-grab active:cursor-grabbing ${draggingId === b.id ? 'opacity-40' : ''}`}>
                             {b.fname} {b.lname[0]}.
                           </button>
                         ))}

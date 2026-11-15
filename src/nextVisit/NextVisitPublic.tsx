@@ -94,13 +94,13 @@ export function NextVisitInvoice({ jobId, nextVisit }: { jobId: string; nextVisi
         {recs.map(item => (
           <Row key={item.id} item={item}>
             {response ? (
-              <span className={`text-[11px] font-bold uppercase tracking-wider px-2 py-1 border flex-shrink-0 ${response.approved.includes(item.id) ? 'border-emerald-700 text-emerald-400' : 'border-gray-700 text-gray-500'}`}>{answeredLabel(item.id)}</span>
+              <span className={`text-xs font-bold uppercase tracking-wider px-2 py-1 border flex-shrink-0 ${response.approved.includes(item.id) ? 'border-emerald-700 text-emerald-400' : 'border-gray-700 text-gray-500'}`}>{answeredLabel(item.id)}</span>
             ) : (
               <div className="flex flex-col sm:flex-row gap-1.5 flex-shrink-0 no-print">
                 <button type="button" onClick={() => setChoice(c => ({ ...c, [item.id]: 'yes' }))} aria-pressed={choice[item.id] === 'yes'}
-                  className={`text-[11px] font-bold uppercase tracking-wider px-3 py-2 border transition-colors ${choice[item.id] === 'yes' ? 'bg-red-600 border-red-600 text-white' : 'border-gray-600 text-gray-300 hover:border-red-600'}`}>Yes, next time</button>
+                  className={`text-xs font-bold uppercase tracking-wider px-3 py-2 border transition-colors ${choice[item.id] === 'yes' ? 'bg-red-600 border-red-600 text-white' : 'border-gray-600 text-gray-300 hover:border-red-600'}`}>Yes, next time</button>
                 <button type="button" onClick={() => setChoice(c => ({ ...c, [item.id]: 'no' }))} aria-pressed={choice[item.id] === 'no'}
-                  className={`text-[11px] font-bold uppercase tracking-wider px-3 py-2 border transition-colors ${choice[item.id] === 'no' ? 'bg-gray-600 border-gray-600 text-white' : 'border-gray-700 text-gray-400 hover:border-gray-500'}`}>Not now</button>
+                  className={`text-xs font-bold uppercase tracking-wider px-3 py-2 border transition-colors ${choice[item.id] === 'no' ? 'bg-gray-600 border-gray-600 text-white' : 'border-gray-700 text-gray-400 hover:border-gray-500'}`}>Not now</button>
               </div>
             )}
           </Row>
@@ -155,7 +155,7 @@ export function NextVisitReport({ nextVisit }: { nextVisit?: NextVisit | null })
       </div>
       {Object.entries(byCat).map(([cat, list]) => (
         <div key={cat} className="page-break-avoid">
-          <div className="text-gray-500 text-[11px] font-bold uppercase tracking-widest px-6 pt-4 pb-1 print:px-0">{cat}</div>
+          <div className="text-gray-500 text-xs font-bold uppercase tracking-widest px-6 pt-4 pb-1 print:px-0">{cat}</div>
           <div className="divide-y divide-white/5">
             {[...list].sort((a, b) => order.indexOf(a.status!) - order.indexOf(b.status!)).map(i => <Row key={i.id} item={{ ...i, service: i.status === 'good' ? i.label : i.service }} />)}
           </div>

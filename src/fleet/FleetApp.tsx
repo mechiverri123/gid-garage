@@ -37,7 +37,7 @@ const SKINS = {
     input: 'bg-gray-950 border border-gray-700 text-white px-3 py-2 text-[14px] w-full outline-none focus:border-red-600',
     tabOn: 'border-red-600 text-white', tabOff: 'border-transparent text-gray-500 hover:text-gray-300',
     dialog: 'bg-gray-900 border border-gray-700',
-    label: 'text-[11px] font-bold uppercase tracking-wider text-gray-500',
+    label: 'text-xs font-bold uppercase tracking-wider text-gray-500',
     unit: 'text-red-500', chipOn: 'bg-gray-700 border-gray-600 text-white', chipOff: 'border-gray-800 text-gray-500 hover:text-white',
   },
   jarvis: {
@@ -51,7 +51,7 @@ const SKINS = {
     input: 'rounded-lg bg-[rgba(3,10,17,0.85)] border border-[rgba(54,211,255,0.42)] text-[#F5F8FA] px-3 py-2 text-[14px] w-full outline-none focus:border-[#34D6FF]',
     tabOn: 'border-[#34D6FF] text-[#F5F8FA]', tabOff: 'border-transparent text-[#657686] hover:text-[#A7B5C2]',
     dialog: 'rounded-2xl bg-[#08131E] border border-[rgba(54,211,255,0.42)]',
-    label: 'text-[11px] font-bold uppercase tracking-[0.14em] text-[#657686]',
+    label: 'text-xs font-bold uppercase tracking-[0.14em] text-[#657686]',
     unit: 'text-[#34D6FF]', chipOn: 'bg-[rgba(52,214,255,0.18)] border-[#34D6FF] text-[#F5F8FA] rounded-lg', chipOff: 'border-[rgba(54,211,255,0.18)] text-[#A7B5C2] rounded-lg',
   },
 };
@@ -64,7 +64,7 @@ const money = (n: number | null) => (n == null ? '—' : `$${n.toLocaleString('e
 const miles = (n: number | null | undefined) => (n == null ? '—' : `${Number(n).toLocaleString('en-US')} mi`);
 
 function Badge({ color, children }: { color: string; children: ReactNode }) {
-  return <span className="inline-flex items-center gap-1.5 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wider whitespace-nowrap rounded" style={{ color, background: `${color}1A`, border: `1px solid ${color}55` }}>{children}</span>;
+  return <span className="inline-flex items-center gap-1.5 px-2 py-0.5 text-xs font-bold uppercase tracking-wider whitespace-nowrap rounded" style={{ color, background: `${color}1A`, border: `1px solid ${color}55` }}>{children}</span>;
 }
 const StatusBadge = ({ s }: { s: VehicleStatus }) => <Badge color={STATUS_COLOR[s]}>{STATUS_LABEL[s]}</Badge>;
 const JobBadge = ({ j }: { j: FleetJob }) => <Badge color={j.cancelled ? '#657686' : JOB_COLOR[j.jobStatus] || '#A7B5C2'}>{j.cancelled ? 'Cancelled' : JOB_LABEL[j.jobStatus] || j.jobStatus}</Badge>;
