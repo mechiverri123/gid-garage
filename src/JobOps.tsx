@@ -7372,7 +7372,7 @@ export function InvoicePage() {
               {job.phone && <div className="text-sm">{fmtPhone(job.phone)}</div>}
               {job.serviceAddress && <div className="text-sm">{job.serviceAddress}</div>}
             </div>
-            <div className="text-right text-sm">
+            <div className="text-right text-sm max-w-[55%] break-words">
               <div className="font-bold text-sm uppercase tracking-wide mb-1">Vehicle Details</div>
               <div>{job.vehicle}</div>
               {job.vin && <div className="text-sm">VIN: {job.vin}</div>}
@@ -7816,7 +7816,8 @@ export function InspectionPage() {
         <div className="mb-5">
           <div className="text-red-500 text-xs font-bold uppercase tracking-[0.25em]">GID Garage · Mobile Mechanic</div>
           <h1 className="text-2xl font-black tracking-tight mt-1">Vehicle Inspection</h1>
-          <div className="text-gray-400 text-sm mt-1">{[job.fname, job.lname].filter(Boolean).join(' ')} · {job.vehicle}{job.vin ? ` · VIN ${job.vin}` : ''}</div>
+          <div className="text-gray-400 text-sm mt-1">{[job.fname, job.lname].filter(Boolean).join(' ')} · {job.vehicle}</div>
+          {job.vin && <div className="text-gray-400 text-sm font-mono">VIN {job.vin}</div>}
           <div className="text-gray-500 text-xs mt-0.5">Checked {checkedOn}{job.mileage ? ` · ${fmtMileage(job.mileage)} mi` : ''}</div>
         </div>
         <div className="border border-white/10 bg-white/5 print:border-0 print:bg-transparent">

@@ -4,6 +4,7 @@ import { isBookableSlot, phoenixHour } from '../shared/booking-slots.js';
 import { phoenixYmd } from '../shared/business-metrics.js';
 import { rowIsCancelled, rowWorkStarted } from '../shared/business-rules.js';
 import { vehicleRecalls } from './_lib/recalls.js';
+import { quickQuoteVehicle } from './_lib/quick-quote.js';
 // Cloudflare Pages Function — POST /api/customer
 // PUBLIC customer operations that legitimately need DB access, now that the
 // anon key can no longer read the bookings table. Each action validates itself
@@ -755,7 +756,7 @@ export async function onRequestPost({ request, env }) {
       // an inbox. Falls back to email if SMS isn't configured or fails, so a
       // lead is never silently dropped.
       case 'quick-quote': {
-        const { name, phone, year, make, model, engine, issue, hp } = payload; // hp = honeypot field, humans never fill it
+        const { name, phone, year, make, model, engine, hp } = payload; // hp = honeypot field, humans never fill it
         if (hp) return json({ ok: true }); // silently drop bot submissions
         if (!name || !phone) return json({ error: 'Missing name or phone' }, 400);
         const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
@@ -767,7 +768,8 @@ export async function onRequestPost({ request, env }) {
         const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Phoenix' });
         const nowTime = new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'America/Phoenix' });
         const submittedStr = new Date().toLocaleString('en-US', { timeZone: 'America/Phoenix' });
-        const vehicle = [year, make, model, engine].map(v => (v || '').trim()).filter(Boolean).join(' ') || 'Not specified';
+        // An over-long vehicle field (a whole message pasted into Model) moves into the notes.
+        const { vehicle, notes: issue } = quickQuoteVehicle({ year, make, model, engine, issue: payload.issue });
 
         // Insert as a real job row (status confirmed / job_status BOOKED) so it
         // shows up in admin > Jobs alongside everything else — a quick-quote
