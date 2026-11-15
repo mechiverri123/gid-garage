@@ -225,11 +225,9 @@ Jarvis is the interactive command interface for GID Garage, not primarily a chat
   - `shared/fleet.js` (rules; tests in `tests/fleet.test.js`).
   - `functions/_lib/fleet.js` (the `fleet-*` actions in `/admin-api-data`).
   - `src/fleet/FleetApp.tsx`: one component with skins `admin` (the Fleet tab, `FleetAdminTab`) and `jarvis` (the workspace view `fleet`).
-- **Retail views leave fleet jobs out:**
-  - admin Schedule (`getSupabaseBookings`);
-  - Jarvis calendar;
-  - Jarvis Customers.
+- **Retail views leave fleet jobs out:** Jarvis Customers only.
 - **Views that keep fleet jobs:**
+  - admin Schedule (`getSupabaseBookings`) and the Jarvis calendar (owner changed his mind 2026-11-15: fleet jobs belong on the main calendar);
   - the Jobs lists (with a Fleet # / unit badge);
   - public booking availability;
   - revenue, Money and net profit.

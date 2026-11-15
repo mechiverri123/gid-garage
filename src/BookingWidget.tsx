@@ -42,9 +42,8 @@ async function apiPost(action: string, args: Record<string, any> = {}) {
 async function getSupabaseBookings(): Promise<Booking[]> {
   try {
     const data = (await adminPost('list-bookings') || []);
-    // Fleet jobs live on the Fleet calendar, not the retail schedule (FLEET_PLAN.md).
-    // Counts only; no money is computed from this list.
-    return (data || []).filter((b: any) => !b.fleet_id).map((b: any) => ({
+    // Fleet jobs show here too (owner decision 2026-11-15). Counts only; no money is computed from this list.
+    return (data || []).map((b: any) => ({
       id: b.id,
       service: b.service,
       serviceIcon: b.service_icon,
