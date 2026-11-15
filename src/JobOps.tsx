@@ -4000,8 +4000,8 @@ export function JobDetailPanel({ job: initialJob, onClose, onJobUpdate, backLabe
         onClick={e => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="sticky top-0 bg-gray-950 border-b border-gray-800 px-6 py-4 flex items-start justify-between z-10">
-          <div>
+        <div className="sticky top-0 bg-gray-950 border-b border-gray-800 px-4 sm:px-6 py-4 flex items-start justify-between gap-3 z-10">
+          <div className="min-w-0 flex-1">
             <div className="text-red-500 text-xs font-bold uppercase tracking-widest mb-0.5">Job Detail</div>
             {job.customerId ? (
               <button
@@ -4014,7 +4014,9 @@ export function JobDetailPanel({ job: initialJob, onClose, onJobUpdate, backLabe
             ) : (
               <h2 className="text-white font-black text-lg">{job.fname} {job.lname}</h2>
             )}
-            <div className="text-gray-500 text-sm truncate cursor-pointer" title="Tap to show all" onClick={e => e.currentTarget.classList.toggle('truncate')}>{resolveServiceName(job.service, job.notes)} · {job.vehicle}</div>
+            {/* Service and vehicle on their own lines, each cut to one line (tap shows all) so the Back button always stays on screen. */}
+            <div className="text-gray-400 text-sm truncate cursor-pointer" title="Tap to show all" onClick={e => e.currentTarget.classList.toggle('truncate')}>{resolveServiceName(job.service, job.notes)}</div>
+            {job.vehicle && <div className="text-gray-500 text-sm truncate cursor-pointer" title="Tap to show all" onClick={e => e.currentTarget.classList.toggle('truncate')}>{job.vehicle}</div>}
             {job.dateTbd ? (
               <div className="text-indigo-400 text-xs font-bold uppercase tracking-wider mt-0.5">Date TBD — not yet scheduled</div>
             ) : (
