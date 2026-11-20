@@ -6881,7 +6881,6 @@ export function JobsTab() {
   const yearBreakdown = breakdownFor(isThisYear);
   const activeBreakdown = netProfitView === 'month' ? monthBreakdown : yearBreakdown;
   const activeBreakdownLabel = netProfitView === 'month' ? 'This Month' : `${phoenixDateParts(now).year}`;
-  const partsMargin = activeBreakdown.partsBilled - activeBreakdown.partsCost;
   const activeHelperPay = laborPaid(helperPayouts, netProfitView === 'month' ? isThisMonth : isThisYear);
 
   const JOB_STATUS_ORDER: Record<string, number> = {
@@ -6973,10 +6972,6 @@ export function JobsTab() {
             <div>
               <div className="text-red-400 font-mono font-bold">-${activeBreakdown.partsCost.toFixed(2)}</div>
               <div className="text-gray-600 text-xs font-bold uppercase tracking-wider">Parts Cost (Actual)</div>
-            </div>
-            <div>
-              <div className={`font-mono font-bold ${partsMargin >= 0 ? 'text-emerald-400' : 'text-red-500'}`}>${partsMargin.toFixed(2)}</div>
-              <div className="text-gray-600 text-xs font-bold uppercase tracking-wider">Parts Margin</div>
             </div>
             <div>
               <div className="text-white font-mono font-bold">${activeBreakdown.mobileBilled.toFixed(2)}</div>
