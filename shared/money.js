@@ -75,6 +75,7 @@ export function detectKind(text) {
   const head = String(text || '').replace(/^﻿/, '').split(/\r?\n/, 1)[0].toLowerCase();
   if (head.includes('debit/credit') && head.includes('description')) return 'bluevine';
   if (head.includes('account_name') && head.includes('transaction_id')) return 'zoho';
+  if (head.includes('expense date') && head.includes('expense reference id')) return 'zoho'; // Expenses list → Export
   return null;
 }
 
@@ -92,9 +93,18 @@ export function parseBluevine(text) {
   }).filter(Boolean);
 }
 
-// Zoho Books "Expense Details" CSV.
+// Zoho Books "Expense Details" report CSV, or the Expenses list export (same
+// ids: Expense Reference ID = transaction_id, so the two merge without doubles).
+const MON = { jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6, jul: 7, aug: 8, sep: 9, oct: 10, nov: 11, dec: 12 };
+const zohoDate = s => {
+  const m = String(s || '').match(/^(\d{1,2}) ([a-z]{3})[a-z]* (\d{4})$/i);
+  return m && MON[m[2].toLowerCase()] ? `${m[3]}-${String(MON[m[2].toLowerCase()]).padStart(2, '0')}-${m[1].padStart(2, '0')}` : ymd(String(s || ''));
+};
+const fromExpenseList = r => ('expense reference id' in r
+  ? { date: zohoDate(r['expense date']), amount: r.total || r['expense amount'], transaction_id: r['expense reference id'], account_name: r['expense account'], vendor_name: r.vendor, customer_name: r['customer name'], receipt_name: '', status: r['is billable'] === 'true' ? 'billable' : 'nonbillable' }
+  : r);
 export function parseZoho(text) {
-  return parseCsv(text).map(r => {
+  return parseCsv(text).map(fromExpenseList).map(r => {
     const date = ymd(r.date); const amount = Number(r.amount_with_tax || r.amount);
     if (!date || !Number.isFinite(amount) || !r.transaction_id) return null;
     return { id: `zb:${r.transaction_id}`, date, amount, account: r.account_name || '', vendor: r.vendor_name || '', customer: r.customer_name || '', receipt: r.receipt_name || '', status: r.status || '' };

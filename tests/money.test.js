@@ -36,6 +36,12 @@ test('CSV parsing and file detection', () => {
   assert.equal(detectKind('foo,bar\n1,2'), null);
 });
 
+test('Zoho Expenses-list export reads like Expense Details, with the same ids', () => {
+  const EL = 'Expense Date,Expense Description,Expense Account,Paid Through,Vendor,Expense Amount,Total,Is Billable,Customer Name,Expense Reference ID\n08 Aug 2026,,Business Insurance Payment,Bluevine Business Checking,,80.800000,80.800,false,,8889503000000149009\n';
+  assert.equal(detectKind(EL), 'zoho');
+  assert.deepEqual(parseZoho(EL), [{ id: 'zb:8889503000000149009', date: '2026-08-08', amount: 80.8, account: 'Business Insurance Payment', vendor: '', customer: '', receipt: '', status: 'nonbillable' }]);
+});
+
 test('Bluevine ids are stable and identical same-day charges stay separate', () => {
   const a = parseBluevine(BV); const b = parseBluevine(BV);
   assert.deepEqual(a.map(r => r.id), b.map(r => r.id));
