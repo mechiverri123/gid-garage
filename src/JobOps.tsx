@@ -3879,7 +3879,10 @@ export function JobDetailPanel({ job: initialJob, onClose, onJobUpdate, backLabe
   const [editServiceAddress, setEditServiceAddress] = useState(job.serviceAddress || '');
   const [editPhone, setEditPhone] = useState(job.phone || '');
   const [editEmail, setEditEmail] = useState(job.email || '');
-  const [editNotes, setEditNotes] = useState(job.notes || '');
+  // Overview notes ARE the scope notes (estimate_notes): the same field as Estimate → Scope
+  // Notes and the Tech app, shown on estimates and invoices. Saved only when edited.
+  const [editNotes, setEditNotes] = useState(job.estimateNotes || '');
+  const notesEdited = useRef(false);
 
   function startEditAppt() {
     setEditDate(job.date);
@@ -3896,7 +3899,8 @@ export function JobDetailPanel({ job: initialJob, onClose, onJobUpdate, backLabe
     setEditServiceAddress(job.serviceAddress || '');
     setEditPhone(job.phone || '');
     setEditEmail(job.email || '');
-    setEditNotes(job.notes || '');
+    setEditNotes(job.estimateNotes || '');
+    notesEdited.current = false;
     setApptErr(null);
     setIdentityPrompt(null);
     setEditingAppt(true);
@@ -4003,10 +4007,10 @@ export function JobDetailPanel({ job: initialJob, onClose, onJobUpdate, backLabe
         if (customerId) await patchJob(job.id, { customer_id: customerId });
       }
       await patchJob(job.id, {
-        date: editDate, time: editTime || 'TBD', date_tbd: false, ...customerFields, ...jobOnlyFields, notes: editNotes,
+        date: editDate, time: editTime || 'TBD', date_tbd: false, ...customerFields, ...jobOnlyFields, ...(notesEdited.current ? { estimate_notes: editNotes } : {}),
         ...(scope === 'move' && customerId && customerId !== job.customerId ? { customer_id: customerId } : {}),
       });
-      handleUpdate({ ...job, date: editDate, time: editTime || 'TBD', dateTbd: false, fname: editFname.trim(), lname: editLname.trim(), vehicle: editVehicle, vin: editVin, ...(plateEdited.current ? { licensePlate: editPlate, plateState: editPlate ? editPlateState : '' } : {}), mileage: editMileage, serviceAddress: editServiceAddress, phone: editPhone, email: editEmail, notes: editNotes, customerId });
+      handleUpdate({ ...job, date: editDate, time: editTime || 'TBD', dateTbd: false, fname: editFname.trim(), lname: editLname.trim(), vehicle: editVehicle, vin: editVin, ...(plateEdited.current ? { licensePlate: editPlate, plateState: editPlate ? editPlateState : '' } : {}), mileage: editMileage, serviceAddress: editServiceAddress, phone: editPhone, email: editEmail, ...(notesEdited.current ? { estimateNotes: editNotes } : {}), customerId });
       setEditingAppt(false);
     } catch (e: any) {
       const raw = e?.message ?? '';
@@ -4159,7 +4163,8 @@ export function JobDetailPanel({ job: initialJob, onClose, onJobUpdate, backLabe
                     ['VIN', job.vin || '—'],
                     ['License Plate', job.licensePlate ? `${job.licensePlate} (${job.plateState || 'AZ'})` : '—'],
                     ['Mileage', job.mileage ? `${fmtMileage(job.mileage)} mi` : '—'],
-                    ['Customer Notes', job.notes || '—'],
+                    ['Scope Notes', job.estimateNotes || '—'],
+                    ...(job.notes && job.notes !== job.estimateNotes ? [["Customer's Request", job.notes]] : []),
                   ].map(([label, val]) => (
                     <div key={label} className="flex gap-4 border-b border-gray-800 py-2">
                       <span className="text-gray-600 text-xs font-bold uppercase tracking-wider w-32 flex-shrink-0 pt-0.5">{label}</span>
@@ -4257,8 +4262,8 @@ export function JobDetailPanel({ job: initialJob, onClose, onJobUpdate, backLabe
                       className="w-full bg-gray-900 text-white text-sm px-3 py-2 outline-none border border-gray-700 focus:border-red-600 transition-colors" />
                   </div>
                   <div>
-                    <label className="block text-gray-500 text-xs font-bold uppercase tracking-wider mb-1">Notes</label>
-                    <textarea value={editNotes} onChange={e => setEditNotes(e.target.value)} rows={3}
+                    <label className="block text-gray-500 text-xs font-bold uppercase tracking-wider mb-1">Scope Notes <span className="normal-case tracking-normal font-normal text-gray-600">(same as Estimate and Tech app)</span></label>
+                    <textarea value={editNotes} onChange={e => { notesEdited.current = true; setEditNotes(e.target.value); }} rows={5}
                       className="w-full bg-gray-900 text-white text-sm px-3 py-2 outline-none border border-gray-700 focus:border-red-600 transition-colors resize-none" />
                   </div>
                   {apptErr && <div className="text-red-400 text-xs">{apptErr}</div>}

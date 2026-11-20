@@ -185,7 +185,7 @@ export async function onRequestPost({ request, env }) {
         // get-booking.
         const listColumns = [
           'id', 'service', 'date', 'time', 'fname', 'lname', 'phone', 'email',
-          'vehicle', 'vin', 'mileage', 'service_address', 'customer_id', 'notes', 'garage_notes', 'status', 'job_status', 'created_at',
+          'vehicle', 'vin', 'mileage', 'service_address', 'customer_id', 'notes', 'estimate_notes', 'garage_notes', 'status', 'job_status', 'created_at',
           'estimate_amount', 'tax_amount', 'tax_rate_snapshot', 'customer_agreed', 'signed_at', 'line_items',
           'invoice_amount', 'stripe_transaction_id', 'stripe_customer_id',
           'stripe_last4', 'paid_at', 'adjustment_amount', 'amount_paid', 'payments',

@@ -243,9 +243,9 @@ function JobScreen({ id, onBack, onChanged }: { id: string; onBack: () => void; 
               {job.serviceAddress && <Info label="Address"><a href={mapsUrl} className="underline">{job.serviceAddress}</a></Info>}
               <VehicleId key={job.id} job={job} onSaved={update} />
               {job.lineItems?.length > 0 && <Info label="Work on this job">{job.lineItems.map(li => <div key={li.id} className="flex justify-between gap-3"><span>{li.label}</span><span className="text-gray-400 tabular-nums">{money(li.amount)}</span></div>)}</Info>}
-              {job.notes && <Info label="Booking notes"><span className="whitespace-pre-wrap">{job.notes}</span></Info>}
+              {job.notes && job.notes !== notes && <Info label="Customer's request"><span className="whitespace-pre-wrap">{job.notes}</span></Info>}
               <div>
-                <div className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-1">Technician notes <span className="normal-case tracking-normal font-normal text-gray-600">(Scope of Work on the invoice · {notesDirty ? 'saving…' : 'saved'})</span></div>
+                <div className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-1">Scope notes <span className="normal-case tracking-normal font-normal text-gray-600">(same as admin · on estimates and invoices · {notesDirty ? 'saving…' : 'saved'})</span></div>
                 <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={4} className="w-full bg-gray-900 border border-gray-700 text-white px-3 py-2 text-[15px] outline-none focus:border-red-600" />
               </div>
             </div>
