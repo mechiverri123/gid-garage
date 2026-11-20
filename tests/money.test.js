@@ -58,6 +58,10 @@ test('bank classification: customer money, owner equity, tax, refunds, ambiguous
   assert.equal(classifyBank({ desc: 'GIDGARAGE, TRANSFER', amount: 100 }).kind, 'deposit');
   assert.equal(c('VENMO *KASSIDY').kind, 'owner_out');
   assert.equal(c('Transfer to SoFi (6948)').kind, 'owner_out');
+  for (const d of ['Oxendale Kia, FLAGSTAFF, AZ', 'BABBITT FORD, FLAGSTAFF, AZ', 'FLAGSTAFF NISSAN SUB, FLAGSTAFF, AZ', 'MERCEDES BENZ NORTHERN, FLAGSTAFF, AZ']) assert.deepEqual(c(d), { kind: 'expense', category: 'Parts' }, d);
+  assert.equal(c('TOYOTA TIS').category, 'Repair Info');
+  assert.equal(c('BTS*QUILL, FRAMINGHAM, MA').category, 'Shop Supplies');
+  assert.ok(c('STANFORD BOOKS').review, 'brand names only match as whole words');
   assert.equal(classifyBank({ desc: 'miko echiverri - Deposit Account', amount: 50 }).kind, 'owner_in');
   assert.equal(c('RVA AZ DEPT OF REVENUE').kind, 'tax_paid');
   assert.equal(c('mucarus, UK, GBR').category, 'Tools and Equipment');

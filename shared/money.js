@@ -143,6 +143,9 @@ const BANK_RULES = [
   [/anthropic|openai|supabase|zoho|cloudflare|github|google \*?workspace|livekit|deepgram|cartesia|brevo/i, 'expense', 'Software and Subscriptions'],
   [/liberty mutual|progressive|state farm|geico|insuran/i, 'expense', 'Insurance'],
   [/toyota tis|alldata|mitchell|identifix|techinfo/i, 'expense', 'Repair Info'],
+  // After Repair Info so Toyota TIS stays there: car dealerships are parts counters (owner, 2026-11-19).
+  [/oxendale|babbitt|\b(nissan|mercedes|kia|ford|toyota|honda|chevrolet|chevy|gmc|buick|cadillac|dodge|chrysler|jeep|subaru|hyundai|mazda|volkswagen|bmw|audi|lexus|acura|infiniti|volvo|mitsubishi|lincoln)\b/i, 'expense', 'Parts'],
+  [/quill/i, 'expense', 'Shop Supplies'],
   [/speedway|shell oil|chevron|circle k|maverik|conoco|fuel/i, 'expense', 'Fuel'],
 ];
 const AMBIGUOUS = /amazon|walmart|wal-mart|wm supercenter|target|best buy|walgreens|costco|ebay|paypal/i;
