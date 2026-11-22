@@ -406,6 +406,34 @@ async function receiptForAI(file: Blob): Promise<{ mediaType: string; data: stri
   } finally { URL.revokeObjectURL(url); }
 }
 
+const aiError = (e: any) => { let m = e?.message || 'Could not read it'; try { m = JSON.parse(m).error || m; } catch { /* plain text */ } return m; };
+
+// 📷 next to a field: take a photo, the AI reads it (read-photo), onRead fills the field.
+export function SnapButton({ kind, label, onRead }: { kind: 'vin' | 'odometer'; label: string; onRead: (r: { vin?: string; miles?: number }) => void }) {
+  const ref = useRef<HTMLInputElement>(null);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+  return (
+    <span className="inline-flex flex-col items-end">
+      <button type="button" onClick={() => ref.current?.click()} disabled={busy}
+        className="text-xs font-bold uppercase tracking-wider text-sky-400 hover:text-sky-300 disabled:opacity-50 transition-colors">
+        {busy ? 'Reading…' : `📷 ${label}`}
+      </button>
+      <input ref={ref} type="file" accept="image/*" capture="environment" className="hidden"
+        onChange={async e => {
+          const file = e.target.files?.[0];
+          e.target.value = '';
+          if (!file) return;
+          setBusy(true); setErr('');
+          try { onRead(await adminPost('read-photo', { kind, ...(await receiptForAI(file)) })); }
+          catch (x) { setErr(aiError(x)); }
+          setBusy(false);
+        }} />
+      {err && <span className="text-red-400 text-xs normal-case tracking-normal font-normal text-right max-w-[220px]">{err}</span>}
+    </span>
+  );
+}
+
 export interface Job {
   id: string;
   service: string;
@@ -1425,17 +1453,15 @@ export function PartsCostPanel({ job, onUpdate }: { job: Job; onUpdate: (j: Job)
     try {
       const r = receiptsRef.current.find(x => x.key === key);
       const blob = file || await (await fetch(r!.url)).blob();
-      const out = await adminPost('read-receipt', await receiptForAI(blob)) as { total: number; store: string };
+      const out = await adminPost('read-photo', { kind: 'receipt', ...(await receiptForAI(blob)) }) as { total: number; store: string };
       const next = receiptsRef.current.map(x => x.key === key ? { ...x, readTotal: out.total, readStore: out.store } : x);
       setReceipts(next);
       // Straight to the DB: this finishes later, and onUpdate with this panel's
       // older `job` could undo a parts cost typed meanwhile.
       await patchJob(job.id, { parts_receipts: JSON.stringify(next) });
       setReading(prev => { const n = { ...prev }; delete n[key]; return n; });
-    } catch (e: any) {
-      let msg = e?.message || 'Could not read it';
-      try { msg = JSON.parse(msg).error || msg; } catch { /* plain text */ }
-      setReading(prev => ({ ...prev, [key]: msg }));
+    } catch (e) {
+      setReading(prev => ({ ...prev, [key]: aiError(e) }));
     }
   }
 
@@ -4345,6 +4371,7 @@ export function JobDetailPanel({ job: initialJob, onClose, onJobUpdate, backLabe
                     <div>
                       <div className="flex items-center justify-between mb-1">
                         <label className="block text-gray-500 text-xs font-bold uppercase tracking-wider">VIN</label>
+                        <SnapButton kind="vin" label="Snap" onRead={r => r.vin && onVinInput(r.vin)} />
                         <button type="button" onClick={() => runVinDecode(editVin)} disabled={vinBusy || editVin.length !== 17}
                           className="text-xs font-bold uppercase tracking-wider text-red-500 hover:text-red-400 disabled:text-gray-700 disabled:cursor-not-allowed transition-colors">
                           {vinBusy ? 'Decoding…' : 'Decode'}
@@ -4363,7 +4390,10 @@ export function JobDetailPanel({ job: initialJob, onClose, onJobUpdate, backLabe
                       )}
                     </div>
                     <div>
-                      <label className="block text-gray-500 text-xs font-bold uppercase tracking-wider mb-1">Mileage</label>
+                      <div className="flex items-start justify-between mb-1">
+                        <label className="block text-gray-500 text-xs font-bold uppercase tracking-wider">Mileage</label>
+                        <SnapButton kind="odometer" label="Snap" onRead={r => r.miles && setEditMileage(String(r.miles))} />
+                      </div>
                       <input type="text" inputMode="numeric" value={fmtMileage(editMileage)} onChange={e => setEditMileage(e.target.value.replace(/[^0-9]/g, ''))} placeholder="98,000"
                         className="w-full bg-gray-900 text-white text-sm px-3 py-2 outline-none border border-gray-700 focus:border-red-600 transition-colors" />
                     </div>
@@ -5506,7 +5536,10 @@ export function ExternalLeadModal({ onClose, onAdded, jobs, inspection = false }
               )}
               {inp('vehicle', 'Vehicle * (Year Make Model Trim)', 'text', '2019 Toyota Camry LE')}
               <div>
-                <label className="block text-xs font-bold uppercase tracking-wider mb-1 text-gray-500">VIN (optional)</label>
+                <div className="flex items-start justify-between mb-1">
+                  <label className="block text-xs font-bold uppercase tracking-wider text-gray-500">VIN (optional)</label>
+                  <SnapButton kind="vin" label="Snap VIN" onRead={r => { if (!r.vin) return; setVinAutoFor(null); set('vin', r.vin); if (!f.vehicle) fillVehicleFromVin(r.vin); }} />
+                </div>
                 <input
                   type="text"
                   value={f.vin}

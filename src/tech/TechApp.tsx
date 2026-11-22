@@ -4,7 +4,7 @@
 // next-visit check, parts cost, and getting paid. Reuses the admin panels and
 // the same bookings rows/calls as /admin; admin itself is unchanged.
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { getAllJobs, getJobById, patchJob, syncTaxRate, resolveServiceName, useAutoSave, PhotoPanel, VideoPanel, PartsCostPanel, PaymentPanel, PlateLookup, type Job } from '../JobOps';
+import { getAllJobs, getJobById, patchJob, syncTaxRate, resolveServiceName, useAutoSave, PhotoPanel, VideoPanel, PartsCostPanel, PaymentPanel, PlateLookup, SnapButton, type Job } from '../JobOps';
 import { cleanVin, decodeVin, vinCheckDigitOk } from '../vinDecode';
 import { NextVisitCheck } from '../nextVisit/NextVisitCheck';
 import { JobAISummary } from '../JobAISummary';
@@ -18,9 +18,11 @@ function VehicleId({ job, onSaved }: { job: Job; onSaved: (j: Job) => void }) {
   const [plateState, setPlateState] = useState(job.plateState || 'AZ');
   const [vin, setVin] = useState(job.vin || '');
   const [vehicle, setVehicle] = useState(job.vehicle || '');
+  const [mileage, setMileage] = useState(String(job.mileage || '').replace(/\D/g, ''));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
-  const dirty = plate !== (job.licensePlate || '') || vin !== (job.vin || '') || vehicle !== (job.vehicle || '');
+  const mileageChanged = mileage !== String(job.mileage || '').replace(/\D/g, '');
+  const dirty = plate !== (job.licensePlate || '') || vin !== (job.vin || '') || vehicle !== (job.vehicle || '') || mileageChanged;
 
   function changeVin(raw: string) {
     const v = cleanVin(raw);
@@ -33,8 +35,8 @@ function VehicleId({ job, onSaved }: { job: Job; onSaved: (j: Job) => void }) {
     setError('');
     try {
       const plateChanged = plate !== (job.licensePlate || '');
-      await patchJob(job.id, { vin, vehicle, ...(plateChanged ? { license_plate: plate, plate_state: plate ? plateState : '' } : {}) });
-      onSaved({ ...job, vin, vehicle, licensePlate: plate, plateState: plate ? plateState : '' });
+      await patchJob(job.id, { vin, vehicle, ...(mileageChanged ? { mileage } : {}), ...(plateChanged ? { license_plate: plate, plate_state: plate ? plateState : '' } : {}) });
+      onSaved({ ...job, vin, vehicle, ...(mileageChanged ? { mileage } : {}), licensePlate: plate, plateState: plate ? plateState : '' });
     } catch (e) {
       setError(`Couldn't save: ${(e as Error)?.message || 'network error'}`);
     } finally {
@@ -48,9 +50,20 @@ function VehicleId({ job, onSaved }: { job: Job; onSaved: (j: Job) => void }) {
         onChange={(p, s) => { setPlate(p); setPlateState(s); }}
         onFound={(v, name) => { if (name) setVehicle(name); if (v) changeVin(v); }} />
       <div>
-        <label className="block text-gray-500 text-xs font-bold uppercase tracking-wider mb-1">VIN</label>
+        <div className="flex items-start justify-between mb-1">
+          <label className="block text-gray-500 text-xs font-bold uppercase tracking-wider">VIN</label>
+          <SnapButton kind="vin" label="Snap VIN" onRead={r => r.vin && changeVin(r.vin)} />
+        </div>
         <input type="text" value={vin} onChange={e => changeVin(e.target.value)} maxLength={17} placeholder="Paste or type the VIN" aria-label="VIN"
           className="w-full bg-gray-900 text-white text-sm px-3 py-2 outline-none border border-gray-700 focus:border-red-600 transition-colors font-mono" />
+      </div>
+      <div>
+        <div className="flex items-start justify-between mb-1">
+          <label className="block text-gray-500 text-xs font-bold uppercase tracking-wider">Mileage</label>
+          <SnapButton kind="odometer" label="Snap odometer" onRead={r => r.miles && setMileage(String(r.miles))} />
+        </div>
+        <input type="text" inputMode="numeric" value={mileage ? Number(mileage).toLocaleString('en-US') : ''} onChange={e => setMileage(e.target.value.replace(/\D/g, ''))} placeholder="98,000" aria-label="Mileage"
+          className="w-full bg-gray-900 text-white text-sm px-3 py-2 outline-none border border-gray-700 focus:border-red-600 transition-colors" />
       </div>
       {dirty && (
         <div>

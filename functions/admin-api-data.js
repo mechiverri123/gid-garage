@@ -95,7 +95,7 @@ import { suggestLaborHours } from './_lib/labor-hours.js';
 import { plateLookup } from './_lib/plate-lookup.js';
 import { jobSummary } from './_lib/job-summary.js';
 import { syncStripePayments } from './_lib/stripe-sync.js';
-import { readReceipt } from './_lib/receipt-read.js';
+import { readPhoto } from './_lib/receipt-read.js';
 import { loadVocabulary, saveVocabulary, upsertEntry, removeEntry } from './_lib/vocabulary.js';
 import { cleanTemplate, DEFAULT_CHECKLIST } from '../shared/next-visit.js';
 
@@ -889,9 +889,10 @@ export async function onRequestPost({ request, env }) {
           return json(await plateLookup({ plate: payload.plate, state: payload.state, env, bucket: env.GID_PHOTOS }));
         } catch (e) { return json({ error: e.message }); }
       }
-      case 'read-receipt': {
+      case 'read-receipt': // older pages
+      case 'read-photo': {
         try {
-          return json(await readReceipt({ base, headers, env, mediaType: payload.mediaType, data: payload.data }));
+          return json(await readPhoto({ base, headers, env, kind: action === 'read-receipt' ? 'receipt' : payload.kind, mediaType: payload.mediaType, data: payload.data }));
         } catch (e) { return json({ error: e.message }, 400); }
       }
 

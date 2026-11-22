@@ -31,3 +31,14 @@ test('readReceipt sends the image to Haiku and returns the total', async () => {
   assert.equal(sent.model, 'claude-haiku-5-5');
   assert.deepEqual(sent.messages[0].content[0], { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: 'abc' } });
 });
+
+test('VIN and odometer reads are checked before they reach a job', async () => {
+  const { parseVin, parseOdometer } = await import('../functions/_lib/receipt-read.js');
+  assert.deepEqual(parseVin('{"vin": "1ftfw1e5 0nfa12345"}'), { vin: '1FTFW1E50NFA12345' });
+  assert.deepEqual(parseVin('{"vin": "1FTFW1E5ONFA1234I"}'), { vin: '1FTFW1E50NFA12341' }, 'O and I become 0 and 1');
+  assert.equal(parseVin('{"vin": "1FTFW1E50NFA1234"}'), null, '16 characters');
+  assert.equal(parseVin('{"vin": null}'), null);
+  assert.deepEqual(parseOdometer('{"reading": 98231, "unit": "mi"}'), { miles: 98231 });
+  assert.deepEqual(parseOdometer('{"reading": 100000, "unit": "km"}'), { miles: 62137 });
+  assert.equal(parseOdometer('{"reading": null}'), null);
+});
