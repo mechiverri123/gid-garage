@@ -19,6 +19,7 @@ export function parseReceipt(text) {
     return {
       total,
       store: String(j.store || '').slice(0, 80),
+      address: String(j.address || '').slice(0, 160),
       date: /^\d{4}-\d{2}-\d{2}$/.test(String(j.date || '')) ? j.date : null,
     };
   } catch { return null; }
@@ -49,7 +50,7 @@ export function parseOdometer(text) {
 
 const KINDS = {
   receipt: {
-    system: 'You read store receipts for an auto mechanic. Find the final amount actually paid (the grand total including tax, after any discounts or core credits; not the subtotal). Reply with ONLY a JSON object: {"store": "store name", "date": "YYYY-MM-DD or null", "total": number}. If this is not a receipt or the total cannot be read, reply {"total": null}.',
+    system: 'You read store receipts for an auto mechanic. Find the final amount actually paid (the grand total including tax, after any discounts or core credits; not the subtotal). Reply with ONLY a JSON object: {"store": "store name", "address": "street address of the store, city, state as printed, or empty", "date": "YYYY-MM-DD or null", "total": number}. If this is not a receipt or the total cannot be read, reply {"total": null}.',
     ask: 'Read this receipt.', parse: parseReceipt,
     fail: "Couldn't find a total on that receipt. Enter the amount by hand.",
   },

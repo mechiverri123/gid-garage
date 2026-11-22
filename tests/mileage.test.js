@@ -57,3 +57,17 @@ test('autoMileage routes home -> jobs -> home and writes one row per job', async
   assert.deepEqual(posted.map(r => [r.job_id, r.miles]), [['a', 5], ['b', 10]]);
   assert.deepEqual(out.logged, [{ date: '2026-11-22', jobs: 2, miles: 15 }]);
 });
+
+test('parts run: from the job on its day, from home otherwise; one trip per store per day', async () => {
+  const { partsRunPlan, partsRunLogged } = await import('../shared/mileage.js');
+  const receipt = { key: 'r1', readTotal: 35.43, readStore: 'AutoZone', readAddress: '2138 E Route 66, Flagstaff, AZ', readDate: '2026-11-22' };
+  const job = { date: '2026-11-22', serviceAddress: '12 Pine St, Flagstaff, AZ' };
+  assert.deepEqual(partsRunPlan({ receipt, job, home: 'Home Rd', today: '2026-11-23' }),
+    { date: '2026-11-22', origin: '12 Pine St, Flagstaff, AZ', from: 'the job', address: '2138 E Route 66, Flagstaff, AZ', store: 'AutoZone', key: 'r1' });
+  assert.equal(partsRunPlan({ receipt: { ...receipt, readDate: '2026-11-21' }, job, home: 'Home Rd', today: '2026-11-23' }).origin, 'Home Rd');
+  assert.equal(partsRunPlan({ receipt: { ...receipt, readAddress: '' }, job, home: 'Home Rd', today: '2026-11-23' }), null, 'no address, no guess');
+  assert.equal(partsRunPlan({ receipt: { ...receipt, readDate: '2026-10-01' }, job, home: 'Home Rd', today: '2026-11-23' }), null, 'before the start date');
+  const plan = partsRunPlan({ receipt, job, home: 'Home Rd', today: '2026-11-23' });
+  assert.equal(partsRunLogged([{ date: '2026-11-22', notes: 'Auto-logged from a receipt: the job → 2138 E Route 66, Flagstaff, AZ → back. receipt:r0' }], plan), true);
+  assert.equal(partsRunLogged([{ date: '2026-11-21', notes: '… 2138 E Route 66, Flagstaff, AZ …' }], plan), false);
+});

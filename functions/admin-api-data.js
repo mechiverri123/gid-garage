@@ -96,7 +96,7 @@ import { plateLookup } from './_lib/plate-lookup.js';
 import { jobSummary } from './_lib/job-summary.js';
 import { syncStripePayments } from './_lib/stripe-sync.js';
 import { readPhoto } from './_lib/receipt-read.js';
-import { autoMileage } from './_lib/auto-mileage.js';
+import { autoMileage, logPartsRun } from './_lib/auto-mileage.js';
 import { loadVocabulary, saveVocabulary, upsertEntry, removeEntry } from './_lib/vocabulary.js';
 import { cleanTemplate, DEFAULT_CHECKLIST } from '../shared/next-visit.js';
 
@@ -893,6 +893,8 @@ export async function onRequestPost({ request, env }) {
       // Finished days' job routes into mileage_logs: shared/mileage.js.
       case 'auto-mileage':
         return json(await autoMileage(env, { base, headers }));
+      case 'log-parts-run':
+        return json(await logPartsRun(env, { base, headers }, { jobId: payload.jobId, key: payload.key }));
 
       case 'read-receipt': // older pages
       case 'read-photo': {

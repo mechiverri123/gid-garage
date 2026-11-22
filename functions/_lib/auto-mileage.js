@@ -4,7 +4,7 @@
 // a later run retries it; nothing is ever guessed.
 import { jobFromRow } from '../../shared/business-metrics.js';
 import { phoenixToday } from '../../shared/business-rules.js';
-import { routesToLog, mileageRows, AUTO_MILEAGE_SINCE } from '../../shared/mileage.js';
+import { routesToLog, mileageRows, partsRunPlan, partsRunLogged, ratesForDate, AUTO_MILEAGE_SINCE } from '../../shared/mileage.js';
 import { drivingMeters } from './google-maps.js';
 
 const MAX_DAYS_PER_RUN = 5;
@@ -41,4 +41,39 @@ export async function autoMileage(env, { base, headers }, { fetchImpl = (...a) =
     if (ir.ok) out.push({ date: day.date, jobs: rows.length, miles: Math.round(rows.reduce((s, r) => s + r.miles, 0) * 10) / 10 });
   }
   return { ok: true, logged: out };
+}
+
+// One parts run for a receipt that was just read (`log-parts-run`): reads the
+// job and its receipt from the database, so only what's stored is trusted.
+export async function logPartsRun(env, { base, headers }, { jobId, key }, { fetchImpl = (...a) => fetch(...a), now = new Date() } = {}) {
+  const apiKey = env.GOOGLE_DISTANCE_API_KEY || env.GOOGLE_PLACES_API_KEY;
+  if (!apiKey || !jobId || !key) return { ok: false, reason: 'missing' };
+  const [jr, hr] = await Promise.all([
+    fetchImpl(`${base}/bookings?id=eq.${encodeURIComponent(jobId)}&select=id,date,service_address,parts_receipts`, { headers }),
+    fetchImpl(`${base}/business_settings?id=eq.default&select=home_address`, { headers }),
+  ]);
+  const row = jr.ok ? (await jr.json())?.[0] : null;
+  const home = hr.ok ? (await hr.json())?.[0]?.home_address : '';
+  if (!row) return { ok: false, reason: 'job not found' };
+  let receipts = row.parts_receipts;
+  if (typeof receipts === 'string') { try { receipts = JSON.parse(receipts); } catch { receipts = []; } }
+  const receipt = (Array.isArray(receipts) ? receipts : []).find(r => r?.key === key);
+  const plan = partsRunPlan({ receipt, job: { date: row.date, serviceAddress: row.service_address }, home, today: phoenixToday(now) });
+  if (!plan) return { ok: true, skipped: 'no store address or date' };
+  const er = await fetchImpl(`${base}/mileage_logs?select=date,notes&date=eq.${plan.date}&job_id=is.null`, { headers });
+  if (!er.ok) return { ok: false, reason: 'could not read mileage' };
+  if (partsRunLogged(await er.json(), plan)) return { ok: true, skipped: 'already logged' };
+  let miles;
+  try {
+    miles = Math.round(((await drivingMeters(apiKey, plan.origin, plan.address, { fetchImpl })) * 2 / 1609.344) * 10) / 10;
+  } catch { return { ok: true, skipped: "Google couldn't route to that store" }; }
+  const ir = await fetchImpl(`${base}/mileage_logs`, {
+    method: 'POST', headers: { ...headers, Prefer: 'return=minimal' },
+    body: JSON.stringify({
+      created_at: now.toISOString(), date: plan.date, miles, rate_cents_per_mile: ratesForDate(plan.date),
+      purpose: `Parts run — ${plan.store}`,
+      notes: `Auto-logged from a receipt: ${plan.from} → ${plan.address} → back. receipt:${plan.key}`.slice(0, 500),
+    }),
+  });
+  return ir.ok ? { ok: true, miles, date: plan.date } : { ok: false, reason: 'could not save' };
 }

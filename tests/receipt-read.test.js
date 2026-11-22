@@ -3,8 +3,9 @@ import assert from 'node:assert/strict';
 import { parseReceipt, readReceipt } from '../functions/_lib/receipt-read.js';
 
 test('parseReceipt keeps the total, store and a valid date', () => {
-  assert.deepEqual(parseReceipt('Here: {"store": "AutoZone 2782", "date": "2026-11-10", "total": 220.64}'), { total: 220.64, store: 'AutoZone 2782', date: '2026-11-10' });
-  assert.deepEqual(parseReceipt('{"store": "Walmart", "date": "11/14", "total": "60.056"}'), { total: 60.06, store: 'Walmart', date: null });
+  assert.deepEqual(parseReceipt('Here: {"store": "AutoZone 2782", "date": "2026-11-10", "total": 220.64}'), { total: 220.64, store: 'AutoZone 2782', address: '', date: '2026-11-10' });
+  assert.equal(parseReceipt('{"store":"OReilly","address":"2654 E Route 66, Flagstaff, AZ","total":12}').address, '2654 E Route 66, Flagstaff, AZ');
+  assert.deepEqual(parseReceipt('{"store": "Walmart", "date": "11/14", "total": "60.056"}'), { total: 60.06, store: 'Walmart', address: '', date: null });
   assert.equal(parseReceipt('{"total": null}'), null);
   assert.equal(parseReceipt('{"total": -5}'), null);
   assert.equal(parseReceipt('no json'), null);

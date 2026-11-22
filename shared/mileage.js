@@ -68,3 +68,24 @@ export function mileageRows({ date, stops }, legsMiles) {
     rate_cents_per_mile: ratesForDate(date),
   }));
 }
+
+// Parts run from a read receipt (owner decision 2026-11-21): a round trip to
+// the store printed on it, from the job site when it was bought on the job's
+// day, otherwise from home. Needs the store's address; never guessed.
+export function partsRunPlan({ receipt, job, home, today }) {
+  const address = String(receipt?.readAddress || '').trim();
+  if (!address || !receipt?.readTotal) return null;
+  const date = /^\d{4}-\d{2}-\d{2}$/.test(String(receipt.readDate || '')) ? receipt.readDate : today;
+  if (date < AUTO_MILEAGE_SINCE || date > today) return null;
+  const fromJob = date === job?.date && String(job?.serviceAddress || '').trim();
+  const origin = fromJob ? job.serviceAddress : String(home || '').trim();
+  if (!origin) return null;
+  return { date, origin, from: fromJob ? 'the job' : 'home', address, store: String(receipt.readStore || 'parts store').slice(0, 60), key: receipt.key };
+}
+
+// Same store, same day, or the same receipt: one trip, never two.
+export function partsRunLogged(rows, plan) {
+  const addr = plan.address.toLowerCase();
+  return (rows || []).some(r => String(r.notes || '').includes(`receipt:${plan.key}`)
+    || (r.date === plan.date && String(r.notes || '').toLowerCase().includes(addr)));
+}

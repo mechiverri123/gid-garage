@@ -379,7 +379,10 @@ export interface PartsReceipt {
   uploadedAt: string;
   readTotal?: number;   // total the AI read off the receipt (read-receipt)
   readStore?: string;
+  readAddress?: string;
+  readDate?: string | null;
   addedToCost?: boolean; // its total was added to the job's parts cost
+  runMiles?: number;     // parts run logged to Mileage from this receipt (log-parts-run)
 }
 
 // A receipt as the AI reader wants it: PDFs as they are, photos (HEIC too,
@@ -1454,13 +1457,20 @@ export function PartsCostPanel({ job, onUpdate }: { job: Job; onUpdate: (j: Job)
     try {
       const r = receiptsRef.current.find(x => x.key === key);
       const blob = file || await (await fetch(r!.url)).blob();
-      const out = await adminPost('read-photo', { kind: 'receipt', ...(await receiptForAI(blob)) }) as { total: number; store: string };
-      const next = receiptsRef.current.map(x => x.key === key ? { ...x, readTotal: out.total, readStore: out.store } : x);
+      const out = await adminPost('read-photo', { kind: 'receipt', ...(await receiptForAI(blob)) }) as { total: number; store: string; address?: string; date?: string | null };
+      const next = receiptsRef.current.map(x => x.key === key ? { ...x, readTotal: out.total, readStore: out.store, readAddress: out.address || '', readDate: out.date ?? null } : x);
       setReceipts(next);
       // Straight to the DB: this finishes later, and onUpdate with this panel's
       // older `job` could undo a parts cost typed meanwhile.
       await patchJob(job.id, { parts_receipts: JSON.stringify(next) });
       setReading(prev => { const n = { ...prev }; delete n[key]; return n; });
+      // The drive to that store goes into Mileage by itself (shared/mileage.js partsRunPlan).
+      const run = await adminPost('log-parts-run', { jobId: job.id, key }).catch(() => null) as { miles?: number } | null;
+      if (run?.miles) {
+        const withRun = receiptsRef.current.map(x => x.key === key ? { ...x, runMiles: run.miles } : x);
+        setReceipts(withRun);
+        await patchJob(job.id, { parts_receipts: JSON.stringify(withRun) });
+      }
     } catch (e) {
       setReading(prev => ({ ...prev, [key]: aiError(e) }));
     }
@@ -1560,12 +1570,14 @@ export function PartsCostPanel({ job, onUpdate }: { job: Job; onUpdate: (j: Job)
               <span className="flex-1 min-w-0 text-xs">
                 <span className="block text-gray-400 truncate">{r.name}</span>
                 {reading[r.key] === 'busy' ? <span className="text-gray-500">Reading receipt…</span>
-                  : r.addedToCost ? <span className="text-emerald-500">✓ ${r.readTotal?.toFixed(2)} added to parts cost</span>
+                  : r.addedToCost ? <span className="text-emerald-500">✓ ${r.readTotal?.toFixed(2)} added to parts cost{r.runMiles ? ` · 🚗 ${r.runMiles} mi parts run logged` : ''}</span>
                   : r.readTotal ? (
                     <button onClick={() => addToCost(r.key)} className="mt-1 border border-yellow-700 text-yellow-500 hover:bg-yellow-900/20 font-bold px-2 py-1 text-left">
                       {r.readStore ? `${r.readStore} · ` : ''}${r.readTotal.toFixed(2)} — Add to parts cost
                     </button>
-                  ) : reading[r.key] ? (
+                  ) : null}
+                {r.readTotal && !r.addedToCost && r.runMiles ? <span className="block text-sky-400">🚗 {r.runMiles} mi parts run logged</span> : null}
+                {reading[r.key] === 'busy' || r.addedToCost || r.readTotal ? null : reading[r.key] ? (
                     <span className="text-red-400">{reading[r.key]} <button onClick={() => readInto(r.key)} className="underline">Try again</button></span>
                   ) : (
                     <button onClick={() => readInto(r.key)} className="text-yellow-600 hover:text-yellow-400 font-bold">Read total</button>
