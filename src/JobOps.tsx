@@ -376,6 +376,34 @@ export interface PartsReceipt {
   name: string;
   type: string;
   uploadedAt: string;
+  readTotal?: number;   // total the AI read off the receipt (read-receipt)
+  readStore?: string;
+  addedToCost?: boolean; // its total was added to the job's parts cost
+}
+
+// A receipt as the AI reader wants it: PDFs as they are, photos (HEIC too,
+// where the browser can open it) shrunk to a 1600px JPEG.
+async function receiptForAI(file: Blob): Promise<{ mediaType: string; data: string }> {
+  const b64 = (blob: Blob) => new Promise<string>((ok, bad) => {
+    const r = new FileReader();
+    r.onload = () => ok(String(r.result).split(',')[1] || '');
+    r.onerror = () => bad(new Error('Could not read the file'));
+    r.readAsDataURL(blob);
+  });
+  if (file.type === 'application/pdf') return { mediaType: 'application/pdf', data: await b64(file) };
+  const url = URL.createObjectURL(file);
+  try {
+    const img = await new Promise<HTMLImageElement>((ok, bad) => {
+      const i = new Image(); i.onload = () => ok(i); i.onerror = () => bad(new Error("This photo format can't be read here. Try a JPG or a screenshot."));
+      i.src = url;
+    });
+    const k = Math.min(1, 1600 / Math.max(img.width, img.height));
+    const c = document.createElement('canvas');
+    c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
+    c.getContext('2d')!.drawImage(img, 0, 0, c.width, c.height);
+    const jpg = await new Promise<Blob>((ok, bad) => c.toBlob(b => (b ? ok(b) : bad(new Error('Could not convert the photo'))), 'image/jpeg', 0.85));
+    return { mediaType: 'image/jpeg', data: await b64(jpg) };
+  } finally { URL.revokeObjectURL(url); }
 }
 
 export interface Job {
@@ -1317,7 +1345,10 @@ export function PartsCostPanel({ job, onUpdate }: { job: Job; onUpdate: (j: Job)
   const [costInput, setCostInput] = useState(job.partsCost != null ? String(job.partsCost) : '');
   const [savingCost, setSavingCost] = useState(false);
   const [costSaved, setCostSaved] = useState(false);
-  const [receipts, setReceipts] = useState(job.partsReceipts || []);
+  const [receipts, setReceiptsState] = useState(job.partsReceipts || []);
+  const receiptsRef = useRef(receipts);
+  const setReceipts = (next: PartsReceipt[]) => { receiptsRef.current = next; setReceiptsState(next); };
+  const [reading, setReading] = useState<Record<string, string>>({}); // key -> 'busy' | error text
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const viewer = useDocViewer();
@@ -1380,11 +1411,44 @@ export function PartsCostPanel({ job, onUpdate }: { job: Job; onUpdate: (j: Job)
         current = [...current, newReceipt];
         setReceipts(current);
         await saveReceiptsToDb(current);
+        readInto(newReceipt.key, file);
       } catch (e: any) {
         setUploadError(e.message ?? 'Upload failed');
       }
     }
     setUploading(false);
+  }
+
+  // AI reads the receipt total; the owner adds it with one tap (addToCost).
+  async function readInto(key: string, file?: Blob) {
+    setReading(prev => ({ ...prev, [key]: 'busy' }));
+    try {
+      const r = receiptsRef.current.find(x => x.key === key);
+      const blob = file || await (await fetch(r!.url)).blob();
+      const out = await adminPost('read-receipt', await receiptForAI(blob)) as { total: number; store: string };
+      const next = receiptsRef.current.map(x => x.key === key ? { ...x, readTotal: out.total, readStore: out.store } : x);
+      setReceipts(next);
+      // Straight to the DB: this finishes later, and onUpdate with this panel's
+      // older `job` could undo a parts cost typed meanwhile.
+      await patchJob(job.id, { parts_receipts: JSON.stringify(next) });
+      setReading(prev => { const n = { ...prev }; delete n[key]; return n; });
+    } catch (e: any) {
+      let msg = e?.message || 'Could not read it';
+      try { msg = JSON.parse(msg).error || msg; } catch { /* plain text */ }
+      setReading(prev => ({ ...prev, [key]: msg }));
+    }
+  }
+
+  async function addToCost(key: string) {
+    const r = receiptsRef.current.find(x => x.key === key);
+    if (!r?.readTotal || r.addedToCost) return;
+    const amt = Math.round(((parseFloat(costInput) || 0) + r.readTotal) * 100) / 100;
+    const next = receiptsRef.current.map(x => x.key === key ? { ...x, addedToCost: true } : x);
+    await patchJob(job.id, { parts_cost: amt, parts_receipts: JSON.stringify(next) });
+    setReceipts(next);
+    setCostInput(String(amt));
+    setCostSaved(true);
+    onUpdate({ ...job, partsCost: amt, partsReceipts: next });
   }
 
   async function deleteReceipt(key: string) {
@@ -1466,7 +1530,20 @@ export function PartsCostPanel({ job, onUpdate }: { job: Job; onUpdate: (j: Job)
               ) : (
                 <span className="w-10 h-10 flex items-center justify-center text-lg flex-shrink-0 bg-gray-800">{fileIcon(r)}</span>
               )}
-              <span className="flex-1 min-w-0 text-gray-400 text-xs truncate">{r.name}</span>
+              <span className="flex-1 min-w-0 text-xs">
+                <span className="block text-gray-400 truncate">{r.name}</span>
+                {reading[r.key] === 'busy' ? <span className="text-gray-500">Reading receipt…</span>
+                  : r.addedToCost ? <span className="text-emerald-500">✓ ${r.readTotal?.toFixed(2)} added to parts cost</span>
+                  : r.readTotal ? (
+                    <button onClick={() => addToCost(r.key)} className="mt-1 border border-yellow-700 text-yellow-500 hover:bg-yellow-900/20 font-bold px-2 py-1 text-left">
+                      {r.readStore ? `${r.readStore} · ` : ''}${r.readTotal.toFixed(2)} — Add to parts cost
+                    </button>
+                  ) : reading[r.key] ? (
+                    <span className="text-red-400">{reading[r.key]} <button onClick={() => readInto(r.key)} className="underline">Try again</button></span>
+                  ) : (
+                    <button onClick={() => readInto(r.key)} className="text-yellow-600 hover:text-yellow-400 font-bold">Read total</button>
+                  )}
+              </span>
               <button onClick={() => viewer.open({ url: r.url, name: r.name })}
                 className="text-xs font-bold uppercase tracking-wider text-gray-500 hover:text-yellow-500 flex-shrink-0 transition-colors">View</button>
               <button onClick={() => deleteReceipt(r.key)}
