@@ -86,3 +86,18 @@ test('a leg Google maps far outside the service area skips the day instead of lo
   assert.equal(posted.length, 0);
   assert.deepEqual(out.skipped, ['2026-11-21']);
 });
+
+test('a real far job (Gilbert, ~174 mi each way) is still logged', async () => {
+  const posted = [];
+  const fake = async (url, opts = {}) => {
+    if (url.includes('business_settings')) return { ok: true, json: async () => [{ home_address: 'Home Rd, Flagstaff, AZ' }] };
+    if (url.includes('/bookings')) return { ok: true, json: async () => [{ id: 'g', date: '2026-11-21', time: '10:00 AM', job_status: 'PAID', service_address: '4131 E Encinas Ave, Gilbert, AZ' }] };
+    if (url.includes('mileage_logs') && opts.method === 'POST') { posted.push(...JSON.parse(opts.body)); return { ok: true }; }
+    if (url.includes('mileage_logs')) return { ok: true, json: async () => [] };
+    if (url.includes('routes.googleapis.com')) return { ok: true, json: async () => [{ distanceMeters: 174.4 * 1609.344, condition: 'ROUTE_EXISTS' }] };
+    throw new Error(`unexpected ${url}`);
+  };
+  const out = await autoMileage({ GOOGLE_DISTANCE_API_KEY: 'k' }, { base: 'https://db/rest/v1', headers: {} }, { fetchImpl: fake, now: new Date('2026-11-22T18:00:00Z') });
+  assert.deepEqual(posted.map(r => r.miles), [348.8]);
+  assert.deepEqual(out.skipped, []);
+});

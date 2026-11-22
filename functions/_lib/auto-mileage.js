@@ -8,10 +8,11 @@ import { routesToLog, mileageRows, partsRunPlan, partsRunLogged, ratesForDate, A
 import { drivingMeters } from './google-maps.js';
 
 const MAX_DAYS_PER_RUN = 5;
-// GID serves ~30 miles around Flagstaff. A longer leg means Google matched an
-// address to the wrong place (2026-11-22: "13280 I-40 Bellemont, AZ" came back
-// ~1,700 mi away), so that day is left for a hand entry instead of logged.
-export const MAX_LEG_MILES = 75;
+// A leg longer than any real trip means Google matched an address to the wrong
+// place (2026-11-22: "13280 I-40 Bellemont, AZ" came back ~1,700 mi away), so
+// that day is left for a hand entry instead of logged. Real jobs do go far
+// (Gilbert was ~174 mi each way), so the cap covers all of Arizona.
+export const MAX_LEG_MILES = 350;
 const legMiles = async (apiKey, a, b, fetchImpl) => {
   const mi = (await drivingMeters(apiKey, a, b, { fetchImpl })) / 1609.344;
   if (!(mi <= MAX_LEG_MILES)) throw new Error(`implausible leg ${Math.round(mi)} mi`);
