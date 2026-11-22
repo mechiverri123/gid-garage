@@ -6732,6 +6732,24 @@ export function JobsTab() {
   const [netProfitView, setNetProfitView] = useState<'month' | 'year'>('month');
   const helperPayouts = useHelperPayouts();
   const [showBreakdown, setShowBreakdown] = useState(false);
+  // Card payments taken in Bluevine (Stripe), recorded on their job automatically
+  // (shared/stripe-sync.js): on open, then every 2 minutes.
+  type CardSync = { recorded: { jobId: string; who: string; amount: number }[]; unmatched: { stripeId: string; amount: number; at: string; reason: string }[] };
+  const [cardSync, setCardSync] = useState<CardSync>({ recorded: [], unmatched: [] });
+  useEffect(() => {
+    let stop = false;
+    const run = async () => {
+      try {
+        const r = await adminPost('stripe-sync') as CardSync & { ok: boolean };
+        if (stop || !r?.ok) return;
+        setCardSync(prev => ({ recorded: [...prev.recorded, ...r.recorded], unmatched: r.unmatched }));
+        if (r.recorded.length) setJobs(await getAllJobs());
+      } catch { /* non-critical: payments can still be recorded by hand */ }
+    };
+    run();
+    const t = setInterval(run, 120000);
+    return () => { stop = true; clearInterval(t); };
+  }, []);
   const [mileageJobIds, setMileageJobIds] = useState<Set<string>>(new Set());
 
   function loadMileageJobIds() {
@@ -6962,6 +6980,21 @@ export function JobsTab() {
           the no-print class — so printing prints only the open JobDetailPanel,
           not this list bleeding through behind it. */}
       <div className={selected ? 'no-print' : undefined}>
+      {(cardSync.recorded.length > 0 || cardSync.unmatched.length > 0) && (
+        <div className="mb-6 space-y-2">
+          {cardSync.recorded.map(r => (
+            <div key={r.jobId + r.amount} className="border border-emerald-800 bg-emerald-950/40 text-emerald-300 text-sm px-4 py-3">
+              ✓ Card payment of ${r.amount.toFixed(2)} recorded on {r.who}'s job automatically.
+            </div>
+          ))}
+          {cardSync.unmatched.map(u => (
+            <div key={u.stripeId} className="border border-yellow-800 bg-yellow-950/30 text-yellow-300 text-sm px-4 py-3">
+              Card payment of ${u.amount.toFixed(2)} on {new Date(u.at).toLocaleString('en-US', { timeZone: 'America/Phoenix', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })} wasn't recorded: {u.reason === 'several_jobs' ? 'several open jobs have that balance' : u.reason === 'no_job' ? "no open job's balance matches it" : u.reason}. Record it by hand with Stripe id <span className="font-mono">{u.stripeId}</span>.
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8">
         {[

@@ -94,6 +94,7 @@ import { handlePayAction, PayError } from './_lib/pay.js';
 import { suggestLaborHours } from './_lib/labor-hours.js';
 import { plateLookup } from './_lib/plate-lookup.js';
 import { jobSummary } from './_lib/job-summary.js';
+import { syncStripePayments } from './_lib/stripe-sync.js';
 import { loadVocabulary, saveVocabulary, upsertEntry, removeEntry } from './_lib/vocabulary.js';
 import { cleanTemplate, DEFAULT_CHECKLIST } from '../shared/next-visit.js';
 
@@ -209,6 +210,10 @@ export async function onRequestPost({ request, env }) {
         if (!res.ok) return json({ error: await res.text() }, 502);
         return json(await res.json());
       }
+
+      // Card payments taken in Bluevine (Stripe) recorded on their job: shared/stripe-sync.js.
+      case 'stripe-sync':
+        return json(await syncStripePayments(env, { base, headers }));
 
       case 'get-booking': {
         const { id } = payload;

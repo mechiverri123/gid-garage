@@ -195,6 +195,7 @@ Jarvis is the interactive command interface for GID Garage, not primarily a chat
   - Pay shows the balance from `jobMoney`, sends the `/invoice?action=pay` link, and includes `PaymentPanel`.
 - **Same data as admin:** the same bookings and calls (`getAllJobs`, `getJobById`, `patchJob`). Admin's UI is unchanged.
 - **Tap to Pay:** impossible from a web page (Apple allows it only in native apps). Take it in the Bluevine app and record it in Pay.
+- **Card payments record themselves (2026-11-21):** Bluevine card payments (Tap to Pay, pay links) run on Stripe. The admin Jobs screen calls `stripe-sync` on open and every 2 minutes (`functions/_lib/stripe-sync.js`, rules `shared/stripe-sync.js`, tests `tests/stripe-sync.test.js`): a succeeded charge since `AUTO_RECORD_SINCE` equal to exactly ONE open job's balance is recorded there through `planPayment` (charge time, Stripe id, PATCH guarded on `amount_paid`). Zero or several matches are never guessed; they show as a yellow notice to record by hand. Read-only toward Stripe.
 
 # 0.37 NEXT-VISIT CHECK (2026-10-01)
 

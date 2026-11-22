@@ -18,7 +18,7 @@ export const LEAD_STATUSES = ['new', 'contacted', 'quoted', 'booked', 'lost', 'n
 export const CLOSED_LEAD_STATUSES = ['booked', 'lost'];
 // Setting one of these statuses asserts the owner actually reached the lead.
 export const CONTACT_LEAD_STATUSES = ['contacted', 'quoted'];
-export const PAYMENT_METHODS = ['Cash', 'Check', 'Zelle', 'Card (Stripe)', 'Other'];
+export const PAYMENT_METHODS = ['Cash', 'Check', 'Zelle', 'Card (Stripe)', 'Card (Tap to Pay)', 'Other'];
 export const STALE_LEAD_MS = 24 * 60 * 60 * 1000;
 const DUPLICATE_PAYMENT_MS = 10 * 60 * 1000;
 const REMINDER_DELIVERY_GRACE_MS = 10 * 60 * 1000;
