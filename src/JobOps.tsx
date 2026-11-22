@@ -340,12 +340,25 @@ export interface JobPhoto {
   takenAt: string;
 }
 
+// job_videos also holds labeled links (kind: 'link', note = the label), so links
+// need no new column; every reader splits them with isJobLink.
 export interface JobVideo {
   id: string;
   key?: string;
   url?: string;
   note: string;
   takenAt: string;
+  kind?: 'link';
+}
+export const isJobLink = (v: JobVideo) => v.kind === 'link';
+// Only http(s) links; a bare "youtu.be/x" gets https:// in front.
+export function cleanLinkUrl(raw: string): string | null {
+  const t = raw.trim();
+  if (!t) return null;
+  try {
+    const u = new URL(/^[a-z][a-z0-9+.-]*:/i.test(t) ? t : `https://${t}`);
+    return u.protocol === 'https:' || u.protocol === 'http:' ? u.href : null;
+  } catch { return null; }
 }
 
 export interface Payment {
@@ -1825,6 +1838,18 @@ export function VideoPanel({ job, onUpdate }: { job: Job; onUpdate: (j: Job) => 
   }
 
   const hasNoteChanges = JSON.stringify(videos) !== JSON.stringify(job.jobVideos || []);
+  const clips = videos.filter(v => !isJobLink(v));
+  const links = videos.filter(isJobLink);
+  const [linkLabel, setLinkLabel] = useState('');
+  const [linkUrl, setLinkUrl] = useState('');
+  const [linkError, setLinkError] = useState('');
+  async function addLink() {
+    const url = cleanLinkUrl(linkUrl);
+    if (!url) { setLinkError('Enter a web address (https://…).'); return; }
+    const updated = [...videos, { id: crypto.randomUUID(), kind: 'link' as const, url, note: linkLabel.trim() || url, takenAt: new Date().toISOString() }];
+    setVideos(updated); setLinkLabel(''); setLinkUrl(''); setLinkError('');
+    await persist(updated);
+  }
 
   return (
     <div className="space-y-4">
@@ -1862,12 +1887,12 @@ export function VideoPanel({ job, onUpdate }: { job: Job; onUpdate: (j: Job) => 
       {uploadError && <div className="text-red-400 text-xs text-center">{uploadError}</div>}
 
       {/* Video list */}
-      {videos.length === 0 && (
+      {clips.length === 0 && (
         <div className="text-center py-8 text-gray-700 text-sm">No videos yet</div>
       )}
 
       <div className="space-y-3">
-        {videos.map((video) => (
+        {clips.map((video) => (
           <div key={video.id} className="bg-gray-900 border border-gray-800">
             <div className="relative">
               <video src={video.url} controls className="w-full max-h-48 bg-black" />
@@ -1906,7 +1931,7 @@ export function VideoPanel({ job, onUpdate }: { job: Job; onUpdate: (j: Job) => 
         ))}
       </div>
 
-      {videos.length > 0 && (
+      {clips.length > 0 && (
         <button
           onClick={saveNotes}
           disabled={savingNotes || !hasNoteChanges}
@@ -1915,6 +1940,35 @@ export function VideoPanel({ job, onUpdate }: { job: Job; onUpdate: (j: Job) => 
           {savingNotes ? 'Saving…' : notesSaved ? '✓ Notes Saved' : hasNoteChanges ? 'Save Notes' : '✓ Saved'}
         </button>
       )}
+
+      {/* Links — shown to the customer after the videos */}
+      <div className="border-t border-gray-800 pt-4">
+        <div className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-3">🔗 Links</div>
+        <div className="space-y-2 mb-3">
+          {links.map(link => (
+            <div key={link.id} className="flex items-center gap-2 bg-gray-900 border border-gray-800 px-3 py-2">
+              <a href={link.url} target="_blank" rel="noopener noreferrer" className="flex-1 min-w-0">
+                <span className="block text-white text-sm font-bold truncate">{link.note}</span>
+                <span className="block text-gray-500 text-xs truncate">{link.url}</span>
+              </a>
+              <button onClick={() => deleteVideo(link.id)} className="text-gray-500 hover:text-red-500 text-lg px-1" title="Remove link">×</button>
+            </div>
+          ))}
+          {links.length === 0 && <div className="text-gray-700 text-sm">No links yet</div>}
+        </div>
+        <div className="space-y-2">
+          <input value={linkLabel} onChange={e => setLinkLabel(e.target.value)} placeholder="Label (e.g. Part you need)"
+            className="w-full bg-gray-800 border border-gray-600 text-white px-3 py-2 text-sm focus:border-red-600 outline-none" />
+          <div className="flex gap-2">
+            <input value={linkUrl} onChange={e => { setLinkUrl(e.target.value); setLinkError(''); }} onKeyDown={e => e.key === 'Enter' && addLink()}
+              placeholder="https://…" inputMode="url"
+              className="flex-1 min-w-0 bg-gray-800 border border-gray-600 text-white px-3 py-2 text-sm focus:border-red-600 outline-none" />
+            <button onClick={addLink} disabled={!linkUrl.trim()}
+              className="bg-gray-700 hover:bg-gray-600 disabled:opacity-40 text-white text-xs font-bold uppercase tracking-widest px-4 transition-colors">Add</button>
+          </div>
+          {linkError && <div className="text-red-400 text-xs">{linkError}</div>}
+        </div>
+      </div>
     </div>
   );
 }
@@ -7671,15 +7725,34 @@ export function InvoicePage() {
         )}
 
         {/* Job videos if present — can't render on paper, hidden when printing */}
-        {job.jobVideos?.length > 0 && (
+        {job.jobVideos?.some(v => !isJobLink(v)) && (
           <div className="mt-4 border border-white/10 bg-white/5 px-6 py-4 no-print">
             <div className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-3">Job Videos</div>
             <div className="space-y-3">
-              {job.jobVideos.map(video => (
+              {job.jobVideos.filter(v => !isJobLink(v)).map(video => (
                 <div key={video.id}>
                   <video src={video.url} controls className="w-full max-h-64 bg-black" />
                   {video.note && <div className="text-gray-400 text-xs mt-1">{video.note}</div>}
                 </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Links the owner added under Videos, after the videos */}
+        {job.jobVideos?.some(isJobLink) && (
+          <div className="mt-4 border border-white/10 bg-white/5 px-6 py-4 no-print">
+            <div className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-3">Links</div>
+            <div className="space-y-2">
+              {job.jobVideos.filter(isJobLink).map(link => (
+                <a key={link.id} href={link.url} target="_blank" rel="noopener noreferrer"
+                  className="flex items-center gap-2 border border-white/10 hover:border-indigo-500 px-4 py-3 transition-colors">
+                  <span className="text-lg">🔗</span>
+                  <span className="min-w-0">
+                    <span className="block text-white text-sm font-bold break-words">{link.note}</span>
+                    <span className="block text-indigo-400 text-xs underline truncate">{link.url}</span>
+                  </span>
+                </a>
               ))}
             </div>
           </div>
