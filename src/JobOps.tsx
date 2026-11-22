@@ -6861,11 +6861,13 @@ export function JobsTab() {
   const [cardSync, setCardSync] = useState<CardSync>({ recorded: [], unmatched: [] });
   // Finished days' job routes logged to Mileage automatically (shared/mileage.js).
   const [autoMiles, setAutoMiles] = useState<{ date: string; jobs: number; miles: number }[]>([]);
+  const [milesSkipped, setMilesSkipped] = useState<string[]>([]);
   useEffect(() => {
     let stop = false;
     const run = async () => {
       try {
-        const r = await adminPost('auto-mileage') as { ok: boolean; logged: { date: string; jobs: number; miles: number }[] };
+        const r = await adminPost('auto-mileage') as { ok: boolean; logged: { date: string; jobs: number; miles: number }[]; skipped?: string[] };
+        if (!stop && r?.ok) setMilesSkipped(r.skipped || []);
         if (!stop && r?.ok && r.logged.length) { setAutoMiles(prev => [...prev, ...r.logged]); loadMileageJobIds(); }
       } catch { /* non-critical: miles can still be logged by hand */ }
     };
@@ -7118,8 +7120,13 @@ export function JobsTab() {
           the no-print class — so printing prints only the open JobDetailPanel,
           not this list bleeding through behind it. */}
       <div className={selected ? 'no-print' : undefined}>
-      {(cardSync.recorded.length > 0 || cardSync.unmatched.length > 0 || autoMiles.length > 0) && (
+      {(cardSync.recorded.length > 0 || cardSync.unmatched.length > 0 || autoMiles.length > 0 || milesSkipped.length > 0) && (
         <div className="mb-6 space-y-2">
+          {milesSkipped.map(d => (
+            <div key={d} className="border border-yellow-800 bg-yellow-950/30 text-yellow-300 text-sm px-4 py-3">
+              🚗 Miles for {new Date(`${d}T12:00:00Z`).toLocaleDateString('en-US', { timeZone: 'America/Phoenix', month: 'short', day: 'numeric' })} weren't logged: Google couldn't map one of that day's addresses correctly. Log that day's miles on one of its jobs (Trip Miles) and this stops.
+            </div>
+          ))}
           {autoMiles.map(m => (
             <div key={m.date} className="border border-sky-800 bg-sky-950/30 text-sky-300 text-sm px-4 py-3">
               🚗 Logged {m.miles} business miles for {new Date(`${m.date}T12:00:00Z`).toLocaleDateString('en-US', { timeZone: 'America/Phoenix', month: 'short', day: 'numeric' })} ({m.jobs} job{m.jobs === 1 ? '' : 's'}, home → jobs → home).

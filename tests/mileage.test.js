@@ -71,3 +71,18 @@ test('parts run: from the job on its day, from home otherwise; one trip per stor
   assert.equal(partsRunLogged([{ date: '2026-11-22', notes: 'Auto-logged from a receipt: the job → 2138 E Route 66, Flagstaff, AZ → back. receipt:r0' }], plan), true);
   assert.equal(partsRunLogged([{ date: '2026-11-21', notes: '… 2138 E Route 66, Flagstaff, AZ …' }], plan), false);
 });
+
+test('a leg Google maps far outside the service area skips the day instead of logging it', async () => {
+  const posted = [];
+  const fake = async (url, opts = {}) => {
+    if (url.includes('business_settings')) return { ok: true, json: async () => [{ home_address: 'Home Rd, Flagstaff, AZ' }] };
+    if (url.includes('/bookings')) return { ok: true, json: async () => [{ id: 'a', date: '2026-11-21', time: '10:30 AM', job_status: 'PAID', service_address: '13280 I-40 Bellemont, AZ' }] };
+    if (url.includes('mileage_logs') && opts.method === 'POST') { posted.push(opts.body); return { ok: true }; }
+    if (url.includes('mileage_logs')) return { ok: true, json: async () => [] };
+    if (url.includes('routes.googleapis.com')) return { ok: true, json: async () => [{ distanceMeters: 1708 * 1609.344, condition: 'ROUTE_EXISTS' }] };
+    throw new Error(`unexpected ${url}`);
+  };
+  const out = await autoMileage({ GOOGLE_DISTANCE_API_KEY: 'k' }, { base: 'https://db/rest/v1', headers: {} }, { fetchImpl: fake, now: new Date('2026-11-22T18:00:00Z') });
+  assert.equal(posted.length, 0);
+  assert.deepEqual(out.skipped, ['2026-11-21']);
+});

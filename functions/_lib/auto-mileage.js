@@ -8,6 +8,15 @@ import { routesToLog, mileageRows, partsRunPlan, partsRunLogged, ratesForDate, A
 import { drivingMeters } from './google-maps.js';
 
 const MAX_DAYS_PER_RUN = 5;
+// GID serves ~30 miles around Flagstaff. A longer leg means Google matched an
+// address to the wrong place (2026-11-22: "13280 I-40 Bellemont, AZ" came back
+// ~1,700 mi away), so that day is left for a hand entry instead of logged.
+export const MAX_LEG_MILES = 75;
+const legMiles = async (apiKey, a, b, fetchImpl) => {
+  const mi = (await drivingMeters(apiKey, a, b, { fetchImpl })) / 1609.344;
+  if (!(mi <= MAX_LEG_MILES)) throw new Error(`implausible leg ${Math.round(mi)} mi`);
+  return mi;
+};
 
 export async function autoMileage(env, { base, headers }, { fetchImpl = (...a) => fetch(...a), now = new Date() } = {}) {
   const apiKey = env.GOOGLE_DISTANCE_API_KEY || env.GOOGLE_PLACES_API_KEY;
@@ -23,16 +32,16 @@ export async function autoMileage(env, { base, headers }, { fetchImpl = (...a) =
   const jobs = (await br.json()).map(r => ({ ...jobFromRow(r), serviceAddress: r.service_address || '' }));
   const logged = new Set((await mr.json()).map(r => r.job_id));
 
-  const out = [];
+  const out = []; const skipped = [];
   for (const day of routesToLog(jobs, logged, phoenixToday(now)).slice(0, MAX_DAYS_PER_RUN)) {
     const points = [home, ...day.stops.map(s => s.serviceAddress), home];
     let legs;
     try {
       legs = [];
       for (let i = 0; i < points.length - 1; i++) {
-        legs.push(points[i] === points[i + 1] ? 0 : (await drivingMeters(apiKey, points[i], points[i + 1], { fetchImpl })) / 1609.344);
+        legs.push(points[i] === points[i + 1] ? 0 : await legMiles(apiKey, points[i], points[i + 1], fetchImpl));
       }
-    } catch { continue; } // address Google can't route: leave the day for a hand entry
+    } catch { skipped.push(day.date); continue; } // unroutable or implausible: leave the day for a hand entry
     const rows = mileageRows(day, legs);
     const ir = await fetchImpl(`${base}/mileage_logs`, {
       method: 'POST', headers: { ...headers, Prefer: 'return=minimal' },
@@ -40,7 +49,7 @@ export async function autoMileage(env, { base, headers }, { fetchImpl = (...a) =
     });
     if (ir.ok) out.push({ date: day.date, jobs: rows.length, miles: Math.round(rows.reduce((s, r) => s + r.miles, 0) * 10) / 10 });
   }
-  return { ok: true, logged: out };
+  return { ok: true, logged: out, skipped };
 }
 
 // One parts run for a receipt that was just read (`log-parts-run`): reads the
@@ -65,7 +74,7 @@ export async function logPartsRun(env, { base, headers }, { jobId, key }, { fetc
   if (partsRunLogged(await er.json(), plan)) return { ok: true, skipped: 'already logged' };
   let miles;
   try {
-    miles = Math.round(((await drivingMeters(apiKey, plan.origin, plan.address, { fetchImpl })) * 2 / 1609.344) * 10) / 10;
+    miles = Math.round((await legMiles(apiKey, plan.origin, plan.address, fetchImpl)) * 2 * 10) / 10;
   } catch { return { ok: true, skipped: "Google couldn't route to that store" }; }
   const ir = await fetchImpl(`${base}/mileage_logs`, {
     method: 'POST', headers: { ...headers, Prefer: 'return=minimal' },
