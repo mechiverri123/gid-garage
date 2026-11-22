@@ -11,6 +11,7 @@ import { decodeVin, cleanVin, cleanPlate, vinCheckDigitOk } from './vinDecode';
 import { resolvePeriodWindow, collectedRevenue, netProfit, laborPaid, cardRevenue, ownerTakeHome, jobContribution, moneyEntriesForJob, jobFromRow, phoenixDateParts, phoenixYmd } from '../shared/business-metrics.js';
 import { lineQty, lineRate, linePrice, withLine, lineText } from '../shared/line-items.js';
 import { isAwaitingPayment, isCancelled, statusChangeFields } from '../shared/business-rules.js';
+import { ratesForDate } from '../shared/mileage.js';
 import { ESTIMATE_TERMS_CORE, ESTIMATE_TERMS_EXTENDED, estimateTermsFor } from '../shared/estimate-terms.js';
 import { DIAGNOSTIC_SHORT, WARRANTY_SHORT } from '../shared/warranty-policy.js';
 import { NextVisitCheck } from './nextVisit/NextVisitCheck';
@@ -6846,6 +6847,21 @@ export function JobsTab() {
   // (shared/stripe-sync.js): on open, then every 2 minutes.
   type CardSync = { recorded: { jobId: string; who: string; amount: number }[]; unmatched: { stripeId: string; amount: number; at: string; reason: string }[] };
   const [cardSync, setCardSync] = useState<CardSync>({ recorded: [], unmatched: [] });
+  // Finished days' job routes logged to Mileage automatically (shared/mileage.js).
+  const [autoMiles, setAutoMiles] = useState<{ date: string; jobs: number; miles: number }[]>([]);
+  useEffect(() => {
+    let stop = false;
+    const run = async () => {
+      try {
+        const r = await adminPost('auto-mileage') as { ok: boolean; logged: { date: string; jobs: number; miles: number }[] };
+        if (!stop && r?.ok && r.logged.length) { setAutoMiles(prev => [...prev, ...r.logged]); loadMileageJobIds(); }
+      } catch { /* non-critical: miles can still be logged by hand */ }
+    };
+    run();
+    const t = setInterval(run, 600000);
+    return () => { stop = true; clearInterval(t); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   useEffect(() => {
     let stop = false;
     const run = async () => {
@@ -7090,8 +7106,13 @@ export function JobsTab() {
           the no-print class — so printing prints only the open JobDetailPanel,
           not this list bleeding through behind it. */}
       <div className={selected ? 'no-print' : undefined}>
-      {(cardSync.recorded.length > 0 || cardSync.unmatched.length > 0) && (
+      {(cardSync.recorded.length > 0 || cardSync.unmatched.length > 0 || autoMiles.length > 0) && (
         <div className="mb-6 space-y-2">
+          {autoMiles.map(m => (
+            <div key={m.date} className="border border-sky-800 bg-sky-950/30 text-sky-300 text-sm px-4 py-3">
+              🚗 Logged {m.miles} business miles for {new Date(`${m.date}T12:00:00Z`).toLocaleDateString('en-US', { timeZone: 'America/Phoenix', month: 'short', day: 'numeric' })} ({m.jobs} job{m.jobs === 1 ? '' : 's'}, home → jobs → home).
+            </div>
+          ))}
           {cardSync.recorded.map(r => (
             <div key={r.jobId + r.amount} className="border border-emerald-800 bg-emerald-950/40 text-emerald-300 text-sm px-4 py-3">
               ✓ Card payment of ${r.amount.toFixed(2)} recorded on {r.who}'s job automatically.
@@ -8477,21 +8498,7 @@ interface MileageEntry {
   rate_cents_per_mile: number;
 }
 
-// IRS standard business mileage rate, cents/mile, effective from the given date.
-// 2026 had a mid-year bump (Notice 2026-10 -> Rev. Proc. 2026-25, eff. Jul 1).
-// Add new brackets here when the IRS announces future changes.
-const MILEAGE_RATE_BRACKETS: { from: string; cents: number }[] = [
-  { from: '2025-01-01', cents: 70 },
-  { from: '2026-01-01', cents: 72.5 },
-  { from: '2026-07-01', cents: 76 },
-];
-function ratesForDate(dateStr: string): number {
-  let cents = MILEAGE_RATE_BRACKETS[0].cents;
-  for (const b of MILEAGE_RATE_BRACKETS) {
-    if (dateStr >= b.from) cents = b.cents; else break;
-  }
-  return cents;
-}
+// IRS mileage rates: shared/mileage.js (ratesForDate), also used by auto-mileage.
 function todayStr() { return phoenixYmd(new Date()); }
 
 const MILEAGE_PURPOSES = ['Job site visit', 'Parts run', 'Bank / supply run', 'Other'];
