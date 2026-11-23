@@ -5,7 +5,7 @@
 
 import { VocabularySettings } from './VocabularySettings';
 import { JobAISummary } from './JobAISummary';
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef, useMemo, Fragment } from 'react';
 import type { PointerEvent as RPointerEvent, KeyboardEvent as RKeyboardEvent } from 'react';
 import { decodeVin, cleanVin, cleanPlate, vinCheckDigitOk } from './vinDecode';
 import { resolvePeriodWindow, collectedRevenue, netProfit, laborPaid, cardRevenue, ownerTakeHome, jobContribution, moneyEntriesForJob, jobFromRow, phoenixDateParts, phoenixYmd } from '../shared/business-metrics.js';
@@ -18,6 +18,7 @@ import { NextVisitCheck } from './nextVisit/NextVisitCheck';
 import { NextVisitInvoice, NextVisitReport } from './nextVisit/NextVisitPublic';
 import { ChecklistSettings } from './nextVisit/ChecklistSettings';
 import type { NextVisit } from '../shared/next-visit.js';
+import { slotMinutes } from '../shared/booking-slots.js';
 
 // Emails now sent server-side — BREVO_API_KEY removed from client bundle
 const STRIPE_PK = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY as string;
@@ -7095,10 +7096,11 @@ export function JobsTab() {
   const activeBreakdownLabel = netProfitView === 'month' ? 'This Month' : `${phoenixDateParts(now).year}`;
   const activeHelperPay = laborPaid(helperPayouts, netProfitView === 'month' ? isThisMonth : isThisYear);
 
-  const JOB_STATUS_ORDER: Record<string, number> = {
-    BOOKED: 0, ESTIMATE_SENT: 1, SIGNED: 2, IN_PROGRESS: 3,
-    COMPLETED: 4, INVOICED: 5, PAID: 6, CANCELLED: 7,
-  };
+  // Estimate Sent first (what to follow up on), then every other job under a
+  // date heading, newest date first, each day in appointment-time order.
+  // Date TBD jobs last.
+  const jobGroup = (j: Job) => j.jobStatus === 'ESTIMATE_SENT' ? 'estimate' : j.dateTbd ? 'tbd' : j.date;
+  const groupRank = (j: Job) => j.jobStatus === 'ESTIMATE_SENT' ? 0 : j.dateTbd ? 2 : 1;
   const filtered = jobs
     .filter(j => {
       // "ALL" hides Cancelled by default to keep the list decluttered —
@@ -7108,11 +7110,11 @@ export function JobsTab() {
       const matchSearch = !search || `${j.fname} ${j.lname} ${j.vehicle} ${j.phone} ${j.stripeTransactionId || ''} ${j.fleetNumber ? `fleet #${j.fleetNumber}` : ''} ${j.fleetUnit ? `#${j.fleetUnit} unit ${j.fleetUnit}` : ''}`.toLowerCase().includes(search.toLowerCase());
       return matchStatus && matchSearch;
     })
-    .sort((a, b) => {
-      const statusDiff = (JOB_STATUS_ORDER[a.jobStatus] ?? 0) - (JOB_STATUS_ORDER[b.jobStatus] ?? 0);
-      if (statusDiff !== 0) return statusDiff;
-      return b.date.localeCompare(a.date) || b.time.localeCompare(a.time);
-    });
+    .sort((a, b) => groupRank(a) - groupRank(b) || b.date.localeCompare(a.date)
+      || (groupRank(a) === 1 ? slotMinutes(a.time) - slotMinutes(b.time) : slotMinutes(b.time) - slotMinutes(a.time)));
+  const groupLabel = (j: Job) => j.jobStatus === 'ESTIMATE_SENT' ? 'Estimate Sent · follow up'
+    : j.dateTbd ? 'Date TBD'
+    : new Date(`${j.date}T12:00:00Z`).toLocaleDateString('en-US', { timeZone: 'America/Phoenix', weekday: 'long', month: 'short', day: 'numeric', year: 'numeric' });
 
   return (
     <div>
@@ -7306,12 +7308,18 @@ export function JobsTab() {
 
       {/* Job list */}
       <div className="space-y-2">
-        {filtered.map(job => {
+        {filtered.map((job, i) => {
+          const header = i === 0 || jobGroup(filtered[i - 1]) !== jobGroup(job);
           const dateStr = new Date(job.date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
           const isOverdue = !job.dateTbd && job.date < today && job.jobStatus !== 'PAID' && job.jobStatus !== 'CANCELLED';
           return (
+            <Fragment key={job.id}>
+            {header && (
+              <div className={`${i ? 'pt-4' : ''} text-xs font-bold uppercase tracking-wider ${job.jobStatus === 'ESTIMATE_SENT' ? 'text-yellow-400' : job.date === today ? 'text-red-400' : 'text-gray-400'}`}>
+                {groupLabel(job)}{!job.dateTbd && job.jobStatus !== 'ESTIMATE_SENT' && job.date === today ? ' · Today' : ''}
+              </div>
+            )}
             <button
-              key={job.id}
               onClick={() => openJob(job)}
               className={`w-full text-left bg-gray-900 border p-4 flex items-center justify-between gap-4 hover:border-red-600/50 transition-all ${
                 isOverdue ? 'border-yellow-900/50' : 'border-gray-800'
@@ -7343,6 +7351,7 @@ export function JobsTab() {
                 <StatusBadge status={job.jobStatus} />
               </div>
             </button>
+            </Fragment>
           );
         })}
       </div>
