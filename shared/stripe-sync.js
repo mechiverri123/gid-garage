@@ -1,11 +1,15 @@
 // Auto-record card payments (owner decision 2026-11-21). Bluevine's card
 // payments (Tap to Pay and pay links) run on Stripe, so a new succeeded charge
-// is matched to the one open job whose balance is exactly that amount and
+// is matched to the one signed, unpaid job whose balance is exactly that amount and
 // recorded there with its Stripe id. Never guesses: zero or several matching
 // jobs leave the charge for the owner to record by hand. Pure; I/O lives in
 // functions/_lib/stripe-sync.js. Tests: tests/stripe-sync.test.js.
-import { isAwaitingPayment, jobBalance } from './business-rules.js';
+import { isCancelled, jobBalance } from './business-rules.js';
 import { parsePayments } from './business-metrics.js';
+
+// Signed or any later step (owner decision 2026-11-23: he never clicks Start
+// or Completed; a signed job is ready to be paid).
+const SIGNED_OR_LATER = new Set(['SIGNED', 'IN_PROGRESS', 'COMPLETED', 'INVOICED']);
 
 // Charges before this were recorded by hand (often without a Stripe id), so
 // they are never auto-recorded or reported.
@@ -39,7 +43,7 @@ export function matchCharges(charges, jobs, since = AUTO_RECORD_SINCE) {
   // Same amount already logged within a day and a half: recorded by hand without its id.
   const logged = jobs.flatMap(j => parsePayments(j.payments)).map(p => ({ amount: Number(p?.amount), ms: Date.parse(p?.at) }));
   const byHand = c => logged.some(p => Math.abs(p.amount - c.amount) < 0.005 && Math.abs(p.ms - Date.parse(c.at)) < 36 * 3600e3);
-  const open = jobs.filter(j => isAwaitingPayment(j) && j.invoiceAmount != null && jobBalance(j) > 0.01);
+  const open = jobs.filter(j => SIGNED_OR_LATER.has(j.jobStatus) && !isCancelled(j) && (j.invoiceAmount ?? j.estimateAmount) != null && jobBalance(j) > 0.01);
   const taken = new Set();
   const record = []; const unmatched = [];
   for (const charge of [...charges].sort((a, b) => a.at.localeCompare(b.at))) {

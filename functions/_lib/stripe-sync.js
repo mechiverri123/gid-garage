@@ -24,10 +24,13 @@ export async function syncStripePayments(env, { base, headers }, fetchImpl = fet
   for (const { charge, job } of record) {
     let plan;
     try {
-      plan = planPayment(job, {
+      // Not invoiced yet: the estimate it matched becomes the invoice, as the admin Payment panel does.
+      const invoiced = job.invoiceAmount != null ? job : { ...job, invoiceAmount: job.estimateAmount };
+      plan = planPayment(invoiced, {
         amount: charge.amount, method: charge.inPerson ? 'Card (Tap to Pay)' : 'Card (Stripe)',
         stripeId: charge.id, note: 'Recorded automatically from Stripe', now: new Date(charge.at),
       });
+      if (job.invoiceAmount == null) plan.fields.invoice_amount = job.estimateAmount;
     } catch (e) { unmatched.push({ charge, reason: e.message }); continue; }
     // Only if nobody changed the job since we read it (another open tab syncing too).
     const guard = job.amountPaid == null ? 'amount_paid=is.null' : `amount_paid=eq.${job.amountPaid}`;

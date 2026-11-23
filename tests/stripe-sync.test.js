@@ -57,3 +57,27 @@ test('sync records the payment on the charge time with its Stripe id, guarded on
   const [p] = JSON.parse(body.payments);
   assert.deepEqual([p.amount, p.method, p.stripeId, p.at], [482.17, 'Card (Tap to Pay)', 'ch_1', '2026-11-22T18:00:00.000Z']);
 });
+
+test('a signed job is enough: payment records without Start/Completed (Nov 22 AZ Haul)', async () => {
+  // Signed job, estimate only, appointment that day; paid 5:01 PM Arizona.
+  const azHaul = { id: 'az', fname: 'AZ Haul', lname: '', date: '2026-11-22', jobStatus: 'SIGNED', invoiceAmount: null, estimateAmount: 260.97, taxAmount: 11.82, amountPaid: null, payments: [] };
+  const charge = ch('azh', 27279, '2026-11-23T00:01:00Z');
+  assert.deepEqual(matchCharges([charge], [azHaul]).record.map(x => x.job.id), ['az']);
+  // Signed on any date counts; not yet signed never does.
+  assert.equal(matchCharges([charge], [{ ...azHaul, date: '2026-11-25' }]).record.length, 1);
+  for (const jobStatus of ['BOOKED', 'ESTIMATE_SENT', 'CANCELLED', 'PAID'])
+    assert.equal(matchCharges([charge], [{ ...azHaul, jobStatus }]).unmatched[0].reason, 'no_job', jobStatus);
+  // Recording it sets the invoice from the estimate and marks it PAID at the charge time.
+  const rows = { az: { id: 'az', date: '2026-11-22', fname: 'AZ Haul', lname: '', job_status: 'SIGNED', status: 'confirmed', invoice_amount: null, estimate_amount: 260.97, tax_amount: 11.82, amount_paid: null, payments: [] } };
+  let patch;
+  const fetchImpl = async (url, opts = {}) => {
+    if (url.startsWith('https://api.stripe.com')) return { ok: true, json: async () => ({ data: [{ id: 'azh', amount: 27279, created: at('2026-11-23T00:01:00Z'), status: 'succeeded', paid: true, payment_method_details: { type: 'card_present' } }] }) };
+    if (opts.method === 'PATCH') { patch = JSON.parse(opts.body); assert.match(url, /amount_paid=is\.null/); return { ok: true, json: async () => [{}] }; }
+    return { ok: true, json: async () => Object.values(rows) };
+  };
+  const r = await syncStripePayments({ STRIPE_SECRET_KEY: 'k' }, { base: 'b', headers: {} }, fetchImpl);
+  assert.equal(r.recorded.length, 1);
+  assert.equal(patch.invoice_amount, 260.97); assert.equal(patch.amount_paid, 272.79);
+  assert.equal(patch.job_status, 'PAID'); assert.equal(patch.paid_at, '2026-11-23T00:01:00.000Z');
+  assert.equal(JSON.parse(patch.payments)[0].stripeId, 'azh');
+});
