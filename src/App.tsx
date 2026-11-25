@@ -3,7 +3,7 @@ import { Phone, Mail, Menu, X, MessageCircle, ChevronDown } from 'lucide-react';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import Lenis from 'lenis';
-import { RouteLine, ScrubText, RatchetNumber, reducedMotion } from './motion';
+import { Stage, useStageProgress, ScrubLines, RatchetNumber, reducedMotion, useSparks } from './motion';
 import GameRedeem from './GameRedeem';
 import { pageForPath, caseStudyForPath, SERVICE_PAGES, WHY_US, HOW_IT_WORKS, AUTO_REPAIR } from '../shared/site-pages.js';
 import { OLDER_VEHICLES, WARRANTY_DISCLAIMER, WARRANTY_POLICY } from '../shared/warranty-policy.js';
@@ -185,13 +185,16 @@ function AnimatedWords({ text, as: Tag = 'span', className = '', delay = 0 }: { 
 // real full-height job photo on the other. This is the actual scale move:
 // letters filling most of the viewport, not just a bigger paragraph.
 function MissionStatement() {
+  const stageRef = useRef<HTMLElement>(null);
   return (
-    <section className="relative bg-dark border-t border-white/5 py-16 md:py-24 overflow-hidden">
+    <Stage stageRef={stageRef} hold="80vh" className="bg-dark border-t border-white/5" innerClassName="pt-20 pb-10 md:py-24">
       <div className="grid md:grid-cols-[0.85fr_1.15fr] gap-10 md:gap-12 items-center">
         <div className="pl-5 pr-5 md:pl-8 md:pr-8 lg:pl-[max(2rem,calc((100vw-80rem)/2+2rem))] lg:pr-8">
           <h2 className="text-white font-black uppercase leading-[0.82] tracking-tighter">
-            <ScrubText text="No Shop." className="block text-[15vw] md:text-[6.5vw]" />
-            <ScrubText text="No Wait." className="block text-[15vw] md:text-[6.5vw] text-red-600" />
+            <ScrubLines stageRef={stageRef} lines={[
+              { text: 'No Shop.', className: 'block text-[15vw] md:text-[6.5vw]' },
+              { text: 'No Wait.', className: 'block text-[15vw] md:text-[6.5vw] text-red-600' },
+            ]} />
           </h2>
           <Reveal delay={200}>
             <div className="text-white/50 mt-8 max-w-md text-base md:text-lg leading-relaxed">
@@ -224,7 +227,7 @@ function MissionStatement() {
           </div>
         </Reveal>
       </div>
-    </section>
+    </Stage>
   );
 }
 
@@ -278,12 +281,25 @@ function Hero({ openBooking }: { openBooking: () => void }) {
   const reviews = useGoogleReviews();
   const h1Ref = useRef<HTMLHeadingElement>(null);
   const glowRef = useRef<HTMLDivElement>(null);
+  const sparks = useSparks();
   // Engine start: as "MECHANIC." lands the headline turns over (a short shake),
   // the red glow flares, then breathes slowly like an idling engine.
   useEffect(() => {
     if (reducedMotion() || !h1Ref.current || !glowRef.current) return;
     const glow = glowRef.current;
     const tl = gsap.timeline({ delay: 1.0 });
+    // The period of "MECHANIC." throws a burst of grinder sparks.
+    tl.add(() => {
+      const words = h1Ref.current?.querySelectorAll('.word-inner');
+      const last = words?.[words.length - 1] as HTMLElement | undefined;
+      const c = sparks.ref.current;
+      if (!last || !c) return;
+      const r = last.getBoundingClientRect(), cr = c.getBoundingClientRect();
+      const fs = parseFloat(getComputedStyle(last).fontSize);
+      const x = r.right - cr.left - fs * 0.08, y = r.bottom - cr.top - fs * 0.12;
+      sparks.emit(x, y, 70, { dir: 1, spread: 0.4, up: 1.4 });
+      sparks.emit(x, y, 25, { dir: -1, spread: 0.4, up: 1.1 });
+    }, 0.05);
     tl.to(h1Ref.current, { keyframes: [{ x: -4 }, { x: 4 }, { x: -3 }, { x: 2 }, { x: 0 }], duration: 0.32, ease: 'none' }, 0)
       .fromTo(glow, { opacity: 0.6, scale: 1 }, { opacity: 1, scale: 1.08, duration: 0.14, ease: 'power2.out' }, 0)
       .to(glow, { opacity: 0.75, scale: 1, duration: 0.7, ease: 'power2.inOut' })
@@ -292,6 +308,7 @@ function Hero({ openBooking }: { openBooking: () => void }) {
   }, []);
   return (
     <section id="hero" className="relative min-h-screen flex items-center bg-dark overflow-hidden pt-28 pb-16">
+      <canvas ref={sparks.ref} aria-hidden="true" className="absolute inset-0 w-full h-full pointer-events-none z-20" />
       <div
         ref={glowRef}
         className="absolute inset-0"
@@ -701,7 +718,7 @@ function StatsBar() {
         {stats.map((s, i) => (
           <Reveal key={s.label} delay={i * 80}>
             <div>
-              <div className="text-red-600 font-extrabold text-4xl md:text-5xl tracking-tight"><RatchetNumber value={s.value} /></div>
+              <div className="text-red-600 font-extrabold text-4xl md:text-5xl tracking-tight"><RatchetNumber value={s.value} delay={i * 0.15} /></div>
               <div className="text-white/50 text-xs md:text-sm uppercase tracking-widest mt-2">{s.label}</div>
             </div>
           </Reveal>
@@ -713,20 +730,30 @@ function StatsBar() {
 
 function BeforeAfterSlider() {
   const [pos, setPos] = useState(0);
-  const boxRef = useRef<HTMLDivElement>(null);
+  const stageRef = useRef<HTMLElement>(null);
   const dragged = useRef(false);
-  // Scrolling past it wipes the rust away; once they drag it, it's theirs.
+  // Held on screen while scrolling wipes the rust away; once they drag it, it's theirs.
+  useStageProgress(stageRef, p => { if (!dragged.current) setPos(Math.round(p * 100)); });
+  // The wipe line is a grinder: moving it throws sparks off the rust, spraying
+  // away from the direction it's travelling.
+  const sparks = useSparks();
+  const boxRef = useRef<HTMLDivElement>(null);
+  const lastPos = useRef(pos);
   useEffect(() => {
-    if (!boxRef.current || reducedMotion()) return;
-    const st = ScrollTrigger.create({
-      trigger: boxRef.current, start: 'top 85%', end: 'bottom 45%', scrub: true,
-      onUpdate: self => { if (!dragged.current) setPos(Math.round(self.progress * 100)); },
-    });
-    return () => st.kill();
-  }, []);
+    const moved = pos - lastPos.current;
+    lastPos.current = pos;
+    const box = boxRef.current, c = sparks.ref.current;
+    if (!moved || !box || !c || pos >= 100) return;
+    const r = box.getBoundingClientRect(), cr = c.getBoundingClientRect();
+    const x = r.left - cr.left + (1 - pos / 100) * r.width;
+    const y = r.top - cr.top + r.height * (0.35 + Math.random() * 0.3);
+    sparks.emit(x, y, Math.min(45, Math.abs(moved) * 5), { dir: moved > 0 ? 1 : -1, spread: 3 });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pos]);
 
   return (
-    <section className="py-20 md:py-28 bg-dark border-t border-white/5">
+    <Stage stageRef={stageRef} hold="90vh" className="bg-dark border-t border-white/5" innerClassName="pt-20 pb-10 md:py-16">
+      <canvas ref={sparks.ref} aria-hidden="true" className="absolute inset-0 w-full h-full pointer-events-none z-20" />
       <div className="max-w-3xl mx-auto px-5 md:px-8">
         <div className="text-center mb-10">
           <div className="text-red-500 text-xs font-bold uppercase tracking-[0.25em] mb-2">Real Work, Real Results</div>
@@ -744,7 +771,7 @@ function BeforeAfterSlider() {
               decoding="async"
               onError={(e) => { e.currentTarget.style.display = 'none'; }}
             />
-            <div className="absolute inset-0 overflow-hidden" style={{ clipPath: `inset(0 ${100 - pos}% 0 0)` }}>
+            <div className="absolute inset-0 overflow-hidden" style={{ clipPath: `inset(0 0 0 ${100 - pos}%)` }}>
               <img
                 src={img('rotor_after.jpg')}
                 alt="Rotor after GID Garage brake service"
@@ -755,16 +782,16 @@ function BeforeAfterSlider() {
                 onError={(e) => { e.currentTarget.style.display = 'none'; }}
               />
             </div>
-            <div className="absolute top-0 bottom-0 w-0.5 bg-red-600 pointer-events-none" style={{ left: `${pos}%` }} />
+            <div className="absolute top-0 bottom-0 w-0.5 bg-red-600 pointer-events-none" style={{ left: `${100 - pos}%` }} />
             <div
               className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-10 h-10 rounded-full bg-red-600 text-white flex items-center justify-center text-sm font-bold shadow-lg pointer-events-none"
-              style={{ left: `${pos}%` }}
+              style={{ left: `${100 - pos}%` }}
             >
               ↔
             </div>
             <input
-              type="range" min={0} max={100} value={pos}
-              onChange={(e) => { dragged.current = true; setPos(Number(e.target.value)); }}
+              type="range" min={0} max={100} value={100 - pos}
+              onChange={(e) => { dragged.current = true; setPos(100 - Number(e.target.value)); }}
               aria-label="Drag to compare before and after"
               className="absolute inset-0 w-full h-full opacity-0 cursor-ew-resize"
             />
@@ -773,7 +800,7 @@ function BeforeAfterSlider() {
           </div>
         </Reveal>
       </div>
-    </section>
+    </Stage>
   );
 }
 
@@ -1709,7 +1736,6 @@ export default function App() {
       <div className="grain-overlay" />
       <Nav openBooking={openBooking} />
       <Hero openBooking={openBooking} />
-      <div className="relative overflow-x-clip">
       <MissionStatement />
       <MobileReviewStrip openBooking={openBooking} />
       <QuickQuoteForm />
@@ -1723,8 +1749,6 @@ export default function App() {
       <ServiceMap />
       <PhotoGallery />
       <BookingSection openBooking={openBooking} />
-      <RouteLine />
-      </div>
       <FAQ />
       <ContactBar openBooking={openBooking} />
       <Footer />

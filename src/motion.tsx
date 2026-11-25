@@ -1,152 +1,142 @@
-// Homepage motion: the scroll-drawn route line, letter-by-letter scroll
-// lighting, and ratchet counters. Everything switches off for visitors whose
-// device asks for reduced motion (the content is simply shown as-is).
-import { useEffect, useRef, useState } from 'react';
+// Homepage motion: scroll "stages" that hold a section on screen while its
+// animation plays (letters lighting up, the rotor cleaning), and ratchet
+// counters. Everything switches off for visitors whose device asks for reduced
+// motion (the content is simply shown as-is).
+import { useEffect, useRef, useState, type ReactNode, type RefObject } from 'react';
 import gsap from 'gsap';
-import { ScrollTrigger } from 'gsap/ScrollTrigger';
-
-gsap.registerPlugin(ScrollTrigger);
 
 export const reducedMotion = () => typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-// ── Route line ────────────────────────────────────────────────────────────────
-// A red "GPS route" that draws itself down the page as you scroll, weaving from
-// one edge to the other between sections, with a pulsing puck at its tip that
-// stays with the reader. It ends with a map pin at the booking section — the
-// destination. Drop it as the last child of a `relative` wrapper around the
-// sections it should run through; it measures them, so content changes (reviews
-// loading, images) just redraw it.
-export function RouteLine() {
-  const svgRef = useRef<SVGSVGElement>(null);
-  const [geo, setGeo] = useState<{ w: number; h: number; d: string; end: { x: number; y: number } } | null>(null);
-  const trail = useRef<SVGPathElement>(null);
-  const puck = useRef<SVGGElement>(null);
-  const pin = useRef<SVGGElement>(null);
+// ── Stage ─────────────────────────────────────────────────────────────────────
+// The section sticks to the screen for an extra `hold` of scrolling, so an
+// animation scrubbed across the stage plays while the visitor is looking at it
+// instead of racing past. Pure CSS sticky: smooth, no scroll-jacking.
+// Scrub against `stageRef` from 'top top' to 'bottom bottom' for the held part.
+export function Stage({ stageRef, hold = '70vh', className = '', innerClassName = '', children }: {
+  stageRef: RefObject<HTMLElement>; hold?: string; className?: string; innerClassName?: string; children: ReactNode;
+}) {
+  return (
+    <section ref={stageRef} className={`relative ${className}`}>
+      <div className={`sticky top-0 min-h-[100svh] flex items-center overflow-hidden ${innerClassName}`}>
+        <div className="w-full">{children}</div>
+      </div>
+      <div aria-hidden="true" className="motion-reduce:hidden" style={{ height: hold }} />
+    </section>
+  );
+}
 
-  // Build the path from the wrapper's sections.
+// Scroll progress across a stage, 0 → 1, finishing a little before the stage
+// lets go so the end state is seen while it's still held. `lead` starts it
+// early: 0 = when the stage reaches the top of the screen, 0.35 = when its top
+// is 35% of a screen below that. Measured live from the stage's position on
+// every scroll — never from positions cached at load, which go stale when
+// reviews and photos load in above and push the page down.
+export function useStageProgress(stageRef: RefObject<HTMLElement>, onProgress: (p: number) => void, lead = 0) {
+  const cb = useRef(onProgress);
+  cb.current = onProgress;
   useEffect(() => {
-    const wrap = svgRef.current?.parentElement;
-    if (!wrap) return;
-    let raf = 0;
-    const build = () => {
-      const w = wrap.clientWidth, h = wrap.scrollHeight;
-      const edge = w < 768 ? 9 : w < 1280 ? 16 : 40;
-      const xs = [edge, w - edge];
-      const top = wrap.getBoundingClientRect().top;
-      const kids = [...wrap.children].filter(c => c !== svgRef.current && (c as HTMLElement).offsetHeight > 0) as HTMLElement[];
-      if (kids.length < 2) return;
-      const last = kids[kids.length - 1];
-      const endY = last.getBoundingClientRect().top - top + 36;
-      const end = { x: w / 2, y: endY };
-      let side = 0, y = 0;
-      let d = `M ${xs[0]} 0`;
-      for (const k of kids.slice(1, -1)) {
-        const b = k.getBoundingClientRect().top - top;
-        const bend = Math.min(70, (b - y) / 3);
-        d += ` L ${xs[side]} ${b - bend}`;
-        const other = 1 - side;
-        d += ` C ${xs[side]} ${b}, ${xs[other]} ${b}, ${xs[other]} ${b + bend}`;
-        side = other; y = b + bend;
-      }
-      // Final leg: down the current edge, then curve in to the pin.
-      const lastTop = last.getBoundingClientRect().top - top;
-      d += ` L ${xs[side]} ${lastTop - 40} C ${xs[side]} ${endY}, ${end.x} ${lastTop - 30}, ${end.x} ${endY}`;
-      setGeo({ w, h, d, end });
-    };
-    const schedule = () => { cancelAnimationFrame(raf); raf = requestAnimationFrame(build); };
-    const ro = new ResizeObserver(schedule);
-    ro.observe(wrap);
-    window.addEventListener('resize', schedule);
-    schedule();
-    return () => { ro.disconnect(); window.removeEventListener('resize', schedule); cancelAnimationFrame(raf); };
-  }, []);
-
-  // Tie the drawn length to scroll: the tip sits ~60% down the screen.
-  useEffect(() => {
-    const path = trail.current, svg = svgRef.current;
-    if (!geo || !path || !svg) return;
-    const total = path.getTotalLength();
-    path.style.strokeDasharray = `${total}`;
-    if (reducedMotion()) {
-      path.style.strokeDashoffset = '0';
-      if (puck.current) puck.current.style.display = 'none';
-      return;
-    }
-    // y -> length lookup (the path only ever moves down).
-    const N = 600;
-    const ys: number[] = [];
-    for (let i = 0; i <= N; i++) ys.push(path.getPointAtLength((total * i) / N).y);
-    let raf = 0;
-    let shown = -1;
+    const el = stageRef.current;
+    if (!el || reducedMotion()) return;
+    let raf = 0, last = -1;
     const update = () => {
       raf = 0;
-      const target = window.scrollY + window.innerHeight * 0.6 - (svg.getBoundingClientRect().top + window.scrollY);
-      let lo = 0, hi = N;
-      while (lo < hi) { const m = (lo + hi) >> 1; if (ys[m] < target) lo = m + 1; else hi = m; }
-      const len = (total * lo) / N;
-      if (Math.abs(len - shown) < 0.5) return;
-      shown = len;
-      path.style.strokeDashoffset = `${total - len}`;
-      const p = path.getPointAtLength(len);
-      puck.current?.setAttribute('transform', `translate(${p.x} ${p.y})`);
-      if (puck.current) puck.current.style.opacity = len > 2 && lo < N ? '1' : '0';
-      pin.current?.classList.toggle('route-pin-on', lo >= N - 2);
+      const r = el.getBoundingClientRect(), vh = window.innerHeight;
+      const run = r.height - vh + lead * vh;
+      const p = run > 0 ? Math.max(0, Math.min(1, (lead * vh - r.top) / run / 0.85)) : 1;
+      if (p !== last) { last = p; cb.current(p); }
     };
     const onScroll = () => { if (!raf) raf = requestAnimationFrame(update); };
     update();
     window.addEventListener('scroll', onScroll, { passive: true });
-    return () => { window.removeEventListener('scroll', onScroll); cancelAnimationFrame(raf); };
-  }, [geo]);
+    window.addEventListener('resize', onScroll);
+    return () => { window.removeEventListener('scroll', onScroll); window.removeEventListener('resize', onScroll); cancelAnimationFrame(raf); };
+  }, [stageRef, lead]);
+}
 
-  return (
-    <svg ref={svgRef} aria-hidden="true" className="absolute top-0 left-0 pointer-events-none z-[5]"
-      width="100%" height={geo?.h ?? 0} style={{ overflow: 'visible' }}>
-      {geo && <>
-        {/* The route ahead: faint road dashes. */}
-        <path d={geo.d} fill="none" stroke="rgba(255,255,255,0.10)" strokeWidth={1.5} strokeDasharray="6 10" />
-        {/* The route travelled: solid red, drawn by scroll. */}
-        <path ref={trail} d={geo.d} fill="none" stroke="#dc2626" strokeWidth={2} strokeLinecap="round" style={{ filter: 'drop-shadow(0 0 4px rgba(220,38,38,0.6))' }} />
-        <g ref={puck} style={{ opacity: 0, transition: 'opacity .3s' }}>
-          <circle r={11} fill="rgba(220,38,38,0.25)" className="route-ping" />
-          <circle r={5.5} fill="#dc2626" stroke="#fff" strokeWidth={2} />
-        </g>
-        <g ref={pin} className="route-pin" transform={`translate(${geo.end.x} ${geo.end.y})`}>
-          <g className="route-pin-inner">
-            <path d="M0 0 C -9 -12 -12 -17 -12 -24 A 12 12 0 1 1 12 -24 C 12 -17 9 -12 0 0 Z" fill="#dc2626" stroke="#fff" strokeWidth={1.5} />
-            <circle cy={-24} r={4.5} fill="#fff" />
-          </g>
-        </g>
-      </>}
-    </svg>
-  );
+// ── Sparks ────────────────────────────────────────────────────────────────────
+// Grinder sparks on a canvas laid over a section. Streaks with gravity and
+// additive glow, white-hot → orange → gone. The loop only runs while sparks
+// are alive, so it costs nothing at rest.
+type Spark = { x: number; y: number; vx: number; vy: number; life: number; max: number; w: number };
+export function useSparks() {
+  const ref = useRef<HTMLCanvasElement>(null);
+  const sparks = useRef<Spark[]>([]);
+  const raf = useRef(0);
+  const loop = () => {
+    const c = ref.current, ctx = c?.getContext('2d');
+    if (!c || !ctx) { raf.current = 0; return; }
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    const w = Math.round(c.clientWidth * dpr), h = Math.round(c.clientHeight * dpr);
+    if (c.width !== w || c.height !== h) { c.width = w; c.height = h; }
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, c.clientWidth, c.clientHeight);
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.lineCap = 'round';
+    const alive: Spark[] = [];
+    for (const s of sparks.current) {
+      s.vy += 0.28; s.vx *= 0.985; s.x += s.vx; s.y += s.vy; s.life--;
+      if (s.life <= 0) continue;
+      const a = s.life / s.max;
+      ctx.strokeStyle = `hsla(${18 + a * 30}, 100%, ${55 + a * 40}%, ${Math.min(1, a * 1.4)})`;
+      ctx.lineWidth = s.w;
+      ctx.beginPath(); ctx.moveTo(s.x - s.vx * 2.2, s.y - s.vy * 2.2); ctx.lineTo(s.x, s.y); ctx.stroke();
+      alive.push(s);
+    }
+    sparks.current = alive;
+    raf.current = alive.length ? requestAnimationFrame(loop) : 0;
+    if (!alive.length) ctx.clearRect(0, 0, c.clientWidth, c.clientHeight);
+  };
+  // x/y in the canvas's own CSS pixels; `dir` 1 sprays right, -1 left, 0 both.
+  const emit = (x: number, y: number, n: number, { dir = 0, spread = 1, up = 1 } = {}) => {
+    if (reducedMotion()) return;
+    for (let i = 0; i < n; i++) {
+      const side = dir || (Math.random() < 0.5 ? -1 : 1);
+      const max = 22 + Math.random() * 30;
+      sparks.current.push({
+        x, y: y + (Math.random() - 0.5) * 20 * spread,
+        vx: side * (1.5 + Math.random() * 8), vy: -(Math.random() * 7 * up) + 1.5,
+        life: max, max, w: 1.1 + Math.random() * 1.9,
+      });
+    }
+    if (sparks.current.length > 600) sparks.current.splice(0, sparks.current.length - 600);
+    if (!raf.current) raf.current = requestAnimationFrame(loop);
+  };
+  useEffect(() => () => cancelAnimationFrame(raf.current), []);
+  return { ref, emit };
 }
 
 // ── Letters that light up as you scroll ───────────────────────────────────────
 // Each character starts dim and comes up to full brightness in reading order,
-// scrubbed to the scroll position. The full text stays in the DOM for SEO.
-export function ScrubText({ text, className = '' }: { text: string; className?: string }) {
+// scrubbed across the stage. The full text stays in the DOM for SEO.
+export function ScrubLines({ stageRef, lines }: { stageRef: RefObject<HTMLElement>; lines: { text: string; className?: string }[] }) {
   const ref = useRef<HTMLSpanElement>(null);
+  useStageProgress(stageRef, p => {
+    const chars = ref.current?.querySelectorAll<HTMLElement>('.scrub-ch');
+    if (!chars) return;
+    const lit = p * chars.length;
+    chars.forEach((c, i) => { c.style.opacity = String(0.12 + 0.88 * Math.max(0, Math.min(1, lit - i))); });
+  }, 0.65);
+  // Start dim (only once JS is running and motion is allowed).
   useEffect(() => {
-    const el = ref.current;
-    if (!el || reducedMotion()) return;
-    const chars = el.querySelectorAll('.scrub-ch');
-    const tween = gsap.fromTo(chars, { opacity: 0.12 }, {
-      opacity: 1, ease: 'none', stagger: 0.08,
-      scrollTrigger: { trigger: el, start: 'top 88%', end: 'top 40%', scrub: 0.4 },
-    });
-    return () => { tween.scrollTrigger?.kill(); tween.kill(); };
+    if (reducedMotion()) return;
+    ref.current?.querySelectorAll<HTMLElement>('.scrub-ch').forEach(c => { c.style.opacity = '0.12'; });
   }, []);
   return (
-    <span ref={ref} className={className} aria-label={text}>
-      {[...text].map((c, i) => <span key={i} aria-hidden="true" className="scrub-ch">{c}</span>)}
+    <span ref={ref}>
+      {lines.map(l => (
+        <span key={l.text} className={l.className} aria-label={l.text}>
+          {[...l.text].map((c, i) => <span key={i} aria-hidden="true" className="scrub-ch" style={{ transition: 'opacity .12s linear' }}>{c}</span>)}
+        </span>
+      ))}
     </span>
   );
 }
 
 // ── Ratchet counter ───────────────────────────────────────────────────────────
-// "30 Days" ticks 0 → 30 when it scrolls into view, then gives a little
-// ratchet "click" (a quick scale kick). Pre-rendered HTML keeps the real value.
-export function RatchetNumber({ value }: { value: string }) {
+// "30 Days" ticks 0 → 30 once it's well into view (not the moment its top edge
+// appears), slowly enough to watch, then gives a little ratchet "click".
+// Pre-rendered HTML keeps the real value.
+export function RatchetNumber({ value, delay = 0 }: { value: string; delay?: number }) {
   const m = value.match(/^(\d+)(.*)$/);
   const n = m ? Number(m[1]) : 0;
   const ref = useRef<HTMLSpanElement>(null);
@@ -160,11 +150,11 @@ export function RatchetNumber({ value }: { value: string }) {
       obs.disconnect();
       const o = { v: 0 };
       gsap.to(o, {
-        v: n, duration: Math.min(1.4, 0.5 + n / 60), ease: 'power3.out',
+        v: n, duration: 2.2, delay, ease: 'power1.out',
         onUpdate: () => setShown(Math.round(o.v)),
         onComplete: () => { gsap.fromTo(el, { scale: 1.18 }, { scale: 1, duration: 0.35, ease: 'back.out(3)' }); },
       });
-    }, { threshold: 0.6 });
+    }, { rootMargin: '0px 0px -35% 0px' });
     obs.observe(el);
     return () => obs.disconnect();
     // eslint-disable-next-line react-hooks/exhaustive-deps
