@@ -283,23 +283,9 @@ function Hero({ openBooking }: { openBooking: () => void }) {
         className="absolute inset-0"
         style={{ background: 'radial-gradient(ellipse 80% 60% at 30% 30%, rgba(220,38,38,0.16), transparent 70%), linear-gradient(180deg, #0f0f0f 0%, #141414 45%, #0f0f0f 100%)' }}
       />
-      {/* Phones: a real job photo behind the headline (desktop is fed a 1px gif,
-          so it downloads nothing and looks exactly as before). */}
-      <picture className="md:hidden absolute inset-0">
-        <source media="(min-width: 768px)" srcSet="data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==" />
-        <img src="/photos/brake-rav4-new-rotor.webp" alt="" {...{ fetchpriority: 'high' }} decoding="async" className="w-full h-full object-cover object-bottom" />
-      </picture>
-      <div className="md:hidden absolute inset-0" style={{ background: 'linear-gradient(180deg, rgba(15,15,15,0.96) 0%, rgba(15,15,15,0.88) 55%, rgba(15,15,15,0.6) 76%, rgba(15,15,15,0.2) 92%, rgba(15,15,15,0.6) 100%)' }} />
       <div className="relative z-10 w-full">
         <div className="max-w-[1500px] mx-auto px-5 md:px-10">
-          {reviews?.rating != null && (
-            <a href="#reviews-mobile" className="md:hidden inline-flex items-center gap-2 mb-4 bg-black/50 border border-white/15 px-3 py-1.5">
-              <span className="text-yellow-400 text-sm tracking-tight">★★★★★</span>
-              <span className="text-white text-sm font-bold">{reviews.rating.toFixed(1)}</span>
-              <span className="text-white/70 text-xs">· {reviews.totalReviews} Google reviews</span>
-            </a>
-          )}
-          <div className="text-red-400 text-xs font-bold uppercase tracking-[0.3em] mb-4 md:mb-6">Get It Done Garage · Flagstaff, AZ</div>
+          <div className="text-red-400 text-xs font-bold uppercase tracking-[0.18em] md:tracking-[0.3em] mb-4 md:mb-6">Get It Done Garage · Flagstaff, AZ</div>
           <h1 className="text-white font-black uppercase leading-[0.82] tracking-tighter">
             <AnimatedWords as="div" text="Flagstaff" className="block text-[16vw] md:text-[9.5vw]" />
             <AnimatedWords as="div" text="Mobile" className="block text-[16vw] md:text-[9.5vw]" delay={0.1} />
@@ -312,16 +298,25 @@ function Hero({ openBooking }: { openBooking: () => void }) {
             <Reveal delay={850}>
               <div className="flex flex-col sm:flex-row gap-4 flex-shrink-0">
                 <button onClick={openBooking} className="btn-primary text-sm px-8 py-4">Get a Quote</button>
-                <a href={`tel:${PHONE}`} className="btn-outline max-md:bg-black/70 text-sm px-8 py-4"><Phone className="w-4 h-4" />Call Now</a>
+                <a href={`tel:${PHONE}`} className="btn-outline text-sm px-8 py-4"><Phone className="w-4 h-4" />Call Now</a>
               </div>
             </Reveal>
           </div>
-          {/* Phones: the three things that take the risk out of calling. */}
+          {/* Phones: quiet proof under the buttons — the real Google rating (row
+              keeps its height while it loads, so nothing jumps) and the three
+              things that take the risk out of calling. */}
           <Reveal delay={950}>
-            <div className="md:hidden mt-6 grid grid-cols-3 gap-2 text-center">
-              {['Free estimates', '30-day warranty', 'Open 7 days'].map(t => (
-                <div key={t} className="bg-black/50 border border-white/10 px-1 py-2.5 text-white text-xs font-bold">✓ {t}</div>
-              ))}
+            <div className="md:hidden mt-8 pt-5 border-t border-white/10">
+              <a href="#reviews-mobile" className="flex items-baseline gap-2 min-h-[1.5rem]">
+                {reviews?.rating != null && (<>
+                  <span className="text-yellow-400 tracking-wider">★★★★★</span>
+                  <span className="text-white font-bold">{reviews.rating.toFixed(1)}</span>
+                  <span className="text-white/50 text-sm">from {reviews.totalReviews} Google reviews</span>
+                </>)}
+              </a>
+              <div className="mt-1.5 text-white/55 text-[13px] font-medium whitespace-nowrap">
+                Free estimates <span className="text-red-600">·</span> 30-day warranty <span className="text-red-600">·</span> Open 7 days
+              </div>
             </div>
           </Reveal>
         </div>
