@@ -93,6 +93,8 @@ const services = [
   },
 ];
 
+const MOBILE_SERVICE_PRICE: Record<string, string> = { oil: '$79.99 full synthetic', diag: '$99.99 flat', full: 'Free with any service' };
+
 // Fades + rises content into place the first time it enters the viewport.
 // Pure IntersectionObserver, no animation library — keeps the bundle small.
 function Reveal({ children, className = '', delay = 0 }: { children: React.ReactNode; className?: string; delay?: number }) {
@@ -274,14 +276,29 @@ function Nav({ openBooking }: { openBooking: () => void }) {
 }
 
 function Hero({ openBooking }: { openBooking: () => void }) {
+  const reviews = useGoogleReviews();
   return (
     <section id="hero" className="relative min-h-screen flex items-center bg-dark overflow-hidden pt-28 pb-16">
       <div
         className="absolute inset-0"
         style={{ background: 'radial-gradient(ellipse 80% 60% at 30% 30%, rgba(220,38,38,0.16), transparent 70%), linear-gradient(180deg, #0f0f0f 0%, #141414 45%, #0f0f0f 100%)' }}
       />
+      {/* Phones: a real job photo behind the headline (desktop is fed a 1px gif,
+          so it downloads nothing and looks exactly as before). */}
+      <picture className="md:hidden absolute inset-0">
+        <source media="(min-width: 768px)" srcSet="data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==" />
+        <img src="/photos/brake-rav4-new-rotor.webp" alt="" {...{ fetchpriority: 'high' }} decoding="async" className="w-full h-full object-cover object-bottom" />
+      </picture>
+      <div className="md:hidden absolute inset-0" style={{ background: 'linear-gradient(180deg, rgba(15,15,15,0.96) 0%, rgba(15,15,15,0.88) 55%, rgba(15,15,15,0.6) 76%, rgba(15,15,15,0.2) 92%, rgba(15,15,15,0.6) 100%)' }} />
       <div className="relative z-10 w-full">
         <div className="max-w-[1500px] mx-auto px-5 md:px-10">
+          {reviews?.rating != null && (
+            <a href="#reviews-mobile" className="md:hidden inline-flex items-center gap-2 mb-4 bg-black/50 border border-white/15 px-3 py-1.5">
+              <span className="text-yellow-400 text-sm tracking-tight">★★★★★</span>
+              <span className="text-white text-sm font-bold">{reviews.rating.toFixed(1)}</span>
+              <span className="text-white/70 text-xs">· {reviews.totalReviews} Google reviews</span>
+            </a>
+          )}
           <div className="text-red-400 text-xs font-bold uppercase tracking-[0.3em] mb-4 md:mb-6">Get It Done Garage · Flagstaff, AZ</div>
           <h1 className="text-white font-black uppercase leading-[0.82] tracking-tighter">
             <AnimatedWords as="div" text="Flagstaff" className="block text-[16vw] md:text-[9.5vw]" />
@@ -295,10 +312,18 @@ function Hero({ openBooking }: { openBooking: () => void }) {
             <Reveal delay={850}>
               <div className="flex flex-col sm:flex-row gap-4 flex-shrink-0">
                 <button onClick={openBooking} className="btn-primary text-sm px-8 py-4">Get a Quote</button>
-                <a href={`tel:${PHONE}`} className="btn-outline text-sm px-8 py-4"><Phone className="w-4 h-4" />Call Now</a>
+                <a href={`tel:${PHONE}`} className="btn-outline max-md:bg-black/70 text-sm px-8 py-4"><Phone className="w-4 h-4" />Call Now</a>
               </div>
             </Reveal>
           </div>
+          {/* Phones: the three things that take the risk out of calling. */}
+          <Reveal delay={950}>
+            <div className="md:hidden mt-6 grid grid-cols-3 gap-2 text-center">
+              {['Free estimates', '30-day warranty', 'Open 7 days'].map(t => (
+                <div key={t} className="bg-black/50 border border-white/10 px-1 py-2.5 text-white text-xs font-bold">✓ {t}</div>
+              ))}
+            </div>
+          </Reveal>
         </div>
       </div>
     </section>
@@ -463,7 +488,20 @@ function Services({ onBookService }: { onBookService: (id: string) => void }) {
             <div className="text-white/50 text-base mt-4 max-w-xl">Everything handled at your home, office, or wherever you're parked in the Flagstaff area.</div>
           </Reveal>
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+        {/* Phones: scannable tiles, one tap starts a quote for that service.
+            Public price policy: only oil and diagnostics show a price. */}
+        <div className="sm:hidden grid grid-cols-2 gap-3">
+          {services.map(s => (
+            <button key={s.id} onClick={() => onBookService(s.id)}
+              className="text-left bg-white/5 border border-white/10 border-t-2 border-t-red-600 p-4 active:bg-white/10 flex flex-col min-h-[7.5rem]">
+              <div className="text-white font-bold text-base leading-tight">{s.title}</div>
+              <div className="text-red-400 text-sm font-bold mt-1">{MOBILE_SERVICE_PRICE[s.id] ?? 'Free estimate'}</div>
+              <div className="mt-auto pt-3 text-white/60 text-xs font-semibold uppercase tracking-wider">Get a quote →</div>
+            </button>
+          ))}
+        </div>
+        <a href="/auto-repair-flagstaff" className="sm:hidden block mt-4 text-sm text-white/70 underline underline-offset-4">Everything we fix, with prices →</a>
+        <div className="hidden sm:grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
           {services.map((s, i) => (
             <Reveal key={s.id} delay={(i % 3) * 90}>
               <ServiceCard s={s} onBookService={onBookService} />
@@ -545,13 +583,15 @@ function WhyUs() {
             <div className="text-white font-black uppercase tracking-tighter leading-[0.85] text-[14vw] md:text-[6vw]">Why Us</div>
           </Reveal>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 md:gap-8 mb-8">
           {reasons.map((t, i) => (
             <Reveal key={t.title} delay={i * 100}>
-              <div className="bg-white/5 border border-white/10 p-8 hover:border-red-600/30 hover:bg-white/10 hover:-translate-y-1 transition-all duration-300">
-                <div className="text-red-600 font-extrabold text-4xl md:text-5xl tracking-tight mb-4">( {t.n} )</div>
-                <h3 className="text-white font-bold text-xl mb-3 tracking-tight">{t.title}</h3>
-                <div className="text-white/70 leading-relaxed text-sm">{t.desc}</div>
+              <div className="bg-white/5 border border-white/10 p-5 md:p-8 flex gap-4 md:block hover:border-red-600/30 hover:bg-white/10 hover:-translate-y-1 transition-all duration-300">
+                <div className="text-red-600 font-extrabold text-3xl md:text-5xl tracking-tight md:mb-4 flex-shrink-0 leading-none"><span className="hidden md:inline">( </span>{t.n}<span className="hidden md:inline"> )</span></div>
+                <div>
+                  <h3 className="text-white font-bold text-lg md:text-xl mb-1.5 md:mb-3 tracking-tight">{t.title}</h3>
+                  <div className="text-white/70 leading-relaxed text-sm">{t.desc}</div>
+                </div>
               </div>
             </Reveal>
           ))}
@@ -599,7 +639,24 @@ function RealJobsStrip() {
   ];
   return (
     <section className="bg-dark border-t border-white/5 py-16 md:py-20">
-      <div className="max-w-7xl mx-auto px-5 md:px-8">
+      {/* Phones: one swipeable row of real jobs, each captioned. */}
+      <div className="md:hidden">
+        <div className="px-5 mb-5">
+          <div className="text-red-500 text-xs font-bold uppercase tracking-[0.25em] mb-1">From the Garage</div>
+          <div className="text-white text-2xl font-extrabold tracking-tight">Real jobs, real parts</div>
+          <div className="text-white/50 text-sm mt-1">Swipe through recent work from around Flagstaff.</div>
+        </div>
+        <div className="flex gap-3 overflow-x-auto snap-x snap-mandatory scroll-px-5 px-5 pb-2 [scrollbar-width:none]">
+          {shots.map(s => (
+            <figure key={s.src} className="snap-start flex-shrink-0 w-[70%] relative aspect-[4/5] overflow-hidden bg-white/5">
+              <img src={s.src.startsWith('/') ? s.src : img(s.src)} alt={s.caption} className="w-full h-full object-cover" loading="lazy" decoding="async"
+                onError={(e) => { e.currentTarget.parentElement!.style.display = 'none'; }} />
+              <figcaption className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/90 to-transparent pt-8 pb-3 px-3 text-white text-xs font-semibold">{s.caption}</figcaption>
+            </figure>
+          ))}
+        </div>
+      </div>
+      <div className="hidden md:block max-w-7xl mx-auto px-5 md:px-8">
         <div className="text-red-500 text-xs font-bold uppercase tracking-[0.25em] mb-6 text-center">From the Garage</div>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           {shots.map((s, i) => (
@@ -728,12 +785,59 @@ function Stars({ rating }: { rating: number }) {
   );
 }
 
-function GoogleReviewsSection() {
+// One /google-reviews request per page load, shared by the hero rating line,
+// the phone review strip and the reviews section.
+let reviewsPromise: Promise<any> | null = null;
+function useGoogleReviews() {
   const [data, setData] = useState<any>(null);
-
   useEffect(() => {
-    fetch('/google-reviews').then(r => r.json()).then(setData).catch(() => setData(null));
+    reviewsPromise ??= fetch('/google-reviews').then(r => r.json()).catch(() => null);
+    let live = true;
+    reviewsPromise.then(d => { if (live) setData(d); });
+    return () => { live = false; };
   }, []);
+  return data?.configured && data.reviews?.length ? data : null;
+}
+
+// Phones only: proof right after the opening pitch, swiped sideways, instead
+// of 11 screens down. Desktop keeps the full section further down.
+function MobileReviewStrip() {
+  const data = useGoogleReviews();
+  if (!data) return null;
+  return (
+    <section id="reviews-mobile" className="md:hidden bg-dark border-t border-white/5 py-12 scroll-mt-16">
+      <div className="px-5 flex items-end justify-between gap-4 mb-5">
+        <div>
+          <div className="text-red-500 text-xs font-bold uppercase tracking-[0.25em] mb-1">Google Reviews</div>
+          <div className="text-white text-2xl font-extrabold tracking-tight">Neighbors say it best</div>
+        </div>
+        {data.rating != null && (
+          <div className="text-right flex-shrink-0">
+            <div className="text-white text-2xl font-extrabold leading-none">{data.rating.toFixed(1)}</div>
+            <div className="text-yellow-400 text-xs mt-1">★★★★★</div>
+          </div>
+        )}
+      </div>
+      <div className="flex gap-3 overflow-x-auto snap-x snap-mandatory scroll-px-5 px-5 pb-2 [scrollbar-width:none]">
+        {data.reviews.map((r: any, i: number) => (
+          <div key={i} className="snap-start flex-shrink-0 w-[82%] bg-white/5 border border-white/10 p-5 flex flex-col">
+            <Stars rating={r.rating} />
+            <div className="text-white/80 text-sm leading-relaxed mt-3 flex-1 line-clamp-5">“{r.text}”</div>
+            <div className="mt-4 text-white text-xs font-bold">{r.author} <span className="text-white/50 font-normal">· {r.relativeTime}</span></div>
+          </div>
+        ))}
+      </div>
+      <div className="px-5 mt-4">
+        <a href={GBP_REVIEW_URL} target="_blank" rel="noopener noreferrer" className="text-red-400 text-sm font-bold underline underline-offset-4">
+          Read all {data.totalReviews ?? ''} reviews on Google →
+        </a>
+      </div>
+    </section>
+  );
+}
+
+function GoogleReviewsSection() {
+  const data = useGoogleReviews();
 
   // Once we have a live rating, add it to the AutoRepair schema so search
   // engines can show star ratings in results.
@@ -753,10 +857,11 @@ function GoogleReviewsSection() {
   }, [data]);
 
   // Not configured yet, or nothing to show — don't render a broken/empty section
-  if (!data?.configured || !data.reviews?.length) return null;
+  if (!data) return null;
 
+  // Phones get MobileReviewStrip near the top instead.
   return (
-    <section className="py-20 md:py-28 bg-dark border-t border-white/5">
+    <section className="hidden md:block py-20 md:py-28 bg-dark border-t border-white/5">
       <div className="max-w-7xl mx-auto px-5 md:px-8">
         <div className="text-center mb-10">
           <div className="text-red-500 text-xs font-bold uppercase tracking-[0.25em] mb-2">Google Reviews</div>
@@ -910,6 +1015,7 @@ function ServiceMap() {
   );
 }
 
+// Desktop only: phones see the swipeable "From the Garage" row instead.
 function PhotoGallery() {
   // Static fallback shown until /gallery-list resolves (or if it ever fails).
   const fallbackPhotos = [
@@ -939,22 +1045,11 @@ function PhotoGallery() {
   function prev() { setCurrent(c => (c - 1 + total) % total); }
   function next() { setCurrent(c => (c + 1) % total); }
 
-  // Swipe support for mobile
-  const touchStartX = useRef<number | null>(null);
-  function onTouchStart(e: React.TouchEvent) { touchStartX.current = e.touches[0].clientX; }
-  function onTouchEnd(e: React.TouchEvent) {
-    if (touchStartX.current === null) return;
-    const dx = e.changedTouches[0].clientX - touchStartX.current;
-    if (dx < -40) next();
-    else if (dx > 40) prev();
-    touchStartX.current = null;
-  }
-
   // Build desktop visible photos (3 cycling)
   const desktopPhotos = [0, 1, 2].map(i => photos[(desktopOffset + i) % total]);
 
   return (
-    <section className="py-0 bg-light relative overflow-hidden" onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
+    <section className="hidden sm:block py-0 bg-light relative overflow-hidden">
       {/* Desktop: 3 across, justified row — each photo keeps its natural aspect ratio */}
       <div className="hidden sm:flex relative bg-[#0f0f0f] overflow-hidden" style={{ height: '420px' }}>
         {desktopPhotos.map(({ src, alt }, i) => (
@@ -972,22 +1067,6 @@ function PhotoGallery() {
         </button>
       </div>
 
-      {/* Mobile: single photo carousel */}
-      <div className="sm:hidden relative bg-[#0f0f0f] flex items-center justify-center overflow-hidden" style={{ height: '360px' }}>
-        <img src={photos[current].src} alt={photos[current].alt} loading="lazy" decoding="async"
-          className="h-full w-auto max-w-full object-contain transition-opacity duration-300" />
-        <button onClick={prev} aria-label="Previous"
-          className="absolute left-2 top-1/2 -translate-y-1/2 z-10 w-9 h-9 bg-black/60 hover:bg-red-600 text-white flex items-center justify-center transition-colors text-xl">‹</button>
-        <button onClick={next} aria-label="Next"
-          className="absolute right-2 top-1/2 -translate-y-1/2 z-10 w-9 h-9 bg-black/60 hover:bg-red-600 text-white flex items-center justify-center transition-colors text-xl">›</button>
-        {/* Dots */}
-        <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1.5">
-          {photos.map((_, i) => (
-            <button key={i} type="button" onClick={() => setCurrent(i)} aria-label={`Show photo ${i + 1} of ${photos.length}`} aria-current={i === current}
-              className={`w-2 h-2 rounded-full transition-colors ${i === current ? 'bg-red-500' : 'bg-white/40'}`} />
-          ))}
-        </div>
-      </div>
     </section>
   );
 }
@@ -1610,6 +1689,7 @@ export default function App() {
       <Nav openBooking={openBooking} />
       <Hero openBooking={openBooking} />
       <MissionStatement />
+      <MobileReviewStrip />
       <QuickQuoteForm />
       <Services onBookService={handleBookService} />
       <AutoRepair />
