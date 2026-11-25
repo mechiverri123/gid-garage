@@ -268,7 +268,7 @@ function Nav({ openBooking }: { openBooking: () => void }) {
           {links.map((l) => (
             <a key={l.label} href={l.href} className="text-sm font-semibold uppercase tracking-wide transition-colors duration-200 text-white hover:text-red-400">{l.label}</a>
           ))}
-          <button onClick={openBooking} className="btn-primary text-xs px-8 py-4">Get a Quote</button>
+          <button onClick={openBooking} className="btn-primary text-xs px-8 py-4">Book a Visit</button>
         </nav>
         <button className="md:hidden p-1 text-white transition-colors" onClick={() => setMenuOpen(v => !v)} aria-label="Toggle menu">
           {menuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
@@ -279,7 +279,7 @@ function Nav({ openBooking }: { openBooking: () => void }) {
           {links.map((l) => (
             <a key={l.label} href={l.href} className="text-white text-base font-semibold uppercase tracking-wide transition-colors hover:text-red-400" onClick={() => setMenuOpen(false)}>{l.label}</a>
           ))}
-          <div className="mt-2"><button onClick={() => { openBooking(); setMenuOpen(false); }} className="btn-primary text-xs px-8 py-4">Get a Quote</button></div>
+          <div className="mt-2"><button onClick={() => { openBooking(); setMenuOpen(false); }} className="btn-primary text-xs px-8 py-4">Book a Visit</button></div>
         </div>
       )}
     </header>
@@ -375,7 +375,7 @@ function Hero({ openBooking }: { openBooking: () => void }) {
                 )}
               </div>
               <div className="flex flex-col sm:flex-row gap-4 flex-shrink-0">
-                <button onClick={openBooking} className="btn-primary text-sm px-8 py-4">Get a Quote</button>
+                <button onClick={openBooking} className="btn-primary text-sm px-8 py-4">Book a Visit</button>
                 <a href={`tel:${PHONE}`} className="btn-outline text-sm px-8 py-4"><Phone className="w-4 h-4" />Call Now</a>
               </div>
             </Reveal>
@@ -446,7 +446,7 @@ function ServiceCard({ s, onBookService }: { s: typeof services[0]; onBookServic
         onClick={() => onBookService(s.id)}
         className="mt-5 w-full bg-red-600 hover:bg-red-500 text-white text-xs font-bold uppercase tracking-widest py-2.5 px-4 transition-colors duration-200"
       >
-        Get a Quote
+        Book a Visit
       </button>
     </div>
   );
@@ -577,7 +577,7 @@ function Services({ onBookService }: { onBookService: (id: string) => void }) {
               className="w-full h-full text-left bg-white/5 border border-white/10 border-t-2 border-t-red-600 p-4 active:bg-white/10 active:scale-[0.96] transition-transform duration-150 flex flex-col min-h-[7.5rem]">
               <div className="text-white font-bold text-base leading-tight">{s.title}</div>
               <div className="text-red-400 text-sm font-bold mt-1">{MOBILE_SERVICE_PRICE[s.id] ?? 'Free estimate'}</div>
-              <div className="mt-auto pt-3 text-white/60 text-xs font-semibold uppercase tracking-wider">Get a quote →</div>
+              <div className="mt-auto pt-3 text-white/60 text-xs font-semibold uppercase tracking-wider">Book a visit →</div>
             </button>
             </Reveal>
           ))}
@@ -611,22 +611,8 @@ function AutoRepair() {
           <div className="text-white/60 text-base mt-4 max-w-2xl leading-relaxed">{AUTO_REPAIR.intro}</div>
           <a href="/auto-repair-flagstaff" className="inline-block mt-4 text-sm text-red-400 hover:text-red-300 underline underline-offset-4">Everything we repair, with prices →</a>
         </Reveal>
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mt-10">
-          {AUTO_REPAIR.jobs.map(j => (
-            <a key={j.path} href={j.path} className="bg-white/5 border border-white/10 p-5 hover:border-red-600/40 hover:bg-white/10 transition-colors">
-              <div className="text-white font-bold">{j.label}</div>
-              <div className="text-red-400 text-sm mt-1">{j.price}</div>
-              <div className="text-white/60 text-xs mt-3">Details →</div>
-            </a>
-          ))}
-        </div>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-3">
-          {AUTO_REPAIR.photos.map(p => (
-            <div key={p.src} className="aspect-[3/4] overflow-hidden bg-white/5">
-              <img src={p.src} alt={p.alt} className="w-full h-full object-cover" loading="lazy" decoding="async" />
-            </div>
-          ))}
-        </div>
+        {/* The service boxes and photos that were here repeated the Services
+            tiles and the Before & After set; the text below stays for Google. */}
         <div className="grid md:grid-cols-2 gap-10 mt-12">
           <div>
             <h3 className="text-white font-bold text-xl mb-4">How a repair visit works</h3>
@@ -962,7 +948,7 @@ function MobileReviewStrip({ openBooking }: { openBooking: () => void }) {
         ))}
       </div>
       <div className="px-5 mt-6">
-        <button onClick={openBooking} className="btn-primary w-full text-sm py-4">Book Now</button>
+        <button onClick={openBooking} className="btn-primary w-full text-sm py-4">Book a Visit</button>
         <a href={GBP_REVIEW_URL} target="_blank" rel="noopener noreferrer" className="block mt-4 text-center text-white/60 text-sm underline underline-offset-4">
           Read all {data.totalReviews ?? ''} reviews on Google
         </a>
@@ -1182,7 +1168,11 @@ function PhotoGallery() {
       .then(res => (res.ok ? res.json() : null))
       .then(data => {
         if (data?.keys?.length) {
-          setPhotos(data.keys.map((key: string) => ({ src: img(key), alt: 'GID Garage work' })));
+          // Skip photos already shown elsewhere on the page (Before & After,
+          // From the Garage) and the folder entry itself.
+          const shownElsewhere = ['rotor_before.jpg', 'rotor_after.jpg', 'magnaride.jpg', 'afba.jpg', 'photo-audio.jpg'];
+          const keys = data.keys.filter((key: string) => !key.endsWith('/') && !shownElsewhere.includes(key.split('/').pop() ?? ''));
+          setPhotos(keys.map((key: string) => ({ src: img(key), alt: 'GID Garage work' })));
         }
       })
       .catch(() => {}); // keep fallbackPhotos on failure
@@ -1228,14 +1218,14 @@ function BookingSection({ openBooking }: { openBooking: () => void }) {
   return (
     <section id="booking" className="py-20 md:py-28 bg-dark border-t border-white/5">
       <div className="max-w-2xl mx-auto px-5 md:px-8 text-center">
-        <div className="text-4xl md:text-5xl font-extrabold text-white tracking-tight mb-4">Get a Quote</div>
+        <div className="text-4xl md:text-5xl font-extrabold text-white tracking-tight mb-4">Book a Visit</div>
         <div className="text-white/50 text-base mb-2">
           Pick a time that works for you, or{' '}
           <a href={`tel:${PHONE}`} className="text-red-500 hover:text-red-400 font-semibold transition-colors underline underline-offset-2">call {PHONE}</a>{' '}
           to chat with us first.
         </div>
         <div className="text-white/60 text-xs mb-8">Mon–Fri 1:30–8 PM · Sat–Sun 5 AM–8 PM</div>
-        <button onClick={openBooking} className="btn-primary text-xs px-8 py-4">Get a Quote</button>
+        <button onClick={openBooking} className="btn-primary text-xs px-8 py-4">Book a Visit</button>
       </div>
     </section>
   );
@@ -1293,7 +1283,7 @@ function ContactBar({ openBooking }: { openBooking: () => void }) {
           <h3 className="text-white text-2xl md:text-3xl font-extrabold tracking-tight">We Come to You, Flagstaff.</h3>
         </div>
         <div className="flex flex-col sm:flex-row gap-4">
-          <button onClick={openBooking} className="btn-primary text-xs px-8 py-4">Get a Quote</button>
+          <button onClick={openBooking} className="btn-primary text-xs px-8 py-4">Book a Visit</button>
           <a href={`tel:${PHONE}`} className="inline-flex items-center justify-center gap-2 border-2 border-white text-white font-bold px-7 py-3 text-sm uppercase tracking-wide hover:bg-white/10 transition-colors duration-200"><Phone className="w-4 h-4" />{PHONE}</a>
         </div>
       </div>
@@ -1328,7 +1318,7 @@ function Footer() {
           </div>
           <div className="flex flex-col gap-2">
             <div className="text-white text-xs uppercase tracking-widest font-semibold mb-1">Quick Links</div>
-            {[{ label: 'Services', href: '#services' }, { label: 'Why GID Garage', href: '#why' }, { label: 'Service Area', href: '#area' }, { label: 'Get a Quote', href: '#booking' }].map((l) => (
+            {[{ label: 'Services', href: '#services' }, { label: 'Why GID Garage', href: '#why' }, { label: 'Service Area', href: '#area' }, { label: 'Book a Visit', href: '#booking' }].map((l) => (
               <a key={l.label} href={l.href} className="text-white/60 hover:text-white text-sm transition-colors">{l.label}</a>
             ))}
             {SERVICE_PAGES.map(p => <a key={p.path} href={p.path} className="text-white/60 hover:text-white text-sm transition-colors">{p.label}</a>)}
@@ -1355,7 +1345,7 @@ function StickyMobileCTA({ openBooking }: { openBooking: () => void }) {
         <Phone className="w-4 h-4" /> Call
       </a>
       <button onClick={openBooking} className="flex-1 flex items-center justify-center gap-2 py-3.5 bg-red-600 text-white font-bold text-sm active:bg-red-700">
-        <MessageCircle className="w-4 h-4" /> Get a Quote
+        <MessageCircle className="w-4 h-4" /> Book a Visit
       </button>
     </div>
   );

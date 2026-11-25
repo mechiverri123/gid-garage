@@ -27,7 +27,7 @@ function Shell({ children, onQuote }: { children: React.ReactNode; onQuote: () =
           <a href="/" className="flex-shrink-0"><img src="/opt/logo-wide-120.webp" srcSet="/opt/logo-wide-120.webp 491w, /opt/logo-wide-240.webp 982w" sizes="(min-width: 768px) 200px, 164px" width={491} height={120} alt="GID Garage" className="vt-logo h-10 md:h-12 w-auto drop-shadow-[0_2px_10px_rgba(220,38,38,0.25)]" /></a>
           <div className="flex items-center gap-3">
             <a href={`tel:${PHONE}`} className="hidden sm:inline-flex items-center gap-2 text-white text-sm font-semibold"><Phone className="w-4 h-4" />{PHONE}</a>
-            <button onClick={onQuote} className="btn-primary text-xs px-5 py-3">Get a Quote</button>
+            <button onClick={onQuote} className="btn-primary text-xs px-5 py-3">Book a Visit</button>
           </div>
         </div>
       </header>
@@ -67,7 +67,7 @@ export function ServicePage({ page }: { page: ServicePageData }) {
       <h1 className="text-white font-black uppercase tracking-tight leading-[0.95] text-4xl md:text-6xl">{page.h1}</h1>
       <div className="text-white/70 text-base md:text-lg leading-relaxed mt-5 max-w-3xl">{page.intro}</div>
       <div className="flex flex-col sm:flex-row gap-3 mt-7">
-        <button onClick={openBooking} className="btn-primary text-sm px-8 py-4">Get a Quote</button>
+        <button onClick={openBooking} className="btn-primary text-sm px-8 py-4">Book a Visit</button>
         <a href={`tel:${PHONE}`} className="btn-outline text-sm px-8 py-4"><Phone className="w-4 h-4" />Call {PHONE}</a>
       </div>
 
@@ -128,7 +128,7 @@ export function ServicePage({ page }: { page: ServicePageData }) {
       <section className="mt-12 bg-red-600 px-6 py-8 flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="text-white text-2xl font-extrabold tracking-tight">We come to you, Flagstaff.</div>
         <div className="flex flex-col sm:flex-row gap-3">
-          <button onClick={openBooking} className="bg-white text-red-600 font-bold uppercase tracking-wide text-xs px-7 py-3">Get a Quote</button>
+          <button onClick={openBooking} className="bg-white text-red-600 font-bold uppercase tracking-wide text-xs px-7 py-3">Book a Visit</button>
           <a href={`tel:${PHONE}`} className="inline-flex items-center justify-center gap-2 border-2 border-white text-white font-bold px-6 py-3 text-xs uppercase tracking-wide"><Phone className="w-4 h-4" />{PHONE}</a>
         </div>
       </section>
@@ -186,7 +186,7 @@ export function CaseStudyPage({ cs }: { cs: CaseStudy }) {
         <h2 className="text-white font-bold mb-1">The takeaway</h2><div className="text-white/70 leading-relaxed">{cs.lesson}</div>
       </section>
       <div className="flex flex-col sm:flex-row gap-3 mt-8">
-        <button onClick={openBooking} className="btn-primary text-sm px-8 py-4">Get a Quote</button>
+        <button onClick={openBooking} className="btn-primary text-sm px-8 py-4">Book a Visit</button>
         {service && <a href={service.path} className="btn-outline text-sm px-8 py-4">{service.label} — pricing</a>}
       </div>
       <div className="text-white/60 text-sm mt-10">More real jobs: {CASE_STUDIES.filter(c => c.slug !== cs.slug).map((c, i) => <span key={c.slug}>{i ? ' · ' : ''}<a href={c.path} className="underline hover:text-white">{c.vehicle}</a></span>)}</div>

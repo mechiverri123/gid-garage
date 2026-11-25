@@ -430,7 +430,7 @@ function VehicleSelector({ form, setForm, errors, clearError }: {
                   if (e.target.value === '__other__') { setEngineOther(true); setForm(p => ({ ...p, vehicleEngine: '' })); }
                   else { setForm(p => ({ ...p, vehicleEngine: e.target.value })); clearError('vehicleEngine'); }
                 }}>
-                <option value="">Engine size</option>
+                <option value="">Engine size (optional)</option>
                 {engineOptions.map(e => <option key={e} value={e}>{e}</option>)}
                 <option value="__other__">Other / not listed</option>
               </select>
@@ -438,7 +438,7 @@ function VehicleSelector({ form, setForm, errors, clearError }: {
               <div className="relative">
                 <input
                   type="text"
-                  placeholder="Engine (e.g. 2.4L 4-cyl)"
+                  placeholder="Engine (optional, e.g. 2.4L 4-cyl)"
                   value={form.vehicleEngine}
                   onChange={e => { setForm(p => ({ ...p, vehicleEngine: e.target.value })); clearError('vehicleEngine'); }}
                   className={ic('vehicleEngine')}
@@ -758,7 +758,7 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
     if (!form.vehicleYear) errors.vehicleYear = 'Select a year';
     if (!form.vehicleMake) errors.vehicleMake = 'Select a make';
     if (!form.vehicleModel) errors.vehicleModel = 'Select a model';
-    if (!form.vehicleEngine) errors.vehicleEngine = 'Select engine size (e.g. 2.4L 4-cyl)';
+    // Engine size is optional (owner decision 2026-11-25): plenty of people don't know it.
     if (s.service === 'diag' && (!form.notes || form.notes.trim().length < 5)) errors.notes = 'Please describe what the vehicle is doing';
     if (form.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) errors.email = 'Enter a valid email address';
     if (Object.keys(errors).length > 0) { setFieldErrors(errors); return; }
@@ -892,7 +892,7 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
   return (
     <>
       {!autoOpen && (
-        <button onClick={() => setOpen(true)} className="btn-primary text-xs px-8 py-4">Get a Quote</button>
+        <button onClick={() => setOpen(true)} className="btn-primary text-xs px-8 py-4">Book a Visit</button>
       )}
 
       {open && (
@@ -913,7 +913,7 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
                   </div>
                 ) : (
                   <div className="text-gray-400 text-sm leading-relaxed">
-                    We've received your quote request for <span className="text-red-500 font-bold">{svc?.name}</span> on <span className="text-red-500 font-bold">{dateStr} at {s.time}</span>. We'll call you to confirm availability and finalize pricing.<br /><br />
+                    We've received your request for <span className="text-red-500 font-bold">{svc?.name}</span> on <span className="text-red-500 font-bold">{dateStr} at {s.time}</span>. We'll call you to confirm availability and finalize pricing.<br /><br />
                     A confirmation has been sent to {form.email || 'your email'}.<br />
                     <span className="text-gray-400 text-xs">If you don't see it, check your junk or spam folder.</span>
                     {/* What happens next — only what this page already promises. */}
@@ -935,8 +935,8 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
               </div>
             ) : (
               <>
-                <div className="text-red-500 text-xs font-bold uppercase tracking-[0.25em] mb-1">Get a Quote</div>
-                <h2 className="text-3xl font-black text-white tracking-tight mb-6">Request a Quote</h2>
+                <div className="text-red-500 text-xs font-bold uppercase tracking-[0.25em] mb-1">Book a Visit</div>
+                <h2 className="text-3xl font-black text-white tracking-tight mb-6">Book a Visit</h2>
 
                 {s.service !== 'other' && (
                   <div className="flex gap-1 mb-8">
