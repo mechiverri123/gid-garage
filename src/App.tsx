@@ -4,7 +4,7 @@ import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import Lenis from 'lenis';
 import { addDays, nextOpening } from '../shared/booking-slots.js';
-import { Stage, useStageProgress, ScrubLines, RatchetNumber, reducedMotion, useSparks, useInViewOnce, Shine, useTween } from './motion';
+import { Stage, useStageProgress, ScrubLines, RatchetNumber, reducedMotion, useSparks, useInViewOnce, Shine, useTween, SentCheck } from './motion';
 import GameRedeem from './GameRedeem';
 import { pageForPath, caseStudyForPath, SERVICE_PAGES, WHY_US, HOW_IT_WORKS, AUTO_REPAIR } from '../shared/site-pages.js';
 import { OLDER_VEHICLES, WARRANTY_DISCLAIMER, WARRANTY_POLICY } from '../shared/warranty-policy.js';
@@ -16,7 +16,7 @@ gsap.registerPlugin(ScrollTrigger);
 // lazy-loading them keeps the marketing site's JS small so it doesn't choke
 // mobile Safari (source of the "grey screen until refresh" reports).
 const BookingWidget = lazy(() => import('./BookingWidget'));
-const AdminSchedule = lazy(() => import('./BookingWidget').then(m => ({ default: m.AdminSchedule })));
+const AdminSchedule = lazy(() => import('./AdminSchedule').then(m => ({ default: m.AdminSchedule })));
 const PromptGenerator = lazy(() => import('./PromptGenerator'));
 const EstimatePage = lazy(() => import('./JobOps').then(m => ({ default: m.EstimatePage })));
 const InvoicePage = lazy(() => import('./JobOps').then(m => ({ default: m.InvoicePage })));
@@ -24,7 +24,7 @@ const PPIPage = lazy(() => import('./JobOps').then(m => ({ default: m.PPIPage })
 const InspectionPage = lazy(() => import('./JobOps').then(m => ({ default: m.InspectionPage })));
 const TechApp = lazy(() => import('./tech/TechApp'));
 // /admin/pay (helper pay): same PIN gate as /admin; Access guards /admin/*.
-const HelperPayPage = lazy(() => Promise.all([import('./pay/HelperPay'), import('./BookingWidget')])
+const HelperPayPage = lazy(() => Promise.all([import('./pay/HelperPay'), import('./AdminSchedule')])
   .then(([p, b]) => ({ default: () => <p.default Gate={b.AdminPasswordGate} /> })));
 const GamesPage = lazy(() => import('./GamesPage'));
 const JarvisPage = lazy(() => import('./JarvisPage'));
@@ -262,7 +262,7 @@ function Nav({ openBooking }: { openBooking: () => void }) {
     <header className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${scrolled ? 'bg-[#0f0f0f] shadow-lg shadow-black/50' : 'bg-transparent'}`}>
       <div className="max-w-7xl mx-auto px-5 md:px-8 flex items-center justify-between h-16 md:h-20">
         <a href="#hero" className="flex-shrink-0">
-          <Logo className="h-10 md:h-12 w-auto drop-shadow-[0_2px_10px_rgba(220,38,38,0.25)]" sizes="(min-width: 768px) 200px, 164px" />
+          <Logo className="vt-logo h-10 md:h-12 w-auto drop-shadow-[0_2px_10px_rgba(220,38,38,0.25)]" sizes="(min-width: 768px) 200px, 164px" />
         </a>
         <nav className="hidden md:flex items-center gap-8">
           {links.map((l) => (
@@ -484,6 +484,7 @@ function QuickQuoteForm() {
     return (
       <section className="py-12 bg-dark border-t border-white/5">
         <div className="max-w-xl mx-auto px-5 text-center">
+          <div className="mb-4"><SentCheck size={60} /></div>
           <div className="text-red-500 text-xs font-bold uppercase tracking-[0.25em] mb-2">Got It</div>
           <div className="text-white text-xl font-bold mb-1">Thanks, {name.split(' ')[0]}!</div>
           <div className="text-white/60 text-sm">We'll text you back shortly — usually same day.</div>
@@ -787,12 +788,40 @@ function StatsBar() {
   );
 }
 
+// Real before/after pairs from GID jobs, framed alike so the wipe lines up.
+const BEFORE_AFTER = [
+  { label: 'Rotor', before: '/photos/brake-rotor-before.webp', after: '/photos/brake-rotor-after.webp', caption: 'Worn, rusted rotor → new rotor on the same wheel' },
+  { label: 'RAV4 rotor', before: '/photos/brake-rav4-worn-rotor.webp', after: '/photos/brake-rav4-new-rotor.webp', caption: 'Toyota RAV4 rear rotor, before and after' },
+  { label: 'Strut', before: '/photos/susp-crv-old-strut.webp', after: '/photos/susp-crv-new-strut.webp', caption: 'Honda CR-V front strut: original → new' },
+  { label: 'Oil filter', before: '/photos/oil-old-filter.webp', after: '/photos/oil-new-filter.webp', caption: 'Old oil filter → new Mobil 1 filter' },
+];
+
 function BeforeAfterSlider() {
   const [pos, setPos] = useState(0);
+  const [pair, setPair] = useState(0);
   const stageRef = useRef<HTMLElement>(null);
   const dragged = useRef(false);
-  // Held on screen while scrolling wipes the rust away; once they drag it, it's theirs.
+  // Held on screen while scrolling wipes the first pair; once they drag or
+  // pick another pair, it's theirs.
   useStageProgress(stageRef, p => { if (!dragged.current) setPos(Math.round(p * 100)); });
+  // Picking a pair replays its wipe (with sparks) on its own.
+  const wipe = useRef(0);
+  function choosePair(i: number) {
+    dragged.current = true;
+    setPair(i);
+    cancelAnimationFrame(wipe.current);
+    if (reducedMotion()) { setPos(100); return; }
+    lastPos.current = 0; // the reset to 0 isn't a grind, so no sparks for it
+    setPos(0);
+    const t0 = performance.now();
+    const step = (now: number) => {
+      const t = Math.min(1, (now - t0 - 250) / 1300);
+      if (t > 0) setPos(Math.round(100 * (t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2)));
+      if (t < 1) wipe.current = requestAnimationFrame(step);
+    };
+    wipe.current = requestAnimationFrame(step);
+  }
+  useEffect(() => () => cancelAnimationFrame(wipe.current), []);
   // The wipe line is a grinder: moving it throws sparks off the rust, spraying
   // away from the direction it's travelling.
   const sparks = useSparks();
@@ -809,37 +838,33 @@ function BeforeAfterSlider() {
     sparks.emit(x, y, Math.min(45, Math.abs(moved) * 5), { dir: moved > 0 ? 1 : -1, spread: 3 });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pos]);
+  const cur = BEFORE_AFTER[pair];
 
   return (
-    <Stage stageRef={stageRef} hold="90vh" className="bg-dark border-t border-white/5" innerClassName="pt-20 pb-10 md:py-16">
+    <Stage stageRef={stageRef} hold="90vh" className="bg-dark border-t border-white/5" innerClassName="pt-20 pb-8 md:py-12">
       <canvas ref={sparks.ref} aria-hidden="true" className="absolute inset-0 w-full h-full pointer-events-none z-20" />
       <div className="max-w-3xl mx-auto px-5 md:px-8">
-        <div className="text-center mb-10">
+        <div className="text-center mb-5">
           <div className="text-red-500 text-xs font-bold uppercase tracking-[0.25em] mb-2">Real Work, Real Results</div>
           <div className="text-4xl md:text-5xl font-extrabold text-white tracking-tight"><Shine>Before &amp; After</Shine></div>
-          <div className="text-white/50 text-base mt-3">A rotor from one of our brake jobs — scroll or drag to compare.</div>
+          <div className="text-white/50 text-sm md:text-base mt-2">Real jobs — scroll, drag, or pick another.</div>
+        </div>
+        {/* Pair picker */}
+        <div className="flex justify-center gap-2 mb-4 flex-wrap" role="tablist" aria-label="Before and after jobs">
+          {BEFORE_AFTER.map((b, i) => (
+            <button key={b.label} role="tab" aria-selected={i === pair} onClick={() => choosePair(i)}
+              className={`px-3 py-1.5 text-xs font-bold uppercase tracking-wider border transition-colors ${i === pair ? 'bg-red-600 border-red-600 text-white' : 'border-white/15 text-white/70 hover:border-red-600/60 hover:text-white'}`}>
+              {b.label}
+            </button>
+          ))}
         </div>
         <Reveal>
-          <div ref={boxRef} className="relative select-none border border-white/10 overflow-hidden bg-white/5" style={{ aspectRatio: '4 / 3' }}>
-            <img
-              src={img('rotor_before.jpg')}
-              alt="Rotor before GID Garage brake service"
-              className="absolute inset-0 w-full h-full object-cover"
-              draggable={false}
-              loading="lazy"
-              decoding="async"
-              onError={(e) => { e.currentTarget.style.display = 'none'; }}
-            />
+          {/* Tall box to match the photos (no cropping), sized to fit the screen while held. */}
+          <div ref={boxRef} className="relative select-none border border-white/10 overflow-hidden bg-white/5 mx-auto"
+            style={{ aspectRatio: '3 / 4', width: 'min(100%, calc((100svh - 300px) * 0.75))' }}>
+            <img key={cur.before} src={cur.before} alt={`Before: ${cur.caption}`} className="absolute inset-0 w-full h-full object-cover" draggable={false} loading="lazy" decoding="async" />
             <div className="absolute inset-0 overflow-hidden" style={{ clipPath: `inset(0 0 0 ${100 - pos}%)` }}>
-              <img
-                src={img('rotor_after.jpg')}
-                alt="Rotor after GID Garage brake service"
-                className="absolute inset-0 w-full h-full object-cover"
-                draggable={false}
-                loading="lazy"
-                decoding="async"
-                onError={(e) => { e.currentTarget.style.display = 'none'; }}
-              />
+              <img key={cur.after} src={cur.after} alt={`After: ${cur.caption}`} className="absolute inset-0 w-full h-full object-cover" draggable={false} loading="lazy" decoding="async" />
             </div>
             <div className="absolute top-0 bottom-0 w-0.5 bg-red-600 pointer-events-none" style={{ left: `${100 - pos}%` }} />
             <div
@@ -850,13 +875,14 @@ function BeforeAfterSlider() {
             </div>
             <input
               type="range" min={0} max={100} value={100 - pos}
-              onChange={(e) => { dragged.current = true; setPos(100 - Number(e.target.value)); }}
+              onChange={(e) => { dragged.current = true; cancelAnimationFrame(wipe.current); setPos(100 - Number(e.target.value)); }}
               aria-label="Drag to compare before and after"
               className="absolute inset-0 w-full h-full opacity-0 cursor-ew-resize"
             />
             <span className="absolute top-3 left-3 bg-black/60 text-white text-[11px] font-bold uppercase tracking-widest px-2 py-1 pointer-events-none">Before</span>
             <span className="absolute top-3 right-3 bg-black/60 text-white text-[11px] font-bold uppercase tracking-widest px-2 py-1 pointer-events-none">After</span>
           </div>
+          <div className="text-center text-white/60 text-sm mt-3">{cur.caption}</div>
         </Reveal>
       </div>
     </Stage>

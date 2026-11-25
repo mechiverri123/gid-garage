@@ -24,7 +24,7 @@ function Shell({ children, onQuote }: { children: React.ReactNode; onQuote: () =
     <div className="bg-dark text-dark min-h-screen font-sans">
       <header className="bg-[#0f0f0f] border-b border-white/10">
         <div className="max-w-5xl mx-auto px-5 md:px-8 h-16 md:h-20 flex items-center justify-between gap-4">
-          <a href="/" className="flex-shrink-0"><img src="/opt/logo-wide-120.webp" srcSet="/opt/logo-wide-120.webp 491w, /opt/logo-wide-240.webp 982w" sizes="(min-width: 768px) 200px, 164px" width={491} height={120} alt="GID Garage" className="h-10 md:h-12 w-auto drop-shadow-[0_2px_10px_rgba(220,38,38,0.25)]" /></a>
+          <a href="/" className="flex-shrink-0"><img src="/opt/logo-wide-120.webp" srcSet="/opt/logo-wide-120.webp 491w, /opt/logo-wide-240.webp 982w" sizes="(min-width: 768px) 200px, 164px" width={491} height={120} alt="GID Garage" className="vt-logo h-10 md:h-12 w-auto drop-shadow-[0_2px_10px_rgba(220,38,38,0.25)]" /></a>
           <div className="flex items-center gap-3">
             <a href={`tel:${PHONE}`} className="hidden sm:inline-flex items-center gap-2 text-white text-sm font-semibold"><Phone className="w-4 h-4" />{PHONE}</a>
             <button onClick={onQuote} className="btn-primary text-xs px-5 py-3">Get a Quote</button>

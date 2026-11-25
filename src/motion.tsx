@@ -220,3 +220,15 @@ export function useTween(start: boolean, ms: number) {
   }, [start, ms]);
   return t;
 }
+
+// ── Sent check ────────────────────────────────────────────────────────────────
+// A red ring draws itself, then a white tick, with a small pop: the moment a
+// customer's request goes through. Static (already drawn) for reduced motion.
+export function SentCheck({ size = 72 }: { size?: number }) {
+  return (
+    <svg className="sent-check mx-auto" width={size} height={size} viewBox="0 0 52 52" aria-hidden="true">
+      <circle cx="26" cy="26" r="24" fill="none" stroke="#dc2626" strokeWidth="3" />
+      <path d="M15 27.5l7 7 15-16" fill="none" stroke="#fff" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}

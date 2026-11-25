@@ -1,5 +1,5 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react';
-import { reportError } from './JobOps';
+import { reportError } from './reportError';
 
 // React error boundaries have to be class components — no hooks equivalent.
 // This is the last line of defense: if anything anywhere in the tree throws

@@ -16,7 +16,7 @@
 // ─────────────────────────────────────────────────────────────────────────
 
 import { useState } from 'react';
-import { AdminPasswordGate } from './BookingWidget';
+import { AdminPasswordGate } from './AdminSchedule';
 import { CommandCenterPage } from './command-center/CommandCenterPage';
 
 export default function JarvisPage() {
