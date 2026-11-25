@@ -3,7 +3,7 @@ import { Phone, Mail, Menu, X, MessageCircle, ChevronDown } from 'lucide-react';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import Lenis from 'lenis';
-import { Stage, useStageProgress, ScrubLines, RatchetNumber, reducedMotion, useSparks } from './motion';
+import { Stage, useStageProgress, ScrubLines, RatchetNumber, reducedMotion, useSparks, useInViewOnce, Shine, useTween } from './motion';
 import GameRedeem from './GameRedeem';
 import { pageForPath, caseStudyForPath, SERVICE_PAGES, WHY_US, HOW_IT_WORKS, AUTO_REPAIR } from '../shared/site-pages.js';
 import { OLDER_VEHICLES, WARRANTY_DISCLAIMER, WARRANTY_POLICY } from '../shared/warranty-policy.js';
@@ -498,23 +498,35 @@ function QuickQuoteForm() {
 }
 
 function Services({ onBookService }: { onBookService: (id: string) => void }) {
+  const sparks = useSparks();
+  // Tap a tile: it presses in, throws a small puff of sparks from your finger,
+  // then the quote form opens with that service picked.
+  function tapTile(e: React.MouseEvent, id: string) {
+    const c = sparks.ref.current;
+    if (c && !reducedMotion()) {
+      const cr = c.getBoundingClientRect();
+      sparks.emit(e.clientX - cr.left, e.clientY - cr.top, 22, { spread: 0.3, up: 1.2 });
+      setTimeout(() => onBookService(id), 260);
+    } else onBookService(id);
+  }
   return (
     <section id="services" className="py-20 md:py-28 bg-dark">
       <div className="max-w-7xl mx-auto px-5 md:px-8">
         <div className="mb-12 md:mb-16">
           <Reveal>
             <div className="text-red-500 text-xs font-bold uppercase tracking-[0.25em] mb-3">What We Offer</div>
-            <div className="text-white font-black uppercase tracking-tighter leading-[0.85] text-[14vw] md:text-[6vw]">Services</div>
+            <div className="text-white font-black uppercase tracking-tighter leading-[0.85] text-[14vw] md:text-[6vw]"><Shine>Services</Shine></div>
             <div className="text-white/50 text-base mt-4 max-w-xl">Everything handled at your home, office, or wherever you're parked in the Flagstaff area.</div>
           </Reveal>
         </div>
         {/* Phones: scannable tiles, one tap starts a quote for that service.
             Public price policy: only oil and diagnostics show a price. */}
-        <div className="sm:hidden grid grid-cols-2 gap-3">
+        <div className="sm:hidden relative grid grid-cols-2 gap-3">
+          <canvas ref={sparks.ref} aria-hidden="true" className="absolute inset-x-0 -top-10 w-full h-[calc(100%+5rem)] pointer-events-none z-20" />
           {services.map((s, i) => (
             <Reveal key={s.id} delay={(i % 2) * 90 + Math.floor(i / 2) * 60} className="h-full">
-            <button onClick={() => onBookService(s.id)}
-              className="w-full h-full text-left bg-white/5 border border-white/10 border-t-2 border-t-red-600 p-4 active:bg-white/10 flex flex-col min-h-[7.5rem]">
+            <button onClick={(e) => tapTile(e, s.id)}
+              className="w-full h-full text-left bg-white/5 border border-white/10 border-t-2 border-t-red-600 p-4 active:bg-white/10 active:scale-[0.96] transition-transform duration-150 flex flex-col min-h-[7.5rem]">
               <div className="text-white font-bold text-base leading-tight">{s.title}</div>
               <div className="text-red-400 text-sm font-bold mt-1">{MOBILE_SERVICE_PRICE[s.id] ?? 'Free estimate'}</div>
               <div className="mt-auto pt-3 text-white/60 text-xs font-semibold uppercase tracking-wider">Get a quote →</div>
@@ -602,7 +614,7 @@ function WhyUs() {
         <div className="mb-10 md:mb-14">
           <Reveal>
             <div className="text-red-400 text-xs font-bold uppercase tracking-[0.25em] mb-3">The GID Difference</div>
-            <div className="text-white font-black uppercase tracking-tighter leading-[0.85] text-[14vw] md:text-[6vw]">Why Us</div>
+            <div className="text-white font-black uppercase tracking-tighter leading-[0.85] text-[14vw] md:text-[6vw]"><Shine>Why Us</Shine></div>
           </Reveal>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3 md:gap-8 mb-8">
@@ -757,7 +769,7 @@ function BeforeAfterSlider() {
       <div className="max-w-3xl mx-auto px-5 md:px-8">
         <div className="text-center mb-10">
           <div className="text-red-500 text-xs font-bold uppercase tracking-[0.25em] mb-2">Real Work, Real Results</div>
-          <div className="text-4xl md:text-5xl font-extrabold text-white tracking-tight">Before &amp; After</div>
+          <div className="text-4xl md:text-5xl font-extrabold text-white tracking-tight"><Shine>Before &amp; After</Shine></div>
           <div className="text-white/50 text-base mt-3">A rotor from one of our brake jobs — scroll or drag to compare.</div>
         </div>
         <Reveal>
@@ -820,11 +832,13 @@ function ReviewRedirect() {
   return null;
 }
 
+// Stars fill in gold one by one when they come into view.
 function Stars({ rating }: { rating: number }) {
+  const [ref, seen] = useInViewOnce<HTMLDivElement>('0px 0px -10% 0px');
   return (
-    <div className="flex gap-0.5">
+    <div ref={ref} className={`flex gap-0.5 ${seen ? 'stars-on' : ''}`}>
       {[1, 2, 3, 4, 5].map(i => (
-        <span key={i} className={i <= Math.round(rating) ? 'text-yellow-400' : 'text-white/15'}>★</span>
+        <span key={i} className={`star-anim ${i <= Math.round(rating) ? 'is-gold' : ''}`} style={{ transitionDelay: `${(i - 1) * 110}ms` }}>★</span>
       ))}
     </div>
   );
@@ -854,7 +868,7 @@ function MobileReviewStrip({ openBooking }: { openBooking: () => void }) {
       <div id="reviews-mobile" className="px-5 flex items-end justify-between gap-4 mb-5">
         <Reveal>
           <div className="text-red-500 text-xs font-bold uppercase tracking-[0.25em] mb-1">Google Reviews</div>
-          <div className="text-white text-2xl font-extrabold tracking-tight">Neighbors say it best</div>
+          <div className="text-white text-2xl font-extrabold tracking-tight"><Shine>Neighbors say it best</Shine></div>
         </Reveal>
         {data.rating != null && (
           <div className="text-right flex-shrink-0">
@@ -913,7 +927,7 @@ function GoogleReviewsSection() {
       <div className="max-w-7xl mx-auto px-5 md:px-8">
         <div className="text-center mb-10">
           <div className="text-red-500 text-xs font-bold uppercase tracking-[0.25em] mb-2">Google Reviews</div>
-          <div className="text-4xl md:text-5xl font-extrabold text-white tracking-tight mb-3">What Customers Say</div>
+          <div className="text-4xl md:text-5xl font-extrabold text-white tracking-tight mb-3"><Shine>What Customers Say</Shine></div>
           {data.rating != null && (
             <div className="flex items-center justify-center gap-2">
               <Stars rating={data.rating} />
@@ -991,12 +1005,27 @@ function ServiceMap() {
   const home = SERVICE_AREAS.find(a => a.isHome)!;
   const { x: hx, y: hy } = project(home.lat, home.lng);
 
+  // When the map comes into view, routes grow out from Flagstaff — nearest
+  // towns first — and each town pops in as its route arrives.
+  const [svgRef, seen] = useInViewOnce<SVGSVGElement>();
+  const t = useTween(seen, 1900);
+  const maxMiles = Math.max(...SERVICE_AREAS.map(a => a.miles));
+  const arrival = (miles: number) => {
+    const local = Math.max(0, Math.min(1, (t - (miles / maxMiles) * 0.55) / 0.4));
+    return 1 - Math.pow(1 - local, 3);
+  };
+  const pop = (done: boolean): React.CSSProperties => ({
+    transformBox: 'fill-box', transformOrigin: 'center',
+    transform: done ? 'scale(1)' : 'scale(0)', opacity: done ? 1 : 0,
+    transition: 'transform .45s cubic-bezier(.34,1.56,.64,1), opacity .2s',
+  });
+
   return (
     <section id="area" className="py-20 md:py-28 bg-dark border-t border-white/5">
       <div className="max-w-7xl mx-auto px-5 md:px-8">
         <div className="text-center mb-10">
           <div className="text-red-500 text-xs font-bold uppercase tracking-[0.25em] mb-2">Service Area</div>
-          <div className="text-4xl md:text-5xl font-extrabold text-white tracking-tight">Flagstaff &amp; Surrounding Communities</div>
+          <div className="text-4xl md:text-5xl font-extrabold text-white tracking-tight"><Shine>Flagstaff &amp; Surrounding Communities</Shine></div>
           <div className="text-white/50 text-base mt-3 max-w-xl mx-auto">We serve the greater Flagstaff region. Not sure if you're in range? Just call.</div>
         </div>
 
@@ -1019,13 +1048,14 @@ function ServiceMap() {
         </div>
 
         <div className="bg-white/5 border border-white/10 p-4 overflow-x-auto">
-          <svg viewBox={`0 0 ${W} ${H}`} className="w-full max-w-2xl mx-auto" xmlns="http://www.w3.org/2000/svg">
+          <svg ref={svgRef} viewBox={`0 0 ${W} ${H}`} className="w-full max-w-2xl mx-auto" xmlns="http://www.w3.org/2000/svg">
             {/* Lines from home to each area */}
             {SERVICE_AREAS.filter(a => !a.isHome).map(area => {
               const { x, y } = project(area.lat, area.lng);
+              const k = arrival(area.miles);
               return (
-                <line key={area.name} x1={hx} y1={hy} x2={x} y2={y}
-                  stroke="#dc262640" strokeWidth="1.5" strokeDasharray="4 4" />
+                <line key={area.name} x1={hx} y1={hy} x2={hx + (x - hx) * k} y2={hy + (y - hy) * k}
+                  stroke={k < 1 ? '#dc2626' : '#dc262660'} strokeWidth="1.5" strokeDasharray="4 4" style={{ transition: 'stroke .6s' }} />
               );
             })}
 
@@ -1042,7 +1072,7 @@ function ServiceMap() {
                 </g>
               );
               return (
-                <g key={area.name}>
+                <g key={area.name} style={pop(arrival(area.miles) >= 1)}>
                   <circle cx={x} cy={y} r="6" fill="#374151" stroke="#dc262660" strokeWidth="1.5" />
                   <circle cx={x} cy={y} r="3" fill="#9ca3af" />
                   <text x={x} y={y - 12} textAnchor="middle" fill="#9ca3af" fontSize="10" fontFamily="sans-serif">{area.name}</text>
@@ -1160,14 +1190,17 @@ function FAQ() {
             <div key={i} className="bg-white/5 border border-white/10 overflow-hidden">
               <button
                 onClick={() => setOpen(open === i ? null : i)}
+                aria-expanded={open === i}
                 className="w-full flex items-center justify-between text-left px-5 py-4"
               >
                 <span className="text-white font-semibold text-sm md:text-base pr-4">{item.q}</span>
                 <span className={`text-red-500 text-xl flex-shrink-0 transition-transform ${open === i ? 'rotate-45' : ''}`}>+</span>
               </button>
-              {open === i && (
-                <div className="px-5 pb-4 text-white/60 text-sm leading-relaxed">{item.a}</div>
-              )}
+              <div className={`grid transition-[grid-template-rows] duration-300 ease-out ${open === i ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}>
+                <div className="overflow-hidden">
+                  <div className={`px-5 pb-4 text-white/60 text-sm leading-relaxed transition-opacity duration-300 ${open === i ? 'opacity-100' : 'opacity-0'}`}>{item.a}</div>
+                </div>
+              </div>
             </div>
           ))}
         </div>

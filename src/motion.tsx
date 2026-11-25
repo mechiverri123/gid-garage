@@ -110,11 +110,22 @@ export function useSparks() {
 // scrubbed across the stage. The full text stays in the DOM for SEO.
 export function ScrubLines({ stageRef, lines }: { stageRef: RefObject<HTMLElement>; lines: { text: string; className?: string }[] }) {
   const ref = useRef<HTMLSpanElement>(null);
+  // Each character's share of the scroll matches how much you'd see it change:
+  // spaces get none and periods a sliver, so there's no dead stretch between
+  // "No Shop." and "No Wait.". A soft band (each letter fades over ~2.5
+  // letters' worth of scroll) makes it one continuous sweep.
+  const BAND = 2.5;
   useStageProgress(stageRef, p => {
     const chars = ref.current?.querySelectorAll<HTMLElement>('.scrub-ch');
     if (!chars) return;
-    const lit = p * chars.length;
-    chars.forEach((c, i) => { c.style.opacity = String(0.12 + 0.88 * Math.max(0, Math.min(1, lit - i))); });
+    const weight = (c: HTMLElement) => (c.textContent === ' ' ? 0 : c.textContent === '.' ? 0.3 : 1);
+    const total = [...chars].reduce((s, c) => s + weight(c), 0);
+    const lit = p * (total + BAND);
+    let start = 0;
+    chars.forEach(c => {
+      c.style.opacity = String(0.12 + 0.88 * Math.max(0, Math.min(1, (lit - start) / BAND)));
+      start += weight(c);
+    });
   }, 0.65);
   // Start dim (only once JS is running and motion is allowed).
   useEffect(() => {
@@ -161,4 +172,45 @@ export function RatchetNumber({ value, delay = 0 }: { value: string; delay?: num
   }, []);
   if (!m) return <>{value}</>;
   return <span ref={ref} className="inline-block tabular-nums">{shown ?? n}{m[2]}</span>;
+}
+
+// ── In view (once) ────────────────────────────────────────────────────────────
+// True once the element is properly on screen (not just its top edge peeking
+// in), then stays true. Always true when motion is reduced.
+export function useInViewOnce<T extends Element>(rootMargin = '0px 0px -20% 0px') {
+  const ref = useRef<T>(null);
+  const [seen, setSeen] = useState(false);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    if (reducedMotion()) { setSeen(true); return; }
+    const obs = new IntersectionObserver(([e]) => { if (e.isIntersecting) { setSeen(true); obs.disconnect(); } }, { rootMargin });
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, [rootMargin]);
+  return [ref, seen] as const;
+}
+
+// ── Shine ─────────────────────────────────────────────────────────────────────
+// A red-hot glint sweeps once across a heading when it comes into view.
+export function Shine({ children }: { children: ReactNode }) {
+  const [ref, seen] = useInViewOnce<HTMLSpanElement>();
+  return <span ref={ref} className={`shine ${seen ? 'shine-go' : ''}`}>{children}</span>;
+}
+
+// ── 0 → 1 over `ms` once `start` turns true (for SVG drawing) ─────────────────
+export function useTween(start: boolean, ms: number) {
+  const [t, setT] = useState(() => (reducedMotion() ? 1 : 0));
+  useEffect(() => {
+    if (!start || reducedMotion()) return;
+    let raf = 0; const t0 = performance.now();
+    const step = (now: number) => {
+      const v = Math.min(1, (now - t0) / ms);
+      setT(v);
+      if (v < 1) raf = requestAnimationFrame(step);
+    };
+    raf = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(raf);
+  }, [start, ms]);
+  return t;
 }
