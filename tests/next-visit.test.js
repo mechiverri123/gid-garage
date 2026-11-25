@@ -3,7 +3,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { DEFAULT_CHECKLIST, cleanTemplate, withTemplate, recommendations, declinedSentence, checkResponse, nextVisitJobRow } from '../shared/next-visit.js';
-import { WEEKDAY_SLOTS, WEEKEND_SLOTS, slotsForDate, slotHour, isBookableSlot, dayOfWeek, phoenixHour, slotMinutes } from '../shared/booking-slots.js';
+import { WEEKDAY_SLOTS, WEEKEND_SLOTS, slotsForDate, slotHour, isBookableSlot, dayOfWeek, phoenixHour, slotMinutes, addDays, nextOpening } from '../shared/booking-slots.js';
 
 test('slots: same hours as the booking page; weekday/weekend by calendar date; Phoenix hour', () => {
   assert.equal(WEEKDAY_SLOTS[0], '1:30 PM');
@@ -16,9 +16,9 @@ test('slots: same hours as the booking page; weekday/weekend by calendar date; P
   assert.equal(slotHour('12:30 AM'), 0);
   assert.equal(phoenixHour(new Date('2026-10-01T00:30:00Z')), 17); // Sep 30 5:30 PM in Arizona
   const ctx = { today: '2026-10-01', nowHour: 15, taken: ['4:00 PM'], blackout: ['2026-10-09'] };
-  assert.equal(isBookableSlot('2026-10-01', '3:30 PM', ctx), false); // this hour already started
-  assert.equal(isBookableSlot('2026-10-01', '5:00 PM', ctx), true);
-  assert.equal(isBookableSlot('2026-10-01', '4:00 PM', ctx), false); // taken
+  assert.equal(isBookableSlot('2026-10-01', '5:00 PM', ctx), false); // today: next-day bookings only (owner 2026-11-24)
+  assert.equal(isBookableSlot('2026-10-02', '5:00 PM', ctx), true); // tomorrow
+  assert.equal(isBookableSlot('2026-10-02', '4:00 PM', ctx), false); // taken
   assert.equal(isBookableSlot('2026-09-30', '5:00 PM', ctx), false); // past
   assert.equal(isBookableSlot('2026-10-09', '5:00 PM', ctx), false); // blackout
   assert.equal(isBookableSlot('2026-10-05', '9:00 AM', ctx), false); // not a weekday slot
@@ -113,4 +113,20 @@ test('slotMinutes sorts appointment times chronologically, not alphabetically', 
   assert.deepEqual(t.sort((a, b) => slotMinutes(a) - slotMinutes(b)),
     ['12:30 AM', '9:30 AM', '10:00 AM', '12:00 PM', '1:30 PM', '5:00 PM']);
   assert.equal(slotMinutes(''), 24 * 60);
+});
+
+test('next opening: from tomorrow on, skipping taken times and blacked-out days', () => {
+  assert.equal(addDays('2026-11-30', 1), '2026-12-01');
+  assert.equal(addDays('2026-12-31', 1), '2027-01-01');
+  // Tue Nov 24: today never counts, so Wed Nov 25 at 1:30 PM.
+  assert.deepEqual(nextOpening({ today: '2026-11-24' }), { date: '2026-11-25', time: '1:30 PM' });
+  // 1:30 and 2:00 taken that day -> 2:30 PM.
+  assert.deepEqual(nextOpening({ today: '2026-11-24', takenByDate: { '2026-11-25': ['1:30 PM', '2:00 PM'] } }), { date: '2026-11-25', time: '2:30 PM' });
+  // Wed blacked out -> Thu Nov 26.
+  assert.deepEqual(nextOpening({ today: '2026-11-24', blackout: ['2026-11-25'] }), { date: '2026-11-26', time: '1:30 PM' });
+  // Friday today -> Saturday opens at 5:00 AM (weekend hours).
+  assert.deepEqual(nextOpening({ today: '2026-11-27' }), { date: '2026-11-28', time: '5:00 AM' });
+  // Fully booked for the window -> null.
+  const full = {}; for (let i = 1; i <= 3; i++) { const d = addDays('2026-11-24', i); full[d] = slotsForDate(d); }
+  assert.equal(nextOpening({ today: '2026-11-24', takenByDate: full, days: 3 }), null);
 });

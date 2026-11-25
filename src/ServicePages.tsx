@@ -24,7 +24,7 @@ function Shell({ children, onQuote }: { children: React.ReactNode; onQuote: () =
     <div className="bg-dark text-dark min-h-screen font-sans">
       <header className="bg-[#0f0f0f] border-b border-white/10">
         <div className="max-w-5xl mx-auto px-5 md:px-8 h-16 md:h-20 flex items-center justify-between gap-4">
-          <a href="/" className="flex-shrink-0"><img src="/opt/website_logo-192.webp" width={192} height={192} alt="GID Garage" className="h-12 w-auto" /></a>
+          <a href="/" className="flex-shrink-0"><img src="/opt/logo-wide-120.webp" srcSet="/opt/logo-wide-120.webp 491w, /opt/logo-wide-240.webp 982w" sizes="(min-width: 768px) 200px, 164px" width={491} height={120} alt="GID Garage" className="h-10 md:h-12 w-auto drop-shadow-[0_2px_10px_rgba(220,38,38,0.25)]" /></a>
           <div className="flex items-center gap-3">
             <a href={`tel:${PHONE}`} className="hidden sm:inline-flex items-center gap-2 text-white text-sm font-semibold"><Phone className="w-4 h-4" />{PHONE}</a>
             <button onClick={onQuote} className="btn-primary text-xs px-5 py-3">Get a Quote</button>
@@ -98,10 +98,10 @@ export function ServicePage({ page }: { page: ServicePageData }) {
       {page.photos.length > 0 && (
         <section className="mt-12">
           <h2 className="text-white font-bold text-2xl tracking-tight mb-4">From real jobs</h2>
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+          <div className="columns-2 md:columns-3 gap-3">
             {page.photos.map(p => (
-              <figure key={p.src} className="bg-white/5">
-                <img src={img(p.src)} alt={p.alt} loading="lazy" decoding="async" className="w-full aspect-square object-cover" onError={e => { e.currentTarget.style.display = 'none'; }} />
+              <figure key={p.src} className="bg-white/5 mb-3 break-inside-avoid">
+                <img src={img(p.src)} alt={p.alt} loading="lazy" decoding="async" className="w-full h-auto" onError={e => { e.currentTarget.style.display = 'none'; }} />
                 <figcaption className="text-white/60 text-xs px-2 py-1.5">{p.alt}</figcaption>
               </figure>
             ))}
@@ -178,8 +178,8 @@ export function CaseStudyPage({ cs }: { cs: CaseStudy }) {
       {part('What we did', cs.repair)}
       {part('The result', cs.outcome)}
       <section className="mt-10">
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">{cs.photos.map(p => (
-          <figure key={p.src} className="bg-white/5"><img src={p.src} alt={p.alt} loading="lazy" decoding="async" className="w-full aspect-square object-cover" /><figcaption className="text-white/60 text-xs px-2 py-1.5">{p.alt}</figcaption></figure>
+        <div className="columns-2 md:columns-3 gap-3">{cs.photos.map(p => (
+          <figure key={p.src} className="bg-white/5 mb-3 break-inside-avoid"><img src={p.src} alt={p.alt} loading="lazy" decoding="async" className="w-full h-auto" /><figcaption className="text-white/60 text-xs px-2 py-1.5">{p.alt}</figcaption></figure>
         ))}</div>
       </section>
       <section className="mt-10 bg-white/5 border border-white/10 border-l-4 border-l-red-600 px-5 py-4">

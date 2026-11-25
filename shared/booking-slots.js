@@ -42,12 +42,32 @@ export function slotMinutes(t) {
   return h * 60 + Number(m[2]);
 }
 
-// Same rule the booking widget uses: today's slots are open only after the current Phoenix hour.
-export function isBookableSlot(ymd, time, { today, nowHour, taken = [], blackout = [] }) {
-  if (!ymd || ymd < today || blackout.includes(ymd)) return false;
-  if (!slotsForDate(ymd).includes(time) || taken.includes(time)) return false;
-  return ymd > today || slotHour(time) > nowHour;
+// Customers book from tomorrow on — no same-day bookings (owner decision
+// 2026-11-24). Same rule as the booking widget; `today` is the Phoenix date.
+// `nowHour` is kept so callers don't change; it no longer matters.
+export function isBookableSlot(ymd, time, { today, taken = [], blackout = [] }) {
+  if (!ymd || ymd <= today || blackout.includes(ymd)) return false;
+  return slotsForDate(ymd).includes(time) && !taken.includes(time);
 }
 
 // The current hour (0–23) in Arizona, whatever the device/server timezone.
 export const phoenixHour = (now = new Date()) => Number(new Intl.DateTimeFormat('en-US', { timeZone: 'America/Phoenix', hour: 'numeric', hourCycle: 'h23' }).format(now));
+
+// YYYY-MM-DD + n days, as a calendar date (no timezone involved).
+export function addDays(ymd, n) {
+  const [y, m, d] = String(ymd).split('-').map(Number);
+  return new Date(Date.UTC(y, m - 1, d + n, 12)).toISOString().slice(0, 10);
+}
+
+// The first open appointment from tomorrow on, by the same rule the booking
+// form uses: { date, time } or null if nothing in the next `days` days.
+// takenByDate: { 'YYYY-MM-DD': ['1:30 PM', …] } (the booked-slots-range answer).
+export function nextOpening({ today, takenByDate = {}, blackout = [], days = 21 }) {
+  for (let i = 1; i <= days; i++) {
+    const date = addDays(today, i);
+    const taken = takenByDate[date] || [];
+    const time = slotsForDate(date).find(t => isBookableSlot(date, t, { today, taken, blackout }));
+    if (time) return { date, time };
+  }
+  return null;
+}

@@ -64,7 +64,7 @@ export function llmsTxt() {
   const lines = [
     '# GID Garage', '',
     `> Mobile mechanic based in Flagstaff, Arizona. We come to the customer's home, work or roadside — no shop. Call or text ${PHONE}, book at ${SITE}/bookings, email info@gidgarage.com.`, '',
-    '## Hours', '- Monday to Friday: 1:30 PM to 8:00 PM', '- Saturday and Sunday: 5:00 AM to 8:00 PM (by appointment)', '- Appointments required; same-day subject to availability.', '',
+    '## Hours', '- Monday to Friday: 1:30 PM to 8:00 PM', '- Saturday and Sunday: 5:00 AM to 8:00 PM (by appointment)', '- Appointments required; book for tomorrow or later.', '',
     '## Service area (about 30 miles around Flagstaff)', ...AREAS.map(a => `- ${a.name}${a.miles ? ` (~${a.miles} mi)` : ' (home base)'}`), '',
     '## Services and prices',
     ...SERVICE_PAGES.flatMap(p => [`- [${p.h1}](${p.canonical}): ${p.intro}`, ...p.pricing.map(x => `  - ${x.label}: ${x.detail}`)]), '',

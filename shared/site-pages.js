@@ -24,7 +24,7 @@ export const HOW_IT_WORKS = [
 
 const COMMON_FAQ = [
   { q: 'Do you actually come to me?', a: "Yes — GID Garage is 100% mobile. Home, work, roadside, wherever your vehicle is, that's where we work on it." },
-  { q: 'How fast can you get to me?', a: "Same-day or next-day appointments are usually available, depending on the schedule. Text us your details and we'll give you a real answer, not a runaround." },
+  { q: 'How fast can you get to me?', a: "Next-day appointments are usually available, depending on the schedule. Text us your details and we'll give you a real answer, not a runaround." },
   { q: 'Do I need to be there while you work?', a: "Not necessarily — as long as we can access the vehicle and get in touch if anything comes up, plenty of customers have us come by while they're at work or running errands." },
   { q: 'How do I pay?', a: "Card on file, tap-to-pay in person, or a secure payment link sent to your phone — whatever's easiest for you." },
 ];
@@ -112,7 +112,7 @@ const withCommon = p => ({ ...p, canonical: `${SITE}${p.path}`, howItWorks: HOW_
 
 // Towns served (the same list as the homepage map), all within ~30 miles.
 export const AREAS = [
-  { name: 'Flagstaff', slug: 'flagstaff', miles: 0, blurb: 'Home base. Same-day and next-day mobile appointments are usually available anywhere in town.' },
+  { name: 'Flagstaff', slug: 'flagstaff', miles: 0, blurb: 'Home base. Next-day mobile appointments are usually available anywhere in town.' },
   { name: 'Fort Valley', slug: 'fort-valley', miles: 2.7, blurb: 'Just northwest of downtown — one of our quickest response areas.' },
   { name: 'Kachina Village', slug: 'kachina-village', miles: 7.4, blurb: "A quick drive south off I-17 — we're out to Kachina Village regularly." },
   { name: 'Mountainaire', slug: 'mountainaire', miles: 7.8, blurb: 'Right next to Kachina Village along I-17 — easy reach for mobile appointments.' },
@@ -151,7 +151,7 @@ export const AUTO_REPAIR = {
     { src: '/photos/brake-rotor-after.webp', alt: 'Brake job: new rotor on the same wheel' },
     { src: '/photos/susp-crv-new-strut.webp', alt: 'Honda CR-V: new front strut installed' },
     { src: '/photos/diag-failed-injector.webp', alt: 'Failed fuel injector found diagnosing a Jeep Wrangler' },
-    { src: '/photos/diag-coolant-hose.webp', alt: 'New coolant hose on a Honda Civic after finding the leak' },
+    { src: '/photos/oil-new-filter.webp', alt: 'New Mobil 1 oil filter installed' },
   ],
   faq: [
     { q: "Can a mobile mechanic do real auto repair, not just oil changes?", a: "Yes. Brakes, struts and control arms, check engine lights and misfires, coil packs and spark plugs, batteries, coolant hoses and oil leaks are all fixed where your vehicle is parked. The few jobs that need a lift or special equipment (wheel alignments, A/C system work, transmission overhauls, welding) we refer to a shop that specializes in them." },

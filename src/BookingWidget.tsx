@@ -691,7 +691,8 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
     const dow = new Date(y, m, d).getDay();
     const phxNow = getPhoenixNow();
     const today = new Date(phxNow); today.setHours(0, 0, 0, 0);
-    if (new Date(y, m, d) < today) return false;
+    // Next-day bookings only (owner decision 2026-11-24): today is closed too.
+    if (new Date(y, m, d) <= today) return false;
     const k = dateKey(y, m, d);
     if (blackoutDates.has(k)) return false;
     const isToday = y === phxNow.getFullYear() && m === phxNow.getMonth() && d === phxNow.getDate();
@@ -706,7 +707,7 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
 
   function isAvailableSync(y: number, m: number, d: number): boolean {
     const today = new Date(getPhoenixNow()); today.setHours(0, 0, 0, 0);
-    if (new Date(y, m, d) < today) return false;
+    if (new Date(y, m, d) <= today) return false; // next-day bookings only
     const k = dateKey(y, m, d);
     if (unavailableDates.has(k)) return false;
     if (blackoutDates.has(k)) return false;
@@ -890,7 +891,7 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
       )}
 
       {open && (
-        <div className="fixed inset-0 z-[9999] bg-black/85 overflow-y-auto flex items-start justify-center p-4 md:p-8"
+        <div data-lenis-prevent className="fixed inset-0 z-[9999] bg-black/85 overflow-y-auto overscroll-contain flex items-start justify-center p-4 md:p-8"
           onMouseDown={(e) => { backdropDown.current = e.target === e.currentTarget; }}
           onClick={(e) => { if (e.target === e.currentTarget && backdropDown.current) closeModal(); backdropDown.current = false; }}>
           <div className="bg-dark w-full max-w-2xl relative p-8 md:p-10 my-4" data-clarity-mask="true">
@@ -1267,7 +1268,7 @@ export default function BookingWidget({ autoOpen, preselectedService, onClose }:
       )}
 
       {showCancelPolicy && (
-        <div className="fixed inset-0 z-[10000] bg-black/80 flex items-center justify-center p-4" onClick={() => setShowCancelPolicy(false)}>
+        <div data-lenis-prevent className="fixed inset-0 z-[10000] bg-black/80 flex items-center justify-center p-4" onClick={() => setShowCancelPolicy(false)}>
           <div className="bg-[#1a1a1a] border border-gray-700 w-full max-w-md p-8 relative" onClick={(e) => e.stopPropagation()}>
             <button onClick={() => setShowCancelPolicy(false)} className="absolute top-4 right-4 w-8 h-8 border border-gray-700 text-gray-400 hover:border-red-600 hover:text-white flex items-center justify-center text-lg transition-colors" aria-label="Close">✕</button>
             <div className="w-8 h-1 bg-red-600 mb-5" />
@@ -1469,7 +1470,7 @@ function BlackoutDatesModal({ onClose }: { onClose: () => void }) {
   }
 
   return (
-    <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4" onClick={onClose}>
+    <div data-lenis-prevent className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4" onClick={onClose}>
       <div className="bg-gray-900 border border-gray-700 max-w-md w-full max-h-[85vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-800">
           <h3 className="text-white text-sm font-bold uppercase tracking-widest">🚫 Blackout Dates</h3>
@@ -2130,7 +2131,7 @@ export function AdminSchedule() {
       </div>
 
       {selectedJobId && jobLoading && !selectedJob && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
+        <div data-lenis-prevent className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
           <div className="text-gray-400 text-sm font-bold uppercase tracking-widest">Loading job…</div>
         </div>
       )}

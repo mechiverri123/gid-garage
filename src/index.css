@@ -119,3 +119,17 @@
 .stars-on .star-anim.is-gold { transform: scale(1); color: #facc15; }
 .stars-on .star-anim:not(.is-gold) { transform: scale(1); }
 @media (prefers-reduced-motion: reduce) { .star-anim { transition: none; transform: none; } .star-anim.is-gold { color: #facc15; } }
+
+/* Phones, public site: 16px form fields, or iOS zooms the page in on every tap
+   and never zooms back out. */
+@media (max-width: 767px) {
+  .public-site :is(input:not([type=checkbox], [type=radio], [type=range], [type=hidden]), textarea, select) { font-size: 16px; }
+}
+
+/* Phones: the service-area map shrinks to ~half size, so its 9-10px labels
+   become unreadable. The town cards above it carry the names; the map keeps
+   its dots and routes, and only the bigger GID Garage label. */
+@media (max-width: 767px) {
+  .svc-map .map-town, .svc-map .map-legend { display: none; }
+  .svc-map .map-home { font-size: 24px; transform: translateY(-30px); }
+}

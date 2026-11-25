@@ -3,6 +3,7 @@ import { Phone, Mail, Menu, X, MessageCircle, ChevronDown } from 'lucide-react';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import Lenis from 'lenis';
+import { addDays, nextOpening } from '../shared/booking-slots.js';
 import { Stage, useStageProgress, ScrubLines, RatchetNumber, reducedMotion, useSparks, useInViewOnce, Shine, useTween } from './motion';
 import GameRedeem from './GameRedeem';
 import { pageForPath, caseStudyForPath, SERVICE_PAGES, WHY_US, HOW_IT_WORKS, AUTO_REPAIR } from '../shared/site-pages.js';
@@ -53,7 +54,12 @@ function img(filename: string) { return R2 ? `${R2}/${filename}` : `/${filename}
 // Size-optimized WebP copies served from the site itself (public/opt). The
 // originals on R2 were 1.5 MB (logo, shown ≤64 px tall) and ~300 KB per photo,
 // which held back the mobile PageSpeed load time. Emails/admin keep the originals.
-const OPT_LOGO = '/opt/website_logo-192.webp';
+// The current wide logo (car + wrench over GID GARAGE), transparent so it sits
+// straight on the dark theme. 120px tall covers up to 60px on 2x screens.
+const LOGO_SRCSET = '/opt/logo-wide-120.webp 491w, /opt/logo-wide-240.webp 982w';
+function Logo({ className, sizes }: { className: string; sizes: string }) {
+  return <img src="/opt/logo-wide-120.webp" srcSet={LOGO_SRCSET} sizes={sizes} width={491} height={120} alt="GID Garage" className={className} />;
+}
 
 const services = [
   {
@@ -132,7 +138,10 @@ function Reveal({ children, className = '', delay = 0 }: { children: React.React
 function useSmoothScroll(enabled: boolean) {
   useEffect(() => {
     if (!enabled) return;
-    const lenis = new Lenis({ duration: 1.1, easing: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t)) });
+    // allowNestedScroll: wheel/trackpad over a box that scrolls on its own (the
+    // booking popup's time slots, dropdowns, swipe rows) scrolls that box
+    // instead of being swallowed by the page's smooth scroll.
+    const lenis = new Lenis({ duration: 1.1, easing: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t)), allowNestedScroll: true });
     lenis.on('scroll', ScrollTrigger.update);
     const tick = (time: number) => lenis.raf(time * 1000);
     gsap.ticker.add(tick);
@@ -253,7 +262,7 @@ function Nav({ openBooking }: { openBooking: () => void }) {
     <header className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${scrolled ? 'bg-[#0f0f0f] shadow-lg shadow-black/50' : 'bg-transparent'}`}>
       <div className="max-w-7xl mx-auto px-5 md:px-8 flex items-center justify-between h-16 md:h-20">
         <a href="#hero" className="flex-shrink-0">
-          <img src={OPT_LOGO} width={192} height={192} alt="GID Garage" className="h-12 md:h-14 w-auto" />
+          <Logo className="h-10 md:h-12 w-auto drop-shadow-[0_2px_10px_rgba(220,38,38,0.25)]" sizes="(min-width: 768px) 200px, 164px" />
         </a>
         <nav className="hidden md:flex items-center gap-8">
           {links.map((l) => (
@@ -277,8 +286,33 @@ function Nav({ openBooking }: { openBooking: () => void }) {
   );
 }
 
+// The first open appointment (tomorrow on), from the same booked times and
+// blacked-out days the booking form reads. Nothing shows if it can't load.
+function useNextOpening() {
+  const [v, setV] = useState<{ date: string; time: string } | null>(null);
+  useEffect(() => {
+    const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Phoenix' });
+    const post = (action: string, args = {}) => fetch('/api-customer', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action, ...args }),
+    }).then(r => (r.ok ? r.json() : Promise.reject(r.status)));
+    Promise.all([
+      post('booked-slots-range', { from: addDays(today, 1), to: addDays(today, 21) }),
+      post('blackout-dates').catch(() => []),
+    ]).then(([takenByDate, blackout]) => setV(nextOpening({ today, takenByDate, blackout })))
+      .catch(() => {});
+  }, []);
+  return v;
+}
+function openingLabel({ date, time }: { date: string; time: string }) {
+  const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Phoenix' });
+  if (date === addDays(today, 1)) return `Tomorrow, ${time}`;
+  const d = new Date(`${date}T12:00:00Z`).toLocaleDateString('en-US', { timeZone: 'UTC', weekday: 'short', month: 'short', day: 'numeric' });
+  return `${d}, ${time}`;
+}
+
 function Hero({ openBooking }: { openBooking: () => void }) {
   const reviews = useGoogleReviews();
+  const opening = useNextOpening();
   const h1Ref = useRef<HTMLHeadingElement>(null);
   const glowRef = useRef<HTMLDivElement>(null);
   const sparks = useSparks();
@@ -327,6 +361,19 @@ function Hero({ openBooking }: { openBooking: () => void }) {
               <div className="text-white/60 text-base md:text-xl max-w-md leading-relaxed">We come to you — Flagstaff, Bellemont, Kachina, Fort Valley &amp; beyond. Honest pricing, expert work, no shop wait. Car care at 7,000 feet.</div>
             </Reveal>
             <Reveal delay={850}>
+              {/* Next opening: real availability, tap to book. Height is held
+                  while it loads so the buttons don't jump. */}
+              <div className="min-h-[2rem] mb-3 flex md:justify-end">
+                {opening && (
+                  <button onClick={openBooking} className="inline-flex items-center gap-2.5 text-white/85 text-[15px] hover:text-white">
+                    <span className="relative flex w-2.5 h-2.5">
+                      <span className="absolute inset-0 rounded-full bg-green-400 opacity-75 animate-ping motion-reduce:hidden" />
+                      <span className="relative w-2.5 h-2.5 rounded-full bg-green-400" />
+                    </span>
+                    <span>Next opening: <span className="font-bold text-white">{openingLabel(opening)}</span></span>
+                  </button>
+                )}
+              </div>
               <div className="flex flex-col sm:flex-row gap-4 flex-shrink-0">
                 <button onClick={openBooking} className="btn-primary text-sm px-8 py-4">Get a Quote</button>
                 <a href={`tel:${PHONE}`} className="btn-outline text-sm px-8 py-4"><Phone className="w-4 h-4" />Call Now</a>
@@ -574,7 +621,7 @@ function AutoRepair() {
         </div>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-3">
           {AUTO_REPAIR.photos.map(p => (
-            <div key={p.src} className="aspect-[4/3] overflow-hidden bg-white/5">
+            <div key={p.src} className="aspect-[3/4] overflow-hidden bg-white/5">
               <img src={p.src} alt={p.alt} className="w-full h-full object-cover" loading="lazy" decoding="async" />
             </div>
           ))}
@@ -645,7 +692,7 @@ function WhyUs() {
               <div className="text-white/60 text-xs mt-0.5">By appointment only</div>
             </div>
           </div>
-          <div className="text-white/60 text-xs mt-3">Appointments required. Same-day bookings subject to availability.</div>
+          <div className="text-white/60 text-xs mt-3">Appointments required. Book online for tomorrow or later.</div>
         </div>
       </div>
     </section>
@@ -964,7 +1011,7 @@ function GoogleReviewsSection() {
 // Real coordinates from Google Maps / Places API
 const SERVICE_AREAS = [
   { name: 'Flagstaff',       slug: 'flagstaff',       lat: 35.1983, lng: -111.6513, isHome: true,  miles: 0,
-    blurb: 'Home base. Same-day and next-day mobile appointments are usually available anywhere in town.' },
+    blurb: 'Home base. Next-day mobile appointments are usually available anywhere in town.' },
   { name: 'Fort Valley',     slug: 'fort-valley',      lat: 35.2300, lng: -111.6800, isHome: false, miles: 2.7,
     blurb: 'Just northwest of downtown — one of our quickest response areas.' },
   { name: 'Kachina Village', slug: 'kachina-village',  lat: 35.0970, lng: -111.6927, isHome: false, miles: 7.4,
@@ -1048,7 +1095,7 @@ function ServiceMap() {
         </div>
 
         <div className="bg-white/5 border border-white/10 p-4 overflow-x-auto">
-          <svg ref={svgRef} viewBox={`0 0 ${W} ${H}`} className="w-full max-w-2xl mx-auto" xmlns="http://www.w3.org/2000/svg">
+          <svg ref={svgRef} viewBox={`0 0 ${W} ${H}`} className="svc-map w-full max-w-2xl mx-auto" xmlns="http://www.w3.org/2000/svg">
             {/* Lines from home to each area */}
             {SERVICE_AREAS.filter(a => !a.isHome).map(area => {
               const { x, y } = project(area.lat, area.lng);
@@ -1067,25 +1114,27 @@ function ServiceMap() {
                   <circle cx={x} cy={y} r="10" fill="#dc2626" opacity="0.25" />
                   <circle cx={x} cy={y} r="6" fill="#dc2626" />
                   <circle cx={x} cy={y} r="2.5" fill="white" />
-                  <text x={x} y={y - 14} textAnchor="middle" fill="#dc2626" fontSize="10" fontFamily="sans-serif" fontWeight="bold">GID Garage</text>
-                  <text x={x} y={y - 4} textAnchor="middle" fill="#dc2626" fontSize="9" fontFamily="sans-serif" dy="20">Flagstaff</text>
+                  <text className="map-home" x={x} y={y - 14} textAnchor="middle" fill="#dc2626" fontSize="10" fontFamily="sans-serif" fontWeight="bold">GID Garage</text>
+                  <text className="map-town" x={x} y={y - 4} textAnchor="middle" fill="#dc2626" fontSize="9" fontFamily="sans-serif" dy="20">Flagstaff</text>
                 </g>
               );
               return (
                 <g key={area.name} style={pop(arrival(area.miles) >= 1)}>
                   <circle cx={x} cy={y} r="6" fill="#374151" stroke="#dc262660" strokeWidth="1.5" />
                   <circle cx={x} cy={y} r="3" fill="#9ca3af" />
-                  <text x={x} y={y - 12} textAnchor="middle" fill="#9ca3af" fontSize="10" fontFamily="sans-serif">{area.name}</text>
-                  <text x={x} y={y + 18} textAnchor="middle" fill="#6b7280" fontSize="9" fontFamily="sans-serif">~{area.miles}mi</text>
+                  <text className="map-town" x={x} y={y - 12} textAnchor="middle" fill="#9ca3af" fontSize="10" fontFamily="sans-serif">{area.name}</text>
+                  <text className="map-town" x={x} y={y + 18} textAnchor="middle" fill="#6b7280" fontSize="9" fontFamily="sans-serif">~{area.miles}mi</text>
                 </g>
               );
             })}
 
             {/* Legend */}
-            <circle cx={PAD + 8} cy={H - 18} r="5" fill="#dc2626" />
-            <text x={PAD + 18} y={H - 14} fill="#dc2626" fontSize="10" fontFamily="sans-serif">GID Garage HQ</text>
-            <circle cx={PAD + 120} cy={H - 18} r="4" fill="#374151" stroke="#dc262660" strokeWidth="1.5" />
-            <text x={PAD + 130} y={H - 14} fill="#9ca3af" fontSize="10" fontFamily="sans-serif">Service Area</text>
+            <g className="map-legend">
+              <circle cx={PAD + 8} cy={H - 18} r="5" fill="#dc2626" />
+              <text x={PAD + 18} y={H - 14} fill="#dc2626" fontSize="10" fontFamily="sans-serif">GID Garage HQ</text>
+              <circle cx={PAD + 120} cy={H - 18} r="4" fill="#374151" stroke="#dc262660" strokeWidth="1.5" />
+              <text x={PAD + 130} y={H - 14} fill="#9ca3af" fontSize="10" fontFamily="sans-serif">Service Area</text>
+            </g>
           </svg>
         </div>
       </div>
@@ -1170,7 +1219,7 @@ function BookingSection({ openBooking }: { openBooking: () => void }) {
 const FAQ_ITEMS = [
   { q: 'Do you actually come to me?', a: 'Yes — GID Garage is 100% mobile. Home, work, roadside, wherever your vehicle is, that\'s where we work on it.' },
   { q: 'What areas do you cover?', a: `Flagstaff and the surrounding communities — ${SERVICE_AREAS.filter(a => !a.isHome).map(a => a.name).join(', ')}. Not sure if you're in range? Just call or text — ${PHONE}.` },
-  { q: 'How fast can you get to me?', a: 'Same-day or next-day appointments are usually available, depending on the schedule. Text us your details and we\'ll give you a real answer, not a runaround.' },
+  { q: 'How fast can you get to me?', a: 'Next-day appointments are usually available, depending on the schedule. Text us your details and we\'ll give you a real answer, not a runaround.' },
   { q: 'What kind of work do you do?', a: 'Oil changes, brakes, diagnostics, suspension, and most general maintenance and repair. A few specialty jobs — wheel alignments, A/C system work, transmission overhauls, welding — we\'ll point you to a shop that specializes in it, no charge for the honesty.' },
   { q: 'How do I pay?', a: 'Card on file, tap-to-pay in person, or a secure payment link sent to your phone — whatever\'s easiest for you.' },
   { q: 'Do I need to be there while you work?', a: 'Not necessarily — as long as we can access the vehicle and get in touch if anything comes up, plenty of customers have us come by while they\'re at work or running errands.' },
@@ -1232,7 +1281,7 @@ function Footer() {
       <div className="max-w-7xl mx-auto px-5 md:px-8">
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-8 mb-8">
           <div>
-            <img src={OPT_LOGO} width={192} height={192} alt="GID Garage" className="h-16 w-auto mb-4" />
+            <Logo className="h-14 w-auto mb-4" sizes="230px" />
             <div className="text-white/70 text-sm max-w-xs leading-relaxed">Mobile automotive repair and car audio in Flagstaff, AZ. Honest work. Fair prices. We come to you.</div>
             <div className="text-white/50 text-xs mt-2 leading-relaxed">Based in Flagstaff, AZ · Serving Sedona, Munds Park, Parks, Bellemont, Kachina Village, Fort Valley, Doney Park, Winona &amp; Mountainaire</div>
           </div>
@@ -1330,7 +1379,7 @@ function CancelPage({ bookingId, token }: { bookingId: string; token: string }) 
     <div className="min-h-screen bg-dark flex items-center justify-center px-4">
       <div className="w-full max-w-md text-center">
         <a href="/" className="flex justify-center mb-8">
-          <img src={OPT_LOGO} width={192} height={192} alt="GID Garage" className="h-14 w-auto" />
+          <Logo className="h-12 w-auto" sizes="200px" />
         </a>
 
         {state === 'verifying' && (
@@ -1765,7 +1814,7 @@ export default function App() {
   if (cancelId && cancelToken) return <CancelPage bookingId={cancelId} token={cancelToken} />;
 
   return (
-    <div className="bg-dark text-dark min-h-screen font-sans pb-16 md:pb-0">
+    <div className="public-site bg-dark text-dark min-h-screen font-sans pb-16 md:pb-0">
       <div className="grain-overlay" />
       <Nav openBooking={openBooking} />
       <Hero openBooking={openBooking} />

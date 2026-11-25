@@ -832,6 +832,12 @@ export async function onRequestPost({ request, env }) {
       case 'insert-booking': {
         const { row } = payload;
         if (!row) return json({ error: 'Missing row' }, 400);
+        // Next-day bookings only (owner decision 2026-11-24): a stale page or a
+        // direct call can't book today or a past day. Admin books through
+        // admin-api-data, so same-day jobs entered by the owner still work.
+        if (/^\d{4}-\d{2}-\d{2}$/.test(String(row.date || '')) && row.date <= phoenixYmd(new Date())) {
+          return json({ error: 'We book appointments from tomorrow on. Please pick another date, or call/text 480-757-0476.' }, 409);
+        }
         // Authoritative server-side check — the calendar UI already hides
         // blacked-out dates, but a stale page or a direct API call shouldn't
         // be able to slip a booking onto a day the shop marked closed.

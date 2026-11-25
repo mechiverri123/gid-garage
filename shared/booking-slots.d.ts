@@ -4,5 +4,7 @@ export function dayOfWeek(ymd: string): number;
 export function slotsForDate(ymd: string | null | undefined): string[];
 export function slotHour(t: string): number | null;
 export function slotMinutes(t: string | null | undefined): number;
-export function isBookableSlot(ymd: string, time: string, ctx: { today: string; nowHour: number; taken?: string[]; blackout?: string[] }): boolean;
+export function isBookableSlot(ymd: string, time: string, ctx: { today: string; nowHour?: number; taken?: string[]; blackout?: string[] }): boolean;
 export function phoenixHour(now?: Date): number;
+export function addDays(ymd: string, n: number): string;
+export function nextOpening(o: { today: string; takenByDate?: Record<string, string[]>; blackout?: string[]; days?: number }): { date: string; time: string } | null;
