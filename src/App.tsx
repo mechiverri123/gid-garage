@@ -3,6 +3,7 @@ import { Phone, Mail, Menu, X, MessageCircle, ChevronDown } from 'lucide-react';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import Lenis from 'lenis';
+import { RouteLine, ScrubText, RatchetNumber, reducedMotion } from './motion';
 import GameRedeem from './GameRedeem';
 import { pageForPath, caseStudyForPath, SERVICE_PAGES, WHY_US, HOW_IT_WORKS, AUTO_REPAIR } from '../shared/site-pages.js';
 import { OLDER_VEHICLES, WARRANTY_DISCLAIMER, WARRANTY_POLICY } from '../shared/warranty-policy.js';
@@ -188,12 +189,10 @@ function MissionStatement() {
     <section className="relative bg-dark border-t border-white/5 py-16 md:py-24 overflow-hidden">
       <div className="grid md:grid-cols-[0.85fr_1.15fr] gap-10 md:gap-12 items-center">
         <div className="pl-5 pr-5 md:pl-8 md:pr-8 lg:pl-[max(2rem,calc((100vw-80rem)/2+2rem))] lg:pr-8">
-          <Reveal>
-            <h2 className="text-white font-black uppercase leading-[0.82] tracking-tighter">
-              <span className="block text-[15vw] md:text-[6.5vw]">No Shop.</span>
-              <span className="block text-[15vw] md:text-[6.5vw] text-red-600">No Wait.</span>
-            </h2>
-          </Reveal>
+          <h2 className="text-white font-black uppercase leading-[0.82] tracking-tighter">
+            <ScrubText text="No Shop." className="block text-[15vw] md:text-[6.5vw]" />
+            <ScrubText text="No Wait." className="block text-[15vw] md:text-[6.5vw] text-red-600" />
+          </h2>
           <Reveal delay={200}>
             <div className="text-white/50 mt-8 max-w-md text-base md:text-lg leading-relaxed">
               We show up, we fix it right, you get your day back — full synthetic oil, high quality brakes, honest diagnostics, and pricing you know upfront, right at your location.
@@ -277,16 +276,31 @@ function Nav({ openBooking }: { openBooking: () => void }) {
 
 function Hero({ openBooking }: { openBooking: () => void }) {
   const reviews = useGoogleReviews();
+  const h1Ref = useRef<HTMLHeadingElement>(null);
+  const glowRef = useRef<HTMLDivElement>(null);
+  // Engine start: as "MECHANIC." lands the headline turns over (a short shake),
+  // the red glow flares, then breathes slowly like an idling engine.
+  useEffect(() => {
+    if (reducedMotion() || !h1Ref.current || !glowRef.current) return;
+    const glow = glowRef.current;
+    const tl = gsap.timeline({ delay: 1.0 });
+    tl.to(h1Ref.current, { keyframes: [{ x: -4 }, { x: 4 }, { x: -3 }, { x: 2 }, { x: 0 }], duration: 0.32, ease: 'none' }, 0)
+      .fromTo(glow, { opacity: 0.6, scale: 1 }, { opacity: 1, scale: 1.08, duration: 0.14, ease: 'power2.out' }, 0)
+      .to(glow, { opacity: 0.75, scale: 1, duration: 0.7, ease: 'power2.inOut' })
+      .add(() => { gsap.set(glow, { clearProps: 'opacity,transform' }); glow.classList.add('hero-idle'); });
+    return () => { tl.kill(); };
+  }, []);
   return (
     <section id="hero" className="relative min-h-screen flex items-center bg-dark overflow-hidden pt-28 pb-16">
       <div
+        ref={glowRef}
         className="absolute inset-0"
         style={{ background: 'radial-gradient(ellipse 80% 60% at 30% 30%, rgba(220,38,38,0.16), transparent 70%), linear-gradient(180deg, #0f0f0f 0%, #141414 45%, #0f0f0f 100%)' }}
       />
       <div className="relative z-10 w-full">
         <div className="max-w-[1500px] mx-auto px-5 md:px-10">
           <div className="text-red-400 text-xs font-bold uppercase tracking-[0.18em] md:tracking-[0.3em] mb-4 md:mb-6">Get It Done Garage · Flagstaff, AZ</div>
-          <h1 className="text-white font-black uppercase leading-[0.82] tracking-tighter">
+          <h1 ref={h1Ref} className="text-white font-black uppercase leading-[0.82] tracking-tighter">
             <AnimatedWords as="div" text="Flagstaff" className="block text-[16vw] md:text-[9.5vw]" />
             <AnimatedWords as="div" text="Mobile" className="block text-[16vw] md:text-[9.5vw]" delay={0.1} />
             <AnimatedWords as="div" text="Mechanic." className="block text-[16vw] md:text-[9.5vw] text-red-600" delay={0.2} />
@@ -480,13 +494,15 @@ function Services({ onBookService }: { onBookService: (id: string) => void }) {
         {/* Phones: scannable tiles, one tap starts a quote for that service.
             Public price policy: only oil and diagnostics show a price. */}
         <div className="sm:hidden grid grid-cols-2 gap-3">
-          {services.map(s => (
-            <button key={s.id} onClick={() => onBookService(s.id)}
-              className="text-left bg-white/5 border border-white/10 border-t-2 border-t-red-600 p-4 active:bg-white/10 flex flex-col min-h-[7.5rem]">
+          {services.map((s, i) => (
+            <Reveal key={s.id} delay={(i % 2) * 90 + Math.floor(i / 2) * 60} className="h-full">
+            <button onClick={() => onBookService(s.id)}
+              className="w-full h-full text-left bg-white/5 border border-white/10 border-t-2 border-t-red-600 p-4 active:bg-white/10 flex flex-col min-h-[7.5rem]">
               <div className="text-white font-bold text-base leading-tight">{s.title}</div>
               <div className="text-red-400 text-sm font-bold mt-1">{MOBILE_SERVICE_PRICE[s.id] ?? 'Free estimate'}</div>
               <div className="mt-auto pt-3 text-white/60 text-xs font-semibold uppercase tracking-wider">Get a quote →</div>
             </button>
+            </Reveal>
           ))}
         </div>
         <a href="/auto-repair-flagstaff" className="sm:hidden block mt-4 text-sm text-white/70 underline underline-offset-4">Everything we fix, with prices →</a>
@@ -636,12 +652,14 @@ function RealJobsStrip() {
           <div className="text-white/50 text-sm mt-1">Swipe through recent work from around Flagstaff.</div>
         </div>
         <div className="flex gap-3 overflow-x-auto snap-x snap-mandatory scroll-px-5 px-5 pb-2 [scrollbar-width:none]">
-          {shots.map(s => (
-            <figure key={s.src} className="snap-start flex-shrink-0 w-[70%] relative aspect-[4/5] overflow-hidden bg-white/5">
+          {shots.map((s, i) => (
+            <Reveal key={s.src} delay={Math.min(i, 3) * 110} className="snap-start flex-shrink-0 w-[70%]">
+            <figure className="relative aspect-[4/5] overflow-hidden bg-white/5">
               <img src={s.src.startsWith('/') ? s.src : img(s.src)} alt={s.caption} className="w-full h-full object-cover" loading="lazy" decoding="async"
-                onError={(e) => { e.currentTarget.parentElement!.style.display = 'none'; }} />
+                onError={(e) => { (e.currentTarget.closest('.reveal') as HTMLElement).style.display = 'none'; }} />
               <figcaption className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/90 to-transparent pt-8 pb-3 px-3 text-white text-xs font-semibold">{s.caption}</figcaption>
             </figure>
+            </Reveal>
           ))}
         </div>
       </div>
@@ -683,7 +701,7 @@ function StatsBar() {
         {stats.map((s, i) => (
           <Reveal key={s.label} delay={i * 80}>
             <div>
-              <div className="text-red-600 font-extrabold text-4xl md:text-5xl tracking-tight">{s.value}</div>
+              <div className="text-red-600 font-extrabold text-4xl md:text-5xl tracking-tight"><RatchetNumber value={s.value} /></div>
               <div className="text-white/50 text-xs md:text-sm uppercase tracking-widest mt-2">{s.label}</div>
             </div>
           </Reveal>
@@ -695,6 +713,17 @@ function StatsBar() {
 
 function BeforeAfterSlider() {
   const [pos, setPos] = useState(0);
+  const boxRef = useRef<HTMLDivElement>(null);
+  const dragged = useRef(false);
+  // Scrolling past it wipes the rust away; once they drag it, it's theirs.
+  useEffect(() => {
+    if (!boxRef.current || reducedMotion()) return;
+    const st = ScrollTrigger.create({
+      trigger: boxRef.current, start: 'top 85%', end: 'bottom 45%', scrub: true,
+      onUpdate: self => { if (!dragged.current) setPos(Math.round(self.progress * 100)); },
+    });
+    return () => st.kill();
+  }, []);
 
   return (
     <section className="py-20 md:py-28 bg-dark border-t border-white/5">
@@ -702,10 +731,10 @@ function BeforeAfterSlider() {
         <div className="text-center mb-10">
           <div className="text-red-500 text-xs font-bold uppercase tracking-[0.25em] mb-2">Real Work, Real Results</div>
           <div className="text-4xl md:text-5xl font-extrabold text-white tracking-tight">Before &amp; After</div>
-          <div className="text-white/50 text-base mt-3">A rotor from one of our brake jobs — drag to compare.</div>
+          <div className="text-white/50 text-base mt-3">A rotor from one of our brake jobs — scroll or drag to compare.</div>
         </div>
         <Reveal>
-          <div className="relative select-none border border-white/10 overflow-hidden bg-white/5" style={{ aspectRatio: '4 / 3' }}>
+          <div ref={boxRef} className="relative select-none border border-white/10 overflow-hidden bg-white/5" style={{ aspectRatio: '4 / 3' }}>
             <img
               src={img('rotor_before.jpg')}
               alt="Rotor before GID Garage brake service"
@@ -735,7 +764,7 @@ function BeforeAfterSlider() {
             </div>
             <input
               type="range" min={0} max={100} value={pos}
-              onChange={(e) => setPos(Number(e.target.value))}
+              onChange={(e) => { dragged.current = true; setPos(Number(e.target.value)); }}
               aria-label="Drag to compare before and after"
               className="absolute inset-0 w-full h-full opacity-0 cursor-ew-resize"
             />
@@ -796,10 +825,10 @@ function MobileReviewStrip({ openBooking }: { openBooking: () => void }) {
   return (
     <section className="md:hidden bg-dark border-t border-white/5 py-12">
       <div id="reviews-mobile" className="px-5 flex items-end justify-between gap-4 mb-5">
-        <div>
+        <Reveal>
           <div className="text-red-500 text-xs font-bold uppercase tracking-[0.25em] mb-1">Google Reviews</div>
           <div className="text-white text-2xl font-extrabold tracking-tight">Neighbors say it best</div>
-        </div>
+        </Reveal>
         {data.rating != null && (
           <div className="text-right flex-shrink-0">
             <div className="text-white text-2xl font-extrabold leading-none">{data.rating.toFixed(1)}</div>
@@ -809,11 +838,13 @@ function MobileReviewStrip({ openBooking }: { openBooking: () => void }) {
       </div>
       <div className="flex gap-3 overflow-x-auto snap-x snap-mandatory scroll-px-5 px-5 pb-2 [scrollbar-width:none]">
         {data.reviews.map((r: any, i: number) => (
-          <div key={i} className="snap-start flex-shrink-0 w-[82%] bg-white/5 border border-white/10 p-5 flex flex-col">
+          <Reveal key={i} delay={i * 110} className="snap-start flex-shrink-0 w-[82%]">
+          <div className="h-full bg-white/5 border border-white/10 p-5 flex flex-col">
             <Stars rating={r.rating} />
             <div className="text-white/80 text-sm leading-relaxed mt-3 flex-1 line-clamp-5">“{r.text}”</div>
             <div className="mt-4 text-white text-xs font-bold">{r.author} <span className="text-white/50 font-normal">· {r.relativeTime}</span></div>
           </div>
+          </Reveal>
         ))}
       </div>
       <div className="px-5 mt-6">
@@ -1678,6 +1709,7 @@ export default function App() {
       <div className="grain-overlay" />
       <Nav openBooking={openBooking} />
       <Hero openBooking={openBooking} />
+      <div className="relative overflow-x-clip">
       <MissionStatement />
       <MobileReviewStrip openBooking={openBooking} />
       <QuickQuoteForm />
@@ -1691,6 +1723,8 @@ export default function App() {
       <ServiceMap />
       <PhotoGallery />
       <BookingSection openBooking={openBooking} />
+      <RouteLine />
+      </div>
       <FAQ />
       <ContactBar openBooking={openBooking} />
       <Footer />

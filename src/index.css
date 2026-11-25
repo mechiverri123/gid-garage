@@ -74,6 +74,22 @@
   .reveal { opacity: 1; transform: none; transition: none; }
 }
 
+/* Route line (src/motion.tsx): pulsing GPS puck, and the destination pin that
+   pops in when the route reaches the booking section. */
+.route-ping { transform-box: fill-box; transform-origin: center; animation: route-ping 1.6s ease-out infinite; }
+@keyframes route-ping { from { transform: scale(0.6); opacity: 0.9; } to { transform: scale(2.2); opacity: 0; } }
+.route-pin-inner { transform-box: fill-box; transform-origin: 50% 100%; transform: scale(0) translateY(-14px); opacity: 0; transition: transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.2s; }
+.route-pin-on .route-pin-inner { transform: scale(1) translateY(0); opacity: 1; }
+@media (prefers-reduced-motion: reduce) {
+  .route-ping { animation: none; }
+  .route-pin-inner { transform: none; opacity: 1; transition: none; }
+}
+
+/* Hero "engine idle": the red glow breathes slowly after the headline lands. */
+@keyframes hero-idle { 0%, 100% { opacity: 0.75; } 50% { opacity: 1; } }
+.hero-idle { animation: hero-idle 2.6s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) { .hero-idle { animation: none; } }
+
 /* Fixed film-grain layer — sits over the whole dark theme at ~3.5% opacity via
    overlay blend so flat black reads as textured, not flat. Pure CSS, no image asset. */
 .grain-overlay {
