@@ -31,7 +31,10 @@ export function Stage({ stageRef, hold = '70vh', className = '', innerClassName 
 // is 35% of a screen below that. Measured live from the stage's position on
 // every scroll — never from positions cached at load, which go stale when
 // reviews and photos load in above and push the page down.
-export function useStageProgress(stageRef: RefObject<HTMLElement>, onProgress: (p: number) => void, lead = 0) {
+// With `anchor`, it instead starts when that element (inside the stage) is
+// 75% of the way down the screen, so it begins the moment it can be seen,
+// on any phone size.
+export function useStageProgress(stageRef: RefObject<HTMLElement>, onProgress: (p: number) => void, lead = 0, anchor?: RefObject<HTMLElement>) {
   const cb = useRef(onProgress);
   cb.current = onProgress;
   useEffect(() => {
@@ -41,8 +44,11 @@ export function useStageProgress(stageRef: RefObject<HTMLElement>, onProgress: (
     const update = () => {
       raf = 0;
       const r = el.getBoundingClientRect(), vh = window.innerHeight;
-      const run = r.height - vh + lead * vh;
-      const p = run > 0 ? Math.max(0, Math.min(1, (lead * vh - r.top) / run / 0.85)) : 1;
+      // Anchor's offset within the sticky layer: constant whether or not it's held.
+      const a = anchor?.current, layer = a?.closest('.sticky');
+      const leadPx = a && layer ? 0.75 * vh - (a.getBoundingClientRect().top - layer.getBoundingClientRect().top) : lead * vh;
+      const run = r.height - vh + leadPx;
+      const p = run > 0 ? Math.max(0, Math.min(1, (leadPx - r.top) / run / 0.85)) : 1;
       if (p !== last) { last = p; cb.current(p); }
     };
     const onScroll = () => { if (!raf) raf = requestAnimationFrame(update); };
@@ -50,7 +56,7 @@ export function useStageProgress(stageRef: RefObject<HTMLElement>, onProgress: (
     window.addEventListener('scroll', onScroll, { passive: true });
     window.addEventListener('resize', onScroll);
     return () => { window.removeEventListener('scroll', onScroll); window.removeEventListener('resize', onScroll); cancelAnimationFrame(raf); };
-  }, [stageRef, lead]);
+  }, [stageRef, lead, anchor]);
 }
 
 // ── Sparks ────────────────────────────────────────────────────────────────────
@@ -126,7 +132,7 @@ export function ScrubLines({ stageRef, lines }: { stageRef: RefObject<HTMLElemen
       c.style.opacity = String(0.12 + 0.88 * Math.max(0, Math.min(1, (lit - start) / BAND)));
       start += weight(c);
     });
-  }, 0.65);
+  }, 0, ref);
   // Start dim (only once JS is running and motion is allowed).
   useEffect(() => {
     if (reducedMotion()) return;

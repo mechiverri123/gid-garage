@@ -187,7 +187,7 @@ function AnimatedWords({ text, as: Tag = 'span', className = '', delay = 0 }: { 
 function MissionStatement() {
   const stageRef = useRef<HTMLElement>(null);
   return (
-    <Stage stageRef={stageRef} hold="80vh" className="bg-dark border-t border-white/5" innerClassName="pt-20 pb-10 md:py-24">
+    <Stage stageRef={stageRef} hold="35vh" className="bg-dark border-t border-white/5" innerClassName="pt-20 pb-10 md:py-24">
       <div className="grid md:grid-cols-[0.85fr_1.15fr] gap-10 md:gap-12 items-center">
         <div className="pl-5 pr-5 md:pl-8 md:pr-8 lg:pl-[max(2rem,calc((100vw-80rem)/2+2rem))] lg:pr-8">
           <h2 className="text-white font-black uppercase leading-[0.82] tracking-tighter">
@@ -680,7 +680,7 @@ function RealJobsStrip() {
           <div className="text-white text-2xl font-extrabold tracking-tight">Real jobs, real parts</div>
           <div className="text-white/50 text-sm mt-1">Swipe through recent work from around Flagstaff.</div>
         </div>
-        <div className="flex gap-3 overflow-x-auto snap-x snap-mandatory scroll-px-5 px-5 pb-2 [scrollbar-width:none]">
+        <div className="flex gap-3 overflow-x-auto overflow-y-hidden overscroll-x-contain snap-x snap-mandatory scroll-px-5 px-5 pb-2 [scrollbar-width:none]">
           {shots.map((s, i) => (
             <Reveal key={s.src} delay={Math.min(i, 3) * 110} className="snap-start flex-shrink-0 w-[70%]">
             <figure className="relative aspect-[4/5] overflow-hidden bg-white/5">
@@ -877,7 +877,7 @@ function MobileReviewStrip({ openBooking }: { openBooking: () => void }) {
           </div>
         )}
       </div>
-      <div className="flex gap-3 overflow-x-auto snap-x snap-mandatory scroll-px-5 px-5 pb-2 [scrollbar-width:none]">
+      <div className="flex gap-3 overflow-x-auto overflow-y-hidden overscroll-x-contain snap-x snap-mandatory scroll-px-5 px-5 pb-2 [scrollbar-width:none]">
         {data.reviews.map((r: any, i: number) => (
           <Reveal key={i} delay={i * 110} className="snap-start flex-shrink-0 w-[82%]">
           <div className="h-full bg-white/5 border border-white/10 p-5 flex flex-col">
