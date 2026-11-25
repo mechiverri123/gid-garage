@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef, lazy, Suspense } from 'react';
-import { Phone, Mail, Menu, X, MessageCircle } from 'lucide-react';
+import { Phone, Mail, Menu, X, MessageCircle, ChevronDown } from 'lucide-react';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import Lenis from 'lenis';
@@ -302,22 +302,16 @@ function Hero({ openBooking }: { openBooking: () => void }) {
               </div>
             </Reveal>
           </div>
-          {/* Phones: quiet proof under the buttons — the real Google rating (row
-              keeps its height while it loads, so nothing jumps) and the three
-              things that take the risk out of calling. */}
+          {/* Phones: one clear, centered invitation to the reviews (social proof
+              before asking for the booking). The rating line holds its height
+              while it loads, so nothing jumps. */}
           <Reveal delay={950}>
-            <div className="md:hidden mt-8 pt-5 border-t border-white/10">
-              <a href="#reviews-mobile" className="flex items-baseline gap-2 min-h-[1.5rem]">
-                {reviews?.rating != null && (<>
-                  <span className="text-yellow-400 tracking-wider">★★★★★</span>
-                  <span className="text-white font-bold">{reviews.rating.toFixed(1)}</span>
-                  <span className="text-white/50 text-sm">from {reviews.totalReviews} Google reviews</span>
-                </>)}
-              </a>
-              <div className="mt-1.5 text-white/55 text-[13px] font-medium whitespace-nowrap">
-                Free estimates <span className="text-red-600">·</span> 30-day warranty <span className="text-red-600">·</span> Open 7 days
-              </div>
-            </div>
+            <a href="#reviews-mobile" className="md:hidden mt-10 flex flex-col items-center text-center active:opacity-70">
+              <span className="text-yellow-400 text-2xl tracking-[0.2em] leading-none">★★★★★</span>
+              <span className="mt-3 text-white text-lg font-bold">See what neighbors have to say</span>
+              <span className="mt-1 text-white/60 text-sm min-h-[1.25rem]">{reviews?.rating != null ? `${reviews.rating.toFixed(1)} stars · ${reviews.totalReviews} Google reviews` : ''}</span>
+              <ChevronDown className="mt-2 w-6 h-6 text-red-500 animate-bounce" aria-hidden="true" />
+            </a>
           </Reveal>
         </div>
       </div>
@@ -796,12 +790,12 @@ function useGoogleReviews() {
 
 // Phones only: proof right after the opening pitch, swiped sideways, instead
 // of 11 screens down. Desktop keeps the full section further down.
-function MobileReviewStrip() {
+function MobileReviewStrip({ openBooking }: { openBooking: () => void }) {
   const data = useGoogleReviews();
   if (!data) return null;
   return (
-    <section id="reviews-mobile" className="md:hidden bg-dark border-t border-white/5 py-12 scroll-mt-16">
-      <div className="px-5 flex items-end justify-between gap-4 mb-5">
+    <section className="md:hidden bg-dark border-t border-white/5 py-12">
+      <div id="reviews-mobile" className="px-5 flex items-end justify-between gap-4 mb-5">
         <div>
           <div className="text-red-500 text-xs font-bold uppercase tracking-[0.25em] mb-1">Google Reviews</div>
           <div className="text-white text-2xl font-extrabold tracking-tight">Neighbors say it best</div>
@@ -822,9 +816,10 @@ function MobileReviewStrip() {
           </div>
         ))}
       </div>
-      <div className="px-5 mt-4">
-        <a href={GBP_REVIEW_URL} target="_blank" rel="noopener noreferrer" className="text-red-400 text-sm font-bold underline underline-offset-4">
-          Read all {data.totalReviews ?? ''} reviews on Google →
+      <div className="px-5 mt-6">
+        <button onClick={openBooking} className="btn-primary w-full text-sm py-4">Book Now</button>
+        <a href={GBP_REVIEW_URL} target="_blank" rel="noopener noreferrer" className="block mt-4 text-center text-white/60 text-sm underline underline-offset-4">
+          Read all {data.totalReviews ?? ''} reviews on Google
         </a>
       </div>
     </section>
@@ -1684,7 +1679,7 @@ export default function App() {
       <Nav openBooking={openBooking} />
       <Hero openBooking={openBooking} />
       <MissionStatement />
-      <MobileReviewStrip />
+      <MobileReviewStrip openBooking={openBooking} />
       <QuickQuoteForm />
       <Services onBookService={handleBookService} />
       <AutoRepair />
